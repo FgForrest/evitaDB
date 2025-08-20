@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,9 +37,9 @@ public record PersistedStoragePartKey(
 
 	@Override
 	public int compareTo(PersistedStoragePartKey o) {
-		final int typeComparison = Integer.compare(System.identityHashCode(containerClass), System.identityHashCode(o.containerClass));
+		final int typeComparison = Integer.compare(System.identityHashCode(this.containerClass), System.identityHashCode(o.containerClass));
 		if (typeComparison == 0) {
-			return Long.compare(primaryKey, o.primaryKey);
+			return Long.compare(this.primaryKey, o.primaryKey);
 		} else {
 			return typeComparison;
 		}

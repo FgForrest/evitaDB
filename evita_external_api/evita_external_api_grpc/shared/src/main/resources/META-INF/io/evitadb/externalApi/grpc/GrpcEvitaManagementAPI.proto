@@ -21,8 +21,8 @@ message GrpcEvitaServerStatusResponse {
   string instanceId = 4;
   // Number of corrupted catalogs
   int32 catalogsCorrupted = 5;
-  // Number of catalogs that are ok
-  int32 catalogsOk = 6;
+  // Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
+  int32 catalogsOk = 6 [deprecated = true];
   // Health problems
   repeated GrpcHealthProblem healthProblems = 7;
   // Overall readiness of the evitaDB server
@@ -31,6 +31,14 @@ message GrpcEvitaServerStatusResponse {
   map<string, GrpcApiStatus> api = 9;
   // Flag indicating that the server is in read-only mode
   bool readOnly = 10;
+  // Number of catalogs that are active and has been successfully loaded
+  int32 catalogsActive = 11;
+  // Number of inactive catalogs
+  int32 catalogsInactive = 12;
+  // The version of the current evitaDB server engine state (change in engine state).
+  int64 engineVersion = 13;
+  // The date and time when the current engine version was introduced (last engine level change occurred).
+  GrpcOffsetDateTime introducedAt = 14;
 }
 
 // Status of the external API
@@ -258,6 +266,7 @@ message GrpcReservedKeywordsResponse {
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
 service EvitaManagementService {
+
   // Procedure used to obtain server status.
   rpc ServerStatus(google.protobuf.Empty) returns (GrpcEvitaServerStatusResponse);
   // Procedure used to obtain server configuration.

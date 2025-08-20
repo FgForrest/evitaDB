@@ -77,7 +77,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 @RequiredArgsConstructor
 public class DataDeserializer {
-
 	private final OpenAPI openApi;
 	private final Map<String, Class<? extends Enum<?>>> enumMapping;
 
@@ -91,12 +90,12 @@ public class DataDeserializer {
 	@Nullable
 	public Object deserializeValue(@Nonnull Schema schema, @Nonnull String[] data) {
 		if (data.length == 0) {
-			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
+			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi));
 			return Array.newInstance(schemaClass, 0);
 		}
 		if (OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			if(OpenApiConstants.FORMAT_RANGE.equals(schema.getFormat())) {
-				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi)), data, schema.getName());
+				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi)), data, schema.getName());
 			}
 			return deserializeArray(schema, data);
 		} else {
@@ -112,12 +111,12 @@ public class DataDeserializer {
 	 */
 	public Object deserializeValue(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if((jsonNode.isArray() && jsonNode.isEmpty()) || jsonNode.asText() == null) {
-			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
+			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi));
 			return Array.newInstance(schemaClass, 0);
 		}
 		if(OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			if(OpenApiConstants.FORMAT_RANGE.equals(schema.getFormat())) {
-				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi)), jsonNode, schema.getName());
+				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi)), jsonNode, schema.getName());
 			}
 			return deserializeArray(schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 		} else {
@@ -132,7 +131,7 @@ public class DataDeserializer {
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public <T extends Serializable> T deserializeValue(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
+	public static <T extends Serializable> T deserializeValue(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
 		if (value == null || value.isNull()) {
 			return null;
 		}
@@ -208,7 +207,6 @@ public class DataDeserializer {
 					return deserializeTree(possibleSchema, jsonNode);
 				} catch (RestInvalidArgumentException e) {
 					// not the schema the input data used, lets try another one
-					continue;
 				}
 			}
 
@@ -229,7 +227,7 @@ public class DataDeserializer {
 
 			final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
 			for (JsonNode node : arrayNode) {
-				objects.add(deserializeTree(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), node));
+				objects.add(deserializeTree(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi), node));
 			}
 			return objects;
 		} else if (schema.getType() == null || OpenApiConstants.TYPE_OBJECT.equals(schema.getType())) {
@@ -248,7 +246,7 @@ public class DataDeserializer {
 				final String fieldName = namesIterator.next();
 				final Schema<?> propertySchema = schema.getProperties().get(fieldName);
 				if (propertySchema != null) {
-					final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openApi);
+					final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, this.openApi);
 					dataMap.put(fieldName, deserializeTree(targetPropertySchema, objectNode.get(fieldName)));
 				} else {
 					throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
@@ -267,16 +265,30 @@ public class DataDeserializer {
 		}
 	}
 
-
-
+	/**
+	 * Deserializes the given data string into an object of the type specified by the provided schema.
+	 *
+	 * @param schema the schema that defines the type to which the data should be deserialized
+	 * @param data the string representation of the data to be deserialized
+	 * @return the deserialized object based on the provided schema and data
+	 */
 	@Nullable
 	@SuppressWarnings({"rawtypes"})
 	private Object deserializeValue(@Nonnull Schema schema, @Nonnull String data) {
 		return deserializeValue(resolveDataClass(schema), data);
 	}
 
+	/**
+	 * Deserializes a string representation of data into an object of the specified type.
+	 *
+	 * @param <T> the type of the object to be deserialized, must extend Serializable
+	 * @param requestedType the class of the type to which the data should be deserialized, must not be null
+	 * @param data the string representation of the data to be deserialized, must not be null
+	 * @return an instance of the specified type containing the deserialized data
+	 * @throws NullPointerException if the deserialization result is null (when applicable)
+	 */
 	@Nullable
-	private <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
+	private static <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
 		if (requestedType.isEnum()) {
 			return deserializeEnum(requestedType, data);
 		} else if (Expression.class.isAssignableFrom(requestedType)) {
@@ -287,20 +299,35 @@ public class DataDeserializer {
 		}
 	}
 
-
+	/**
+	 * Deserializes an array of string data into an array of objects of the specified type defined in the schema.
+	 *
+	 * @param schema the schema defining the type of the array's elements
+	 * @param data the array of string data to deserialize
+	 * @return an array of objects deserialized from the input string data based on the provided schema
+	 */
 	@Nonnull
 	private Object[] deserializeArray(@Nonnull Schema<?> schema, @Nonnull String[] data) {
-		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
+		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi));
 		final Object[] dataArray = (Object[]) Array.newInstance(arrayClass, data.length);
 		for (int i = 0; i < data.length; i++) {
-			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), data[i]);
+			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), this.openApi), data[i]);
 		}
 		return dataArray;
 	}
 
+	/**
+	 * Deserializes an array of objects from an {@link ArrayNode} into an array of the specified target class type.
+	 *
+	 * @param <T> the type of elements in the deserialized array, which extends {@link Serializable}
+	 * @param targetClass the class type of the elements in the resulting array, must not be null
+	 * @param arrayNode the {@link ArrayNode} containing the data to deserialize, must not be null
+	 * @return an array of type {@code T}, containing the deserialized elements
+	 * @throws RestInternalError if deserialization of elements into the target class is not supported
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
-	private <T extends Serializable> T[] deserializeArray(@Nonnull Class<T> targetClass, @Nonnull ArrayNode arrayNode) {
+	private static <T extends Serializable> T[] deserializeArray(@Nonnull Class<T> targetClass, @Nonnull ArrayNode arrayNode) {
 		final Object deserialized = Array.newInstance(targetClass, arrayNode.size());
 		for (int i = 0; i < arrayNode.size(); i++) {
 			 Array.set(deserialized, i, deserializeValue(targetClass, arrayNode.get(i)));
@@ -308,9 +335,26 @@ public class DataDeserializer {
 		return (T[]) deserialized;
 	}
 
-
+	/**
+	 * Deserializes a JSON node representing a range into the specified target class type.
+	 * The range value must be represented as an array of two elements.
+	 *
+	 * @param targetClass the class type of the target object to deserialize into. It must be a type that extends {@link Serializable}.
+	 * @param value the JSON node representing the range, which must be an array with exactly two elements.
+	 * @param attributeName the name of the attribute being deserialized, used for error messages.
+	 * @param <T> the type of the object to be returned, which extends {@link Serializable}.
+	 *
+	 * @return the deserialized object of the specified type representing the range.
+	 *
+	 * @throws RestInternalError if the input value is not a valid array of two elements or
+	 *                           if the target class type deserialization is not implemented.
+	 */
 	@Nonnull
-	private <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull JsonNode value, @Nonnull String attributeName) {
+	private static <T extends Serializable> T deserializeRange(
+		@Nonnull Class<T> targetClass,
+		@Nonnull JsonNode value,
+		@Nonnull String attributeName
+	) {
 		if (value instanceof ArrayNode values && values.size() == 2) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
 				return deserializeRange(targetClass, deserializeValue(OffsetDateTime.class, values.get(0)), deserializeValue(OffsetDateTime.class, values.get(1)), attributeName);
@@ -330,8 +374,22 @@ public class DataDeserializer {
 		throw new RestInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
 	}
 
+	/**
+	 * Deserializes a range object from an array of two string values based on the target class type.
+	 *
+	 * @param targetClass the class of the target type to which the range is to be deserialized; must not be null
+	 * @param values an array of two string values representing the range; must not be null and must contain exactly two elements
+	 * @param attributeName the name of the attribute to provide context for error handling; must not be null
+	 * @param <T> the type parameter that extends Serializable and represents the target type
+	 * @return an instance of the target type representing the deserialized range
+	 * @throws RestInternalError if the target class is unsupported or if the input array does not contain exactly two elements
+	 */
 	@Nonnull
-	private <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull String[] values, @Nonnull String attributeName) {
+	private static <T extends Serializable> T deserializeRange(
+		@Nonnull Class<T> targetClass,
+		@Nonnull String[] values,
+		@Nonnull String attributeName
+	) {
 		if (values.length == 2) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
 				return deserializeRange(targetClass, deserializeValue(OffsetDateTime.class, values[0]), deserializeValue(OffsetDateTime.class, values[1]), attributeName);
@@ -352,9 +410,24 @@ public class DataDeserializer {
 		throw new RestInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
 	}
 
+	/**
+	 * Deserializes a range object from "from" and "to" values based on the target class type.
+	 *
+	 * @param targetClass the class of the target type to which the range is to be deserialized
+	 * @param from the starting value of the range (nullable)
+	 * @param to the ending value of the range (nullable)
+	 * @param attributeName the name of the attribute to provide context for error handling
+	 * @return an instance of the target class representing the deserialized range
+	 * @throws RestInternalError if the target class is unsupported or both "from" and "to" are null
+	 */
 	@Nonnull
 	@SuppressWarnings("unchecked")
-	private <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nullable Object from, @Nullable Object to, @Nonnull String attributeName) {
+	private static <T extends Serializable> T deserializeRange(
+		@Nonnull Class<T> targetClass,
+		@Nullable Object from,
+		@Nullable Object to,
+		@Nonnull String attributeName
+	) {
 		if (from != null && to != null) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
 				return (T) DateTimeRange.between((OffsetDateTime) from, (OffsetDateTime) to);
@@ -407,14 +480,30 @@ public class DataDeserializer {
 		throw new RestInternalError("Both values for range data type are null which is not allowed. Attribute: " + attributeName);
 	}
 
-
+	/**
+	 * Deserializes a JSON node into a byte value. The method extracts the text content
+	 * from the given JSON node and attempts to deserialize it as a single byte.
+	 *
+	 * @param value the JSON node containing the value to be deserialized, must not be null
+	 * @return the deserialized byte value, or null if the input cannot be deserialized
+	 */
 	@Nullable
-	private Byte deserializeByteNumber(@Nonnull JsonNode value) {
+	private static Byte deserializeByteNumber(@Nonnull JsonNode value) {
 		return deserializeByteNumber(value.asText());
 	}
 
+	/**
+	 * Deserializes a Base64-encoded string into a single byte value.
+	 * This method decodes the provided string and ensures that the resulting byte array
+	 * contains exactly one byte. If the byte array is empty, the method returns null.
+	 * If the byte array has more than one byte, an exception is thrown.
+	 *
+	 * @param value the Base64-encoded string to be deserialized, must not be null
+	 * @return the deserialized byte value, or null if the input is encoded as an empty byte array
+	 * @throws RestQueryResolvingInternalError if the decoded byte array contains more than one byte
+	 */
 	@Nullable
-	private Byte deserializeByteNumber(@Nonnull String value) {
+	private static Byte deserializeByteNumber(@Nonnull String value) {
 		final byte[] decoded = Base64.getDecoder().decode(value);
 		if(decoded.length == 1) {
 			return decoded[0];
@@ -425,27 +514,60 @@ public class DataDeserializer {
 		}
 	}
 
-
+	/**
+	 * Deserializes a JSON node into an enum constant of the specified target class.
+	 *
+	 * @param targetClass the class of the enum to which the value should be deserialized, must not be null
+	 * @param value the JSON node containing the string representation of the enum constant, must not be null
+	 * @param <T> the target type that extends Serializable
+	 * @param <E> the enum type of the target class
+	 * @return the deserialized enum constant of the specified type
+	 * @throws IllegalArgumentException if the provided value does not match any of the constants of the target enum
+	 */
 	@Nonnull
-	private <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull JsonNode value) {
+	private static <T extends Serializable, E extends Enum<E>> T deserializeEnum(
+		@Nonnull Class<T> targetClass,
+		@Nonnull JsonNode value
+	) {
 		//noinspection unchecked
 		return (T) Enum.valueOf((Class<E>) targetClass, value.asText());
 	}
 
+	/**
+	 * Deserializes a string value into an enum constant of the specified target class.
+	 *
+	 * @param targetClass the class of the enum to which the value should be deserialized, must not be null
+	 * @param value the string representation of the enum constant to be deserialized, must not be null
+	 * @return the deserialized enum constant of the specified type
+	 * @param <T> the target type that extends Serializable
+	 * @param <E> the enum type of the target class
+	 * @throws IllegalArgumentException if the specified value does not match any of the constants of the target enum
+	 */
 	@Nonnull
-	private <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull String value) {
+	private static <T extends Serializable, E extends Enum<E>> T deserializeEnum(
+		@Nonnull Class<T> targetClass,
+		@Nonnull String value
+	) {
 		//noinspection unchecked
 		return (T) Enum.valueOf((Class<E>) targetClass, value);
 	}
 
-
+	/**
+	 * Resolves the Java class corresponding to the given schema's type and format.
+	 * This method maps OpenAPI schema definitions for primitive and standard types
+	 * to equivalent Java classes that implement {@link Serializable}.
+	 *
+	 * @param schema the OpenAPI schema for which the corresponding data class needs to be resolved; must not be null
+	 * @return the resolved Java class that corresponds to the specified schema; never null
+	 * @throws RestInternalError if the schema's type or format is unknown or unsupported
+	 */
 	@Nonnull
 	@SuppressWarnings("rawtypes")
 	private Class<? extends Serializable> resolveDataClass(@Nonnull Schema schema) {
 		if(OpenApiConstants.TYPE_STRING.equals(schema.getType())) {
 			if(schema.getFormat() == null) {
 				if (schema.getEnum() != null) {
-					final Class<? extends Enum<?>> enumTemplate = enumMapping.get(schema.getName());
+					final Class<? extends Enum<?>> enumTemplate = this.enumMapping.get(schema.getName());
 					Assert.isPremiseValid(
 						enumTemplate != null,
 						() -> new RestInternalError("No Java enum for enum `" + schema.getName() + "` found.")
@@ -470,15 +592,13 @@ public class DataDeserializer {
 			};
 		}
 		if(OpenApiConstants.TYPE_INTEGER.equals(schema.getType())) {
-			if(schema.getFormat().equals(OpenApiConstants.FORMAT_INT_32)) {
-				return Integer.class;
-			} else if(schema.getFormat().equals(OpenApiConstants.FORMAT_INT_16)) {
-				return Short.class;
-			} else if(schema.getFormat().equals(OpenApiConstants.FORMAT_BYTE)) {
-				return Byte.class;
-			} else {
-				throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
-			}
+			return switch (schema.getFormat()) {
+				case OpenApiConstants.FORMAT_INT_32 -> Integer.class;
+				case OpenApiConstants.FORMAT_INT_16 -> Short.class;
+				case OpenApiConstants.FORMAT_BYTE -> Byte.class;
+				default ->
+					throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
+			};
 		}
 		if(OpenApiConstants.TYPE_BOOLEAN.equals(schema.getType())) {
 			return Boolean.class;
@@ -486,8 +606,18 @@ public class DataDeserializer {
 		throw new RestInternalError("Unknown schema type " + schema.getType());
 	}
 
+	/**
+	 * Extracts the string values from the specified JSON node, assuming the node is of type {@link ArrayNode}.
+	 * Each element in the array is converted to its string representation.
+	 * If the provided JSON node is not an {@link ArrayNode}, a {@link RestInvalidArgumentException} is thrown.
+	 *
+	 * @param jsonNode the JSON node from which string values need to be extracted, must not be null
+	 * @param attributeName the name of the attribute (used for error handling in case of invalid JSON node type), must not be null
+	 * @return an array of strings containing text values of the elements in the provided {@link ArrayNode}
+	 * @throws RestInvalidArgumentException if the provided JSON node is not an instance of {@link ArrayNode}
+	 */
 	@Nonnull
-	private String[] getNodeValuesAsStringArray(@Nonnull JsonNode jsonNode, @Nonnull String attributeName) {
+	private static String[] getNodeValuesAsStringArray(@Nonnull JsonNode jsonNode, @Nonnull String attributeName) {
 		if(jsonNode instanceof ArrayNode arrayNode) {
 			final String[] strings = new String[arrayNode.size()];
 			for (int i = 0; i < arrayNode.size(); i++) {

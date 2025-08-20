@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.parent;
 
 import io.evitadb.api.exception.InvalidMutationException;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -32,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.dataType.ClassifierType;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 

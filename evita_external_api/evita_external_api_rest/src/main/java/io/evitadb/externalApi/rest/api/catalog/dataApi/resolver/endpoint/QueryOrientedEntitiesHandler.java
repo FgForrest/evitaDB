@@ -37,7 +37,6 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
@@ -89,12 +88,12 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext.getCatalogSchema());
 		this.orderConstraintResolver = new OrderConstraintResolver(
 			restApiHandlingContext.getCatalogSchema(),
-			new AtomicReference<>(filterConstraintResolver)
+			new AtomicReference<>(this.filterConstraintResolver)
 		);
 		this.requireConstraintResolver = new RequireConstraintResolver(
 			restApiHandlingContext.getCatalogSchema(),
-			new AtomicReference<>(filterConstraintResolver),
-			new AtomicReference<>(orderConstraintResolver)
+			new AtomicReference<>(this.filterConstraintResolver),
+			new AtomicReference<>(this.orderConstraintResolver)
 		);
 	}
 
@@ -141,18 +140,18 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 					final Head head = enrichHeadWithInternalConstraints(
 						executionContext,
 						rawHead
-							.map(container -> (Head) headConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.HEAD.name(), container))
+							.map(container -> (Head) this.headConstraintResolver.resolve(this.restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.HEAD.name(), container))
 							.orElse(null)
 					);
 					final FilterBy filterBy = rawFilterBy
-						.map(container -> (FilterBy) filterConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.FILTER_BY.name(), container))
+						.map(container -> (FilterBy) this.filterConstraintResolver.resolve(this.restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.FILTER_BY.name(), container))
 						.map(it -> addLocaleIntoFilterByWhenUrlPathLocalized(executionContext, it))
 						.orElse(null);
 					final OrderBy orderBy = rawOrderBy
-						.map(container -> (OrderBy) orderConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.ORDER_BY.name(), container))
+						.map(container -> (OrderBy) this.orderConstraintResolver.resolve(this.restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.ORDER_BY.name(), container))
 						.orElse(null);
 					final Require require = rawRequire
-						.map(container -> (Require) requireConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.REQUIRE.name(), container))
+						.map(container -> (Require) this.requireConstraintResolver.resolve(this.restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.REQUIRE.name(), container))
 						.orElse(null);
 
 					return query(
@@ -166,10 +165,10 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	}
 
 	private void trackSourceQuery(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull String rawQuery, @Nullable Exception parsingError) {
-		if (restHandlingContext.getEvita().getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled()) {
+		if (this.restHandlingContext.getEvita().getConfiguration().server().trafficRecording().sourceQueryTrackingEnabled()) {
 			if (executionContext.session() instanceof EvitaInternalSessionContract evitaInternalSession) {
 				try {
-					final String serializedSourceQuery = restHandlingContext.getObjectMapper().writeValueAsString(rawQuery);
+					final String serializedSourceQuery = this.restHandlingContext.getObjectMapper().writeValueAsString(rawQuery);
 					final UUID recordingId = evitaInternalSession.recordSourceQuery(
 						serializedSourceQuery, RestQueryLabels.REST_SOURCE_TYPE_VALUE, parsingError != null ? parsingError.getMessage() : null
 					);
@@ -193,7 +192,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 	                                                 @Nullable Head head) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
 
-		headConstraints.add(collection(restHandlingContext.getEntityType()));
+		headConstraints.add(collection(this.restHandlingContext.getEntityType()));
 		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, RestQueryLabels.REST_SOURCE_TYPE_VALUE));
 
 		executionContext.trafficSourceQueryRecordingId()
@@ -215,19 +214,19 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 
 		//noinspection rawtypes
 		final Schema rootSchema = (Schema) SchemaUtils.getTargetSchema(
-				restHandlingContext.getEndpointOperation()
+				this.restHandlingContext.getEndpointOperation()
 					.getRequestBody()
 					.getContent()
 					.get(MimeTypes.APPLICATION_JSON)
 					.getSchema(),
-				restHandlingContext.getOpenApi()
+				this.restHandlingContext.getOpenApi()
 			)
 			.getProperties()
 			.get(key);
 
 		try {
-			return dataDeserializer.deserializeTree(
-				SchemaUtils.getTargetSchema(rootSchema, restHandlingContext.getOpenApi()),
+			return this.dataDeserializer.deserializeTree(
+				SchemaUtils.getTargetSchema(rootSchema, this.restHandlingContext.getOpenApi()),
 				(JsonNode) value
 			);
 		} catch (Exception e) {
@@ -237,7 +236,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 
 	@Nonnull
 	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull RestEndpointExecutionContext executionContext, @Nullable FilterBy filterBy) {
-		if (restHandlingContext.isLocalized()) {
+		if (this.restHandlingContext.isLocalized()) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {

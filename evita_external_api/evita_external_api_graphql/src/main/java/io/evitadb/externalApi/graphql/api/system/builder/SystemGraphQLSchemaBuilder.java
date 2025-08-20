@@ -31,16 +31,18 @@ import graphql.schema.PropertyDataFetcher;
 import graphql.schema.TypeResolver;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
-import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
@@ -57,11 +59,15 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.De
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.SwitchCatalogToAliveStateMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeSystemCaptureBodyDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnSystemChangeSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+
+import static graphql.schema.GraphQLNonNull.nonNull;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building evitaDB management manipulation schema.
@@ -78,11 +84,11 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	private static final PropertyDataFetcher<Map<NamingConvention, String>> CATALOG_NAME_VARIANTS_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants());
 	private static final PropertyDataFetcher<Boolean> CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER = PropertyDataFetcher.fetching(CatalogContract::supportsTransaction);
-	private static final PropertyDataFetcher<Boolean> CATALOG_CORRUPTED_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
+	private static final PropertyDataFetcher<Boolean> CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> false);
 
-	private static final PropertyDataFetcher<String> CORRUPTED_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCatalogStoragePath().toString());
-	private static final PropertyDataFetcher<String> CORRUPTED_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCause().toString());
-	private static final PropertyDataFetcher<Boolean> CORRUPTED_CATALOG_CORRUPTED_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
+	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getCatalogStoragePath().toString());
+	private static final PropertyDataFetcher<String> UNUSABLE_CATALOG_CAUSE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((UnusableCatalog) it).getRepresentativeException().toString());
+	private static final PropertyDataFetcher<Boolean> UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER = PropertyDataFetcher.fetching(it -> true);
 
 	@Nonnull
 	private final Evita evita;
@@ -95,133 +101,151 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Override
     @Nonnull
 	public GraphQLSchema build() {
-		buildingContext.registerType(buildNameVariantsObject());
+		this.buildingContext.registerType(buildNameVariantsObject());
 
 		final GraphQLObjectType catalogObject = buildCatalogObject();
-		buildingContext.registerType(catalogObject);
-		final GraphQLObjectType corruptedCatalogObject = buildCorruptedCatalogObject();
-		buildingContext.registerType(corruptedCatalogObject);
-		buildingContext.registerType(buildCatalogUnion(catalogObject, corruptedCatalogObject));
+		this.buildingContext.registerType(catalogObject);
+		final GraphQLObjectType unusableCatalogObject = buildUnusableCatalogObject();
+		this.buildingContext.registerType(unusableCatalogObject);
+		this.buildingContext.registerType(buildCatalogUnion(catalogObject, unusableCatalogObject));
 
-		buildingContext.registerQueryField(buildLivenessField());
-		buildingContext.registerQueryField(buildCatalogField());
-		buildingContext.registerQueryField(buildCatalogsField());
+		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 
-		buildingContext.registerMutationField(buildCreateCatalogField());
-		buildingContext.registerMutationField(buildSwitchCatalogToAliveStateField());
-		buildingContext.registerMutationField(buildRenameCatalogField());
-		buildingContext.registerMutationField(buildReplaceCatalogField());
-		buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
+		this.buildingContext.registerQueryField(buildLivenessField());
+		this.buildingContext.registerQueryField(buildCatalogField());
+		this.buildingContext.registerQueryField(buildCatalogsField());
 
-		return buildingContext.buildGraphQLSchema();
+		this.buildingContext.registerMutationField(buildCreateCatalogField());
+		this.buildingContext.registerMutationField(buildSwitchCatalogToAliveStateField());
+		this.buildingContext.registerMutationField(buildRenameCatalogField());
+		this.buildingContext.registerMutationField(buildReplaceCatalogField());
+		this.buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
+
+		this.buildingContext.registerSubscriptionField(buildOnSystemChangeField());
+
+		return this.buildingContext.buildGraphQLSchema();
 	}
 
 
 	@Nonnull
 	private GraphQLObjectType buildNameVariantsObject() {
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.CAMEL_CASE,
 			CAMEL_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.PASCAL_CASE,
 			PASCAL_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.SNAKE_CASE,
 			SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.UPPER_SNAKE_CASE,
 			UPPER_SNAKE_CASE_VARIANT_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			NameVariantsDescriptor.THIS,
 			NameVariantsDescriptor.KEBAB_CASE,
 			KEBAB_CASE_VARIANT_DATA_FETCHER
 		);
 
 		return NameVariantsDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.build();
 	}
 
 	@Nonnull
 	private GraphQLObjectType buildCatalogObject() {
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.NAME_VARIANTS,
 			CATALOG_NAME_VARIANTS_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.SUPPORTS_TRANSACTION,
 			CATALOG_SUPPORTS_TRANSACTION_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
+		this.buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
-			CatalogDescriptor.CORRUPTED,
-			CATALOG_CORRUPTED_DATA_FETCHER
+			CatalogDescriptor.UNUSABLE,
+			CATALOG_UNUSABLE_DATA_FETCHER
 		);
 
-		return CatalogDescriptor.THIS.to(objectBuilderTransformer).build();
+		return CatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildCorruptedCatalogObject() {
-		buildingContext.registerDataFetcher(
-			CorruptedCatalogDescriptor.THIS,
-			CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH,
-			CORRUPTED_CATALOG_STORAGE_PATH_DATA_FETCHER
+	private GraphQLObjectType buildUnusableCatalogObject() {
+		this.buildingContext.registerDataFetcher(
+			UnusableCatalogDescriptor.THIS,
+			UnusableCatalogDescriptor.CATALOG_STORAGE_PATH,
+			UNUSABLE_CATALOG_STORAGE_PATH_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
-			CorruptedCatalogDescriptor.THIS,
-			CorruptedCatalogDescriptor.CAUSE,
-			CORRUPTED_CATALOG_CAUSE_DATA_FETCHER
+		this.buildingContext.registerDataFetcher(
+			UnusableCatalogDescriptor.THIS,
+			UnusableCatalogDescriptor.CAUSE,
+			UNUSABLE_CATALOG_CAUSE_DATA_FETCHER
 		);
-		buildingContext.registerDataFetcher(
-			CorruptedCatalogDescriptor.THIS,
-			CorruptedCatalogDescriptor.CORRUPTED,
-			CORRUPTED_CATALOG_CORRUPTED_DATA_FETCHER
+		this.buildingContext.registerDataFetcher(
+			UnusableCatalogDescriptor.THIS,
+			UnusableCatalogDescriptor.UNUSABLE,
+			UNUSABLE_CATALOG_UNUSABLE_DATA_FETCHER
 		);
 
-		return CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build();
+		return UnusableCatalogDescriptor.THIS.to(this.objectBuilderTransformer).build();
 	}
 
 	@Nonnull
 	private GraphQLUnionType buildCatalogUnion(@Nonnull GraphQLObjectType catalogObject,
-	                                           @Nonnull GraphQLObjectType corruptedCatalogObject) {
+	                                           @Nonnull GraphQLObjectType unusableCatalogObject) {
 		final GraphQLUnionType catalogUnion = CatalogUnionDescriptor.THIS
-			.to(unionBuilderTransformer)
+			.to(this.unionBuilderTransformer)
 			.possibleTypes(catalogObject)
-			.possibleType(corruptedCatalogObject)
+			.possibleType(unusableCatalogObject)
 			.build();
 
 		final TypeResolver catalogUnionResolver = env -> {
-			if (env.getObject() instanceof CorruptedCatalog) {
-				return corruptedCatalogObject;
+			if (env.getObject() instanceof UnusableCatalog) {
+				return unusableCatalogObject;
 			} else {
 				return catalogObject;
 			}
 		};
-		buildingContext.registerTypeResolver(catalogUnion, catalogUnionResolver);
+		this.buildingContext.registerTypeResolver(catalogUnion, catalogUnionResolver);
 
 		return catalogUnion;
 	}
 
 	@Nonnull
+	private GraphQLObjectType buildChangeSystemCaptureObject() {
+		this.buildingContext.registerDataFetcher(
+			ChangeSystemCaptureDescriptor.THIS,
+			ChangeSystemCaptureDescriptor.BODY,
+			new ChangeSystemCaptureBodyDataFetcher()
+		);
+
+		return ChangeSystemCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.field(ChangeSystemCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
+			.build();
+	}
+
+	@Nonnull
 	private BuiltFieldDescriptor buildLivenessField() {
 		return new BuiltFieldDescriptor(
-			SystemRootDescriptor.LIVENESS.to(staticEndpointBuilderTransformer).build(),
+			SystemRootDescriptor.LIVENESS.to(this.staticEndpointBuilderTransformer).build(),
 			new AsyncDataFetcher(
 				LivenessDataFetcher.getInstance(),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -229,17 +253,17 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildCatalogField() {
 		final GraphQLFieldDefinition catalogField = SystemRootDescriptor.CATALOG
-			.to(staticEndpointBuilderTransformer)
-			.argument(CatalogQueryHeaderDescriptor.NAME.to(argumentBuilderTransformer))
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(CatalogQueryHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			catalogField,
 			new AsyncDataFetcher(
-				new CatalogDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new CatalogDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -247,12 +271,12 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildCatalogsField() {
 		return new BuiltFieldDescriptor(
-			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
+			SystemRootDescriptor.CATALOGS.to(this.staticEndpointBuilderTransformer).build(),
 			new AsyncDataFetcher(
-				new CatalogsDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new CatalogsDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -260,17 +284,17 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildCreateCatalogField() {
 		final GraphQLFieldDefinition createCatalogField = SystemRootDescriptor.CREATE_CATALOG
-			.to(staticEndpointBuilderTransformer)
-			.argument(CreateCatalogMutationHeaderDescriptor.NAME.to(argumentBuilderTransformer))
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(CreateCatalogMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			createCatalogField,
 			new AsyncDataFetcher(
-				new CreateCatalogMutatingDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new CreateCatalogMutatingDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -278,17 +302,17 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildSwitchCatalogToAliveStateField() {
 		final GraphQLFieldDefinition switchCatalogToAliveStateField = SystemRootDescriptor.SWITCH_CATALOG_TO_ALIVE_STATE
-			.to(staticEndpointBuilderTransformer)
-			.argument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.to(argumentBuilderTransformer))
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(SwitchCatalogToAliveStateMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			switchCatalogToAliveStateField,
 			new AsyncDataFetcher(
-				new SwitchCatalogToAliveStateMutatingDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new SwitchCatalogToAliveStateMutatingDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -296,18 +320,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildRenameCatalogField() {
 		final GraphQLFieldDefinition renameCatalogField = SystemRootDescriptor.RENAME_CATALOG
-			.to(staticEndpointBuilderTransformer)
-			.argument(RenameCatalogMutationHeaderDescriptor.NAME.to(argumentBuilderTransformer))
-			.argument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.to(argumentBuilderTransformer))
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(RenameCatalogMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
+			.argument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			renameCatalogField,
 			new AsyncDataFetcher(
-				new RenameCatalogMutatingDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new RenameCatalogMutatingDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -315,18 +339,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildReplaceCatalogField() {
 		final GraphQLFieldDefinition replaceCatalogField = SystemRootDescriptor.REPLACE_CATALOG
-			.to(staticEndpointBuilderTransformer)
-			.argument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.to(argumentBuilderTransformer))
-			.argument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.to(argumentBuilderTransformer))
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.to(this.argumentBuilderTransformer))
+			.argument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			replaceCatalogField,
 			new AsyncDataFetcher(
-				new ReplaceCatalogMutatingDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new ReplaceCatalogMutatingDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
 		);
 	}
@@ -334,18 +358,30 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Nonnull
 	private BuiltFieldDescriptor buildDeleteCatalogIfExistsField() {
 		final GraphQLFieldDefinition deleteCatalogIfExistsCatalogField = SystemRootDescriptor.DELETE_CATALOG_IF_EXISTS
-			.to(staticEndpointBuilderTransformer)
-			.argument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.to(argumentBuilderTransformer))
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(DeleteCatalogIfExistsMutationHeaderDescriptor.NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			deleteCatalogIfExistsCatalogField,
 			new AsyncDataFetcher(
-				new DeleteCatalogIfExistsMutatingDataFetcher(evita),
-				buildingContext.getConfig(),
-				buildingContext.getTracingContext(),
-				buildingContext.getEvita()
+				new DeleteCatalogIfExistsMutatingDataFetcher(this.evita),
+				this.buildingContext.getConfig(),
+				this.buildingContext.getTracingContext(),
+				this.buildingContext.getEvita()
 			)
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildOnSystemChangeField() {
+		final GraphQLFieldDefinition onSystemChangeField = SystemRootDescriptor.ON_SYSTEM_CHANGE
+			.to(this.staticEndpointBuilderTransformer)
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onSystemChangeField,
+			new OnSystemChangeSubscribingDataFetcher(this.evita)
 		);
 	}
 }

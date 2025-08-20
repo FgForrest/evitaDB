@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,9 +52,9 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 		);
 
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
+				this.productSchema,
 				"category",
 				5,
 				"category", Cardinality.ZERO_OR_MORE,
@@ -86,21 +86,21 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 5),
 				new UpsertAttributeMutation(new AttributeKey("abc"), "B")
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 10),
 				new UpsertAttributeMutation(new AttributeKey("abc"), "C")
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 		assertEquals(
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 5),
 				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "B")
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 10),
 				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "C")
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 
@@ -110,31 +110,31 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 5),
 				new UpsertAttributeMutation(new AttributeKey("abc"), "B")
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 10),
 				new UpsertAttributeMutation(new AttributeKey("abe"), "C")
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 		assertNotEquals(
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 5),
 				new UpsertAttributeMutation(new AttributeKey("abc"), "B")
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new ReferenceAttributeMutation(
 				new ReferenceKey("product", 5),
 				new UpsertAttributeMutation(new AttributeKey("abc"), "B")
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 		assertNotEquals(
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 5),
 				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "B")
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new ReferenceAttributeMutation(
 				new ReferenceKey("category", 10),
 				new UpsertAttributeMutation(new AttributeKey("abc", Locale.GERMAN), "C")
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

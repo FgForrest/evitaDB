@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class FinderVisitorTest {
 
 	@BeforeEach
 	void setUp() {
-		filterConstraint = and(
+		this.filterConstraint = and(
 			attributeEquals("a", "b"),
 			or(
 				attributeIsNotNull("def"),
@@ -61,7 +61,7 @@ class FinderVisitorTest {
 				)
 			)
 		);
-		requireConstraint = require(
+		this.requireConstraint = require(
 			page(1, 20),
 			referenceContent(
 				"a",
@@ -75,19 +75,19 @@ class FinderVisitorTest {
 
 	@Test
 	void shouldNotFindMissingConstraint() {
-		assertNull(FinderVisitor.findConstraint(filterConstraint, fc -> fc instanceof AttributeStartsWith));
+		assertNull(FinderVisitor.findConstraint(this.filterConstraint, fc -> fc instanceof AttributeStartsWith));
 	}
 
 	@Test
 	void shouldFindExistingConstraint() {
-		assertEquals(attributeBetween("c", 1, 78), FinderVisitor.findConstraint(filterConstraint, fc -> fc instanceof AttributeBetween));
+		assertEquals(attributeBetween("c", 1, 78), FinderVisitor.findConstraint(this.filterConstraint, fc -> fc instanceof AttributeBetween));
 	}
 
 	@Test
 	void shouldFindExistingConstraintByName() {
 		assertEquals(
 			attributeBetween("c", 1, 78),
-			FinderVisitor.findConstraint(filterConstraint, fc -> {
+			FinderVisitor.findConstraint(this.filterConstraint, fc -> {
 				final Serializable[] args = fc.getArguments();
 				return args.length >= 1 && "c".equals(args[0]);
 			})
@@ -98,7 +98,7 @@ class FinderVisitorTest {
 	void shouldFindExistingConstraintInAdditionalChildrenByName() {
 		assertEquals(
 			attributeEqualsTrue("xev"),
-			FinderVisitor.findConstraint(requireConstraint, fc -> {
+			FinderVisitor.findConstraint(this.requireConstraint, fc -> {
 				final Serializable[] args = fc.getArguments();
 				return args.length >= 1 && "xev".equals(args[0]);
 			})
@@ -110,7 +110,7 @@ class FinderVisitorTest {
 		assertEquals(
 			2,
 			FinderVisitor.findConstraints(
-				filterConstraint,
+				this.filterConstraint,
 				fc -> fc instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)
 			).size()
 		);
@@ -121,7 +121,7 @@ class FinderVisitorTest {
 		assertThrows(
 			MoreThanSingleResultException.class,
 			() -> FinderVisitor.findConstraint(
-				filterConstraint,
+				this.filterConstraint,
 				fc -> fc instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)
 			)
 		);

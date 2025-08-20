@@ -151,14 +151,14 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * Returns number of records per single page.
 	 */
 	public int getPageSize() {
-		return pageSize;
+		return this.pageSize;
 	}
 
 	/**
 	 * Returns current page number (indexed from 1).
 	 */
 	public int getPageNumber() {
-		return pageNumber;
+		return this.pageNumber;
 	}
 
 	/**
@@ -166,46 +166,46 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	 * Returns -1 when offset/limit was used for creating paginated list.
 	 */
 	public int getLastPageNumber() {
-		return lastPageNumber;
+		return this.lastPageNumber;
 	}
 
 	/**
 	 * Returns offset of the first record of current page with current pageSize.
 	 */
 	public int getFirstPageItemNumber() {
-		if (isRequestedResultBehindLimit(pageNumber, pageSize, totalRecordCount)) {
+		if (isRequestedResultBehindLimit(this.pageNumber, this.pageSize, this.totalRecordCount)) {
 			return 0;
 		}
-		return getFirstItemNumberForPage(pageNumber, pageSize);
+		return getFirstItemNumberForPage(this.pageNumber, this.pageSize);
 	}
 
 	/**
 	 * Returns offset of the last record of current page with current pageSize.
 	 */
 	public int getLastPageItemNumber() {
-		int result = ((pageNumber) * pageSize) - 1;
-		return Math.min(result, totalRecordCount);
+		int result = ((this.pageNumber) * this.pageSize) - 1;
+		return Math.min(result, this.totalRecordCount);
 	}
 
 	@Override
 	@Nonnull
 	public List<T> getData() {
-		return data != null ? data : Collections.emptyList();
+		return this.data != null ? this.data : Collections.emptyList();
 	}
 
 	@Override
 	public int getTotalRecordCount() {
-		return totalRecordCount;
+		return this.totalRecordCount;
 	}
 
 	@Override
 	public boolean isFirst() {
-		return pageNumber == 1;
+		return this.pageNumber == 1;
 	}
 
 	@Override
 	public boolean isLast() {
-		return pageNumber >= getLastPageNumber();
+		return this.pageNumber >= getLastPageNumber();
 	}
 
 	@Override
@@ -225,7 +225,7 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 
 	@Override
 	public boolean isEmpty() {
-		return totalRecordCount == 0;
+		return this.totalRecordCount == 0;
 	}
 
 	@Nonnull
@@ -237,9 +237,9 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 	@Override
 	public String toString() {
 		final int lastPageNumber = getLastPageNumber();
-		return "Page " + pageNumber + " of " + (lastPageNumber == 0 ? 1 : lastPageNumber) +
-			" (" + totalRecordCount + " recs. found)\n" +
-			data.stream().map(it -> "\t- " + it.toString()).collect(Collectors.joining("\n"));
+		return "Page " + this.pageNumber + " of " + (lastPageNumber == 0 ? 1 : lastPageNumber) +
+			" (" + this.totalRecordCount + " recs. found)\n" +
+			this.data.stream().map(it -> "\t- " + it.toString()).collect(Collectors.joining("\n"));
 	}
 
 }

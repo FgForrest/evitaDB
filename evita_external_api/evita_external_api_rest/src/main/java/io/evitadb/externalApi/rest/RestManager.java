@@ -26,13 +26,16 @@ package io.evitadb.externalApi.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.core.CorruptedCatalog;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.SystemRestRefreshingObserver;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
@@ -42,7 +45,6 @@ import io.evitadb.externalApi.rest.io.RestRouter;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import io.swagger.v3.oas.models.OpenAPI;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,8 +52,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -68,12 +72,20 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class RestManager {
 
 	/**
-	 * Common object mapper for endpoints
+	 * Instance of the Evita object used by the RestManager to manage and interact with the EvitaDB system.
+	 * It plays a central role in facilitating operations such as registering, unregistering,
+	 * and refreshing catalog-specific REST endpoints.
 	 */
-	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
-
 	@Nonnull private final Evita evita;
+
+	/**
+	 * Header options for REST API.
+	 */
 	@Nonnull private final HeaderOptions headerOptions;
+
+	/**
+	 * REST specific options.
+	 */
 	@Nonnull private final RestOptions restOptions;
 
 	/**
@@ -85,6 +97,11 @@ public class RestManager {
 	 */
 	@Nonnull private final Set<String> registeredCatalogs = createHashSet(20);
 
+	/**
+	 * Completable future that is completed when all initial catalogs are registered.
+	 */
+	private final CompletableFuture<Void> fullyInitialized;
+
 	@Nullable private SystemBuildStatistics systemBuildStatistics;
 	@Nonnull private final Map<String, CatalogBuildStatistics> catalogBuildStatistics = createHashMap(20);
 
@@ -92,15 +109,40 @@ public class RestManager {
 		this.evita = evita;
 		this.headerOptions = headerOptions;
 		this.restOptions = restOptions;
-		this.restRouter = new RestRouter(this.objectMapper, headerOptions, restOptions);
 
-		final long buildingStartTime = System.currentTimeMillis();
+		final ObjectMapper objectMapper = new ObjectMapper();
+		this.restRouter = new RestRouter(objectMapper, headerOptions, restOptions);
+
+		// listen to any evita catalog changes
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY))
+			.subscribe(new SystemRestRefreshingObserver(this));
 
 		// register initial endpoints
 		registerSystemApi();
-		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
-		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
+		// register initial catalogs when they are loaded
+		this.fullyInitialized = CompletableFuture.allOf(
+			Arrays.stream(this.evita.getInitialLoadCatalogFutures())
+			      .map(theFuture -> theFuture.thenAccept(catalog -> registerCatalog(catalog.getName())))
+			      .toArray(CompletableFuture[]::new)
+		).whenComplete(
+			(__, throwable) -> {
+				if (throwable != null) {
+					log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+				} else {
+					log.info("REST API initialized with {} registered catalogs.", this.registeredCatalogs.size());
+				}
+			}
+		);
+	}
+
+	/**
+	 * Determines whether the current {@code io.evitadb.externalApi.rest.RestManager} instance has been fully initialized.
+	 *
+	 * @return {@code true} if the initialization process is complete, otherwise {@code false}.
+	 */
+	public boolean isFullyInitialized() {
+		return this.fullyInitialized.isDone();
 	}
 
 	@Nonnull
@@ -123,11 +165,11 @@ public class RestManager {
 		final Rest api = systemRestBuilder.build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		restRouter.registerSystemApi(api);
+		this.restRouter.registerSystemApi(api);
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics
-		systemBuildStatistics = SystemBuildStatistics.createNew(
+		this.systemBuildStatistics = SystemBuildStatistics.createNew(
 			instanceBuildDuration,
 			schemaBuildDuration,
 			countOpenApiSchemaLines(api.openApi()),
@@ -138,14 +180,14 @@ public class RestManager {
 	/**
 	 * Register REST endpoints for new catalog.
 	 */
-	public void registerCatalog(@Nonnull String catalogName) {
-		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		if (catalog instanceof CorruptedCatalog) {
-			log.warn("Catalog `" + catalogName + "` is corrupted. Skipping...");
-			return;
+	public boolean registerCatalog(@Nonnull String catalogName) {
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
+		if (catalog instanceof UnusableCatalog) {
+			log.warn("Catalog `" + catalogName + "` is unusable (" + catalog.getCatalogState() + "). Skipping...");
+			return false;
 		}
 		Assert.isPremiseValid(
-			!registeredCatalogs.contains(catalogName),
+			!this.registeredCatalogs.contains(catalogName),
 			() -> new RestInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
@@ -172,7 +214,8 @@ public class RestManager {
 				countOpenApiSchemaLines(api.openApi()),
 				api.openApi().getPaths().size()
 			);
-			catalogBuildStatistics.put(catalogName, buildStatistics);
+			this.catalogBuildStatistics.put(catalogName, buildStatistics);
+			return true;
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by REST API.", ex);
@@ -180,6 +223,7 @@ public class RestManager {
 			// cleanup corrupted paths
 			this.restRouter.unregisterCatalogApi(catalogName);
 			this.catalogBuildStatistics.remove(catalogName);
+			return false;
 		}
 	}
 
@@ -187,28 +231,27 @@ public class RestManager {
 	 * Unregister all REST endpoints of catalog.
 	 */
 	public void unregisterCatalog(@Nonnull String catalogName) {
-		final boolean catalogRegistered = registeredCatalogs.remove(catalogName);
+		final boolean catalogRegistered = this.registeredCatalogs.remove(catalogName);
 		if (catalogRegistered) {
-			restRouter.unregisterCatalogApi(catalogName);
-			catalogBuildStatistics.remove(catalogName);
+			this.restRouter.unregisterCatalogApi(catalogName);
+			this.catalogBuildStatistics.remove(catalogName);
 		}
 	}
 
 	/**
 	 * Update REST endpoints and OpenAPI schema of catalog.
 	 */
-	public void refreshCatalog(@Nonnull String catalogName) {
-		if (!registeredCatalogs.contains(catalogName)) {
+	public boolean refreshCatalog(@Nonnull String catalogName) {
+		if (!this.registeredCatalogs.contains(catalogName)) {
 			// there may be case where initial registration failed and catalog is not registered at all
 			// for example, when catalog was corrupted and is replaced with new fresh one
 			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
-			registerCatalog(catalogName);
-			return;
+			return registerCatalog(catalogName);
 		}
 
 		final long instanceBuildStartTime = System.currentTimeMillis();
 
-		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
+		final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(catalogName);
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(this.restOptions, this.headerOptions, this.evita, catalog);
 		final long schemaBuildStartTime = System.currentTimeMillis();
 		final Rest newApi = catalogRestBuilder.build();
@@ -230,6 +273,8 @@ public class RestManager {
 			countOpenApiSchemaLines(newApi.openApi()),
 			newApi.openApi().getPaths().size()
 		);
+
+		return true;
 	}
 
 	/**
@@ -238,23 +283,23 @@ public class RestManager {
 	 */
 	public void emitObservabilityEvents() {
 		Assert.isPremiseValid(
-			systemBuildStatistics != null,
+			this.systemBuildStatistics != null,
 			() -> new RestInternalError("No build statistics for system API found.")
 		);
-		if (!systemBuildStatistics.reported().get()) {
+		if (!this.systemBuildStatistics.reported().get()) {
 			new BuiltEvent(
 				RestInstanceType.SYSTEM,
 				BuildType.NEW,
-				systemBuildStatistics.instanceBuildDuration(),
-				systemBuildStatistics.schemaBuildDuration(),
-				systemBuildStatistics.schemaDslLines(),
-				systemBuildStatistics.registeredEndpoints()
+				this.systemBuildStatistics.instanceBuildDuration(),
+				this.systemBuildStatistics.schemaBuildDuration(),
+				this.systemBuildStatistics.schemaDslLines(),
+				this.systemBuildStatistics.registeredEndpoints()
 			).commit();
 
-			systemBuildStatistics.markAsReported();
+			this.systemBuildStatistics.markAsReported();
 		}
 
-		catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
+		this.catalogBuildStatistics.keySet().forEach(this::emitObservabilityEvents);
 	}
 
 	/**
@@ -262,7 +307,7 @@ public class RestManager {
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
 	public void emitObservabilityEvents(@Nonnull String catalogName) {
-		final CatalogBuildStatistics buildStatistics = catalogBuildStatistics.get(catalogName);
+		final CatalogBuildStatistics buildStatistics = this.catalogBuildStatistics.get(catalogName);
 		Assert.isPremiseValid(
 			buildStatistics != null,
 			() -> new RestInternalError("No build statistics found for catalog `" + catalogName + "`.")

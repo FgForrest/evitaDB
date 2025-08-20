@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,8 +27,6 @@ import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Optional;
 
 /**
  * This class is simple DTO object holding all cache-related configuration options of the Evita.
@@ -63,7 +61,7 @@ public record CacheOptions(
 	int anteroomRecordCount,
 	long minimalComplexityThreshold,
 	int minimalUsageThreshold,
-	@Nullable Long cacheSizeInBytes
+	long cacheSizeInBytes
 ) {
 
 	public static final boolean DEFAULT_ENABLED = false;
@@ -110,17 +108,6 @@ public record CacheOptions(
 			DEFAULT_MINIMAL_USAGE_THRESHOLD,
 			DEFAULT_CACHE_SIZE
 		);
-	}
-
-	public CacheOptions(@Nonnull ReflectionCachingBehaviour reflection, boolean enabled, int reevaluateEachSeconds, int anteroomRecordCount, long minimalComplexityThreshold, int minimalUsageThreshold, @Nullable Long cacheSizeInBytes) {
-		this.reflection = reflection;
-		this.enabled = enabled;
-		this.reevaluateEachSeconds = reevaluateEachSeconds;
-		this.anteroomRecordCount = anteroomRecordCount;
-		this.minimalComplexityThreshold = minimalComplexityThreshold;
-		this.minimalUsageThreshold = minimalUsageThreshold;
-		this.cacheSizeInBytes = Optional.ofNullable(cacheSizeInBytes)
-			.orElse(DEFAULT_CACHE_SIZE);
 	}
 
 	/**
@@ -186,12 +173,12 @@ public record CacheOptions(
 
 		public CacheOptions build() {
 			return new CacheOptions(
-				reflection, enabled,
-				reevaluateEachSeconds,
-				anteroomRecordCount,
-				minimalComplexityThreshold,
-				minimalUsageThreshold,
-				cacheSizeInBytes
+				this.reflection, this.enabled,
+				this.reevaluateEachSeconds,
+				this.anteroomRecordCount,
+				this.minimalComplexityThreshold,
+				this.minimalUsageThreshold,
+				this.cacheSizeInBytes
 			);
 		}
 

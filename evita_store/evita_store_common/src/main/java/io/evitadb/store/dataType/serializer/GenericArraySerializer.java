@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,16 +45,16 @@ public class GenericArraySerializer<T extends Serializable> extends Serializer<T
 	public void write(Kryo kryo, Output output, T[] object) {
 		output.writeVarInt(object.length, true);
 		for (T serializable : object) {
-			kryo.writeObjectOrNull(output, serializable, targetType);
+			kryo.writeObjectOrNull(output, serializable, this.targetType);
 		}
 	}
 
 	@Override
 	public T[] read(Kryo kryo, Input input, Class<? extends T[]> type) {
 		final int arrayLength = input.readVarInt(true);
-		final T[] serializables = (T[]) Array.newInstance(targetType, arrayLength);
+		final T[] serializables = (T[]) Array.newInstance(this.targetType, arrayLength);
 		for(int i=0; i < arrayLength; i++) {
-			serializables[i] = kryo.readObjectOrNull(input, targetType);
+			serializables[i] = kryo.readObjectOrNull(input, this.targetType);
 		}
 		return serializables;
 	}

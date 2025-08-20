@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,14 +73,14 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<Catal
 
 	@Nonnull
 	@Override
-	public CatalogSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public CatalogSchemaContract get(DataFetchingEnvironment environment) throws Exception {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final Arguments arguments = Arguments.from(environment);
 
 		final LocalCatalogSchemaMutation[] schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 			arguments.mutations()
 				.stream()
-				.flatMap(m -> mutationAggregateResolver.convert(m).stream())
+				.flatMap(m -> this.mutationAggregateResolver.convertFromInput(m).stream())
 				.toArray(LocalCatalogSchemaMutation[]::new));
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);

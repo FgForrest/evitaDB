@@ -29,13 +29,13 @@ import com.carrotsearch.hppc.cursors.CharObjectCursor;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.model.CachedRecord;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.cache.payload.EntityComputationalObjectAdapter;
 import io.evitadb.core.cache.payload.EntityPayload;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.metric.event.cache.AnteroomWastedEvent;
 import io.evitadb.core.metric.event.cache.CacheReevaluatedEvent;
@@ -193,14 +193,14 @@ public class CacheEden {
 		@Nonnull Class<S> expectedClass,
 		long recordHash
 	) {
-		final CachedRecord cachedRecord = theCache.get(recordHash);
+		final CachedRecord cachedRecord = this.theCache.get(recordHash);
 		final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
 		if (cachedRecord != null) {
 			if (cachedRecord.isInitialized()) {
 				// check whether cached formula is valid for current transaction id
 				if (cachedRecord.getTransactionalIdHash() == computationalObject.getTransactionalIdHash()) {
 					// track hit
-					hits.incrementAndGet();
+					this.hits.incrementAndGet();
 					if (computationalObject instanceof final EntityComputationalObjectAdapter entityWrapper) {
 						return enrichCachedEntityIfNecessary(recordHash, cachedRecord, entityWrapper);
 					} else {
@@ -209,12 +209,12 @@ public class CacheEden {
 					}
 				} else {
 					// track - miss, formula found but not valid for current input formula regarding used transactional data
-					misses.incrementAndGet();
+					this.misses.incrementAndGet();
 					return null;
 				}
 			} else {
 				// formula found but not yet initialized
-				misses.incrementAndGet();
+				this.misses.incrementAndGet();
 				// set up initialization lambda to cloned input computational object
 				if (computationalObject instanceof final CacheableFormula inputFormula) {
 					return alterToResultRecordingFormula(recordHash, cachedRecord, hashFunction, inputFormula);
@@ -230,7 +230,7 @@ public class CacheEden {
 			}
 		}
 		// formula not found record miss
-		misses.incrementAndGet();
+		this.misses.incrementAndGet();
 		return null;
 	}
 
@@ -238,14 +238,14 @@ public class CacheEden {
 	 * Returns estimate of current cache size in Bytes.
 	 */
 	public long getByteSizeUsedByCache() {
-		return usedByteSize.get();
+		return this.usedByteSize.get();
 	}
 
 	/**
 	 * Returns precise count of records stored in the cache.
 	 */
 	public int getCacheRecordCount() {
-		return cacheSize.get();
+		return this.cacheSize.get();
 	}
 
 	/**
@@ -403,7 +403,7 @@ public class CacheEden {
 
 						// finally, set occupied memory size according to expectations
 						this.usedByteSize.set(occupiedMemorySize);
-						this.cacheSize.set(theCache.size());
+						this.cacheSize.set(this.theCache.size());
 						this.hits.set(0);
 						this.hitsReported.set(0);
 						this.initialized.set(0);
@@ -468,7 +468,7 @@ public class CacheEden {
 	private EvaluationCacheFormulaAdeptSource mergeAdeptsWithExistingEntriesForEvaluation(
 		@Nonnull Map<Long, CacheRecordAdept> adepts
 	) {
-		final CacheAdeptKeyWithValue[] evaluation = new CacheAdeptKeyWithValue[adepts.size() + cacheSize.get()];
+		final CacheAdeptKeyWithValue[] evaluation = new CacheAdeptKeyWithValue[adepts.size() + this.cacheSize.get()];
 		final CompositeLongArray recordsToEvict = new CompositeLongArray();
 		int index = 0;
 		// first fill in all waiting adepts
@@ -476,9 +476,9 @@ public class CacheEden {
 		while (adeptIt.hasNext() && index < evaluation.length) {
 			final Entry<Long, CacheRecordAdept> adeptEntry = adeptIt.next();
 			final CacheRecordAdept adept = adeptEntry.getValue();
-			final long spaceToPerformanceRatio = adept.getSpaceToPerformanceRatio(minimalUsageThreshold);
+			final long spaceToPerformanceRatio = adept.getSpaceToPerformanceRatio(this.minimalUsageThreshold);
 			final int estimatedSizeInBytes = CachedRecord.computeSizeInBytes(adept);
-			if (estimatedSizeInBytes < MAX_BUFFER_SIZE && spaceToPerformanceRatio > minimalSpaceToPerformanceRatio) {
+			if (estimatedSizeInBytes < MAX_BUFFER_SIZE && spaceToPerformanceRatio > this.minimalSpaceToPerformanceRatio) {
 				evaluation[index++] = new CacheAdeptKeyWithValue(
 					adeptEntry.getKey(), estimatedSizeInBytes, spaceToPerformanceRatio,
 					BitUtils.setBit(
@@ -488,7 +488,7 @@ public class CacheEden {
 			}
 		}
 		// next fill in all existing entries in cache - we need re-evaluate even them
-		final Iterator<Entry<Long, CachedRecord>> cacheIt = theCache.entrySet().iterator();
+		final Iterator<Entry<Long, CachedRecord>> cacheIt = this.theCache.entrySet().iterator();
 		while (cacheIt.hasNext() && index < evaluation.length) {
 			final Entry<Long, CachedRecord> cachedRecordEntry = cacheIt.next();
 			final CachedRecord cachedRecord = cachedRecordEntry.getValue();
@@ -497,7 +497,7 @@ public class CacheEden {
 				evaluation[index++] = new CacheAdeptKeyWithValue(
 					cachedRecordEntry.getKey(),
 					cachedRecord.getSizeInBytes(),
-					cachedRecord.getSpaceToPerformanceRatio(minimalUsageThreshold),
+					cachedRecord.getSpaceToPerformanceRatio(this.minimalUsageThreshold),
 					BitUtils.setBit(
 						BitUtils.setBit(
 							BitUtils.setBit((byte) 0, (byte) 0, true),

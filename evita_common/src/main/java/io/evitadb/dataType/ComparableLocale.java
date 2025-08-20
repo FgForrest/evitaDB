@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public class ComparableLocale implements Comparable<ComparableLocale>, Serializa
 
 	@Override
 	public int compareTo(@Nonnull ComparableLocale o) {
-		return locale.toLanguageTag().compareTo(o.locale.toLanguageTag());
+		return this.locale.toLanguageTag().compareTo(o.locale.toLanguageTag());
 	}
 
 	@Override
@@ -54,16 +54,16 @@ public class ComparableLocale implements Comparable<ComparableLocale>, Serializa
 		if (o == null || getClass() != o.getClass()) return false;
 
 		ComparableLocale that = (ComparableLocale) o;
-		return locale.equals(that.locale);
+		return this.locale.equals(that.locale);
 	}
 
 	@Override
 	public int hashCode() {
-		return locale.hashCode();
+		return this.locale.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return locale.toLanguageTag();
+		return this.locale.toLanguageTag();
 	}
 }

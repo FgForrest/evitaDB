@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,21 +50,21 @@ class SetEntityScopeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new SetEntityScopeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetEntityScopeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final SetEntityScopeMutation expectedMutation = new SetEntityScopeMutation(Scope.LIVE);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetEntityScopeMutationDescriptor.SCOPE.name(), Scope.LIVE)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetEntityScopeMutationDescriptor.SCOPE.name(), Scope.LIVE.name())
 				.build()
@@ -74,7 +74,7 @@ class SetEntityScopeMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetEntityScopeMutationDescriptor.SCOPE.name(), Scope.LIVE.name())
 				.build()
@@ -87,7 +87,19 @@ class SetEntityScopeMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final SetEntityScopeMutation inputMutation = new SetEntityScopeMutation(Scope.LIVE);
+
+		assertEquals(
+			map()
+				.e(SetEntityScopeMutationDescriptor.SCOPE.name(), Scope.LIVE.name())
+				.build(),
+			this.converter.convertToOutput(inputMutation)
+		);
 	}
 }

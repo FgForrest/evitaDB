@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent.ResponseStatus;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.Nonnull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +51,7 @@ import java.util.concurrent.CompletionException;
 public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHandler {
 
 	@Override
-	public CompletableFuture<DataFetcherExceptionHandlerResult> handleException(@Nonnull DataFetcherExceptionHandlerParameters handlerParameters) {
+	public CompletableFuture<DataFetcherExceptionHandlerResult> handleException(DataFetcherExceptionHandlerParameters handlerParameters) {
 		final Throwable exception = unwrap(handlerParameters.getException());
 
 		final EvitaError evitaError;

@@ -189,7 +189,7 @@ class LocalMutationExecutorCollector {
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
 		// are automatically generated when top level mutation is applied (replayed)
 		final MutationApplicationRecord record;
-		if (level == 0) {
+		if (this.level == 0) {
 			this.entityMutations.add(entityMutation);
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.core.Catalog;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,7 +70,7 @@ public interface CatalogStoragePartPersistenceService extends StoragePartPersist
 		int storageProtocolVersion,
 		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
-		@Nullable WalFileReference walFileLocation,
+		@Nullable LogFileRecordReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
 		@Nonnull UUID catalogId,
 		@Nonnull String catalogName,

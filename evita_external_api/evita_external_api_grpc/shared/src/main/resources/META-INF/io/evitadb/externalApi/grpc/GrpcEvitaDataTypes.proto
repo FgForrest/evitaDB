@@ -411,7 +411,7 @@ message GrpcCatalogStatistics {
   // name of the catalog
   string catalogName = 2;
   // true if the catalog is corrupted (other data will be not available)
-  bool corrupted = 3;
+  bool corrupted = 3 [deprecated = true];
   // current state of the catalog, null for corrupted catalog
   GrpcCatalogState catalogState = 4;
   // version of the catalog, -1 for corrupted catalog
@@ -424,6 +424,10 @@ message GrpcCatalogStatistics {
   int64 sizeOnDiskInBytes = 8;
   // statistics for each entity collection in the catalog, empty array for corrupted catalog
   repeated GrpcEntityCollectionStatistics entityCollectionStatistics = 9;
+  // true if the catalog is read-only, false otherwise
+  bool readOnly = 10;
+  // true if the catalog is unusable, false otherwise
+  bool unusable = 11;
 }
 
 // Aggregates basic data about the entity collection.

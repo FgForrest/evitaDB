@@ -85,7 +85,7 @@ public class RemoveAttributeSchemaMutation implements
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(name, attributeSchemaMutation.getName())) {
+		if (existingMutation instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(this.name, attributeSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
@@ -100,7 +100,7 @@ public class RemoveAttributeSchemaMutation implements
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		final SchemaMutation mutationToExamine = existingMutation instanceof ModifyReferenceAttributeSchemaMutation wrappingMutation ? wrappingMutation.getAttributeSchemaMutation() : existingMutation;
-		if (mutationToExamine instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(name, attributeSchemaMutation.getName())) {
+		if (mutationToExamine instanceof AttributeSchemaMutation attributeSchemaMutation && Objects.equals(this.name, attributeSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
@@ -116,9 +116,9 @@ public class RemoveAttributeSchemaMutation implements
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final Optional<GlobalAttributeSchemaContract> existingAttributeSchema = catalogSchema.getAttribute(name);
+		final Optional<GlobalAttributeSchemaContract> existingAttributeSchema = catalogSchema.getAttribute(this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -133,7 +133,7 @@ public class RemoveAttributeSchemaMutation implements
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes().values()
 						.stream()
-						.filter(it -> !it.getName().equals(name))
+						.filter(it -> !it.getName().equals(this.name))
 						.collect(
 							Collectors.toMap(
 								AttributeSchemaContract::getName,
@@ -145,7 +145,7 @@ public class RemoveAttributeSchemaMutation implements
 				entitySchemaAccessor
 					.getEntitySchemas()
 					.stream()
-					.filter(it -> it.getAttributes().containsKey(name))
+					.filter(it -> it.getAttributes().containsKey(this.name))
 					.map(it -> new ModifyEntitySchemaMutation(
 						it.getName(),
 						this
@@ -159,7 +159,7 @@ public class RemoveAttributeSchemaMutation implements
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<EntityAttributeSchemaContract> existingAttributeSchema = entitySchema.getAttribute(name);
+		final Optional<EntityAttributeSchemaContract> existingAttributeSchema = entitySchema.getAttribute(this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -181,7 +181,7 @@ public class RemoveAttributeSchemaMutation implements
 				entitySchema.getCurrencies(),
 				entitySchema.getAttributes().values()
 					.stream()
-					.filter(it -> !it.getName().equals(name))
+					.filter(it -> !it.getName().equals(this.name))
 					.collect(
 						Collectors.toMap(
 							AttributeSchemaContract::getName,
@@ -200,7 +200,7 @@ public class RemoveAttributeSchemaMutation implements
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, name);
+		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -211,7 +211,7 @@ public class RemoveAttributeSchemaMutation implements
 					.withDeclaredAttributes(
 						reflectedReferenceSchema.getDeclaredAttributes().values()
 							.stream()
-							.filter(it -> !it.getName().equals(name))
+							.filter(it -> !it.getName().equals(this.name))
 							.collect(
 								Collectors.toMap(
 									AttributeSchemaContract::getName,
@@ -258,7 +258,7 @@ public class RemoveAttributeSchemaMutation implements
 	@Override
 	public String toString() {
 		return "Remove attribute schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 
 }

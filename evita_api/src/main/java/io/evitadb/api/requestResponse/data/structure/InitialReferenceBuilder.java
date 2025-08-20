@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -139,13 +139,13 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public Optional<ReferenceSchemaContract> getReferenceSchema() {
-		return this.entitySchema.getReference(referenceKey.referenceName());
+		return this.entitySchema.getReference(this.referenceKey.referenceName());
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceSchemaContract getReferenceSchemaOrThrow() {
-		return this.entitySchema.getReference(referenceKey.referenceName())
+		return this.entitySchema.getReference(this.referenceKey.referenceName())
 			.orElseThrow(() -> new EvitaInvalidUsageException("Reference schema is not available!"));
 	}
 
@@ -171,7 +171,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public Optional<GroupEntityReference> getGroup() {
-		return ofNullable(groupId).map(it -> new GroupEntityReference(groupType, it, 1, false));
+		return ofNullable(this.groupId).map(it -> new GroupEntityReference(this.groupType, it, 1, false));
 	}
 
 	@Nonnull
@@ -190,7 +190,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public ReferenceBuilder removeAttribute(@Nonnull String attributeName) {
-		attributesBuilder.removeAttribute(attributeName);
+		this.attributesBuilder.removeAttribute(attributeName);
 		return this;
 	}
 
@@ -200,11 +200,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName);
 		} else {
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
 			);
-			attributesBuilder.setAttribute(attributeName, attributeValue);
+			this.attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
 	}
@@ -215,11 +215,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName);
 		} else {
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
 			);
-			attributesBuilder.setAttribute(attributeName, attributeValue);
+			this.attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
 	}
@@ -227,7 +227,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public ReferenceBuilder removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		attributesBuilder.removeAttribute(attributeName, locale);
+		this.attributesBuilder.removeAttribute(attributeName, locale);
 		return this;
 	}
 
@@ -237,11 +237,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName, locale);
 		} else {
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, this.attributesBuilder.getLocationResolver()
 			);
-			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
 	}
@@ -252,11 +252,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName, locale);
 		} else {
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, this.attributesBuilder.getLocationResolver()
 			);
-			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
 	}
@@ -264,11 +264,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
 		verifyAttributeIsInSchemaAndTypeMatch(
-			entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null, attributesBuilder.getLocationResolver()
+			this.entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null, this.attributesBuilder.getLocationResolver()
 		);
-		attributesBuilder.mutateAttribute(mutation);
+		this.attributesBuilder.mutateAttribute(mutation);
 		return this;
 	}
 
@@ -282,15 +282,15 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
 		return Stream.concat(
 			Stream.of(
-					new InsertReferenceMutation(referenceKey, referenceCardinality, referencedEntityType),
-					groupId == null ? null : new SetReferenceGroupMutation(referenceKey, groupType, groupId)
+					new InsertReferenceMutation(this.referenceKey, this.referenceCardinality, this.referencedEntityType),
+					this.groupId == null ? null : new SetReferenceGroupMutation(this.referenceKey, this.groupType, this.groupId)
 				)
 				.filter(Objects::nonNull),
-			attributesBuilder.getAttributeValues()
+			this.attributesBuilder.getAttributeValues()
 				.stream()
 				.map(x ->
 					new ReferenceAttributeMutation(
-						referenceKey,
+						this.referenceKey,
 						new UpsertAttributeMutation(x.key(), Objects.requireNonNull(x.value()))
 					)
 				)
@@ -301,13 +301,13 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Override
 	public Reference build() {
 		return new Reference(
-			entitySchema,
+			this.entitySchema,
 			1,
-			referenceKey.referenceName(),
-			referenceKey.primaryKey(),
-			referencedEntityType, referenceCardinality,
+			this.referenceKey.referenceName(),
+			this.referenceKey.primaryKey(),
+			this.referencedEntityType, this.referenceCardinality,
 			getGroup().orElse(null),
-			attributesBuilder.build(),
+			this.attributesBuilder.build(),
 			false
 		);
 	}

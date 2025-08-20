@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ public class TableRow<T extends Object> extends MarkdownElement {
     @Override
     public String serialize() throws MarkdownSerializationException {
         StringBuilder sb = new StringBuilder();
-        for (Object item : columns) {
+        for (Object item : this.columns) {
             if (item == null) {
                 throw new MarkdownSerializationException("Column is null");
             }
@@ -60,7 +60,7 @@ public class TableRow<T extends Object> extends MarkdownElement {
             }
             sb.append(Table.SEPARATOR);
             sb.append(StringUtil.surroundValueWith(item.toString(), " "));
-            if (columns.indexOf(item) == columns.size() - 1) {
+            if (this.columns.indexOf(item) == this.columns.size() - 1) {
                 sb.append(Table.SEPARATOR);
             }
         }
@@ -68,7 +68,7 @@ public class TableRow<T extends Object> extends MarkdownElement {
     }
 
     public List<T> getColumns() {
-        return columns;
+        return this.columns;
     }
 
     public void setColumns(List<T> columns) {

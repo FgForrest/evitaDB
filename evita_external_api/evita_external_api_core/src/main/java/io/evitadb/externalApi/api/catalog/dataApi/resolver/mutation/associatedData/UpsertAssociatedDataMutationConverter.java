@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,13 +34,15 @@ import io.evitadb.dataType.data.JsonToComplexDataObjectConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectMapper;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 
@@ -53,11 +55,11 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	private final JsonToComplexDataObjectConverter jsonToComplexDataObjectConverter;
-	@Nonnull
+	@Nullable
 	private final EntitySchemaContract entitySchema;
 
 	public UpsertAssociatedDataMutationConverter(@Nonnull ObjectMapper objectMapper,
-	                                             @Nonnull EntitySchemaContract entitySchema,
+	                                             @Nullable EntitySchemaContract entitySchema,
 	                                             @Nonnull MutationObjectParser objectParser,
 	                                             @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
@@ -67,21 +69,25 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UpsertAssociatedDataMutationDescriptor.THIS.name();
+	protected Class<UpsertAssociatedDataMutation> getMutationClass() {
+		return UpsertAssociatedDataMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected UpsertAssociatedDataMutation convert(@Nonnull Input input) {
+	protected UpsertAssociatedDataMutation convertFromInput(@Nonnull Input input) {
 		final AssociatedDataKey associatedDataKey = resolveAssociatedDataKey(input);
 
-		final Class<? extends Serializable> valueType = input.getOptionalField(
+		final Class<? extends Serializable> valueType = input.getOptionalProperty(
 			UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAssociatedDataMutationDescriptor.VALUE_TYPE)
 		);
 
-		final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
+		Assert.isPremiseValid(
+			this.entitySchema != null,
+			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
+		);
+		final Optional<AssociatedDataSchemaContract> associatedDataSchema = this.entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
 		if (associatedDataSchema.isEmpty() && valueType == null) {
 			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new associated data `" + associatedDataKey.associatedDataName() + "`.");
 		}
@@ -96,15 +102,15 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : associatedDataSchema.get().getType();
 
 		if (targetDataType.equals(ComplexDataObject.class)) {
-			targetValue = input.getRequiredField(
+			targetValue = input.getRequiredProperty(
 				UpsertAssociatedDataMutationDescriptor.VALUE.name(),
-				new FieldObjectMapper<>(
+				new PropertyObjectMapper<>(
 					getMutationName(),
 					getExceptionFactory(),
 					UpsertAssociatedDataMutationDescriptor.VALUE,
 					nestedInput -> {
 						try {
-							return jsonToComplexDataObjectConverter.fromMap(nestedInput.getRequiredValue());
+							return this.jsonToComplexDataObjectConverter.fromMap(nestedInput.getRequiredValue());
 						} catch (JsonProcessingException e) {
 							throw getExceptionFactory().createInvalidArgumentException("Could not parse input JSON.");
 						}
@@ -112,9 +118,16 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 				)
 			);
 		} else {
-			targetValue = input.getRequiredField(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
+			targetValue = input.getRequiredProperty(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
 		}
 
 		return new UpsertAssociatedDataMutation(associatedDataKey, targetValue);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull UpsertAssociatedDataMutation mutation, @Nonnull Output output) {
+		output.setProperty(UpsertAssociatedDataMutationDescriptor.VALUE, mutation.getAssociatedDataValue());
+		output.setProperty(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE, mutation.getAssociatedDataValue().getClass());
+		super.convertToOutput(mutation, output);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,7 +32,9 @@ import io.evitadb.dataType.expression.PredicateEvaluationContext;
 import lombok.EqualsAndHashCode;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -46,7 +48,7 @@ public class RandomOperator implements ExpressionNode {
 	@Serial private static final long serialVersionUID = -6261246532556762806L;
 	private final ExpressionNode operator;
 
-	public RandomOperator(ExpressionNode operator) {
+	public RandomOperator(@Nullable ExpressionNode operator) {
 		this.operator = operator;
 	}
 
@@ -54,7 +56,9 @@ public class RandomOperator implements ExpressionNode {
 	@Override
 	public Long compute(@Nonnull PredicateEvaluationContext context) {
 		final Random rnd = context.getRandom();
-		return operator == null ? rnd.nextLong() : rnd.nextLong(EvitaDataTypes.toTargetType(operator.compute(context), Long.class));
+		return this.operator == null ?
+			rnd.nextLong() :
+			rnd.nextLong(Objects.requireNonNull(EvitaDataTypes.toTargetType(this.operator.compute(context), Long.class)));
 	}
 
 	@Nonnull
@@ -65,6 +69,6 @@ public class RandomOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return this.operator == null ? "random()" : "random(" + operator + ")";
+		return this.operator == null ? "random()" : "random(" + this.operator + ")";
 	}
 }

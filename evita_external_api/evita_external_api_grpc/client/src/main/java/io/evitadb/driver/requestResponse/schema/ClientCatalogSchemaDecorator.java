@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,13 +88,13 @@ public class ClientCatalogSchemaDecorator extends CatalogSchemaDecorator {
 	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
-		return entitySchemaAccessor.getEntitySchemas();
+		return this.entitySchemaAccessor.getEntitySchemas();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return entitySchemaAccessor.getEntitySchema(entityType);
+		return this.entitySchemaAccessor.getEntitySchema(entityType);
 	}
 
 	@Nonnull

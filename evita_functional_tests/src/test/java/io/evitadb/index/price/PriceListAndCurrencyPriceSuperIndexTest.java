@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -161,11 +161,11 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 		@Override
 		public void accept(int value) {
-			writer.add(value);
+			this.writer.add(value);
 		}
 
 		public int[] getArray() {
-			return writer.get().toArray();
+			return this.writer.get().toArray();
 		}
 
 	}

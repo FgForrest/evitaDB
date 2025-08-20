@@ -80,7 +80,7 @@ public abstract class AbstractMutationTest {
 		Collections.emptyMap()
 	);
 	protected final Map<String, EntitySchemaContract> entitySchemas = Collections.singletonMap(
-		productSchema.getName(), productSchema
+		this.productSchema.getName(), this.productSchema
 	);
 	protected final SealedCatalogSchema catalogSchema = new CatalogSchemaDecorator(
 		CatalogSchema._internalBuild(
@@ -91,13 +91,13 @@ public abstract class AbstractMutationTest {
 				@Nonnull
 				@Override
 				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return entitySchemas.values();
+					return AbstractMutationTest.this.entitySchemas.values();
 				}
 
 				@Nonnull
 				@Override
 				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return ofNullable(entitySchemas.get(entityType));
+					return ofNullable(AbstractMutationTest.this.entitySchemas.get(entityType));
 				}
 			}
 		)

@@ -56,18 +56,18 @@ public class PathHandlingService implements HttpService {
 		PathMatcher.PathMatch<HttpService> match = null;
 		boolean hit = false;
 		final String path = URLUtils.normalizeSlashes(req.uri().getPath());
-		if(cache != null) {
-			match = cache.get(path);
+		if(this.cache != null) {
+			match = this.cache.get(path);
 			hit = true;
 		}
 		if(match == null) {
-			match = pathMatcher.match(path);
+			match = this.pathMatcher.match(path);
 		}
 		if (match.getValue() == null) {
 			return HttpResponse.of(HttpStatus.NOT_FOUND);
 		}
 		if(hit) {
-			cache.add(path, match);
+			this.cache.add(path, match);
 		}
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder().path(match.getRemaining());
 		return match.getValue().serve(ctx, req.withHeaders(headersBuilder.build()));
@@ -75,12 +75,12 @@ public class PathHandlingService implements HttpService {
 
 	public PathHandlingService(final HttpService defaultHandler) {
 		this(0);
-		pathMatcher.addPrefixPath("/", defaultHandler);
+		this.pathMatcher.addPrefixPath("/", defaultHandler);
 	}
 
 	public PathHandlingService(final HttpService defaultHandler, int cacheSize) {
 		this(cacheSize);
-		pathMatcher.addPrefixPath("/", defaultHandler);
+		this.pathMatcher.addPrefixPath("/", defaultHandler);
 	}
 
 	public PathHandlingService() {
@@ -89,15 +89,15 @@ public class PathHandlingService implements HttpService {
 
 	public PathHandlingService(int cacheSize) {
 		if(cacheSize > 0) {
-			cache = new LRUCache<>(cacheSize, -1, true);
+			this.cache = new LRUCache<>(cacheSize, -1, true);
 		} else {
-			cache = null;
+			this.cache = null;
 		}
 	}
 
 	@Override
 	public String toString() {
-		Set<Entry<String,HttpService>> paths = pathMatcher.getPaths().entrySet();
+		Set<Entry<String,HttpService>> paths = this.pathMatcher.getPaths().entrySet();
 		if (paths.size() == 1) {
 			return "path( " + paths.toArray()[0] + " )";
 		} else {
@@ -140,7 +140,7 @@ public class PathHandlingService implements HttpService {
 	 */
 	public synchronized PathHandlingService addPrefixPath(final String path, final HttpService handler) {
 		Assert.notNull(handler, "Path handler cannot be null.");
-		pathMatcher.addPrefixPath(path, handler);
+		this.pathMatcher.addPrefixPath(path, handler);
 		return this;
 	}
 
@@ -155,7 +155,7 @@ public class PathHandlingService implements HttpService {
 	 */
 	public synchronized PathHandlingService addExactPath(final String path, final HttpService handler) {
 		Assert.notNull(handler, "Path handler cannot be null.");
-		pathMatcher.addExactPath(path, handler);
+		this.pathMatcher.addExactPath(path, handler);
 		return this;
 	}
 
@@ -165,17 +165,17 @@ public class PathHandlingService implements HttpService {
 	}
 
 	public synchronized PathHandlingService removePrefixPath(final String path) {
-		pathMatcher.removePrefixPath(path);
+		this.pathMatcher.removePrefixPath(path);
 		return this;
 	}
 
 	public synchronized PathHandlingService removeExactPath(final String path) {
-		pathMatcher.removeExactPath(path);
+		this.pathMatcher.removeExactPath(path);
 		return this;
 	}
 
 	public synchronized PathHandlingService clearPaths() {
-		pathMatcher.clearPaths();
+		this.pathMatcher.clearPaths();
 		return this;
 	}
 }

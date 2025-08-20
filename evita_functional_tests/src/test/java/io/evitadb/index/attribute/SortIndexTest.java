@@ -488,8 +488,8 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	private record ValueRecord(String value, int recordId) implements Comparable<ValueRecord> {
 		@Override
 		public int compareTo(ValueRecord o) {
-			final int cmp1 = value.compareTo(o.value);
-			return cmp1 == 0 ? Integer.compare(recordId, o.recordId) : cmp1;
+			final int cmp1 = this.value.compareTo(o.value);
+			return cmp1 == 0 ? Integer.compare(this.recordId, o.recordId) : cmp1;
 		}
 
 	}

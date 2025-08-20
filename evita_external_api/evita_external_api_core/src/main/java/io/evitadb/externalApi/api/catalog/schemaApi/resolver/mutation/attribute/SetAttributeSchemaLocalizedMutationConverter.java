@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaLocalizedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -38,25 +35,19 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetAttributeSchemaLocalizedMutationConverter extends AttributeSchemaMutationConverter<SetAttributeSchemaLocalizedMutation> {
+public class SetAttributeSchemaLocalizedMutationConverter
+	extends AttributeSchemaMutationConverter<SetAttributeSchemaLocalizedMutation> {
 
-	public SetAttributeSchemaLocalizedMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetAttributeSchemaLocalizedMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetAttributeSchemaLocalizedMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetAttributeSchemaLocalizedMutation convert(@Nonnull Input input) {
-		return new SetAttributeSchemaLocalizedMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaLocalizedMutationDescriptor.LOCALIZED)
-		);
+	protected Class<SetAttributeSchemaLocalizedMutation> getMutationClass() {
+		return SetAttributeSchemaLocalizedMutation.class;
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,8 +28,6 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
-import javax.annotation.Nonnull;
-
 /**
  * <p>Implementation of {@link EvitaQLVisitor} for parsing parameters used in {@link EvitaQLValueTokenVisitor} and
  * {@link EvitaQLClassifierTokenVisitor}.</p>
@@ -39,7 +37,7 @@ import javax.annotation.Nonnull;
 public class EvitaQLParameterVisitor extends EvitaQLBaseVisitor<Object> {
 
 	@Override
-	public Object visitPositionalParameter(@Nonnull EvitaQLParser.PositionalParameterContext ctx) {
+	public Object visitPositionalParameter(EvitaQLParser.PositionalParameterContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -50,7 +48,7 @@ public class EvitaQLParameterVisitor extends EvitaQLBaseVisitor<Object> {
 	}
 
 	@Override
-	public Object visitNamedParameter(@Nonnull EvitaQLParser.NamedParameterContext ctx) {
+	public Object visitNamedParameter(EvitaQLParser.NamedParameterContext ctx) {
 		return parse(
 			ctx,
 			() -> {

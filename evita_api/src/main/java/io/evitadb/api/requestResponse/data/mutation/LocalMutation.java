@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -56,7 +57,7 @@ import java.util.stream.Stream;
  */
 @Immutable
 @ThreadSafe
-public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Mutation, Comparable<LocalMutation<T, S>> {
+public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends CatalogBoundMutation, Comparable<LocalMutation<T, S>> {
 	long PRIORITY_REMOVAL = 10L;
 	long PRIORITY_UPSERT = 0L;
 

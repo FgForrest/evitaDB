@@ -1025,7 +1025,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 					// when the content is compressed the crc32 checksum is computed in `fill` method
 					if (this.crc32C != null) {
 						final int consumedLength = this.lastCount - (this.payloadStartPosition - this.lastOffset);
-						this.crc32C.update(buffer, this.payloadStartPosition, consumedLength);
+						this.crc32C.update(this.buffer, this.payloadStartPosition, consumedLength);
 					}
 					// update payload start positions - we're going to rewrite the buffer so the sensible payload start changes
 					this.payloadStartPosition = offset;

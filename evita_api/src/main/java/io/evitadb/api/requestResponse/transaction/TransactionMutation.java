@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,16 @@
 
 package io.evitadb.api.requestResponse.transaction;
 
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -45,38 +49,38 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
-public non-sealed class TransactionMutation implements Mutation {
+public non-sealed class TransactionMutation implements EngineMutation<Void>, CatalogBoundMutation {
 	@Serial private static final long serialVersionUID = -8039363287149601917L;
 	/**
 	 * Represents the unique identifier of a transaction.
 	 */
-	@Getter private final UUID transactionId;
+	@Getter protected final UUID transactionId;
 	/**
-	 * Represents the catalog version the transaction is based on.
+	 * Represents the next version the transaction transitions the state to.
 	 */
-	@Getter private final long catalogVersion;
+	@Getter protected final long version;
 	/**
 	 * Represents the number of mutations in this particular transaction.
 	 */
-	@Getter private final int mutationCount;
+	@Getter protected final int mutationCount;
 	/**
 	 * Represents the size of the serialized transaction mutations that follow this mutation in bytes.
 	 */
-	@Getter private final long walSizeInBytes;
+	@Getter protected final long walSizeInBytes;
 	/**
 	 * Represents the timestamp of the commit.
 	 */
-	@Getter private final OffsetDateTime commitTimestamp;
+	@Getter protected final OffsetDateTime commitTimestamp;
 
 	public TransactionMutation(
 		@Nonnull UUID transactionId,
-		long catalogVersion,
+		long version,
 		int mutationCount,
 		long walSizeInBytes,
 		@Nonnull OffsetDateTime commitTimestamp
 	) {
 		this.transactionId = transactionId;
-		this.catalogVersion = catalogVersion;
+		this.version = version;
 		this.mutationCount = mutationCount;
 		this.walSizeInBytes = walSizeInBytes;
 		this.commitTimestamp = commitTimestamp;
@@ -90,13 +94,25 @@ public non-sealed class TransactionMutation implements Mutation {
 
 	@Nonnull
 	@Override
+	public Class<Void> getProgressResultType() {
+		return Void.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> getConflictKeys() {
+		return Stream.empty();
+	}
+
+	@Nonnull
+	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
-			context.setVersion(this.catalogVersion, this.mutationCount);
+			context.setVersion(this.version, this.mutationCount);
 
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == ChangeCaptureContent.BODY ? this : null)
@@ -107,7 +123,12 @@ public non-sealed class TransactionMutation implements Mutation {
 	}
 
 	@Override
+	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
+		// do nothing
+	}
+
+	@Override
 	public String toString() {
-		return "transaction commit `" + transactionId + "` (moves catalog to version `" + catalogVersion + "`)";
+		return "transaction commit `" + this.transactionId + "` (moves persistent state to version `" + this.version + "`)";
 	}
 }

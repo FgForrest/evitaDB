@@ -99,14 +99,16 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 		return toRead;
 	}
 
+	@Nonnull
 	@Override
 	public byte[] readAllBytes() {
 		switchToReadIfNecessary();
 		final byte[] writtenData = new byte[this.getWrittenBytes()];
-		buffer.get(writtenData);
+		this.buffer.get(writtenData);
 		return writtenData;
 	}
 
+	@Nonnull
 	@Override
 	public byte[] readNBytes(int len) {
 		switchToReadIfNecessary();
@@ -127,14 +129,14 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	@Override
 	public long skip(long n) throws IOException {
 		switchToReadIfNecessary();
-		this.buffer.position(Math.min(getWrittenBytes(), buffer.position() + (int) n));
+		this.buffer.position(Math.min(getWrittenBytes(), this.buffer.position() + (int) n));
 		return this.buffer.position();
 	}
 
 	@Override
 	public void skipNBytes(long n) {
 		switchToReadIfNecessary();
-		this.buffer.position(Math.min(getWrittenBytes(), buffer.position() + (int) n));
+		this.buffer.position(Math.min(getWrittenBytes(), this.buffer.position() + (int) n));
 	}
 
 	@Override
@@ -173,8 +175,8 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	 * If the buffer mode is WRITE, the switchModeCallback function is invoked with the READ mode.
 	 */
 	private void switchToReadIfNecessary() {
-		if (bufferModeSupplier.get() == Mode.WRITE) {
-			switchModeCallback.accept(Mode.READ);
+		if (this.bufferModeSupplier.get() == Mode.WRITE) {
+			this.switchModeCallback.accept(Mode.READ);
 		}
 	}
 

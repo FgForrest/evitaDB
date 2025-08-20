@@ -59,12 +59,12 @@ public class PathMatcher<T> {
 	}
 
 	public Set<String> getExactPathMatchesSet(){
-		return Collections.unmodifiableSet(exactPathMatches.keySet());
+		return Collections.unmodifiableSet(this.exactPathMatches.keySet());
 	}
 
 
 	public Set<String> getPathMatchesSet(){
-		return Collections.unmodifiableSet(paths.toMap().keySet());
+		return Collections.unmodifiableSet(this.paths.toMap().keySet());
 	}
 
 	/**
@@ -73,7 +73,7 @@ public class PathMatcher<T> {
 	 * @return The match match. This will never be null, however if none matched its value field will be
 	 */
 	public PathMatch<T> match(String path){
-		if (!exactPathMatches.isEmpty()) {
+		if (!this.exactPathMatches.isEmpty()) {
 			T match = getExactPath(path);
 			if (match != null) {
 				UndertowLogger.REQUEST_LOGGER.debugf("Matched exact path %s", path);
@@ -86,7 +86,7 @@ public class PathMatcher<T> {
 		for (int i = 0; i < lengths.length; ++i) {
 			int pathLength = lengths[i];
 			if (pathLength == length) {
-				SubstringMap.SubstringMatch<T> next = paths.get(path, length);
+				SubstringMap.SubstringMatch<T> next = this.paths.get(path, length);
 				if (next != null) {
 					UndertowLogger.REQUEST_LOGGER.debugf("Matched prefix path %s for path %s", next.getKey(), path);
 					return new PathMatch<>(path, "", next.getValue());
@@ -95,7 +95,7 @@ public class PathMatcher<T> {
 				char c = path.charAt(pathLength);
 				if (c == '/') {
 
-					SubstringMap.SubstringMatch<T> next = paths.get(path, pathLength);
+					SubstringMap.SubstringMatch<T> next = this.paths.get(path, pathLength);
 					if (next != null) {
 						UndertowLogger.REQUEST_LOGGER.debugf("Matched prefix path %s for path %s", next.getKey(), path);
 						return new PathMatch<>(next.getKey(), path.substring(pathLength), next.getValue());
@@ -104,7 +104,7 @@ public class PathMatcher<T> {
 			}
 		}
 		UndertowLogger.REQUEST_LOGGER.debugf("Matched default handler path %s", path);
-		return new PathMatch<>("", path, defaultHandler);
+		return new PathMatch<>("", path, this.defaultHandler);
 	}
 
 	/**
@@ -131,7 +131,7 @@ public class PathMatcher<T> {
 			return this;
 		}
 
-		paths.put(normalizedPath, handler);
+		this.paths.put(normalizedPath, handler);
 
 		buildLengths();
 		return this;
@@ -142,12 +142,12 @@ public class PathMatcher<T> {
 		if (path.isEmpty()) {
 			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
 		}
-		exactPathMatches.put(URLUtils.normalizeSlashes(path), handler);
+		this.exactPathMatches.put(URLUtils.normalizeSlashes(path), handler);
 		return this;
 	}
 
 	public T getExactPath(final String path) {
-		return exactPathMatches.get(path);
+		return this.exactPathMatches.get(path);
 	}
 
 	public T getPrefixPath(final String path) {
@@ -155,7 +155,7 @@ public class PathMatcher<T> {
 		final String normalizedPath = URLUtils.normalizeSlashes(path);
 
 		// enable the prefix path mechanism to return the default handler
-		SubstringMap.SubstringMatch<T> match = paths.get(normalizedPath);
+		SubstringMap.SubstringMatch<T> match = this.paths.get(normalizedPath);
 		if (PathMatcher.STRING_PATH_SEPARATOR.equals(normalizedPath) && match == null) {
 			return this.defaultHandler;
 		}
@@ -174,7 +174,7 @@ public class PathMatcher<T> {
 				return -o1.compareTo(o2);
 			}
 		});
-		for (String p : paths.keys()) {
+		for (String p : this.paths.keys()) {
 			lengths.add(p.length());
 		}
 
@@ -199,11 +199,11 @@ public class PathMatcher<T> {
 		final String normalizedPath = URLUtils.normalizeSlashes(path);
 
 		if (PathMatcher.STRING_PATH_SEPARATOR.equals(normalizedPath)) {
-			defaultHandler = null;
+			this.defaultHandler = null;
 			return this;
 		}
 
-		paths.remove(normalizedPath);
+		this.paths.remove(normalizedPath);
 
 		buildLengths();
 		return this;
@@ -214,21 +214,21 @@ public class PathMatcher<T> {
 			throw UndertowMessages.MESSAGES.pathMustBeSpecified();
 		}
 
-		exactPathMatches.remove(URLUtils.normalizeSlashes(path));
+		this.exactPathMatches.remove(URLUtils.normalizeSlashes(path));
 
 		return this;
 	}
 
 	public synchronized PathMatcher clearPaths() {
-		paths.clear();
-		exactPathMatches.clear();
+		this.paths.clear();
+		this.exactPathMatches.clear();
 		this.lengths = ArrayUtils.EMPTY_INT_ARRAY;
-		defaultHandler = null;
+		this.defaultHandler = null;
 		return this;
 	}
 
 	public Map<String, T> getPaths() {
-		return paths.toMap();
+		return this.paths.toMap();
 	}
 
 	public static final class PathMatch<T> {
@@ -243,15 +243,15 @@ public class PathMatcher<T> {
 		}
 
 		public String getRemaining() {
-			return remaining;
+			return this.remaining;
 		}
 
 		public String getMatched() {
-			return matched;
+			return this.matched;
 		}
 
 		public T getValue() {
-			return value;
+			return this.value;
 		}
 	}
 

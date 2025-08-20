@@ -201,7 +201,7 @@ public class ObservabilityManager {
 
 		final SimpleModule module = new SimpleModule();
 		module.addSerializer(OffsetDateTime.class, new OffsetDateTimeSerializer());
-		objectMapper.registerModule(module);
+		this.objectMapper.registerModule(module);
 	}
 
 	/**
@@ -291,8 +291,8 @@ public class ObservabilityManager {
 		@Nullable Long maxAgeInSeconds
 	) throws JfRException, SingletonTaskAlreadyRunningException {
 		Assert.isTrue(
-			!evita.getConfiguration().server().readOnly(),
-			ReadOnlyException::new
+			!this.evita.getConfiguration().server().readOnly(),
+			ReadOnlyException::engineReadOnly
 		);
 
 		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);
@@ -316,10 +316,10 @@ public class ObservabilityManager {
 	public TaskStatus<?, ?> stop() throws JfRException {
 		Assert.isTrue(
 			!this.evita.getConfiguration().server().readOnly(),
-			ReadOnlyException::new
+			ReadOnlyException::engineReadOnly
 		);
 
-		final Collection<JfrRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(JfrRecorderTask.class);
+		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);
 		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
 		if (runningTask != null) {
 			runningTask.stop();
@@ -339,7 +339,7 @@ public class ObservabilityManager {
 	 */
 	@Nonnull
 	public Optional<TaskStatus<RecordingSettings, FileForFetch>> jfrRecordingTaskStatus() {
-		final Collection<JfrRecorderTask> existingTaskStatus = evita.management().getTaskStatuses(JfrRecorderTask.class);
+		final Collection<JfrRecorderTask> existingTaskStatus = this.evita.management().getTaskStatuses(JfrRecorderTask.class);
 		final JfrRecorderTask runningTask = existingTaskStatus.stream().filter(it -> !it.getFutureResult().isDone()).findFirst().orElse(null);
 		if (runningTask != null) {
 			return of(runningTask.getStatus());
@@ -360,7 +360,7 @@ public class ObservabilityManager {
 	 */
 	@Nonnull
 	public PathHandlingService getObservabilityRouter() {
-		return observabilityRouter;
+		return this.observabilityRouter;
 	}
 
 	/**
@@ -424,10 +424,10 @@ public class ObservabilityManager {
 		this.observabilityRouter.addExactPath(
 			"/" + LIVENESS_SUFFIX,
 			corsEndpoint.toHandler(
-				new ObservabilityExceptionHandler(objectMapper,
+				new ObservabilityExceptionHandler(this.objectMapper,
 					(ctx, req) -> {
 						new ReadinessEvent(ObservabilityProvider.CODE, Prospective.SERVER).finish(Result.READY);
-						return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, evita.getConfiguration().name());
+						return HttpResponse.of(HttpStatus.OK, MediaType.PLAIN_TEXT, this.evita.getConfiguration().name());
 					})
 			)
 		);

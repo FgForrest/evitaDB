@@ -148,11 +148,12 @@ public class SortIndexChanges implements Serializable {
 	 * with {@link io.evitadb.index.array.TransactionalUnorderedIntArray#add(int, int)} contract.
 	 */
 	public int computePreviousRecord(@Nonnull Serializable value, int recordId) {
-		final ValueStartIndex[] valueIndex = getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
 		// compute index of the value in the value index
-		@SuppressWarnings({"unchecked"}) final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+		//noinspection unchecked
+		final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
+			(Comparator<ValueStartIndex>) (o1, o2) -> SortIndexChanges.this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		final int position = valueInsertionPosition.position();
 		// if the value is already part of the index
@@ -175,10 +176,10 @@ public class SortIndexChanges implements Serializable {
 				return Integer.MIN_VALUE;
 			} else if (position < valueIndex.length) {
 				// value is not in the index and should be placed in the middle
-				return sortIndex.sortedRecords.get(valueIndex[position].getIndex() - 1);
+				return this.sortIndex.sortedRecords.get(valueIndex[position].getIndex() - 1);
 			} else {
 				// value is not in the index and should be placed as last
-				return sortIndex.sortedRecords.get(sortIndex.sortedRecords.getLength() - 1);
+				return this.sortIndex.sortedRecords.get(this.sortIndex.sortedRecords.getLength() - 1);
 			}
 		}
 	}
@@ -191,7 +192,7 @@ public class SortIndexChanges implements Serializable {
 		// compute the insertion position in value index
 		@SuppressWarnings({"unchecked"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
+			(Comparator<ValueStartIndex>) (o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
 		);
 		assertNotPresent(!insertionPosition.alreadyPresent(), value);
 		// nod place the value in the value index with start position as previous block start + previous value cardinality

@@ -71,34 +71,34 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
+		return this.dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+		return this.dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 	}
 
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		return dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
+		return this.dataStoreChanges.removeIndex(entityIndexKey, removalPropagation);
 	}
 
 	@Override
 	public int countStorageParts(long catalogVersion, @Nonnull Class<? extends StoragePart> containerType) {
-		return dataStoreChanges.countStorageParts(catalogVersion, containerType);
+		return this.dataStoreChanges.countStorageParts(catalogVersion, containerType);
 	}
 
 	@Override
 	@Nullable
 	public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		return dataStoreChanges.getStoragePart(catalogVersion, primaryKey, containerType);
+		return this.dataStoreChanges.getStoragePart(catalogVersion, primaryKey, containerType);
 	}
 
 	@Override
 	@Nullable
 	public <T extends StoragePart> byte[] fetchBinary(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		return dataStoreChanges.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
+		return this.dataStoreChanges.getStoragePartAsBinary(catalogVersion, primaryKey, containerType);
 	}
 
 	@Override

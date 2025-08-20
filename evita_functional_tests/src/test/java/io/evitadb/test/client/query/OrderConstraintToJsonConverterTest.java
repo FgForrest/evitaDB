@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,14 +47,14 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		this.converter = new OrderConstraintToJsonConverter(catalogSchema);
+		this.converter = new OrderConstraintToJsonConverter(this.catalogSchema);
 	}
 
 	@Test
 	void shouldResolveValueOrderConstraint() {
 		assertEquals(
 			new JsonConstraint("attributeCodeNatural", jsonNodeFactory.textNode("ASC")),
-			converter.convert(
+			this.converter.convert(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				attributeNatural("CODE", OrderDirection.ASC)
 			).get()
@@ -75,7 +75,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
 		assertEquals(
 			new JsonConstraint("referenceCategoryProperty", referenceCategoryProperty),
-			converter.convert(
+			this.converter.convert(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				referenceProperty(
 					"CATEGORY",
@@ -110,7 +110,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
 		assertEquals(
 			new JsonConstraint("orderBy", orderBy),
-			converter.convert(
+			this.converter.convert(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				orderBy(
 					attributeNatural("CODE", OrderDirection.ASC),

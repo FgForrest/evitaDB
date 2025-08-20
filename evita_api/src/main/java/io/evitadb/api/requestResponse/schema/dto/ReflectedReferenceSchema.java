@@ -249,7 +249,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable String deprecationNotice,
 		@Nonnull String entityType,
 		@Nonnull Map<NamingConvention, String> entityTypeVariants,
-		@Nonnull String referencedGroupType,
+		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeVariants,
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,

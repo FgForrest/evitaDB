@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,8 +51,8 @@ public class OpenApiReferenceValidator {
 
 	public OpenApiReferenceValidator(@Nonnull OpenAPI openAPI) {
 		this.schemas = openAPI.getComponents().getSchemas();
-		visitedSchemas = createHashSet(100);
-		missingSchemas = createHashSet(100);
+		this.visitedSchemas = createHashSet(100);
+		this.missingSchemas = createHashSet(100);
 	}
 
 	/**
@@ -61,24 +61,24 @@ public class OpenApiReferenceValidator {
 	 * @return <code>true</code> when schema is valid.
 	 */
 	public Set<String> validateSchemaReferences() {
-		schemas.values().forEach(this::validateSchemaReferences);
-		return missingSchemas;
+		this.schemas.values().forEach(this::validateSchemaReferences);
+		return this.missingSchemas;
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private void validateSchemaReferences(@Nonnull Schema schema) {
-		if (visitedSchemas.contains(schema.getName())) {
+		if (this.visitedSchemas.contains(schema.getName())) {
 			return;
 		} else if (schema.getName() != null) {
-			visitedSchemas.add(schema.getName());
+			this.visitedSchemas.add(schema.getName());
 		}
 
 		if (schema instanceof ArraySchema arraySchema) {
 			validateSchemaReferences(arraySchema.getItems());
 		} else if (schema.get$ref() != null) {
 			final String schemaName = SchemaUtils.getSchemaNameFromReference(schema.get$ref());
-			if (!schemas.containsKey(schemaName)) {
-				missingSchemas.add(schemaName);
+			if (!this.schemas.containsKey(schemaName)) {
+				this.missingSchemas.add(schemaName);
 			}
 		} else {
 			if (schema.getProperties() != null) {

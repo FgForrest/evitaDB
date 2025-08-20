@@ -92,7 +92,7 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 
 	@Override
 	public AttributeKey getStoragePartSourceKey() {
-		return attributeKey;
+		return this.attributeKey;
 	}
 
 }

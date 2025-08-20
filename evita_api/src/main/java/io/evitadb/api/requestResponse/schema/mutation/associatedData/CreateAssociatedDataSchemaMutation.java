@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,9 +112,9 @@ public class CreateAssociatedDataSchemaMutation
 	) {
 		// when the associated schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
-		if (existingMutation instanceof RemoveAssociatedDataSchemaMutation removeAssociatedDataSchema && Objects.equals(removeAssociatedDataSchema.getName(), name)) {
+		if (existingMutation instanceof RemoveAssociatedDataSchemaMutation removeAssociatedDataSchema && Objects.equals(removeAssociatedDataSchema.getName(), this.name)) {
 			final AssociatedDataSchemaContract createdVersion = mutate(null);
-			final AssociatedDataSchemaContract existingVersion = currentEntitySchema.getAssociatedData(name)
+			final AssociatedDataSchemaContract existingVersion = currentEntitySchema.getAssociatedData(this.name)
 				.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 
 			return new MutationCombinationResult<>(
@@ -124,31 +124,31 @@ public class CreateAssociatedDataSchemaMutation
 							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaContract::getDescription,
-							newValue -> new ModifyAssociatedDataSchemaDescriptionMutation(name, newValue)
+							newValue -> new ModifyAssociatedDataSchemaDescriptionMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifyAssociatedDataSchemaDeprecationNoticeMutation(name, newValue)
+							newValue -> new ModifyAssociatedDataSchemaDeprecationNoticeMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::getType,
-							newValue -> new ModifyAssociatedDataSchemaTypeMutation(name, newValue)
+							newValue -> new ModifyAssociatedDataSchemaTypeMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::isLocalized,
-							newValue -> new SetAssociatedDataSchemaLocalizedMutation(name, newValue)
+							newValue -> new SetAssociatedDataSchemaLocalizedMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							AssociatedDataSchemaContract.class,
 							createdVersion, existingVersion,
 							AssociatedDataSchemaContract::isNullable,
-							newValue -> new SetAssociatedDataSchemaNullableMutation(name, newValue)
+							newValue -> new SetAssociatedDataSchemaNullableMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -163,7 +163,7 @@ public class CreateAssociatedDataSchemaMutation
 	@Override
 	public AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema) {
 		return AssociatedDataSchema._internalBuild(
-			name, description, deprecationNotice, type, localized, nullable
+			this.name, this.description, this.deprecationNotice, this.type, this.localized, this.nullable
 		);
 	}
 
@@ -172,7 +172,7 @@ public class CreateAssociatedDataSchemaMutation
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final AssociatedDataSchemaContract newAssociatedDataSchema = mutate(null);
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
@@ -209,7 +209,7 @@ public class CreateAssociatedDataSchemaMutation
 		} else {
 			// ups, there is conflict in associated data settings
 			throw new InvalidSchemaMutationException(
-				"The associated data `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
+				"The associated data `" + this.name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
 					" has different definition. To alter existing associated data schema you need to use different mutations."
 			);
 		}
@@ -224,11 +224,11 @@ public class CreateAssociatedDataSchemaMutation
 	@Override
 	public String toString() {
 		return "Create associated data: " +
-			"name='" + name + '\'' +
-			", description='" + description + '\'' +
-			", deprecationNotice='" + deprecationNotice + '\'' +
-			", type=" + type +
-			", localized=" + localized +
-			", nullable=" + nullable;
+			"name='" + this.name + '\'' +
+			", description='" + this.description + '\'' +
+			", deprecationNotice='" + this.deprecationNotice + '\'' +
+			", type=" + this.type +
+			", localized=" + this.localized +
+			", nullable=" + this.nullable;
 	}
 }

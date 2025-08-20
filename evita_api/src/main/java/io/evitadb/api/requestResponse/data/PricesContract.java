@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -106,7 +107,7 @@ public interface PricesContract extends Versioned, Serializable {
 			.stream()
 			.filter(PriceContract::exists)
 			.filter(it -> currency.equals(it.currency()))
-			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true));
+			.filter(it -> isValidAtTheMoment(atTheMoment, it));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
@@ -259,7 +260,7 @@ public interface PricesContract extends Versioned, Serializable {
 				.stream()
 				.filter(PriceContract::exists)
 				.filter(it -> currency.equals(it.currency()))
-				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.filter(it -> isValidAtTheMoment(atTheMoment, it))
 				.toList();
 			return Arrays.stream(accompanyingPrices)
 				.collect(
@@ -338,7 +339,7 @@ public interface PricesContract extends Versioned, Serializable {
 				.stream()
 				.filter(PriceContract::exists)
 				.filter(it -> currency.equals(it.currency()))
-				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.filter(it -> isValidAtTheMoment(atTheMoment, it))
 				.filter(it -> it.innerRecordId() == null || priceForSale.relatesTo(it))
 				.collect(
 					Collectors.groupingBy(
@@ -388,6 +389,22 @@ public interface PricesContract extends Versioned, Serializable {
 		} else {
 			return Collections.emptyMap();
 		}
+	}
+
+	/**
+	 * Checks if the given moment is valid based on the validity range of the provided price contract.
+	 *
+	 * @param atTheMoment the specific moment to evaluate, which can be null. If null, this method defaults to true.
+	 * @param price the price contract containing validity information, must not be null.
+	 * @return true if the moment is valid based on the price contract validity range, or if no moment is provided; false otherwise.
+	 */
+	private static boolean isValidAtTheMoment(@Nullable OffsetDateTime atTheMoment, @Nonnull PriceContract price) {
+		return ofNullable(atTheMoment)
+			.map(mmt -> {
+				final DateTimeRange validity = price.validity();
+				return validity == null || validity.isValidFor(mmt);
+			})
+			.orElse(true);
 	}
 
 	/**
@@ -977,9 +994,9 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	default List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(
-		@Nullable Currency currency,
+		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
-		@Nullable String[] priceListPriority,
+		@Nonnull String[] priceListPriority,
 		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
 	) {
 		final PriceInnerRecordHandling priceInnerRecordHandling = getPriceInnerRecordHandling();
@@ -1048,7 +1065,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.filter(PriceContract::exists)
 					.filter(PriceContract::indexed)
 					.filter(it -> currency.equals(it.currency()))
-					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+					.filter(it -> isValidAtTheMoment(atTheMoment, it))
 					.filter(it -> pLists.containsKey(it.priceList()))
 					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerRecordId

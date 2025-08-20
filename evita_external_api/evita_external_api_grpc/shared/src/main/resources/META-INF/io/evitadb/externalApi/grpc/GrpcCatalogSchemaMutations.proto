@@ -8,27 +8,11 @@ import "GrpcEnums.proto";
 import "GrpcEntitySchemaMutation.proto";
 import "google/protobuf/wrappers.proto";
 
-// Mutation is responsible for setting up a new CatalogSchema.
-message GrpcCreateCatalogSchemaMutation {
-  // Name of newly created catalog schema.
-  string catalogName = 1;
-}
-
 // Mutation is responsible for setting value to a `CatalogSchema.description` in `CatalogSchema`.
 message GrpcModifyCatalogSchemaDescriptionMutation {
   // Contains description of the model is optional but helps authors of the schema / client API to better
   // explain the original purpose of the model to the consumers.
   google.protobuf.StringValue description = 1;
-}
-
-// Mutation is responsible for renaming an existing CatalogSchema.
-message GrpcModifyCatalogSchemaNameMutation {
-  // Name of the catalog schema the mutation is targeting (will rename).
-  string catalogName = 1;
-  // The new name of the catalog schema.
-  string newCatalogName = 2;
-  // Flag indicating whether to replace the existing catalog or just to rename it.
-  bool overwriteTarget = 3;
 }
 
 // Mutation is responsible for adding one or more modes to a `CatalogSchema.catalogEvolutionMode` in `CatalogSchema`.
@@ -47,38 +31,10 @@ message GrpcDisallowEvolutionModeInCatalogSchemaMutation {
   repeated GrpcCatalogEvolutionMode evolutionModes = 1;
 }
 
-// Mutation is responsible for removing an existing CatalogSchema.
-message GrpcRemoveCatalogSchemaMutation {
-  // Name of catalog schema to remove.
-  string catalogName = 1;
-}
-
-// Mutation is responsible for setting up a new `EntitySchema` - or more precisely the collection within catalog.
-message GrpcCreateEntitySchemaMutation {
-  // Name of newly created entity schema.
-  string entityType = 1;
-}
-
 // Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within the `CatalogSchema`.
 message GrpcModifyEntitySchemaMutation {
   // Entity type of entity schema that will be affected by passed mutations.
   string entityType = 1;
   // Collection of mutations that should be applied on current version of the schema.
   repeated GrpcEntitySchemaMutation entitySchemaMutations = 2;
-}
-
-// Mutation is responsible for renaming an existing `EntitySchema`.
-message GrpcModifyEntitySchemaNameMutation {
-  // Name of the entity schema the mutation is targeting.
-  string name = 1;
-  // New name of the entity schema the mutation is targeting.
-  string newName = 2;
-  // Whether to overwrite entity collection with same name as the `newName` if found.
-  bool overwriteTarget = 3;
-}
-
-// Mutation is responsible for removing an existing `EntitySchema`.
-message GrpcRemoveEntitySchemaMutation {
-  // Name of entity schema to remove.
-  string name = 1;
 }

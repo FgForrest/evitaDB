@@ -24,11 +24,13 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
@@ -37,8 +39,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.ListBuilder.list;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -53,7 +56,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetReferenceSchemaIndexedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetReferenceSchemaIndexedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -63,7 +66,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 			new Scope[] { Scope.LIVE }
 		);
 
-		final SetReferenceSchemaIndexedMutation convertedMutation1 = converter.convert(
+		final SetReferenceSchemaIndexedMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(
@@ -78,7 +81,7 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetReferenceSchemaIndexedMutation convertedMutation2 = converter.convert(
+		final SetReferenceSchemaIndexedMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
@@ -94,23 +97,41 @@ class SetReferenceSchemaIndexedMutationConverterTest {
 	}
 
 	@Test
-	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final SetReferenceSchemaIndexedMutation expectedMutation = new SetReferenceSchemaIndexedMutation(
-			"tags",
-			(Scope[]) null
+	void shouldNotResolveInputWhenMissingRequiredData() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(), true)
+					.build()
+			)
 		);
-
-		final SetReferenceSchemaIndexedMutation convertedMutation1 = converter.convert(
-			map()
-				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-				.build()
-		);
-		assertEquals(expectedMutation, convertedMutation1);
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
-	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+	void shouldSerializeLocalMutationToOutput() {
+		final SetReferenceSchemaIndexedMutation inputMutation = new SetReferenceSchemaIndexedMutation(
+			"tags",
+			new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) }
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+					   list().i(
+						   map()
+							   .e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							   .e(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE.name(), ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING.name())
+					   )
+					)
+					.build()
+			);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -144,6 +144,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * @throws InvalidDataObjectException         When the deserialization process fails
 	 * @throws IncompleteDeserializationException When some data cannot be deserialized
 	 */
+	@Nonnull
 	public static <T extends Serializable> T getOriginalForm(
 		@Nonnull Serializable container,
 		@Nonnull Class<T> requestedClass,
@@ -477,12 +478,12 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * @throws SerializationFailedException If the conversion process fails
 	 */
 	public Serializable getSerializableForm() {
-		if (container instanceof ComplexDataObject || container instanceof ComplexDataObject[]) {
-			return container;
+		if (this.container instanceof ComplexDataObject || this.container instanceof ComplexDataObject[]) {
+			return this.container;
 		} else {
-			final Class<?> type = container.getClass().isArray() ?
-				container.getClass().getComponentType() : container.getClass();
-			return EvitaDataTypes.isSupportedType(type) ? container : convertToGenericType(container);
+			final Class<?> type = this.container.getClass().isArray() ?
+				this.container.getClass().getComponentType() : this.container.getClass();
+			return EvitaDataTypes.isSupportedType(type) ? this.container : convertToGenericType(this.container);
 		}
 	}
 
@@ -503,11 +504,11 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 */
 	@Nonnull
 	public T getOriginalForm(@Nonnull Serializable serializedForm) {
-		Assert.notNull(reflectionLookup, "Reflection lookup required!");
+		Assert.notNull(this.reflectionLookup, "Reflection lookup required!");
 		if (serializedForm instanceof Object[] && EvitaDataTypes.isSupportedType(serializedForm.getClass().getComponentType())) {
 			//noinspection unchecked
 			return (T) serializedForm;
-		} else if (ComplexDataObject.class.isAssignableFrom(containerClass) && serializedForm instanceof ComplexDataObject) {
+		} else if (ComplexDataObject.class.isAssignableFrom(this.containerClass) && serializedForm instanceof ComplexDataObject) {
 			//noinspection unchecked
 			return (T) serializedForm;
 		} else if (EvitaDataTypes.isSupportedType(serializedForm.getClass())) {
@@ -521,10 +522,10 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			// we need to take care only of array - other collection types, such as List, Set, Map cannot be used as
 			// top level containers because generics cannot be propagated to the methods due to JVM limitations
 			final DataItem root = complexDataObject.root();
-			if (containerClass.isArray()) {
+			if (this.containerClass.isArray()) {
 				try {
 					//noinspection unchecked
-					result = (T) deserializeArray(reflectionLookup, containerClass, root, extractionCtx);
+					result = (T) deserializeArray(this.reflectionLookup, this.containerClass, root, extractionCtx);
 				} catch (IllegalAccessException | InvocationTargetException e) {
 					throw new SerializationFailedException(
 						"Failed to deserialize root array.", e
@@ -532,9 +533,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				}
 			} else if (root instanceof DataItemMap dataItemMap) {
 				// usually there will be single top level POJO object
-				result = extractData(containerClass, dataItemMap, reflectionLookup, extractionCtx);
+				result = extractData(this.containerClass, dataItemMap, this.reflectionLookup, extractionCtx);
 			} else {
-				throw new InconvertibleDataTypeException(containerClass, root.getClass());
+				throw new InconvertibleDataTypeException(this.containerClass, root.getClass());
 			}
 			// check whether all data has been deserialized or marked as discarded
 			if (!extractionCtx.getNotExtractedProperties().isEmpty()) {
@@ -560,13 +561,13 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			final DataItem[] dataItems = new DataItem[containerArray.length];
 			for (int i = 0; i < containerArray.length; i++) {
 				final Object containerItem = containerArray[i];
-				dataItems[i] = collectData((Serializable) containerItem, reflectionLookup, "[" + i + "].");
+				dataItems[i] = collectData((Serializable) containerItem, this.reflectionLookup, "[" + i + "].");
 			}
 			final Class<?> arrayType = container.getClass().getComponentType();
 			assertSerializable(arrayType);
 			rootNode = new DataItemArray(dataItems);
 		} else {
-			rootNode = collectData(container, reflectionLookup, "");
+			rootNode = collectData(container, this.reflectionLookup, "");
 		}
 
 		final ComplexDataObject result = new ComplexDataObject(rootNode);
@@ -1553,17 +1554,17 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		 * Adds property that which value was migrated to user class instance.
 		 */
 		public void addNotExtractedProperty(@Nonnull String propertyName) {
-			if (notExtractedProperties == null) {
-				notExtractedProperties = new HashSet<>();
+			if (this.notExtractedProperties == null) {
+				this.notExtractedProperties = new HashSet<>();
 			}
 
 			final StringBuilder sb = new StringBuilder(128);
-			final Iterator<String> it = propertyPath.descendingIterator();
+			final Iterator<String> it = this.propertyPath.descendingIterator();
 			while (it.hasNext()) {
 				sb.append(it.next());
 			}
-			final String composedPropertyName = sb + (propertyPath.isEmpty() ? "" : ".") + propertyName;
-			notExtractedProperties.add(composedPropertyName);
+			final String composedPropertyName = sb + (this.propertyPath.isEmpty() ? "" : ".") + propertyName;
+			this.notExtractedProperties.add(composedPropertyName);
 		}
 
 		/**
@@ -1571,14 +1572,14 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		 * not marked as discarded as well.
 		 */
 		public Set<String> getNotExtractedProperties() {
-			return notExtractedProperties == null ? Collections.emptySet() : notExtractedProperties;
+			return this.notExtractedProperties == null ? Collections.emptySet() : this.notExtractedProperties;
 		}
 
 		/**
 		 * Adds property that has been found on user class as "discarded".
 		 */
 		public void addDiscardedProperty(@Nonnull String propertyName) {
-			final Set<String> currentProperties = Objects.requireNonNull(propertySets.peek());
+			final Set<String> currentProperties = Objects.requireNonNull(this.propertySets.peek());
 			currentProperties.remove(propertyName);
 		}
 
@@ -1586,11 +1587,11 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		 * Initializes set of properties that should be monitored for extraction.
 		 */
 		public void pushPropertyNames(@Nonnull Set<String> propertyNames) {
-			if (!propertySets.isEmpty()) {
-				propertyPath.push((propertyPath.isEmpty() ? "" : ".") + lastExtractedProperty.peek());
+			if (!this.propertySets.isEmpty()) {
+				this.propertyPath.push((this.propertyPath.isEmpty() ? "" : ".") + this.lastExtractedProperty.peek());
 			}
-			propertySets.push(new HashSet<>(propertyNames));
-			lastExtractedProperty.push(NULL_STRING);
+			this.propertySets.push(new HashSet<>(propertyNames));
+			this.lastExtractedProperty.push(NULL_STRING);
 		}
 
 		/**
@@ -1598,37 +1599,37 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		 * to the Java object and this would lead to data loss that needs to be signalled by an exception.
 		 */
 		public void popPropertyNames() {
-			final Set<String> notExtractedProperties = propertySets.pop();
+			final Set<String> notExtractedProperties = this.propertySets.pop();
 			notExtractedProperties.forEach(this::addNotExtractedProperty);
-			if (!propertySets.isEmpty()) {
-				propertyPath.pop();
+			if (!this.propertySets.isEmpty()) {
+				this.propertyPath.pop();
 			}
-			lastExtractedProperty.pop();
+			this.lastExtractedProperty.pop();
 		}
 
 		/**
 		 * Records information about property extraction - i.e. successful propagation to result Java object.
 		 */
 		public void addExtractedProperty(@Nonnull String propertyName) {
-			final Set<String> currentProperties = Objects.requireNonNull(propertySets.peek());
+			final Set<String> currentProperties = Objects.requireNonNull(this.propertySets.peek());
 			currentProperties.remove(propertyName);
-			lastExtractedProperty.pop();
-			lastExtractedProperty.push(propertyName);
+			this.lastExtractedProperty.pop();
+			this.lastExtractedProperty.push(propertyName);
 		}
 
 		/**
 		 * Allows to track position in the extracted arrays.
 		 */
 		public void pushIndex(int index) {
-			propertyPath.push("[" + index + "]");
+			this.propertyPath.push("[" + index + "]");
 		}
 
 		/**
 		 * Clears information about position in the array.
 		 */
 		public void popIndex() {
-			if (!propertySets.isEmpty()) {
-				final String popped = propertyPath.pop();
+			if (!this.propertySets.isEmpty()) {
+				final String popped = this.propertyPath.pop();
 				Assert.isPremiseValid(popped.charAt(0) == '[', "Sanity check!");
 			}
 		}

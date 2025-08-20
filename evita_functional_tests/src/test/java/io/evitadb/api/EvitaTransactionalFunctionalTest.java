@@ -34,9 +34,11 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
@@ -44,27 +46,28 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor.TransactionChanges;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.function.TriFunction;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -72,6 +75,7 @@ import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
+import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer.CatalogTransactionChanges;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -169,7 +173,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		StorageOptions.temporary(),
 		Mockito.mock(Scheduler.class)
 	);
-	private final OffHeapMemoryManager offHeapMemoryManager = new OffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
+	private final CatalogOffHeapMemoryManager offHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
 
 	/**
 	 * Verifies the contents of the catalog in the given Evita instance.
@@ -523,13 +527,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 			0L,
 			TEST_CATALOG,
+			index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 			catalogDirectory,
 			this.catalogKryoPool,
 			StorageOptions.builder().build(),
 			TransactionOptions.builder().build(),
 			Mockito.mock(Scheduler.class),
-			timestamp -> {
-			},
+			Functions.noOpLongConsumer(),
 			null
 		);
 
@@ -540,6 +544,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// start evita again and wait for the WAL to be processed
 		final Evita secondInstance = new Evita(cfg);
+		secondInstance.waitUntilFullyInitialized();
 
 		// verify the documents in the evitaDB catalog
 		final long catalogVersion = verifyCatalogContents(secondInstance, generatedEntities, 4L);
@@ -555,12 +560,78 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 		// start evitaDB again and wait for the WAL to be processed
 		final Evita thirdInstance = new Evita(cfg);
+		thirdInstance.waitUntilFullyInitialized();
 
 		// verify the documents in the evitaDB catalog
 		final long nextCatalogVersion = verifyCatalogContents(thirdInstance, additionalGeneratedEntities, 6L);
 		assertEquals(6L, nextCatalogVersion);
 
 		thirdInstance.close();
+	}
+
+	@DisplayName("Engine log should be truncated automatically when there is content after current state reference.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldTruncateEngineLogAndStartCorrectly(Evita evita) {
+		// ensure there is at least one engine mutation recorded in WAL and EngineState references it
+		final EvitaConfiguration cfg = evita.getConfiguration();
+		// perform a simple engine-level mutation: make catalog immutable (writes to engine WAL)
+		evita.makeCatalogImmutableWithProgress(TEST_CATALOG).onCompletion().toCompletableFuture().join();
+		// close evita so files are released
+		evita.close();
+
+		// locate engine WAL file in engine storage root directory
+		final Path storageDir = cfg.storage().storageDirectory();
+		final Optional<Path> walFileOpt;
+		try (final Stream<Path> fileListing = Files.list(storageDir);) {
+			walFileOpt = fileListing
+				.filter(p -> p.getFileName().toString().endsWith(".wal"))
+				.findFirst();
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to list files in storage directory: " + storageDir, e);
+		}
+		assertTrue(walFileOpt.isPresent(), "Engine WAL file should exist after engine mutation");
+		final Path walFile = walFileOpt.get();
+
+		try {
+			final long originalSize = Files.size(walFile);
+			// append gibberish bytes to the end of the WAL file
+			final byte[] gibberish = new byte[]{(byte)0xDE, (byte)0xAD, (byte)0xBE, (byte)0xEF, 0x01, 0x02, 0x03};
+			Files.write(walFile, gibberish, java.nio.file.StandardOpenOption.APPEND);
+			final long corruptedSize = Files.size(walFile);
+			assertTrue(corruptedSize > originalSize, "WAL file size should increase after appending gibberish");
+
+			// start evita again - it should truncate the WAL file to the recorded end position and start correctly
+			final Evita restarted = new Evita(cfg);
+			restarted.waitUntilFullyInitialized();
+
+			// verify engine is operational by performing a simple read from the catalog
+			restarted.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				}
+			);
+
+			// verify catalog is immutable (last successful mutation was to make catalog immutable)
+			assertThrows(
+				ReadOnlyException.class,
+				() -> restarted.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						fail("Catalog should be immutable, but update was allowed!");
+					}
+				)
+			);
+
+			// verify the WAL file has been truncated back to the original size
+			final long truncatedSize = Files.size(walFile);
+			assertEquals(originalSize, truncatedSize, "WAL should be truncated back to original size");
+
+			restarted.close();
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	@DisplayName("Catalog history should be aggregated correctly.")
@@ -579,13 +650,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 				0L,
 				TEST_CATALOG,
+				index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
 				catalogDirectory,
 				this.catalogKryoPool,
 				StorageOptions.builder().build(),
 				TransactionOptions.builder().build(),
 				Mockito.mock(Scheduler.class),
-				timestamp -> {
-				},
+				Functions.noOpLongConsumer(),
 				null
 			)
 		) {
@@ -630,7 +701,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
 					.getData()
 					.stream()
-					.mapToLong(CatalogVersion::version)
+					.mapToLong(StoredVersion::version)
 					.toArray();
 				assertArrayEquals(new long[]{59, 54, 50, 45, 41}, versions);
 
@@ -650,7 +721,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					),
 					replaceTimeStamps(
 						catalog.getCatalogVersionDescriptors(versions)
-							.map(CatalogVersionDescriptor::toString)
+							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
@@ -711,8 +782,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						replaceLag(
 							catalog.getCatalogVersionDescriptors(versions)
 								.flatMap(
-									it -> Arrays.stream(it.transactionChanges())
-										.sorted(Comparator.comparingLong(TransactionChanges::catalogVersion).reversed())
+									it -> Arrays.stream((CatalogTransactionChanges[])it.transactionChanges().getTransactionChanges())
+										.sorted(Comparator.comparingLong(CatalogTransactionChanges::catalogVersion).reversed())
 										.map(x -> x.toString(it.processedTimestamp()))
 								)
 								.collect(Collectors.joining("\n"))
@@ -723,7 +794,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] prevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 2, 5)
 					.getData()
 					.stream()
-					.mapToLong(CatalogVersion::version)
+					.mapToLong(StoredVersion::version)
 					.toArray();
 				assertArrayEquals(new long[]{36, 32, 27, 23, 18}, prevVersions);
 
@@ -743,7 +814,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					),
 					replaceTimeStamps(
 						catalog.getCatalogVersionDescriptors(prevVersions)
-							.map(CatalogVersionDescriptor::toString)
+							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
@@ -751,7 +822,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] prevPrevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5)
 					.getData()
 					.stream()
-					.mapToLong(CatalogVersion::version)
+					.mapToLong(StoredVersion::version)
 					.toArray();
 				assertArrayEquals(new long[]{14, 9, 4, 1, 0}, prevPrevVersions);
 
@@ -769,7 +840,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					),
 					replaceTimeStamps(
 						catalog.getCatalogVersionDescriptors(prevPrevVersions)
-							.map(CatalogVersionDescriptor::toString)
+							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
@@ -1073,6 +1144,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.cache(originalConfiguration.cache())
 				.build()
 		);
+		evita.waitUntilFullyInitialized();
 
 		// insert enough data to rotate WAL more than twice
 		for (int i = 0; i < 10; i++) {
@@ -1811,9 +1883,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.withAttribute(attributePrice, BigDecimal.class))
 					.updateViaNewSession(evita);
 				evita.updateCatalog(
-					TEST_CATALOG, session -> {
-						session.goLiveAndClose();
-					}
+					TEST_CATALOG, EvitaSessionContract::goLiveAndClose
 				);
 
 				final LocalDateTime initialStart = LocalDateTime.now();
@@ -1954,7 +2024,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	@Nonnull
 	private Map<Long, List<EntityContract>> appendWal(
 		long baseCatalogVersion,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull CatalogWriteAheadLog wal,
 		int[] transactionSizes,
 		@Nonnull SealedCatalogSchema catalogSchema,
@@ -2017,11 +2087,185 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					.map(InstanceWithMutation::instance)
 					.toList()
 			);
-		}
-		return entitiesInMutations;
-	}
+ 	}
+ 	return entitiesInMutations;
+ }
 
-	private record PkWithCatalogVersion(
+ @DisplayName("Should retrieve committed mutation stream in chronological order.")
+ @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+ @Test
+ void shouldGetCommittedMutationStream(EvitaContract evita, SealedEntitySchema productSchema) {
+ 	// Execute 3 transactions with operations
+ 	for (int i = 0; i < 3; i++) {
+ 		final int transactionIndex = i;
+ 		final Long version = evita.updateCatalog(
+ 			TEST_CATALOG,
+ 			session -> {
+ 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+
+ 				// Transaction 1: Create 1 entity
+ 				// Transaction 2: Create 2 entities
+ 				// Transaction 3: Create 1 entity
+ 				final int entitiesToCreate = transactionIndex == 1 ? 2 : 1;
+
+ 				for (int j = 0; j < entitiesToCreate; j++) {
+ 					final SealedEntity entity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED + transactionIndex * 10 + j)
+ 						.limit(1)
+ 						.map(session::upsertAndFetchEntity)
+ 						.findFirst()
+ 						.orElseThrow();
+ 				}
+
+ 				return session.getCatalogVersion();
+ 			}
+ 		);
+ 	}
+
+ 	// Test getCommittedMutationStream starting from version 1
+ 	try (final Stream<EngineMutation<?>> mutationStream = ((Evita) evita).getCommittedMutationStream(1L)) {
+ 		final List<EngineMutation<?>> mutations = mutationStream.toList();
+
+ 		assertFalse(mutations.isEmpty(), "Mutation stream should not be empty");
+
+ 		// Verify we have mutations from all transactions
+ 		// Each transaction should have a TransactionMutation plus entity mutations
+ 		assertTrue(mutations.size() >= 3, "Should have mutations from at least 3 transactions");
+
+ 		// Filter TransactionMutations to verify transaction order
+ 		final List<TransactionMutation> transactionMutations = mutations.stream()
+ 			.filter(TransactionMutation.class::isInstance)
+ 			.map(TransactionMutation.class::cast)
+ 			.toList();
+
+ 		assertTrue(transactionMutations.size() >= 3, "Should have at least 3 transaction mutations");
+
+ 		// Verify chronological order - versions should be increasing
+ 		for (int i = 1; i < transactionMutations.size(); i++) {
+ 			final TransactionMutation previous = transactionMutations.get(i - 1);
+ 			final TransactionMutation current = transactionMutations.get(i);
+ 			assertTrue(previous.getVersion() < current.getVersion(),
+ 				"Transaction mutations should be in chronological order (version " + previous.getVersion() + " should be < " + current.getVersion() + ")");
+ 			assertTrue(previous.getCommitTimestamp().isBefore(current.getCommitTimestamp()) || previous.getCommitTimestamp().equals(current.getCommitTimestamp()),
+ 				"Transaction mutations should be in chronological order by commit timestamp");
+ 		}
+
+ 		// Get the last 3 transactions (which should be the ones we created in this test)
+ 		final List<TransactionMutation> lastThreeTransactions = transactionMutations.subList(
+ 			Math.max(0, transactionMutations.size() - 3),
+ 			transactionMutations.size()
+ 		);
+
+ 		// Verify we have at least 3 transactions from our test
+ 		assertTrue(lastThreeTransactions.size() >= 3, "Should have at least 3 test transactions");
+
+ 		// Verify that each transaction has a positive mutation count
+ 		for (TransactionMutation transaction : lastThreeTransactions) {
+ 			assertTrue(transaction.getMutationCount() > 0, "Each transaction should have at least one mutation");
+ 		}
+
+ 		// Verify we have UPSERT operations for entity creations
+ 		final long upsertCount = mutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.UPSERT)
+ 			.count();
+ 		assertTrue(upsertCount >= 4, "Should have at least 4 UPSERT operations (1+2+1 entities created in our test)");
+
+ 		// Verify we have TRANSACTION operations
+ 		final long transactionCount = mutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.TRANSACTION)
+ 			.count();
+ 		assertTrue(transactionCount >= 3, "Should have at least 3 TRANSACTION operations");
+ 	}
+ }
+
+ @DisplayName("Should retrieve reversed committed mutation stream with transactions in reverse order.")
+ @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+ @Test
+ void shouldGetReversedCommittedMutationStream(EvitaContract evita, SealedEntitySchema productSchema) {
+ 	// Execute 3 transactions with operations
+ 	for (int i = 0; i < 3; i++) {
+ 		final int transactionIndex = i;
+ 		final Long version = evita.updateCatalog(
+ 			TEST_CATALOG,
+ 			session -> {
+ 				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+
+ 				// Transaction 1: Create 1 entity
+ 				// Transaction 2: Create 2 entities
+ 				// Transaction 3: Create 1 entity
+ 				final int entitiesToCreate = transactionIndex == 1 ? 2 : 1;
+
+ 				for (int j = 0; j < entitiesToCreate; j++) {
+ 					final SealedEntity entity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED + transactionIndex * 10 + j)
+ 						.limit(1)
+ 						.map(session::upsertAndFetchEntity)
+ 						.findFirst()
+ 						.orElseThrow();
+ 				}
+
+ 				return session.getCatalogVersion();
+ 			}
+ 		);
+ 	}
+
+ 	// Test getReversedCommittedMutationStream starting from the last version
+ 	try (final Stream<EngineMutation<?>> reversedMutationStream = ((Evita) evita).getReversedCommittedMutationStream(null)) {
+ 		final List<EngineMutation<?>> reversedMutations = reversedMutationStream.toList();
+
+ 		assertFalse(reversedMutations.isEmpty(), "Reversed mutation stream should not be empty");
+
+ 		// Verify we have mutations from all transactions
+ 		assertTrue(reversedMutations.size() >= 3, "Should have mutations from at least 3 transactions");
+
+ 		// Filter TransactionMutations to verify reverse transaction order
+ 		final List<TransactionMutation> reversedTransactionMutations = reversedMutations.stream()
+ 			.filter(TransactionMutation.class::isInstance)
+ 			.map(TransactionMutation.class::cast)
+ 			.toList();
+
+ 		assertTrue(reversedTransactionMutations.size() >= 3, "Should have at least 3 transaction mutations");
+
+ 		// Verify reverse chronological order - versions should be decreasing
+ 		for (int i = 1; i < reversedTransactionMutations.size(); i++) {
+ 			final TransactionMutation previous = reversedTransactionMutations.get(i - 1);
+ 			final TransactionMutation current = reversedTransactionMutations.get(i);
+ 			assertTrue(previous.getVersion() > current.getVersion(),
+ 				"Transaction mutations should be in reverse chronological order (version " + previous.getVersion() + " should be > " + current.getVersion() + ")");
+ 			assertTrue(previous.getCommitTimestamp().isAfter(current.getCommitTimestamp()) || previous.getCommitTimestamp().equals(current.getCommitTimestamp()),
+ 				"Transaction mutations should be in reverse chronological order by commit timestamp");
+ 		}
+
+ 		// Get the first 3 transactions (which should be the last 3 transactions we created, in reverse order)
+ 		final List<TransactionMutation> firstThreeTransactions = reversedTransactionMutations.subList(0, Math.min(3, reversedTransactionMutations.size()));
+
+ 		// Verify we have at least 3 transactions from our test
+ 		assertTrue(firstThreeTransactions.size() >= 3, "Should have at least 3 test transactions");
+
+ 		// Verify that each transaction has a positive mutation count
+ 		for (TransactionMutation transaction : firstThreeTransactions) {
+ 			assertTrue(transaction.getMutationCount() > 0, "Each transaction should have at least one mutation");
+ 		}
+
+ 		// Verify we have UPSERT operations for entity creations
+ 		final long upsertCount = reversedMutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.UPSERT)
+ 			.count();
+ 		assertTrue(upsertCount >= 4, "Should have at least 4 UPSERT operations (1+2+1 entities created in our test)");
+
+ 		// Verify we have TRANSACTION operations
+ 		final long transactionCount = reversedMutations.stream()
+ 			.filter(mutation -> mutation.operation() == Operation.TRANSACTION)
+ 			.count();
+ 		assertTrue(transactionCount >= 3, "Should have at least 3 TRANSACTION operations");
+
+ 		// Verify that the highest version transaction comes first in reversed stream
+ 		final TransactionMutation firstTransaction = reversedTransactionMutations.get(0);
+ 		final TransactionMutation lastTransaction = reversedTransactionMutations.get(reversedTransactionMutations.size() - 1);
+ 		assertTrue(firstTransaction.getVersion() > lastTransaction.getVersion(),
+ 			"First transaction in reversed stream should have higher version than last");
+ 	}
+ }
+
+ private record PkWithCatalogVersion(
 		EntityReference entityReference,
 		long catalogVersion
 	) implements Comparable<PkWithCatalogVersion> {

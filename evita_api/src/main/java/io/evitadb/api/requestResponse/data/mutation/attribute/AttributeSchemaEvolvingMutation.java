@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return attributeKey;
+		return this.attributeKey;
 	}
 
 	@Override
@@ -60,22 +60,22 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 		verifyOrEvolveSchema(
 			catalogSchema,
 			entitySchemaBuilder,
-			entitySchemaBuilder.getAttribute(attributeKey.attributeName()).orElse(null),
+			entitySchemaBuilder.getAttribute(this.attributeKey.attributeName()).orElse(null),
 			getAttributeValue(),
 			(csb, esb) -> {
-				if (attributeKey.localized()) {
-					esb.withLocale(attributeKey.locale());
+				if (this.attributeKey.localized()) {
+					esb.withLocale(this.attributeKey.locale());
 				}
-				if (csb.getAttribute(attributeKey.attributeName()).isEmpty()) {
+				if (csb.getAttribute(this.attributeKey.attributeName()).isEmpty()) {
 					final Class<? extends Serializable> attributeType = getAttributeValue().getClass();
-					if (esb.getAttribute(attributeKey.attributeName()).isEmpty()) {
+					if (esb.getAttribute(this.attributeKey.attributeName()).isEmpty()) {
 						esb
 							.withAttribute(
-								attributeKey.attributeName(),
+								this.attributeKey.attributeName(),
 								attributeType,
 								whichIs -> {
 									whichIs
-										.localized(attributeKey::localized)
+										.localized(this.attributeKey::localized)
 										.filterable()
 										.nullable();
 									if (!attributeType.isArray()) {
@@ -87,7 +87,7 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 				} else {
 					esb
 						.withGlobalAttribute(
-							attributeKey.attributeName()
+							this.attributeKey.attributeName()
 						);
 				}
 			}

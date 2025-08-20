@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public abstract class AssociatedDataSchemaEvolvingMutation extends AssociatedDat
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull EntitySchemaContract entitySchema
 	) {
-		return associatedDataKey;
+		return this.associatedDataKey;
 	}
 
 	@Override
@@ -67,14 +67,14 @@ public abstract class AssociatedDataSchemaEvolvingMutation extends AssociatedDat
 			entitySchemaBuilder,
 			getAssociatedDataValue(),
 			(schemaBuilder) -> {
-				if (associatedDataKey.localized()) {
-					schemaBuilder.withLocale(associatedDataKey.locale());
+				if (this.associatedDataKey.localized()) {
+					schemaBuilder.withLocale(this.associatedDataKey.locale());
 				}
 				schemaBuilder
 					.withAssociatedData(
-						associatedDataKey.associatedDataName(),
+						this.associatedDataKey.associatedDataName(),
 						getAssociatedDataValue().getClass(),
-						whichIs -> whichIs.localized(associatedDataKey::localized).nullable()
+						whichIs -> whichIs.localized(this.associatedDataKey::localized).nullable()
 					);
 			}
 		);

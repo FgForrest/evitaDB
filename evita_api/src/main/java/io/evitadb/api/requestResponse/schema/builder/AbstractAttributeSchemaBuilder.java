@@ -102,7 +102,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				this.updatedSchemaDirty,
 				addMutations(
 					new ModifyAttributeSchemaDefaultValueMutation(
-						baseSchema.getName(),
+						this.baseSchema.getName(),
 						EvitaDataTypes.toTargetType(defaultValue, wrappedForm, currentSchema.getIndexedDecimalPlaces())
 					)
 				)
@@ -112,7 +112,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				this.updatedSchemaDirty,
 				addMutations(
 					new ModifyAttributeSchemaDefaultValueMutation(
-						baseSchema.getName(),
+						this.baseSchema.getName(),
 						null
 					)
 				)
@@ -128,7 +128,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaFilterableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					inScope
 				)
 			)
@@ -144,7 +144,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaFilterableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
 						.filter(it -> !isFilterableInScope(it) || !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
@@ -161,7 +161,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(inScope)
 						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.toArray(ScopedAttributeUniquenessType[]::new)
@@ -179,7 +179,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
 						.filter(it -> !isUniqueInScope(it) || !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
@@ -196,7 +196,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaUniqueMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(inScope)
 						.map(it -> new ScopedAttributeUniquenessType(it, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE))
 						.toArray(ScopedAttributeUniquenessType[]::new)
@@ -220,7 +220,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					inScope
 				)
 			)
@@ -236,7 +236,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
 						.filter(it -> !isSortableInScope(it) || !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
@@ -253,7 +253,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaSortableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					decider.getAsBoolean() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE
 				)
 			)
@@ -268,7 +268,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaLocalizedMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					true
 				)
 			)
@@ -283,7 +283,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaLocalizedMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					decider.getAsBoolean()
 				)
 			)
@@ -297,7 +297,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaLocalizedMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					false
 				)
 			)
@@ -312,7 +312,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaNullableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					true
 				)
 			)
@@ -327,7 +327,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaNullableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					decider.getAsBoolean()
 				)
 			)
@@ -342,7 +342,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new SetAttributeSchemaNullableMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					false
 				)
 			)
@@ -358,12 +358,12 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new ModifyAttributeSchemaTypeMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					toAttributeMutation().stream()
-						.filter(it -> it instanceof ModifyAttributeSchemaTypeMutation)
+						.filter(ModifyAttributeSchemaTypeMutation.class::isInstance)
 						.map(it -> ((ModifyAttributeSchemaTypeMutation) it).getType())
 						.findFirst()
-						.orElseGet(() -> (Class) baseSchema.getType()),
+						.orElseGet(() -> (Class) this.baseSchema.getType()),
 					indexedDecimalPlaces
 				)
 			)
@@ -378,7 +378,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new ModifyAttributeSchemaDescriptionMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					description
 				)
 			)
@@ -393,7 +393,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new ModifyAttributeSchemaDeprecationNoticeMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					deprecationNotice
 				)
 			)
@@ -408,7 +408,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			this.updatedSchemaDirty,
 			addMutations(
 				new ModifyAttributeSchemaDeprecationNoticeMutation(
-					baseSchema.getName(),
+					this.baseSchema.getName(),
 					null
 				)
 			)
@@ -434,7 +434,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 			final List<AttributeSchemaMutation> attributeMutations = toAttributeMutation();
 			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema; i < attributeMutations.size(); i++) {
+			for (int i = this.lastMutationReflectedInSchema; i < attributeMutations.size(); i++) {
 				final AttributeSchemaMutation mutation = attributeMutations.get(i);
 				currentSchema = mutation.mutate(null, currentSchema, getAttributeSchemaType());
 				if (currentSchema == null) {

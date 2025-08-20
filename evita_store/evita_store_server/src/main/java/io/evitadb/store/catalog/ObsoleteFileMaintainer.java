@@ -24,13 +24,13 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.core.CatalogConsumersListener;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.wal.CatalogWriteAheadLog.WalPurgeCallback;
+import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

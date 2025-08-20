@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -55,14 +56,14 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 					"",
 					missingMandatedAttributes
 						.stream()
-						.filter(it -> it instanceof AttributeKey)
-						.map(it -> (AttributeKey)it)
+						.filter(AttributeKey.class::isInstance)
+						.map(AttributeKey.class::cast)
 						.collect(Collectors.toList())
 				)
 			),
 			missingMandatedAttributes
 				.stream()
-				.filter(it -> it instanceof MissingReferenceAttribute)
+				.filter(MissingReferenceAttribute.class::isInstance)
 				.map(it -> composeErrorMessage(
 					entityName,
 					" reference `" + ((MissingReferenceAttribute)it).referenceName() + "`",
@@ -94,6 +95,7 @@ public class MandatoryAttributesNotProvidedException extends InvalidMutationExce
 						it.getValue()
 							.stream()
 							.map(AttributeKey::locale)
+							.filter(Objects::nonNull)
 							.map(locale -> "`" + locale.toLanguageTag() + "`")
 							.collect(Collectors.joining(", "))
 				)

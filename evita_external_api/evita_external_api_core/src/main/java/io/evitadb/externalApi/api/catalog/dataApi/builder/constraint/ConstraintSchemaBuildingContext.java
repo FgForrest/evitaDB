@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 */
 	@Nonnull
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return catalog.getEntitySchema(entityType).map(it -> it);
+		return this.catalog.getEntitySchema(entityType).map(it -> it);
 	}
 
 	/**
@@ -89,7 +89,7 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 * Caches created container under specified key if absent.
 	 */
 	public void cacheContainer(@Nonnull ContainerKey key, @Nonnull SIMPLE_TYPE container) {
-		cachedContainers.putIfAbsent(key, container);
+		this.cachedContainers.putIfAbsent(key, container);
 	}
 
 	/**
@@ -97,21 +97,21 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 */
 	@Nullable
 	public SIMPLE_TYPE getCachedContainer(@Nonnull ContainerKey key) {
-		return cachedContainers.get(key);
+		return this.cachedContainers.get(key);
 	}
 
 	/**
 	 * Removes cached container for specified key
 	 */
 	public void removeCachedContainer(@Nonnull ContainerKey key) {
-		cachedContainers.remove(key);
+		this.cachedContainers.remove(key);
 	}
 
 	/**
 	 * Caches created container under specified key if absent.
 	 */
 	public void cacheWrapperObject(@Nonnull WrapperObjectKey key, @Nonnull SIMPLE_TYPE wrapperObject) {
-		cachedWrapperObjects.putIfAbsent(key, wrapperObject);
+		this.cachedWrapperObjects.putIfAbsent(key, wrapperObject);
 	}
 
 	/**
@@ -119,14 +119,14 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 */
 	@Nullable
 	public SIMPLE_TYPE getCachedWrapperObject(@Nonnull WrapperObjectKey key) {
-		return cachedWrapperObjects.get(key);
+		return this.cachedWrapperObjects.get(key);
 	}
 
 	/**
 	 * Add new built type that will be later registered.
 	 */
 	public void addNewType(@Nonnull OBJECT_TYPE type) {
-		builtTypes.add(type);
+		this.builtTypes.add(type);
 	}
 
 	/**
@@ -134,7 +134,7 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 */
 	@Nonnull
 	public List<OBJECT_TYPE> getBuiltTypes() {
-		return Collections.unmodifiableList(builtTypes);
+		return Collections.unmodifiableList(this.builtTypes);
 	}
 
 }

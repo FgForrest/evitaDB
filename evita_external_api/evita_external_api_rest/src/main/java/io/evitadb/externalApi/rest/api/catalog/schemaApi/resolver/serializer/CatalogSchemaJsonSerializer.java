@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +73,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	public JsonNode serialize(@Nonnull CatalogSchemaContract catalogSchema,
 							  @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
 	                          @Nonnull Set<String> entityTypes) {
-		final ObjectNode rootNode = objectJsonSerializer.objectNode();
+		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 
 		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.version());
 		rootNode.put(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName());
@@ -90,7 +90,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	protected ObjectNode serializeAttributeSchemas(@Nonnull AttributeSchemaProvider<GlobalAttributeSchemaContract> globalAttributeSchemaProvider) {
 		final Collection<GlobalAttributeSchemaContract> globalAttributeSchemas = globalAttributeSchemaProvider.getAttributes().values();
 
-		final ObjectNode attributeSchemasMap = objectJsonSerializer.objectNode();
+		final ObjectNode attributeSchemasMap = this.objectJsonSerializer.objectNode();
 		if (!globalAttributeSchemas.isEmpty()) {
 			globalAttributeSchemas.forEach(globalAttributeSchema -> attributeSchemasMap.set(
 				globalAttributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
@@ -103,7 +103,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serializeAttributeSchema(@Nonnull GlobalAttributeSchemaContract globalAttributeSchema) {
-		final ObjectNode attributeSchemaNode = objectJsonSerializer.objectNode();
+		final ObjectNode attributeSchemaNode = this.objectJsonSerializer.objectNode();
 		attributeSchemaNode.put(NamedSchemaDescriptor.NAME.name(), globalAttributeSchema.getName());
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
 		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
@@ -119,7 +119,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.set(
 			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),
 			Optional.ofNullable(globalAttributeSchema.getDefaultValue())
-				.map(objectJsonSerializer::serializeObject)
+				.map(this.objectJsonSerializer::serializeObject)
 				.orElse(null)
 		);
 		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), globalAttributeSchema.getIndexedDecimalPlaces());
@@ -130,13 +130,13 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeEntitySchemas(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
 	                                          @Nonnull Set<String> entityTypes) {
-		final ObjectNode entitySchemasMap = objectJsonSerializer.objectNode();
+		final ObjectNode entitySchemasMap = this.objectJsonSerializer.objectNode();
 		if (!entityTypes.isEmpty()) {
 			entityTypes.stream()
 				.map(entitySchemaFetcher)
 				.forEach(entitySchema -> entitySchemasMap.set(
 					entitySchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
-					entitySchemaJsonSerializer.serialize(
+					this.entitySchemaJsonSerializer.serialize(
 						entitySchema,
 						entitySchemaFetcher
 					)

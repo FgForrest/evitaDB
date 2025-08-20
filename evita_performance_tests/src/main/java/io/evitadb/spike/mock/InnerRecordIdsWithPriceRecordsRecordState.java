@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,26 +67,26 @@ public class InnerRecordIdsWithPriceRecordsRecordState {
 	@Setup(Level.Trial)
 	public void setUp() {
 		final CompositeObjectArray<PriceRecordInnerRecordSpecific> priceRecordsA = new CompositeObjectArray<>(PriceRecordInnerRecordSpecific.class);
-		entitiesA = generateBitmap(PRICE_COUNT, priceRecordsA);
-		entitiesPriceRecordsA = priceRecordsA.toArray();
-		Arrays.sort(entitiesPriceRecordsA, Comparator.comparingInt(PriceRecordInnerRecordSpecific::entityPrimaryKey));
+		this.entitiesA = generateBitmap(PRICE_COUNT, priceRecordsA);
+		this.entitiesPriceRecordsA = priceRecordsA.toArray();
+		Arrays.sort(this.entitiesPriceRecordsA, Comparator.comparingInt(PriceRecordInnerRecordSpecific::entityPrimaryKey));
 
 		final CompositeObjectArray<PriceRecordInnerRecordSpecific> priceRecordsB = new CompositeObjectArray<>(PriceRecordInnerRecordSpecific.class);
-		entitiesB = generateBitmap(PRICE_COUNT, priceRecordsB);
-		entitiesPriceRecordsB = priceRecordsB.toArray();
-		Arrays.sort(entitiesPriceRecordsB, Comparator.comparingInt(PriceRecordInnerRecordSpecific::entityPrimaryKey));
+		this.entitiesB = generateBitmap(PRICE_COUNT, priceRecordsB);
+		this.entitiesPriceRecordsB = priceRecordsB.toArray();
+		Arrays.sort(this.entitiesPriceRecordsB, Comparator.comparingInt(PriceRecordInnerRecordSpecific::entityPrimaryKey));
 
 		final CompositeObjectArray<PriceRecordInnerRecordSpecific> priceRecordsC = new CompositeObjectArray<>(PriceRecordInnerRecordSpecific.class);
-		entitiesC = generateBitmap(PRICE_COUNT, priceRecordsC);
-		entitiesPriceRecordsC = priceRecordsC.toArray();
-		Arrays.sort(entitiesPriceRecordsC, Comparator.comparingInt(PriceRecordInnerRecordSpecific::entityPrimaryKey));
+		this.entitiesC = generateBitmap(PRICE_COUNT, priceRecordsC);
+		this.entitiesPriceRecordsC = priceRecordsC.toArray();
+		Arrays.sort(this.entitiesPriceRecordsC, Comparator.comparingInt(PriceRecordInnerRecordSpecific::entityPrimaryKey));
 
-		formula = new OrFormula(
-			new MockInnerRecordIdsFormula(entitiesA, new ResolvedFilteredPriceRecords(entitiesPriceRecordsA, SortingForm.ENTITY_PK)),
-			new MockInnerRecordIdsFormula(entitiesB, new ResolvedFilteredPriceRecords(entitiesPriceRecordsB, SortingForm.ENTITY_PK)),
-			new MockInnerRecordIdsFormula(entitiesB, new ResolvedFilteredPriceRecords(entitiesPriceRecordsC, SortingForm.ENTITY_PK))
+		this.formula = new OrFormula(
+			new MockInnerRecordIdsFormula(this.entitiesA, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsA, SortingForm.ENTITY_PK)),
+			new MockInnerRecordIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsB, SortingForm.ENTITY_PK)),
+			new MockInnerRecordIdsFormula(this.entitiesB, new ResolvedFilteredPriceRecords(this.entitiesPriceRecordsC, SortingForm.ENTITY_PK))
 		);
-		formula.compute();
+		this.formula.compute();
 	}
 
 	private Bitmap generateBitmap(int priceCount, CompositeObjectArray<PriceRecordInnerRecordSpecific> priceRecords) {

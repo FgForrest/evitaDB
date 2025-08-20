@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.utils.ArrayUtils;
 import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 
@@ -55,6 +56,7 @@ public class ProxyUtils {
 	/**
 	 * Returns the wrapped generic type of the method if it is an Optional or OptionalInt or OptionalLong.
 	 */
+	@Nullable
 	public static Class<?> getWrappedGenericType(
 		@Nonnull Method method,
 		@Nonnull Class<?> ownerClass
@@ -201,7 +203,7 @@ public class ProxyUtils {
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
 				return resultProducer.get();
-			} catch (Exception ex) {
+			} catch (ContextMissingException ex) {
 				return null;
 			}
 		}
@@ -224,7 +226,7 @@ public class ProxyUtils {
 			try {
 				return resultProducer.get();
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}
@@ -241,13 +243,13 @@ public class ProxyUtils {
 	private record OptionalIntUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
 		private final static OptionalIntUnaryResultWrapperSwallowing INSTANCE = new OptionalIntUnaryResultWrapperSwallowing();
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
 				final Object value = resultProducer.get();
 				return value == null ? OptionalInt.empty() : OptionalInt.of((Integer) value);
-			} catch (Exception ex) {
+			} catch (ContextMissingException ex) {
 				return OptionalInt.empty();
 			}
 		}
@@ -264,14 +266,14 @@ public class ProxyUtils {
 		@Nonnull Class<?>[] declaredExceptions
 	) implements ResultWrapper, OptionalProducingOperator {
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
 				final Object value = resultProducer.get();
 				return value == null ? OptionalInt.empty() : OptionalInt.of((Integer) value);
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}
@@ -288,13 +290,13 @@ public class ProxyUtils {
 	private record OptionalLongUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
 		private final static OptionalLongUnaryResultWrapperSwallowing INSTANCE = new OptionalLongUnaryResultWrapperSwallowing();
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
 				final Object value = resultProducer.get();
 				return value == null ? OptionalLong.empty() : OptionalLong.of((Long) value);
-			} catch (Exception ex) {
+			} catch (ContextMissingException ex) {
 				return OptionalLong.empty();
 			}
 		}
@@ -311,14 +313,14 @@ public class ProxyUtils {
 		@Nonnull Class<?>[] declaredExceptions
 	) implements ResultWrapper, OptionalProducingOperator {
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
 				final Object value = resultProducer.get();
 				return value == null ? OptionalLong.empty() : OptionalLong.of((Long) value);
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}
@@ -335,7 +337,7 @@ public class ProxyUtils {
 	private record OptionalUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
 		private final static OptionalUnaryResultWrapperSwallowing INSTANCE = new OptionalUnaryResultWrapperSwallowing();
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
@@ -347,7 +349,7 @@ public class ProxyUtils {
 				} else {
 					return Optional.ofNullable(value);
 				}
-			} catch (Exception ex) {
+			} catch (ContextMissingException ex) {
 				return Optional.empty();
 			}
 		}
@@ -364,7 +366,7 @@ public class ProxyUtils {
 		@Nonnull Class<?>[] declaredExceptions
 	) implements ResultWrapper, OptionalProducingOperator {
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
 			try {
@@ -377,7 +379,7 @@ public class ProxyUtils {
 					return Optional.ofNullable(value);
 				}
 			} catch (Exception ex) {
-				for (Class<?> declaredException : declaredExceptions) {
+				for (Class<?> declaredException : this.declaredExceptions) {
 					if (declaredException.isInstance(ex)) {
 						throw ex;
 					}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,12 +70,12 @@ public class ExistingEntityAttributesBuilder extends ExistingAttributesBuilder<E
 		if (isThereAnyChangeInMutations()) {
 			final Collection<AttributeValue> newAttributeValues = getAttributeValuesWithoutPredicate().collect(Collectors.toList());
 			final Map<String, EntityAttributeSchemaContract> newAttributeTypes = Stream.concat(
-					baseAttributes.attributeTypes.values().stream(),
+					this.baseAttributes.attributeTypes.values().stream(),
 					// we don't check baseAttributes.allowUnknownAttributeTypes here because it gets checked on adding a mutation
 					newAttributeValues
 						.stream()
 						// filter out new attributes that has no type yet
-						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
+						.filter(it -> !this.baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
 						// create definition for them on the fly
 						.map(AttributesBuilder::createImplicitEntityAttributeSchema)
 				)
@@ -93,12 +93,12 @@ public class ExistingEntityAttributesBuilder extends ExistingAttributesBuilder<E
 					)
 				);
 			return new EntityAttributes(
-				baseAttributes.entitySchema,
+				this.baseAttributes.entitySchema,
 				newAttributeValues,
 				newAttributeTypes
 			);
 		} else {
-			return baseAttributes;
+			return this.baseAttributes;
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,11 @@ package io.evitadb.api.requestResponse.cdc;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 
 /**
  * Record describing the location and form of the CDC event in the evitaDB that should be captured.
@@ -41,8 +43,36 @@ public record SchemaSite(
 	@Nullable String entityType,
 	@Nullable Operation[] operation,
 	@Nullable ContainerType[] containerType
-) implements CaptureSite {
+) implements CaptureSite<SchemaSite> {
 	public static final SchemaSite ALL = new SchemaSite(null, null, null);
+
+	public SchemaSite {
+		if (operation != null) {
+			Arrays.sort(operation);
+		}
+		if (containerType != null) {
+			Arrays.sort(containerType);
+		}
+	}
+
+	@Override
+	public int compareTo(@Nonnull SchemaSite other) {
+		if (this == other) return 0;
+		int result = this.entityType == null ?
+			(other.entityType == null ? 0 : -1) :
+			(other.entityType == null ? 1 : this.entityType.compareTo(other.entityType));
+		if (result == 0) {
+			result = this.operation == null ?
+				(other.operation == null ? 0 : -1) :
+				(other.operation == null ? 1 : ArrayUtils.compare(this.operation, other.operation));
+		}
+		if (result == 0) {
+			result = this.containerType == null ?
+				(other.containerType == null ? 0 : -1) :
+				(other.containerType == null ? 1 : ArrayUtils.compare(this.containerType, other.containerType));
+		}
+		return result;
+	}
 
 	/**
 	 * Creates builder object that helps you create DataSite record using builder pattern.
@@ -58,9 +88,9 @@ public record SchemaSite(
 	 * Builder class for {@link SchemaSite}.
 	 */
 	public static class Builder {
-		private String entityType;
-		private Operation[] operation;
-		private ContainerType[] containerType;
+		@Nullable private String entityType;
+		@Nullable private Operation[] operation;
+		@Nullable private ContainerType[] containerType;
 
 		/**
 		 * Sets the entity type.
@@ -105,7 +135,11 @@ public record SchemaSite(
 		 */
 		@Nonnull
 		public SchemaSite build() {
-			return new SchemaSite(entityType, operation, containerType);
+			return new SchemaSite(
+				this.entityType,
+				this.operation,
+				this.containerType
+			);
 		}
 	}
 

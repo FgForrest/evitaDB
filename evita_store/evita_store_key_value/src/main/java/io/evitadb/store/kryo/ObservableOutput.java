@@ -510,7 +510,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 						// if the atomic position is set - we need to rewind to the start of currently written atomic value
 						// copy the unfinished part and move it to the new buffer
 						final byte[] partiallyWrittenValue = Arrays.copyOfRange(this.buffer, this.atomicPosition, this.position);
-						this.position = atomicPosition;
+						this.position = this.atomicPosition;
 						// let the handler resolve the situation and try again
 						this.onBufferOverflow.accept(this);
 						// now write the partially written bytes
@@ -560,7 +560,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		// this method allows writing multiple bytes, and we need to be able to rewind when the buffer is exhausted
 		try {
 			//safely init atomic position
-			this.atomicPosition = position;
+			this.atomicPosition = this.position;
 			super.writeString(value);
 		} finally {
 			//and reset it when the block is exited

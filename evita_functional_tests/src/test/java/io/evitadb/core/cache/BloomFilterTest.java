@@ -53,19 +53,19 @@ class BloomFilterTest {
 		int generated = 0;
 		do {
 			final long recordId = nextRecordId();
-			if (!randoms.contains(recordId)) {
-				randoms.add(recordId);
-				bloomFilter.add(recordId);
+			if (!this.randoms.contains(recordId)) {
+				this.randoms.add(recordId);
+				this.bloomFilter.add(recordId);
 				generated++;
 			}
 		} while (generated < COUNT);
 
 		final long start = System.nanoTime();
 		int falseNegatives = 0;
-		final OfLong it = randoms.iterator();
+		final OfLong it = this.randoms.iterator();
 		while (it.hasNext()) {
 			long presentValue = it.next();
-			if (bloomFilter.isNotPresent(presentValue)) {
+			if (this.bloomFilter.isNotPresent(presentValue)) {
 				falseNegatives++;
 			}
 		}
@@ -73,8 +73,8 @@ class BloomFilterTest {
 		int falsePositives = 0;
 		for (int i = 0; i < MAX_LONG; i++) {
 			final long randomValue = nextRecordId();
-			if (bloomFilter.mightBePresent(randomValue)) {
-				if (!randoms.contains(randomValue)) {
+			if (this.bloomFilter.mightBePresent(randomValue)) {
+				if (!this.randoms.contains(randomValue)) {
 					falsePositives++;
 				}
 			}
@@ -104,6 +104,6 @@ class BloomFilterTest {
 	}
 
 	private long nextRecordId() {
-		return Math.abs(rnd.nextLong()) % MAX_LONG;
+		return Math.abs(this.rnd.nextLong()) % MAX_LONG;
 	}
 }

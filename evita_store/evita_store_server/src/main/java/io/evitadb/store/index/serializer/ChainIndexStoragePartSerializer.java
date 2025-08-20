@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 		final Long uniquePartId = chainIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(chainIndex.getAttributeKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(chainIndex.getAttributeKey()), true);
 
 		final Map<Integer, ChainElementState> elementStates = chainIndex.getElementStates();
 		output.writeVarInt(elementStates.size(), true);
@@ -79,7 +79,7 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 	public ChainIndexStoragePart read(Kryo kryo, Input input, Class<? extends ChainIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
 		final int stateCount = input.readInt(true);
 		final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(stateCount);

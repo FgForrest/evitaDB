@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import javax.annotation.Nonnull;
  * @param minThreadCount Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
  *                       input requests as well as maintenance tasks. The more catalog in Evita
  *                       DB there is, the higher count of thread count might be required.
- * @param maxThreadCount Defines count of threads that might by spun up at the maximum (i.e. when
+ * @param maxThreadCount Defines count of threads that might be spun up at the maximum (i.e. when
  *                       there are not enough threads to process input requests and background tasks)
  * @param threadPriority Defines a {@link Thread#getPriority()} for background threads. The number must be in
  *                       interval 1-10. The threads with higher priority should be preferred over the ones
@@ -54,11 +54,11 @@ public record ThreadPoolOptions(
 	public static final int DEFAULT_REQUEST_THREAD_PRIORITY = 8;
 	public static final int DEFAULT_REQUEST_QUEUE_SIZE = 100;
 	public static final int DEFAULT_TRANSACTION_MIN_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
-	public static final int DEFAULT_TRANSACTION_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
+	public static final int DEFAULT_TRANSACTION_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() << 1;
 	public static final int DEFAULT_TRANSACTION_THREAD_PRIORITY = 5;
 	public static final int DEFAULT_TRANSACTION_QUEUE_SIZE = 100;
-	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.min((int) (0.1 * DEFAULT_REQUEST_MAX_THREAD_COUNT), 1);
-	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.min((int) (0.2 * DEFAULT_REQUEST_MAX_THREAD_COUNT), 1);
+	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 1);
+	public static final int DEFAULT_MAX_SERVICE_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors() << 1, 1);
 	public static final int DEFAULT_SERVICE_THREAD_PRIORITY = 1;
 	public static final int DEFAULT_SERVICE_QUEUE_SIZE = 20;
 

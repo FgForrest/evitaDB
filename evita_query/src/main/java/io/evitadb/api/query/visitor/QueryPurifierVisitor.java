@@ -123,17 +123,17 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	public void visit(@Nonnull Constraint<?> constraint) {
 		final boolean applicable = constraint.isApplicable();
 		if (constraint instanceof final ConstraintContainer<?> container) {
-			levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
+			this.levelConstraints.push(new ArrayList<>(container.getChildrenCount()));
 			for (Constraint<?> child : container) {
 				child.accept(this);
 			}
-			final List<Constraint<?>> children = levelConstraints.pop();
+			final List<Constraint<?>> children = this.levelConstraints.pop();
 
-			levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
+			this.levelConstraints.push(new ArrayList<>(container.getAdditionalChildrenCount()));
 			for (Constraint<?> additionalChild : container.getAdditionalChildren()) {
 				additionalChild.accept(this);
 			}
-			final List<Constraint<?>> additionalChildren = levelConstraints.pop();
+			final List<Constraint<?>> additionalChildren = this.levelConstraints.pop();
 
 			if (isEqual(container.getChildren(), children) &&
 				isEqual(container.getAdditionalChildren(), additionalChildren)) {
@@ -143,7 +143,7 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 			}
 		} else if (constraint instanceof ConstraintLeaf && applicable) {
 			addOnCurrentLevel(
-				constraintTranslator.apply(constraint)
+				this.constraintTranslator.apply(constraint)
 			);
 		}
 	}
@@ -176,10 +176,10 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	 */
 	private void addOnCurrentLevel(@Nullable Constraint<?> constraint) {
 		if (constraint != null && constraint.isApplicable()) {
-			if (levelConstraints.isEmpty()) {
-				result = getFlattenedResult(constraint);
+			if (this.levelConstraints.isEmpty()) {
+				this.result = getFlattenedResult(constraint);
 			} else {
-				levelConstraints.peek().add(getFlattenedResult(constraint));
+				this.levelConstraints.peek().add(getFlattenedResult(constraint));
 			}
 		}
 	}

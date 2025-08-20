@@ -391,12 +391,12 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			GroupKey groupKey = (GroupKey) o;
-			return Objects.equals(groupId, groupKey.groupId);
+			return Objects.equals(this.groupId, groupKey.groupId);
 		}
 
 		@Override
 		public int hashCode() {
-			return groupId == null ? 0 : groupId.hashCode();
+			return this.groupId == null ? 0 : this.groupId.hashCode();
 		}
 
 	}

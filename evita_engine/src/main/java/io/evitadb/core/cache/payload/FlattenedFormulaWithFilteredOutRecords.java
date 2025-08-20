@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,12 +120,12 @@ public class FlattenedFormulaWithFilteredOutRecords extends FlattenedFormula imp
 	@Override
 	public PriceAmountPredicate getRequestedPredicate() {
 		if (this.memoizedPredicate == null) {
-			final int fromAsInt = from == null ? Integer.MIN_VALUE : NumberUtils.convertToInt(from, indexedPricePlaces);
-			final int toAsInt = to == null ? Integer.MAX_VALUE : NumberUtils.convertToInt(to, indexedPricePlaces);
+			final int fromAsInt = this.from == null ? Integer.MIN_VALUE : NumberUtils.convertToInt(this.from, this.indexedPricePlaces);
+			final int toAsInt = this.to == null ? Integer.MAX_VALUE : NumberUtils.convertToInt(this.to, this.indexedPricePlaces);
 			this.memoizedPredicate = new PriceAmountPredicate(
-				queryPriceMode, from, to, indexedPricePlaces,
+				this.queryPriceMode, this.from, this.to, this.indexedPricePlaces,
 				amount -> {
-					final int amountAsInt = NumberUtils.convertToInt(amount, indexedPricePlaces);
+					final int amountAsInt = NumberUtils.convertToInt(amount, this.indexedPricePlaces);
 					return amountAsInt >= fromAsInt && amountAsInt <= toAsInt;
 				}
 			);
@@ -138,8 +138,8 @@ public class FlattenedFormulaWithFilteredOutRecords extends FlattenedFormula imp
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		if (this.memoizedClone == null) {
 			this.memoizedClone = new FlattenedFormulaWithFilteredOutRecords(
-				recordHash, transactionalIdHash, transactionalDataIds, recordsFilteredOutByPredicate,
-				recordsFilteredOutByPredicate, priceEvaluationContext, queryPriceMode, from, to, indexedPricePlaces
+				this.recordHash, this.transactionalIdHash, this.transactionalDataIds, this.recordsFilteredOutByPredicate,
+				this.recordsFilteredOutByPredicate, this.priceEvaluationContext, this.queryPriceMode, this.from, this.to, this.indexedPricePlaces
 			);
 		}
 		return this.memoizedClone;

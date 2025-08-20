@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public class SetSerializer<T extends Serializable> extends Serializer<Set<T>> {
 	@Override
 	public Set<T> read(Kryo kryo, Input input, Class<? extends Set<T>> type) {
 		final int itemCount = input.readVarInt(true);
-		final Set<T> targetSet = setFactory.apply(itemCount);
+		final Set<T> targetSet = this.setFactory.apply(itemCount);
 		Class<T> itemClass = null;
 		for (int i = 0; i < itemCount; i++) {
 			if (itemClass == null) {

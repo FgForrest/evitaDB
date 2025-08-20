@@ -56,13 +56,13 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
 
 
     @Override
-    public Query visitQuery(@Nonnull EvitaQLParser.QueryContext ctx) {
+    public Query visitQuery(EvitaQLParser.QueryContext ctx) {
         return parse(
             ctx,
             () -> {
                 final List<Constraint<?>> constraints = ctx.args.constraints
                     .stream()
-                    .map(con -> con.accept(constraintVisitor))
+                    .map(con -> con.accept(this.constraintVisitor))
                     .collect(Collectors.toList());
 
                 final HeadConstraint headConstraint = findHeadConstraint(ctx, constraints);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -433,12 +433,12 @@ class TransactionalComplexObjArrayNoTransactionTest {
 		@Nonnull
 		@Override
 		public TransactionalInteger makeClone() {
-			return new TransactionalInteger(object);
+			return new TransactionalInteger(this.object);
 		}
 
 		@Override
 		public int compareTo(@Nonnull TransactionalInteger o) {
-			return Integer.compare(object, o.object);
+			return Integer.compare(this.object, o.object);
 		}
 	}
 
@@ -465,26 +465,26 @@ class TransactionalComplexObjArrayNoTransactionTest {
 
 		@Override
 		public int compareTo(@Nonnull DistinctValueHolder o) {
-			return key.compareTo(o.key);
+			return this.key.compareTo(o.key);
 		}
 
 		@Nonnull
 		@Override
 		public DistinctValueHolder makeClone() {
-			return new DistinctValueHolder(key, values.toArray(new Integer[0]));
+			return new DistinctValueHolder(this.key, this.values.toArray(new Integer[0]));
 		}
 
 		void combineWith(DistinctValueHolder otherHolder) {
-			Assert.isTrue(key.equals(otherHolder.getKey()), "Keys must be equal!");
+			Assert.isTrue(this.key.equals(otherHolder.getKey()), "Keys must be equal!");
 			this.values.addAll(otherHolder.getValues());
 		}
 
 		boolean isEmpty() {
-			return values.isEmpty();
+			return this.values.isEmpty();
 		}
 
 		void subtract(DistinctValueHolder otherHolder) {
-			Assert.isTrue(key.equals(otherHolder.getKey()), "Keys must be equal!");
+			Assert.isTrue(this.key.equals(otherHolder.getKey()), "Keys must be equal!");
 			this.values.removeAll(otherHolder.getValues());
 		}
 	}

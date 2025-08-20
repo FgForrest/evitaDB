@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -97,8 +98,8 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		@Nullable AttributeUniquenessType unique,
-		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
+		@Nonnull AttributeUniquenessType unique,
+		@Nonnull GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -122,6 +123,7 @@ public class CreateGlobalAttributeSchemaMutation
 		);
 	}
 
+	@SerializableCreator
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -271,10 +273,11 @@ public class CreateGlobalAttributeSchemaMutation
 							GlobalAttributeSchemaContract.class,
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isRepresentative,
-							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
+							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
+					.map(LocalCatalogSchemaMutation.class::cast)
 					.toArray(LocalCatalogSchemaMutation[]::new)
 			);
 		} else {
@@ -298,7 +301,7 @@ public class CreateGlobalAttributeSchemaMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name).orElse(null);

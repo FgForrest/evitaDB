@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,20 +51,20 @@ public class GraphQLArtificialHierarchyStatisticsComputationState extends Abstra
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall(GraphQLArtificialHierarchyBenchmarkState benchmarkState) {
-		if (referencedHierarchicalEntities.isEmpty()) {
+		if (this.referencedHierarchicalEntities.isEmpty()) {
 			benchmarkState.getProductSchema().getReferences()
 				.values()
 				.forEach(it -> {
 					if (it.isReferencedEntityTypeManaged() && benchmarkState.getHierarchicalEntities().contains(it.getReferencedEntityType())) {
-						referencedHierarchicalEntities.add(it.getReferencedEntityType());
+						this.referencedHierarchicalEntities.add(it.getReferencedEntityType());
 					}
 				});
-			Assert.isTrue(!referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
+			Assert.isTrue(!this.referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
 		}
 		setRequestBody(
 			benchmarkState,
 			generateRandomParentSummaryQuery(
-				benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
+				benchmarkState.getRandom(), benchmarkState.getProductSchema(), this.referencedHierarchicalEntities
 			)
 		);
 	}

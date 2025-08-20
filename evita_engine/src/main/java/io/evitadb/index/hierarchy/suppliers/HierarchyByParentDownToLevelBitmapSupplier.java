@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
-		excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
+		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
 	}
 
@@ -73,8 +73,8 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
-				hashFunction.hashInts(new int[]{CLASS_ID, parentNode, levels}),
-				excludedNodeTrees.getHash()
+				hashFunction.hashInts(new int[]{CLASS_ID, this.parentNode, this.levels}),
+				this.excludedNodeTrees.getHash()
 			}
 		);
 	}
@@ -82,18 +82,18 @@ public class HierarchyByParentDownToLevelBitmapSupplier extends AbstractHierarch
 	@Nonnull
 	@Override
 	protected Bitmap getInternal() {
-		return hierarchyIndex.listHierarchyNodesFromParentDownTo(parentNode, levels, excludedNodeTrees);
+		return this.hierarchyIndex.listHierarchyNodesFromParentDownTo(this.parentNode, this.levels, this.excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
 		/* we don't use excluded node trees here, because it would trigger the formula computation */
-		return hierarchyIndex.getHierarchyNodeCountFromParentDownTo(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+		return this.hierarchyIndex.getHierarchyNodeCountFromParentDownTo(this.parentNode, this.levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	@Override
 	public String toString() {
-		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees + " DOWN TO " + levels;
+		return "HIERARCHY FROM PARENT: " + this.parentNode + " " + this.excludedNodeTrees + " DOWN TO " + this.levels;
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -50,6 +52,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema._internalGenerateNameVariantIndex;
 import static java.util.Optional.ofNullable;
@@ -208,6 +211,58 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	}
 
 	/**
+	 * Checks if the given catalog name is available for use by verifying its uniqueness
+	 * against the existing catalog names in the system. If a conflict is detected, a
+	 * {@link CatalogAlreadyPresentException} is thrown.
+	 *
+	 * @param evita the Evita contract instance containing information about the existing catalogs
+	 * @param catalogName the name of the catalog to check for availability
+	 * @throws CatalogAlreadyPresentException if a catalog with a conflicting name is already present
+	 */
+	public static void checkCatalogNameIsAvailable(@Nonnull EvitaContract evita, @Nonnull String catalogName) {
+		final Map<NamingConvention, String> newCatalogNameVariants = NamingConvention.generate(catalogName);
+
+		evita.getCatalogNames()
+		     .stream()
+		     .flatMap(
+			     it -> {
+				     final Stream<Entry<NamingConvention, String>> nameStream =
+					     NamingConvention.generate(it)
+					                     .entrySet()
+					                     .stream();
+				     return nameStream
+					     .map(
+						     name -> new CatalogNameInConvention(
+							     it, name.getKey(),
+							     name.getValue()
+						     )
+					     );
+			     }
+		     )
+		     .filter(
+			     nameVariant ->
+				     nameVariant
+					     .name()
+					     .equals(
+						     newCatalogNameVariants.get(nameVariant.convention())
+					     )
+		     )
+		     .map(nameVariant -> new CatalogNamingConventionConflict(
+			     nameVariant.catalogName(),
+			     nameVariant.convention(),
+			     nameVariant.name()
+		     ))
+		     .forEach(
+			     conflict -> {
+				     throw new CatalogAlreadyPresentException(
+					     catalogName, conflict.conflictingCatalogName(),
+					     conflict.convention(), conflict.conflictingName()
+				     );
+			     }
+		     );
+	}
+
+	/**
 	 * Method converts the "unknown" contract implementation and converts it to the "known" {@link GlobalAttributeSchema}
 	 * so that the catalog schema can access the internal API of it.
 	 */
@@ -275,19 +330,19 @@ public final class CatalogSchema implements CatalogSchemaContract {
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<EntitySchemaContract> getEntitySchemas() {
-		return entitySchemaAccessor.getEntitySchemas();
+		return this.entitySchemaAccessor.getEntitySchemas();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return entitySchemaAccessor.getEntitySchema(entityType);
+		return this.entitySchemaAccessor.getEntitySchema(entityType);
 	}
 
 	@Override
@@ -316,7 +371,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	@Nonnull
 	@Override
 	public Optional<GlobalAttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(attributeNameIndex.get(attributeName))
+		return ofNullable(this.attributeNameIndex.get(attributeName))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
@@ -324,18 +379,41 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	public boolean differsFrom(CatalogSchemaContract otherObject) {
 		if (this == otherObject) return false;
 		return !(
-			version == otherObject.version() &&
-				name.equals(otherObject.getName()) &&
-				attributes.equals(otherObject.getAttributes())
+			this.version == otherObject.version() &&
+				this.name.equals(otherObject.getName()) &&
+				this.attributes.equals(otherObject.getAttributes())
 		);
 	}
 
 	@Override
 	public void validate() throws SchemaAlteringException {
-		final Collection<EntitySchemaContract> entitySchemas = entitySchemaAccessor.getEntitySchemas();
+		final Collection<EntitySchemaContract> entitySchemas = this.entitySchemaAccessor.getEntitySchemas();
 		for (EntitySchemaContract entitySchema : entitySchemas) {
 			entitySchema.validate(this);
 		}
 	}
 
+	/**
+	 * DTO for passing the identified conflict in catalog names for certain naming convention.
+	 */
+	record CatalogNamingConventionConflict(
+		@Nonnull String conflictingCatalogName,
+		@Nonnull NamingConvention convention,
+		@Nonnull String conflictingName
+	) {
+	}
+
+	/**
+	 * Represents a catalog name that follows a specific naming convention.
+	 *
+	 * @param catalogName the original name of the catalog
+	 * @param convention  the identification of the convention
+	 * @param name        the name of the catalog in particular convention
+	 */
+	private record CatalogNameInConvention(
+		@Nonnull String catalogName,
+		@Nonnull NamingConvention convention,
+		@Nonnull String name
+	) {
+	}
 }

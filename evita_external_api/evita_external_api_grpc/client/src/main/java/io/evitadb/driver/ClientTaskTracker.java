@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.driver;
 
 import io.evitadb.api.EvitaManagementContract;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -123,8 +124,8 @@ public class ClientTaskTracker implements Closeable {
 			// we need to add the task to the queue and track its status - unless it's already GCed
 			final ClientTask<S, T> taskToTrack = new ClientTask<>(
 				taskStatus,
-				() -> evitaManagement::cancelTask,
-				() -> evitaManagement::getTaskStatus
+				() -> this.evitaManagement::cancelTask,
+				() -> this.evitaManagement::getTaskStatus
 			);
 			final boolean added = this.tasks.offer(new WeakReference<>(taskToTrack));
 			if (!added) {
@@ -144,7 +145,7 @@ public class ClientTaskTracker implements Closeable {
 						this.refreshTaskStatusFuture.set(
 							this.scheduler.scheduleWithFixedDelay(
 								this::refreshTaskStatus,
-								0, refreshIntervalMillis, TimeUnit.MILLISECONDS
+								0, this.refreshIntervalMillis, TimeUnit.MILLISECONDS
 							)
 						);
 					}
@@ -178,14 +179,14 @@ public class ClientTaskTracker implements Closeable {
 	private void refreshTaskStatus() {
 		try {
 			// we don't expect there will be many simultaneous tasks on the client side
-			final UUID[] taskIds = tasks.stream()
+			final UUID[] taskIds = this.tasks.stream()
 				.map(Reference::get)
 				.filter(Objects::nonNull)
 				.map(ClientTask::getStatus)
 				.map(TaskStatus::taskId)
 				.distinct()
 				.toArray(UUID[]::new);
-			final Map<UUID, TaskStatus<?, ?>> statusIndex = evitaManagement.getTaskStatuses(taskIds)
+			final Map<UUID, TaskStatus<?, ?>> statusIndex = this.evitaManagement.getTaskStatuses(taskIds)
 				.stream()
 				.collect(
 					Collectors.toMap(
@@ -194,7 +195,7 @@ public class ClientTaskTracker implements Closeable {
 					)
 				);
 			// update the status of all tracked tasks
-			for (WeakReference<ClientTask<?, ?>> task : tasks) {
+			for (WeakReference<ClientTask<?, ?>> task : this.tasks) {
 				final ClientTask<?, ?> clientTask = task.get();
 				if (clientTask != null) {
 					final TaskStatus<?, ?> status = statusIndex.get(clientTask.getStatus().taskId());
@@ -255,7 +256,7 @@ public class ClientTaskTracker implements Closeable {
 	 */
 	private void assertActive() {
 		if (this.closed.get()) {
-			throw new IllegalStateException("Client task tracker is closed.");
+			throw new InstanceTerminatedException("client task tracker");
 		}
 	}
 

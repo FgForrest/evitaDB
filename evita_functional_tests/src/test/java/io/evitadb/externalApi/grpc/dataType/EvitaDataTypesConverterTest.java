@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,22 +93,22 @@ class EvitaDataTypesConverterTest {
 		);
 
 		//complex data object
-		assertThrows(EvitaInvalidUsageException.class, () -> EvitaDataTypesConverter.toGrpcEvitaValue(complexDataObjectValue, 1));
+		assertThrows(EvitaInvalidUsageException.class, () -> EvitaDataTypesConverter.toGrpcEvitaValue(this.complexDataObjectValue, 1));
 		Assertions.assertEquals(
 			GrpcEvitaAssociatedDataValue.newBuilder()
-				.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(complexDataObjectValue).toString())
+				.setJsonValue(ComplexDataObjectConverter.convertComplexDataObjectToJson(this.complexDataObjectValue).toString())
 				.setType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT)
 				.setVersion(Int32Value.of(1))
 				.build(),
-			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, 1, AssociatedDataForm.JSON)
+			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(this.complexDataObjectValue, 1, AssociatedDataForm.JSON)
 		);
 		Assertions.assertEquals(
 			GrpcEvitaAssociatedDataValue.newBuilder()
-				.setRoot(EvitaDataTypesConverter.toGrpcDataItem(complexDataObjectValue.root()))
+				.setRoot(EvitaDataTypesConverter.toGrpcDataItem(this.complexDataObjectValue.root()))
 				.setType(GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType.COMPLEX_DATA_OBJECT)
 				.setVersion(Int32Value.of(1))
 				.build(),
-			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, 1, AssociatedDataForm.STRUCTURED_VALUE)
+			EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(this.complexDataObjectValue, 1, AssociatedDataForm.STRUCTURED_VALUE)
 		);
 	}
 
@@ -221,13 +221,13 @@ class EvitaDataTypesConverterTest {
 		);
 
 		assertEquals(
-			complexDataObjectValue,
-			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, AssociatedDataForm.STRUCTURED_VALUE))
+			this.complexDataObjectValue,
+			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(this.complexDataObjectValue, AssociatedDataForm.STRUCTURED_VALUE))
 		);
 
 		assertEquals(
-			complexDataObjectValue,
-			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(complexDataObjectValue, AssociatedDataForm.JSON))
+			this.complexDataObjectValue,
+			EvitaDataTypesConverter.toEvitaValue(EvitaDataTypesConverter.toGrpcEvitaAssociatedDataValue(this.complexDataObjectValue, AssociatedDataForm.JSON))
 		);
 	}
 

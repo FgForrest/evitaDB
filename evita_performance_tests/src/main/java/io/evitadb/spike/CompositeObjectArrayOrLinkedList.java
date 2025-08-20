@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ public class CompositeObjectArrayOrLinkedList {
 
 		@Override
 		public Integer[] toArray() {
-			return array.toArray();
+			return this.array.toArray();
 		}
 
 	}
@@ -111,12 +111,12 @@ public class CompositeObjectArrayOrLinkedList {
 
 		@Override
 		public void addValue(Integer value) {
-			list.add(value);
+			this.list.add(value);
 		}
 
 		@Override
 		public Integer[] toArray() {
-			return list.toArray(EMPTY_ARRAY);
+			return this.list.toArray(EMPTY_ARRAY);
 		}
 	}
 
@@ -140,7 +140,7 @@ public class CompositeObjectArrayOrLinkedList {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			sharedInterface = new LinkedListImplementation();
+			this.sharedInterface = new LinkedListImplementation();
 		}
 
 	}
@@ -165,7 +165,7 @@ public class CompositeObjectArrayOrLinkedList {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			sharedInterface = new CompositeArrayImplementation();
+			this.sharedInterface = new CompositeArrayImplementation();
 		}
 
 	}

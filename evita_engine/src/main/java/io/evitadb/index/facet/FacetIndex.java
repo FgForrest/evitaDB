@@ -186,7 +186,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Override
 	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull String referenceName, @Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
 		// fetch index for referenced entity type
-		final FacetReferenceIndex facetEntityTypeIndex = facetingEntities.get(referenceName);
+		final FacetReferenceIndex facetEntityTypeIndex = this.facetingEntities.get(referenceName);
 		// if not found or empty, or input parameter is empty - return empty result
 		if (facetEntityTypeIndex == null || facetEntityTypeIndex.isEmpty()) {
 			return Collections.emptyList();
@@ -197,7 +197,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 
 	@Override
 	public boolean isFacetInGroup(@Nonnull String referenceName, int groupId, int facetId) {
-		return ofNullable(facetingEntities.get(referenceName))
+		return ofNullable(this.facetingEntities.get(referenceName))
 			.map(it -> it.isFacetInGroup(groupId, facetId))
 			.orElse(false);
 	}
@@ -307,19 +307,19 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		private final TransactionalContainerChanges<FacetEntityTypeIndexChanges, FacetReferenceIndex, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetReferenceIndex index) {
-			facetGroupIndexChanges.addCreatedItem(index);
+			this.facetGroupIndexChanges.addCreatedItem(index);
 		}
 
 		public void addRemovedItem(@Nonnull FacetReferenceIndex index) {
-			facetGroupIndexChanges.addRemovedItem(index);
+			this.facetGroupIndexChanges.addRemovedItem(index);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			facetGroupIndexChanges.clean(transactionalLayer);
+			this.facetGroupIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			facetGroupIndexChanges.cleanAll(transactionalLayer);
+			this.facetGroupIndexChanges.cleanAll(transactionalLayer);
 		}
 	}
 

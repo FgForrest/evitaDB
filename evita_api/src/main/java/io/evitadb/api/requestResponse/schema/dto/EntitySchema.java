@@ -708,7 +708,7 @@ public final class EntitySchema implements EntitySchemaContract {
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
 		//noinspection unchecked,rawtypes
-		return (Map) attributes;
+		return (Map) this.attributes;
 	}
 
 	@Nonnull
@@ -720,7 +720,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public Optional<EntityAttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(attributeNameIndex.get(attributeName))
+		return ofNullable(this.attributeNameIndex.get(attributeName))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
@@ -732,32 +732,32 @@ public final class EntitySchema implements EntitySchemaContract {
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
 		//noinspection unchecked,rawtypes
-		return (Map) sortableAttributeCompounds;
+		return (Map) this.sortableAttributeCompounds;
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
-		return ofNullable(sortableAttributeCompounds.get(name));
+		return ofNullable(this.sortableAttributeCompounds.get(name));
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(sortableAttributeCompoundNameIndex.get(name))
+		return ofNullable(this.sortableAttributeCompoundNameIndex.get(name))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
-		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
+		return ofNullable(this.attributeToSortableAttributeCompoundIndex.get(attributeName))
 			.orElse(Collections.emptyList());
 	}
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	@Override
@@ -784,7 +784,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataSchemaContract> getAssociatedDataByName(@Nonnull String dataName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(associatedDataNameIndex.get(dataName))
+		return ofNullable(this.associatedDataNameIndex.get(dataName))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
@@ -796,7 +796,7 @@ public final class EntitySchema implements EntitySchemaContract {
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
 		//noinspection unchecked,rawtypes
-		return (Map) associatedData;
+		return (Map) this.associatedData;
 	}
 
 	@Nonnull
@@ -808,7 +808,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	@Nonnull
 	@Override
 	public Optional<ReferenceSchemaContract> getReferenceByName(@Nonnull String referenceName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(referenceNameIndex.get(referenceName))
+		return ofNullable(this.referenceNameIndex.get(referenceName))
 			.map(it -> it[namingConvention.ordinal()]);
 	}
 
@@ -820,20 +820,20 @@ public final class EntitySchema implements EntitySchemaContract {
 		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
 		// collection, so we have to work around that issue using generics stripping
 		//noinspection unchecked,rawtypes
-		return (Map) references;
+		return (Map) this.references;
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceSchema getReferenceOrThrowException(@Nonnull String referenceName) {
 		return getReference(referenceName)
-			.map(it -> (ReferenceSchema) it)
+			.map(ReferenceSchema.class::cast)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
 	}
 
 	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
-		for (EntityAttributeSchemaContract attribute : attributes.values()) {
+		for (EntityAttributeSchemaContract attribute : this.attributes.values()) {
 			assertNotReferencedEntityPredecessor(attribute.getName(), attribute.getType());
 		}
 		final List<String> errors = getReferences()
@@ -864,37 +864,37 @@ public final class EntitySchema implements EntitySchemaContract {
 		if (this == otherSchema) return false;
 		if (otherSchema == null) return true;
 
-		if (version != otherSchema.version()) return true;
-		if (withGeneratedPrimaryKey != otherSchema.isWithGeneratedPrimaryKey()) return true;
-		if (withHierarchy != otherSchema.isWithHierarchy()) return true;
-		if (withPrice != otherSchema.isWithPrice()) return true;
-		if (!name.equals(otherSchema.getName())) return true;
-		if (!locales.equals(otherSchema.getLocales())) return true;
-		if (!currencies.equals(otherSchema.getCurrencies())) return true;
+		if (this.version != otherSchema.version()) return true;
+		if (this.withGeneratedPrimaryKey != otherSchema.isWithGeneratedPrimaryKey()) return true;
+		if (this.withHierarchy != otherSchema.isWithHierarchy()) return true;
+		if (this.withPrice != otherSchema.isWithPrice()) return true;
+		if (!this.name.equals(otherSchema.getName())) return true;
+		if (!this.locales.equals(otherSchema.getLocales())) return true;
+		if (!this.currencies.equals(otherSchema.getCurrencies())) return true;
 
-		if (attributes.size() != otherSchema.getAttributes().size()) return true;
-		for (Entry<String, EntityAttributeSchemaContract> entry : attributes.entrySet()) {
+		if (this.attributes.size() != otherSchema.getAttributes().size()) return true;
+		for (Entry<String, EntityAttributeSchemaContract> entry : this.attributes.entrySet()) {
 			final Optional<EntityAttributeSchemaContract> otherAttributeSchema = otherSchema.getAttribute(entry.getKey());
 			if (otherAttributeSchema.map(it -> !Objects.equals(it, entry.getValue())).orElse(true)) {
 				return true;
 			}
 		}
 
-		if (associatedData.size() != otherSchema.getAssociatedData().size()) return true;
-		for (Entry<String, AssociatedDataSchema> entry : associatedData.entrySet()) {
+		if (this.associatedData.size() != otherSchema.getAssociatedData().size()) return true;
+		for (Entry<String, AssociatedDataSchema> entry : this.associatedData.entrySet()) {
 			if (otherSchema.getAssociatedData(entry.getKey()).map(it -> !Objects.equals(entry.getValue(), it)).orElse(true)) {
 				return true;
 			}
 		}
 
-		if (references.size() != otherSchema.getReferences().size()) return true;
-		for (Entry<String, ReferenceSchema> entry : references.entrySet()) {
+		if (this.references.size() != otherSchema.getReferences().size()) return true;
+		for (Entry<String, ReferenceSchema> entry : this.references.entrySet()) {
 			if (otherSchema.getReference(entry.getKey()).map(it -> !Objects.equals(entry.getValue(), it)).orElse(true)) {
 				return true;
 			}
 		}
 
-		return !evolutionMode.equals(otherSchema.getEvolutionMode());
+		return !this.evolutionMode.equals(otherSchema.getEvolutionMode());
 	}
 
 	/**

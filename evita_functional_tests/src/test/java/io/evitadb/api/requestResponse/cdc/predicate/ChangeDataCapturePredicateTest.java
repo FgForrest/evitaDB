@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -90,7 +91,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Slf4j
 class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForCapture";
-	private List<Mutation> mutations;
+	private List<CatalogBoundMutation> mutations;
 
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
@@ -123,7 +124,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 		};
 
 		final Random rnd = new Random(1);
-		final ModificationFunction modificationFunction = dataGenerator.createModificationFunction(
+		final ModificationFunction modificationFunction = this.dataGenerator.createModificationFunction(
 			randomEntityPicker, rnd
 		);
 
@@ -235,10 +236,10 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 		);
 
 		/* we need somehow to initialize mutation count eagerly?! */
-		final Mutation[] reversedMutations = new Mutation[this.mutations.size()];
+		final CatalogBoundMutation[] reversedMutations = new CatalogBoundMutation[this.mutations.size()];
 		int reverseIndex = this.mutations.size() - 1;
-		for (int i = 0; i < mutations.size(); i++) {
-			final Mutation mutation = mutations.get(i);
+		for (int i = 0; i < this.mutations.size(); i++) {
+			final Mutation mutation = this.mutations.get(i);
 			assertInstanceOf(TransactionMutation.class, mutation, "Mutation should be of type TransactionMutation");
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			for (int j = i + 1; j <= i + transactionMutation.getMutationCount(); j++) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 				.toArray(),
 			computationalResult,
 			FilteredPriceRecords.createFromFormulas(this, computationalResult, this.executionContext),
-			priceEvaluationContext
+			this.priceEvaluationContext
 		);
 	}
 
@@ -120,7 +120,7 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		return new PriceListCombinationFormula(subtractedPriceListName, priceListName, priceEvaluationContext, innerFormulas[0], innerFormulas[1]);
+		return new PriceListCombinationFormula(this.subtractedPriceListName, this.priceListName, this.priceEvaluationContext, innerFormulas[0], innerFormulas[1]);
 	}
 
 	@Nonnull
@@ -128,7 +128,7 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		return new PriceListCombinationFormula(
 			selfOperator,
-			subtractedPriceListName, priceListName, priceEvaluationContext, innerFormulas[0], innerFormulas[1]
+			this.subtractedPriceListName, this.priceListName, this.priceEvaluationContext, innerFormulas[0], innerFormulas[1]
 		);
 	}
 
@@ -138,11 +138,11 @@ public class PriceListCombinationFormula extends NotFormula implements Cacheable
 	}
 
 	public String getCombinedPriceListNames() {
-		return priceListName + ", " + subtractedPriceListName;
+		return this.priceListName + ", " + this.subtractedPriceListName;
 	}
 
 	@Override
 	public String toString() {
-		return "WITH PRICE IN " + priceListName + " WHEN NO PRICE EXISTS IN " + subtractedPriceListName;
+		return "WITH PRICE IN " + this.priceListName + " WHEN NO PRICE EXISTS IN " + this.subtractedPriceListName;
 	}
 }

@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -608,7 +609,7 @@ public class EntitySchemaConverter {
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
 
-		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL) {
+		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {
 			if (expectedType.isAssignableFrom(GlobalAttributeSchema.class)) {
 				//noinspection unchecked
 				return (T) GlobalAttributeSchema._internalBuild(
@@ -630,7 +631,7 @@ public class EntitySchemaConverter {
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
 			}
-		} else if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.ENTITY) {
+		} else if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.ENTITY_SCHEMA) {
 			if (expectedType.isAssignableFrom(EntityAttributeSchemaContract.class)) {
 				//noinspection unchecked
 				return (T) EntityAttributeSchema._internalBuild(
@@ -696,7 +697,7 @@ public class EntitySchemaConverter {
 	 */
 	@Nonnull
 	private static ReferenceSchemaContract toReferenceSchema(@Nonnull GrpcReferenceSchema referenceSchema) {
-		final Cardinality cardinality = toCardinality(referenceSchema.getCardinality());
+		final Optional<Cardinality> cardinality = toCardinality(referenceSchema.getCardinality());
 		final ScopedReferenceIndexType[] indexedInScopes = getIndexedInScopes(referenceSchema);
 		final Scope[] facetedInScopes = referenceSchema.getFacetedInScopesList().isEmpty() ?
 			(referenceSchema.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
@@ -719,7 +720,7 @@ public class EntitySchemaConverter {
 					Collections.emptyMap() : NamingConvention.generate(referenceSchema.getGroupType().getValue()),
 				referenceSchema.getReferencedGroupTypeManaged(),
 				referenceSchema.getReflectedReferenceName().getValue(),
-				cardinality,
+				cardinality.orElse(Cardinality.ZERO_OR_MORE),
 				indexedInScopes,
 				facetedInScopes,
 				referenceSchema.getAttributesMap()
@@ -755,7 +756,7 @@ public class EntitySchemaConverter {
 					referenceSchema.getEntityType(),
 					Map.of(),
 					true,
-					cardinality,
+					cardinality.orElse(Cardinality.ZERO_OR_MORE),
 					referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
 					Map.of(),
 					referenceSchema.getReferencedGroupTypeManaged(),
@@ -792,7 +793,7 @@ public class EntitySchemaConverter {
 					? Collections.emptyMap()
 					: NamingConvention.generate(referenceSchema.getEntityType()),
 				referenceSchema.getReferencedEntityTypeManaged(),
-				cardinality,
+				cardinality.orElse(Cardinality.ZERO_OR_MORE),
 				referenceSchema.hasGroupType() ? referenceSchema.getGroupType().getValue() : null,
 				referenceSchema.getReferencedGroupTypeManaged()
 					? Collections.emptyMap()

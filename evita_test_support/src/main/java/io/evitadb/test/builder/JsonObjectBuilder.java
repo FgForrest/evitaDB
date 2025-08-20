@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,57 +54,57 @@ public class JsonObjectBuilder {
 	};
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Integer value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Long value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable String value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Character value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Boolean value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable BigDecimal value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Short value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Byte value) {
-		objectNode.put(key, value);
+		this.objectNode.put(key, value);
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Currency value) {
-		objectNode.put(key, value.toString());
+		this.objectNode.put(key, value.toString());
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable Locale value) {
-		objectNode.put(key, value.toString());
+		this.objectNode.put(key, value.toString());
 		return this;
 	}
 
 	public JsonObjectBuilder e(@Nonnull String key, @Nullable JsonNode jsonNode) {
-		objectNode.set(key, jsonNode);
+		this.objectNode.set(key, jsonNode);
 		return this;
 	}
 
@@ -117,6 +117,6 @@ public class JsonObjectBuilder {
 	}
 
 	public ObjectNode build() {
-		return objectNode;
+		return this.objectNode;
 	}
 }

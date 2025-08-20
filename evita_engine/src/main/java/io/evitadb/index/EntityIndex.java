@@ -490,23 +490,13 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Method returns a stream of AttributeIndexStorageKey objects.
-	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
-	 * created from attribute indexes of the attributeIndex object.
+	 * Returns the set of referenced entities in the facet index.
 	 *
-	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
-	 *
-	 * @return a stream of AttributeIndexStorageKey objects.
+	 * @return the set of referenced entities in the facet index
 	 */
 	@Nonnull
-	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
-		return Stream.of(
-				this.attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.UNIQUE, it)),
-				this.attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.FILTER, it)),
-				this.attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.SORT, it)),
-				this.attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, it))
-			)
-			.flatMap(it -> it);
+	private Set<String> getFacetIndexReferencedEntities() {
+		return this.facetIndex.getReferencedEntities();
 	}
 
 	/**
@@ -525,16 +515,6 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Returns the set of referenced entities in the facet index.
-	 *
-	 * @return the set of referenced entities in the facet index
-	 */
-	@Nonnull
-	private Set<String> getFacetIndexReferencedEntities() {
-		return this.facetIndex.getReferencedEntities();
-	}
-
-	/**
 	 * Method returns the set of attribute index storage keys.
 	 *
 	 * @return the set of attribute index storage keys
@@ -543,6 +523,26 @@ public abstract class EntityIndex implements
 	private Set<AttributeIndexStorageKey> getAttributeIndexStorageKeys() {
 		return getAttributeIndexStorageKeyStream()
 			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Method returns a stream of AttributeIndexStorageKey objects.
+	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
+	 * created from attribute indexes of the attributeIndex object.
+	 *
+	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
+	 *
+	 * @return a stream of AttributeIndexStorageKey objects.
+	 */
+	@Nonnull
+	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
+		return Stream.of(
+				this.attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.UNIQUE, it)),
+				this.attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.FILTER, it)),
+				this.attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.SORT, it)),
+				this.attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, it))
+			)
+			.flatMap(it -> it);
 	}
 
 }

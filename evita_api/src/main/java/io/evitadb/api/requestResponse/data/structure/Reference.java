@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -129,8 +129,8 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	public static ReferenceSchema createImplicitSchema(
 		@Nonnull String referenceName,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group
 	) {
 		return ReferenceSchema._internalBuild(
@@ -144,8 +144,8 @@ public class Reference implements ReferenceContract {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group
 	) {
 		this.version = 1;
@@ -173,8 +173,8 @@ public class Reference implements ReferenceContract {
 		int version,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group,
 		boolean dropped
 	) {
@@ -224,8 +224,8 @@ public class Reference implements ReferenceContract {
 		int version,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group,
 		@Nonnull Map<AttributeKey, AttributeValue> attributes,
 		boolean dropped
@@ -255,8 +255,8 @@ public class Reference implements ReferenceContract {
 		int version,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
 		@Nullable GroupEntityReference group,
 		@Nonnull Collection<AttributeValue> attributes,
 		boolean dropped
@@ -303,7 +303,7 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey() {
-		return referenceKey;
+		return this.referenceKey;
 	}
 
 	@Nonnull
@@ -318,7 +318,7 @@ public class Reference implements ReferenceContract {
 		return Objects.requireNonNull(
 			getReferenceSchema()
 				.map(ReferenceSchemaContract::getReferencedEntityType)
-				.orElse(referencedEntityType)
+				.orElse(this.referencedEntityType)
 		);
 	}
 
@@ -328,14 +328,14 @@ public class Reference implements ReferenceContract {
 		return Objects.requireNonNull(
 			getReferenceSchema()
 				.map(ReferenceSchemaContract::getCardinality)
-				.orElse(referenceCardinality)
+				.orElse(this.referenceCardinality)
 		);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<GroupEntityReference> getGroup() {
-		return ofNullable(group);
+		return ofNullable(this.group);
 	}
 
 	@Nonnull
@@ -347,7 +347,7 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<ReferenceSchemaContract> getReferenceSchema() {
-		return this.entitySchema.getReference(referenceKey.referenceName());
+		return this.entitySchema.getReference(this.referenceKey.referenceName());
 	}
 
 	@Nonnull
@@ -359,20 +359,20 @@ public class Reference implements ReferenceContract {
 
 	@Override
 	public boolean dropped() {
-		return dropped;
+		return this.dropped;
 	}
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	@Override
 	public String toString() {
-		return (dropped ? "❌ " : "") +
-			"References `" + referenceKey.referenceName() + "` " + referenceKey.primaryKey() +
-			(group == null ? "" : " in " + group) +
-			(attributes.attributesAvailable() ? ", attrs: " + attributes : "");
+		return (this.dropped ? "❌ " : "") +
+			"References `" + this.referenceKey.referenceName() + "` " + this.referenceKey.primaryKey() +
+			(this.group == null ? "" : " in " + this.group) +
+			(this.attributes.attributesAvailable() ? ", attrs: " + this.attributes : "");
 	}
 
 }

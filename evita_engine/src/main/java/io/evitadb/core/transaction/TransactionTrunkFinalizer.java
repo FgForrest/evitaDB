@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	 */
 	@Nullable
 	public TransactionalLayerMaintainer getLastTransactionLayer() {
-		return lastTransactionLayer;
+		return this.lastTransactionLayer;
 	}
 
 	/**
@@ -101,7 +101,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	 */
 	@Nonnull
 	public Catalog commitCatalogChanges(long catalogVersion, @Nonnull TransactionMutation lastProcessedTransaction) {
-		Assert.isPremiseValid(committedCatalog == null, "Catalog was already committed!");
+		Assert.isPremiseValid(this.committedCatalog == null, "Catalog was already committed!");
 		Assert.isPremiseValid(lastProcessedTransaction != null, "Information about last processed transaction must be provided!");
 		// now let's flush the catalog on the disk
 		this.catalogToUpdate.flush(catalogVersion, lastProcessedTransaction);

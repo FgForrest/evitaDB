@@ -86,7 +86,7 @@ public record FileForFetch(
 	 */
 	@Nonnull
 	public Path metadataPath(@Nonnull Path directory) {
-		return directory.resolve(fileId + METADATA_EXTENSION);
+		return directory.resolve(this.fileId + METADATA_EXTENSION);
 	}
 
 	/**
@@ -97,7 +97,7 @@ public record FileForFetch(
 	 */
 	@Nonnull
 	public Path path(@Nonnull Path directory) {
-		return directory.resolve(fileId + FileUtils.getFileExtension(name).map(it -> "." + it).orElse(""));
+		return directory.resolve(this.fileId + FileUtils.getFileExtension(this.name).map(it -> "." + it).orElse(""));
 	}
 
 	/**
@@ -126,26 +126,27 @@ public record FileForFetch(
 	@Nonnull
 	public List<String> toLines() {
 		return Arrays.asList(
-			fileId.toString(),
-			name,
-			description,
-			contentType,
-			Long.toString(totalSizeInBytes),
-			created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-			origin == null ? "" : String.join(",", origin)
+			this.fileId.toString(),
+			this.name,
+			this.description,
+			this.contentType,
+			Long.toString(this.totalSizeInBytes),
+			this.created.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+			this.origin == null ? "" : String.join(",", this.origin)
 		);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "FileForFetch{" +
-			"fileId=" + fileId +
-			", name='" + name + '\'' +
-			", description='" + description + '\'' +
-			", contentType='" + contentType + '\'' +
-			", totalSizeInBytes=" + totalSizeInBytes +
-			", created=" + created +
-			", origin=" + Arrays.toString(origin) +
+			"fileId=" + this.fileId +
+			", name='" + this.name + '\'' +
+			", description='" + this.description + '\'' +
+			", contentType='" + this.contentType + '\'' +
+			", totalSizeInBytes=" + this.totalSizeInBytes +
+			", created=" + this.created +
+			", origin=" + Arrays.toString(this.origin) +
 			'}';
 	}
 
@@ -155,11 +156,11 @@ public record FileForFetch(
 		if (o == null || getClass() != o.getClass()) return false;
 
 		FileForFetch that = (FileForFetch) o;
-		return fileId.equals(that.fileId);
+		return this.fileId.equals(that.fileId);
 	}
 
 	@Override
 	public int hashCode() {
-		return fileId.hashCode();
+		return this.fileId.hashCode();
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -38,25 +35,20 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter extends AssociatedDataSchemaMutationConverter<ModifyAssociatedDataSchemaDeprecationNoticeMutation> {
+public class ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter
+	extends AssociatedDataSchemaMutationConverter<ModifyAssociatedDataSchemaDeprecationNoticeMutation> {
 
-	public ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS.name();
+	protected Class<ModifyAssociatedDataSchemaDeprecationNoticeMutation> getMutationClass() {
+		return ModifyAssociatedDataSchemaDeprecationNoticeMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected ModifyAssociatedDataSchemaDeprecationNoticeMutation convert(@Nonnull Input input) {
-		return new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
-			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			input.getOptionalField(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
-		);
-	}
 }

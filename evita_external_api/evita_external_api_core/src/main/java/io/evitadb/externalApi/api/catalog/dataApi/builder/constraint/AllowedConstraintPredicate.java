@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -113,9 +113,9 @@ public class AllowedConstraintPredicate implements Predicate<ConstraintDescripto
 	}
 
 	private boolean isConstraintAllowed(@Nonnull Class<?> constraint) {
-		return baseConstraintType.isAssignableFrom(constraint) &&
-			isConstraintAllowed(constraint, globallyAllowedConstraints) &&
-			isConstraintAllowed(constraint, locallyAllowedConstraints);
+		return this.baseConstraintType.isAssignableFrom(constraint) &&
+			isConstraintAllowed(constraint, this.globallyAllowedConstraints) &&
+			isConstraintAllowed(constraint, this.locallyAllowedConstraints);
 	}
 
 	private boolean isConstraintAllowed(@Nonnull Class<?> constraint,
@@ -127,10 +127,10 @@ public class AllowedConstraintPredicate implements Predicate<ConstraintDescripto
 	}
 
 	private boolean isConstraintForbidden(@Nonnull Class<?> constraint) {
-		if (forbiddenConstraints.isEmpty()) {
+		if (this.forbiddenConstraints.isEmpty()) {
 			return false;
 		}
-		return isConstraintInSet(constraint, forbiddenConstraints);
+		return isConstraintInSet(constraint, this.forbiddenConstraints);
 	}
 
 	/**

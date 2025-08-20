@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,8 +49,8 @@ public class ArrayBitmap implements Bitmap {
 
 	@Override
 	public boolean add(int recordId) {
-		if (!intArray.contains(recordId)) {
-			intArray.add(recordId);
+		if (!this.intArray.contains(recordId)) {
+			this.intArray.add(recordId);
 			return true;
 		} else {
 			return false;
@@ -59,13 +59,13 @@ public class ArrayBitmap implements Bitmap {
 
 	@Override
 	public void addAll(int... recordId) {
-		intArray.addAll(recordId, 0, recordId.length);
+		this.intArray.addAll(recordId, 0, recordId.length);
 	}
 
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
 		final int[] recs = recordIds.getArray();
-		intArray.addAll(recs, 0, recs.length);
+		this.intArray.addAll(recs, 0, recs.length);
 	}
 
 	@Override
@@ -85,58 +85,58 @@ public class ArrayBitmap implements Bitmap {
 
 	@Override
 	public boolean contains(int recordId) {
-		return intArray.contains(recordId);
+		return this.intArray.contains(recordId);
 	}
 
 	@Override
 	public int indexOf(int recordId) {
-		return intArray.indexOf(recordId);
+		return this.intArray.indexOf(recordId);
 	}
 
 	@Override
 	public int get(int index) {
-		return intArray.get(index);
+		return this.intArray.get(index);
 	}
 
 	@Override
 	public int[] getRange(int start, int end) {
-		return intArray.getRange(start, end);
+		return this.intArray.getRange(start, end);
 	}
 
 	@Override
 	public int getFirst() {
-		return intArray.get(0);
+		return this.intArray.get(0);
 	}
 
 	@Override
 	public int getLast() {
-		return intArray.get(intArray.getSize() - 1);
+		return this.intArray.get(this.intArray.getSize() - 1);
 	}
 
 	@Override
 	public int[] getArray() {
-		return intArray.toArray();
+		return this.intArray.toArray();
 	}
 
 	@Nonnull
 	@Override
 	public OfInt iterator() {
-		return intArray.iterator();
+		return this.intArray.iterator();
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return intArray.isEmpty();
+		return this.intArray.isEmpty();
 	}
 
 	@Override
 	public int size() {
-		return intArray.getSize();
+		return this.intArray.getSize();
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(intArray);
+		return Objects.hash(this.intArray);
 	}
 
 	@Override
@@ -144,12 +144,12 @@ public class ArrayBitmap implements Bitmap {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		ArrayBitmap that = (ArrayBitmap) o;
-		return intArray.equals(that.intArray);
+		return this.intArray.equals(that.intArray);
 	}
 
 	@Override
 	public String toString() {
-		return Arrays.toString(intArray.toArray());
+		return Arrays.toString(this.intArray.toArray());
 	}
 
 }

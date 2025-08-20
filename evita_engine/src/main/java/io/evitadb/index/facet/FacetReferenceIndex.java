@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 */
 	@Nonnull
 	public Collection<FacetGroupIndex> getGroupedFacets() {
-		return groupedFacets.values();
+		return this.groupedFacets.values();
 	}
 
 	/**
@@ -154,14 +154,16 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final FacetGroupIndex facetGroupIndex;
 		if (groupId == null) {
-			if (this.notGroupedFacets.get() == null) {
-				final FacetGroupIndex newIndex = new FacetGroupIndex();
-				this.notGroupedFacets.set(newIndex);
-				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(newIndex));
+			final FacetGroupIndex existingNonGroupedFacetsIndex = this.notGroupedFacets.get();
+			if (existingNonGroupedFacetsIndex == null) {
+				facetGroupIndex = new FacetGroupIndex();
+				this.notGroupedFacets.set(facetGroupIndex);
+				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetGroupIndex));
+			} else {
+				facetGroupIndex = existingNonGroupedFacetsIndex;
 			}
-			facetGroupIndex = this.notGroupedFacets.get();
 		} else {
-			facetToGroupIndex.merge(
+			this.facetToGroupIndex.merge(
 				facetPrimaryKey,
 				new int[]{groupId},
 				(oldValues, newValues) -> ArrayUtils.insertIntIntoOrderedArray(newValues[0], oldValues)
@@ -196,7 +198,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 		// remove facet to group mapping
 		if (groupId != null) {
-			final int[] groups = facetToGroupIndex.get(facetPrimaryKey);
+			final int[] groups = this.facetToGroupIndex.get(facetPrimaryKey);
 			int[] cleanedGroups = groups;
 			for (int group : groups) {
 				final FacetGroupIndex examinedGroupIndex = this.groupedFacets.get(group);
@@ -206,9 +208,9 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 				}
 			}
 			if (ArrayUtils.isEmpty(cleanedGroups)) {
-				facetToGroupIndex.remove(facetPrimaryKey);
+				this.facetToGroupIndex.remove(facetPrimaryKey);
 			} else {
-				facetToGroupIndex.put(facetPrimaryKey, cleanedGroups);
+				this.facetToGroupIndex.put(facetPrimaryKey, cleanedGroups);
 			}
 		}
 
@@ -270,7 +272,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 */
 	@Nullable
 	public FacetGroupIndex getFacetsInGroup(@Nullable Integer groupId) {
-		return groupId == null ? notGroupedFacets.get() : this.groupedFacets.get(groupId);
+		return groupId == null ? this.notGroupedFacets.get() : this.groupedFacets.get(groupId);
 	}
 
 	/**
@@ -280,9 +282,9 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	@Nonnull
 	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
 		final Map<FacetGroupIndex, List<Integer>> facetsByGroup = StreamSupport.stream(facetId.spliterator(), false)
-			.flatMap(fId -> ofNullable(facetToGroupIndex.get(fId))
-				.map(groupIds -> Arrays.stream(groupIds).mapToObj(groupId -> new GroupFacetIdDTO(groupedFacets.get(groupId), fId)))
-				.orElseGet(() -> Stream.of(new GroupFacetIdDTO(notGroupedFacets.get(), fId)))
+			.flatMap(fId -> ofNullable(this.facetToGroupIndex.get(fId))
+				.map(groupIds -> Arrays.stream(groupIds).mapToObj(groupId -> new GroupFacetIdDTO(this.groupedFacets.get(groupId), fId)))
+				.orElseGet(() -> Stream.of(new GroupFacetIdDTO(this.notGroupedFacets.get(), fId)))
 			)
 			.filter(it -> it.groupIndex() != null)
 			.collect(
@@ -300,6 +302,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 					return null;
 				} else {
 					final BaseBitmap groupFacets = new BaseBitmap(entry.getValue().stream().mapToInt(it -> it).toArray());
+					//noinspection DataFlowIssue
 					return formulaFactory.apply(
 						groupIndex.getGroupId(), groupFacets, groupIndex.getFacetIdIndexesAsArray(groupFacets)
 					);
@@ -313,7 +316,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * Method returns true if facet id is part of the passed group id for specified `entityType`.
 	 */
 	public boolean isFacetInGroup(int groupId, int facetId) {
-		return ofNullable(facetToGroupIndex.get(facetId))
+		return ofNullable(this.facetToGroupIndex.get(facetId))
 			.map(it -> Arrays.binarySearch(it, groupId) >= 0)
 			.orElse(false);
 	}
@@ -341,7 +344,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder(128);
 		if (this.notGroupedFacets.get() != null) {
 			sb.append("\t").append(this.notGroupedFacets.get());
 		}
@@ -374,12 +377,12 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	@Override
 	public FacetReferenceIndex createCopyWithMergedTransactionalMemory(@Nullable FacetEntityTypeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final FacetGroupIndex noGroupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.notGroupedFacets)
-			.map(it -> transactionalLayer.getStateCopyWithCommittedChanges(it))
+			.map(transactionalLayer::getStateCopyWithCommittedChanges)
 			.orElse(null);
 		final Map<Integer, FacetGroupIndex> groupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.groupedFacets);
 		final Map<Integer, int[]> facetToGroupCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.facetToGroupIndex);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return new FacetReferenceIndex(referenceName, noGroupCopy, groupCopy, facetToGroupCopy);
+		return new FacetReferenceIndex(this.referenceName, noGroupCopy, groupCopy, facetToGroupCopy);
 	}
 
 	@Override
@@ -397,24 +400,24 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	public static class FacetEntityTypeIndexChanges {
 		private final TransactionalContainerChanges<FacetGroupIndexChanges, FacetGroupIndex, FacetGroupIndex> items = new TransactionalContainerChanges<>();
 
-		public void addCreatedItem(FacetGroupIndex baseIndex) {
-			items.addCreatedItem(baseIndex);
+		public void addCreatedItem(@Nonnull FacetGroupIndex baseIndex) {
+			this.items.addCreatedItem(baseIndex);
 		}
 
-		public void addRemovedItem(FacetGroupIndex baseIndex) {
-			items.addRemovedItem(baseIndex);
+		public void addRemovedItem(@Nonnull FacetGroupIndex baseIndex) {
+			this.items.addRemovedItem(baseIndex);
 		}
 
-		public void clean(TransactionalLayerMaintainer transactionalLayer) {
-			items.clean(transactionalLayer);
+		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			this.items.clean(transactionalLayer);
 		}
 
-		public void cleanAll(TransactionalLayerMaintainer transactionalLayer) {
-			items.cleanAll(transactionalLayer);
+		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			this.items.cleanAll(transactionalLayer);
 		}
 	}
 
-	private record GroupFacetIdDTO(FacetGroupIndex groupIndex, int facetId) {
+	private record GroupFacetIdDTO(@Nullable FacetGroupIndex groupIndex, int facetId) {
 	}
 
 }

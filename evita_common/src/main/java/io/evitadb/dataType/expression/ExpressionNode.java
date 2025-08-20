@@ -31,6 +31,7 @@ import io.evitadb.exception.ExpressionEvaluationException;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.function.BinaryOperator;
 import java.util.function.UnaryOperator;
 
@@ -120,7 +121,7 @@ public interface ExpressionNode extends Serializable {
 	 */
 	@Nonnull
 	default <T extends Serializable> T compute(@Nonnull PredicateEvaluationContext context, @Nonnull Class<T> clazz) throws ExpressionEvaluationException {
-		return EvitaDataTypes.toTargetType(compute(context), clazz);
+		return Objects.requireNonNull(EvitaDataTypes.toTargetType(compute(context), clazz));
 	}
 
 	/**

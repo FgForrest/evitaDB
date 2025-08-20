@@ -46,10 +46,13 @@ import java.io.RandomAccessFile;
 import java.nio.BufferUnderflowException;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -58,7 +61,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Closeable
+abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Supplier<T>, Closeable
 	permits MutationSupplier, ReverseMutationSupplier {
 	/**
 	 * The Kryo pool for serializing {@link TransactionMutation} (given by outside).
@@ -69,13 +72,13 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	 */
 	protected final Kryo kryo;
 	/**
-	 * The name of the catalog.
+	 * The function that provides the name of the WAL file based on the index.
 	 */
-	protected final String catalogName;
+	protected final IntFunction<String> walFileNameProvider;
 	/**
-	 * Path to the catalog storage folder where the WAL file is stored.
+	 * Path to the storage folder where the WAL file is stored.
 	 */
-	protected final Path catalogStoragePath;
+	protected final Path storageFolder;
 	/**
 	 * The storage options from evita configuration.
 	 */
@@ -125,9 +128,9 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	private final Runnable onClose;
 
 	public AbstractMutationSupplier(
-		long catalogVersion,
-		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
+		long version,
+		@Nonnull IntFunction<String> walFileNameProvider,
+		@Nonnull Path storageFolder,
 		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
@@ -135,10 +138,10 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		boolean avoidPartiallyFilledBuffer,
 		@Nullable Runnable onClose
 	) {
-		this.walFile = catalogStoragePath.resolve(getWalFileName(catalogName, walFileIndex)).toFile();
+		this.walFile = storageFolder.resolve(walFileNameProvider.apply(walFileIndex)).toFile();
 		this.walFileIndex = walFileIndex;
-		this.catalogName = catalogName;
-		this.catalogStoragePath = catalogStoragePath;
+		this.walFileNameProvider = walFileNameProvider;
+		this.storageFolder = storageFolder;
 		this.storageOptions = storageOptions;
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
@@ -165,35 +168,36 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 					this.observableInput.compress();
 				}
 				// fast path if the record is found in cache
-				TransactionMutationWithLocation initialTransactionMutation;
+				Optional<TransactionMutationWithLocation> initialTransactionMutation;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
-						.map(it -> it.findNearestLocation(catalogVersion))
+						.map(it -> it.findNearestLocation(version))
 						.orElse(0L);
 
 					this.observableInput.seekWithUnknownLength(this.filePosition);
 
-					initialTransactionMutation = readAndRecordTransactionMutation();
+					final long walFileLength = this.walFile.length();
+					initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 					// move cursor to the end of the lead mutation
-					while (initialTransactionMutation.getCatalogVersion() < catalogVersion) {
+					while (initialTransactionMutation.map(it -> it.getVersion() < version).orElse(false)) {
 						// move cursor to the next transaction mutation
-						this.filePosition += initialTransactionMutation.getTransactionSpan().recordLength();
+						this.filePosition += initialTransactionMutation.get().getTransactionSpan().recordLength();
 						this.observableInput.seekWithUnknownLength(this.filePosition);
 						// read content length and leading transaction mutation
-						initialTransactionMutation = readAndRecordTransactionMutation();
+						initialTransactionMutation = readAndRecordTransactionMutation(this.filePosition, walFileLength);
 						// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
-						if (this.walFile.length() < this.filePosition + initialTransactionMutation.getTransactionSpan().recordLength()) {
-							initialTransactionMutation = null;
+						if (initialTransactionMutation.map(it -> walFileLength < this.filePosition + it.getTransactionSpan().recordLength()).orElse(true)) {
+							initialTransactionMutation = empty();
 							break;
 						}
 					}
 				} while (
-					initialTransactionMutation == null &&
+					initialTransactionMutation.isEmpty() &&
 						// if we've reached EOF, check whether there is file with next WAL index
 						moveToNextWalFile(1)
 				);
-				// we've reached the first transaction mutation with catalog version >= requested catalog version
-				this.transactionMutation = initialTransactionMutation;
+				// we've reached the first transaction mutation with the catalog version >= requested catalog version
+				this.transactionMutation = initialTransactionMutation.orElse(null);
 			} catch (BufferUnderflowException e) {
 				// we've reached EOF or the tx mutation hasn't been yet completely written
 				if (this.observableInput != null) {
@@ -213,7 +217,7 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 
 	@Nullable
 	@Override
-	public abstract Mutation get();
+	public abstract T get();
 
 	@Override
 	public void close() {
@@ -237,8 +241,8 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 			this.observableInput.close();
 		}
 
-		final File nextWalFile = this.catalogStoragePath.resolve(
-			getWalFileName(this.catalogName, this.walFileIndex + delta)
+		final File nextWalFile = this.storageFolder.resolve(
+			this.walFileNameProvider.apply(this.walFileIndex + delta)
 		).toFile();
 
 		if (nextWalFile.exists()) {
@@ -276,20 +280,31 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 	 * @return the transaction mutation read from the input stream
 	 */
 	@Nonnull
-	protected TransactionMutationWithLocation readAndRecordTransactionMutation() {
+	protected Optional<TransactionMutationWithLocation> readAndRecordTransactionMutation(long startPosition, long fileSize) {
 		final ObservableInput<RandomAccessFileInputStream> theObservableInput = this.observableInput;
 		Assert.isPremiseValid(
 			this.observableInput != null,
 			"Observable input is not initialized!"
 		);
 
+		if (startPosition + 4 > fileSize) {
+			// we've reached EOF
+			return empty();
+		}
+
 		// read content length and leading transaction mutation
 		final long totalBefore = theObservableInput.total();
 		// the expected total length of current transaction (leading mutation plus all other mutations)
 		final int contentLength = theObservableInput.simpleIntRead();
+
+		if (startPosition + 4 + contentLength > fileSize) {
+			// we've reached EOF
+			return empty();
+		}
+
 		final TransactionMutation transactionMutation = Objects.requireNonNull(
 			StorageRecord.read(
-				theObservableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
+				theObservableInput, (stream, length) -> (TransactionMutation) this.kryo.readClassAndObject(stream)
 			).payload()
 		);
 		// measure the lead mutation size + verify the content length
@@ -303,10 +318,12 @@ abstract sealed class AbstractMutationSupplier implements Supplier<Mutation>, Cl
 		).register(this.filePosition, transactionMutation);
 
 		this.transactionsRead++;
-		return new TransactionMutationWithLocation(
-			transactionMutation,
-			new FileLocation(this.filePosition, contentLength + 4),
-			this.walFileIndex
+		return of(
+			new TransactionMutationWithLocation(
+				transactionMutation,
+				new FileLocation(this.filePosition, contentLength + 4),
+				this.walFileIndex
+			)
 		);
 	}
 

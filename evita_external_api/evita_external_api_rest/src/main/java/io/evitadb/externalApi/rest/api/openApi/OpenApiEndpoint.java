@@ -136,19 +136,19 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 			operation.deprecated(true);
 		}
 
-		operation.parameters(parameters.stream().map(OpenApiEndpointParameter::toParameter).toList());
+		operation.parameters(this.parameters.stream().map(OpenApiEndpointParameter::toParameter).toList());
 
 		if (this.requestBody != null) {
 			operation.requestBody(createRequestBody(this.requestBody));
 		}
 
 		final ApiResponses responses = new ApiResponses();
-		if (successResponse != null) {
+		if (this.successResponse != null) {
 			responses.addApiResponse(
 				STATUS_CODE_OK,
 				createResponse(
 					"Request was successful.",
-					successResponse
+					this.successResponse
 				)
 			);
 		} else {

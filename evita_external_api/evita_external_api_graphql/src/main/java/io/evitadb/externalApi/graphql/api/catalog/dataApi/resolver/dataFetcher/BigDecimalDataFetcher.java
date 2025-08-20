@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -65,8 +66,8 @@ public class BigDecimalDataFetcher implements DataFetcher<FormattableBigDecimal>
 
     @Nullable
     @Override
-    public FormattableBigDecimal get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        return Optional.ofNullable(delegate.get(environment))
+    public FormattableBigDecimal get(DataFetchingEnvironment environment) throws Exception {
+        return Optional.ofNullable(this.delegate.get(environment))
             .map(value -> {
                 final boolean shouldBeFormatted = shouldBeFormatted(environment);
                 if (!shouldBeFormatted) {
@@ -92,7 +93,7 @@ public class BigDecimalDataFetcher implements DataFetcher<FormattableBigDecimal>
      * @param environment data fetcher environment
      */
     protected void validateRequiredArguments(@Nonnull DataFetchingEnvironment environment) {
-        final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
+        final Locale locale = Objects.requireNonNull((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
         Assert.notNull(
             locale,
             () -> {
@@ -115,7 +116,7 @@ public class BigDecimalDataFetcher implements DataFetcher<FormattableBigDecimal>
     @Nonnull
     protected FormattableBigDecimal wrapBigDecimal(@Nonnull BigDecimal value,
                                                    @Nonnull DataFetchingEnvironment environment) {
-        final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
+        final Locale locale = Objects.requireNonNull((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
         return new FormattableBigDecimal(value, locale);
     }
 }

@@ -339,7 +339,7 @@ public class EvitaServer {
 		);
 
 		try (
-			final InputStream resourceAsStream = EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION);
+			final InputStream resourceAsStream = EvitaServer.class.getResourceAsStream(DEFAULT_EVITA_CONFIGURATION)
 		) {
 			// iterate over all files in the directory and merge them into a single configuration
 			Map<String, Object> finalYaml = loadYamlContents(readerFactory.apply(resourceAsStream), yamlParser.get());
@@ -514,7 +514,13 @@ public class EvitaServer {
 	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
-	public EvitaServer(@Nonnull Path configDirLocation, boolean strictConfigFileCheck, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
+	@SuppressWarnings({"UnnecessaryStringEscape", "EscapedSpace"})
+	public EvitaServer(
+		@Nonnull Path configDirLocation,
+		boolean strictConfigFileCheck,
+		@Nullable String logInitializationStatus,
+		@Nonnull Map<String, String> arguments
+	) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfigurationWithLogFilesListing evitaServerConfigurationWithLogFilesListing = parseConfiguration(configDirLocation, strictConfigFileCheck, arguments);
 		final EvitaServerConfiguration evitaServerConfig = evitaServerConfigurationWithLogFilesListing.configuration();
@@ -562,11 +568,11 @@ public class EvitaServer {
 		this.evita = evita;
 		this.evitaConfiguration = evita.getConfiguration();
 		this.evitaServerConfiguration = new EvitaServerConfiguration(
-			evitaConfiguration.name(),
-			evitaConfiguration.server(),
-			evitaConfiguration.storage(),
-			evitaConfiguration.transaction(),
-			evitaConfiguration.cache(),
+			this.evitaConfiguration.name(),
+			this.evitaConfiguration.server(),
+			this.evitaConfiguration.storage(),
+			this.evitaConfiguration.transaction(),
+			this.evitaConfiguration.cache(),
 			apiOptions
 		);
 	}
@@ -576,13 +582,16 @@ public class EvitaServer {
 	 */
 	public void run() {
 		if (this.evita == null) {
-			this.evita = new Evita(this.evitaConfiguration);
+			this.evita = new Evita(this.evitaConfiguration, false);
 		}
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders
 		);
 		this.evita.management().setConfigurationSupplier(this::serializeConfiguration);
 		this.externalApiServer.start();
+
+		// now schedule catalog loading
+		this.evita.scheduleInitialCatalogLoading();
 	}
 
 	/**
@@ -744,8 +753,8 @@ public class EvitaServer {
 				try {
 					evita.getServiceExecutor().prepareForBeingShutdown();
 					this.evitaServer.stop()
-						.thenAccept(unused -> stop())
-						.get(30, TimeUnit.SECONDS);
+					                .thenAccept(unused -> stop())
+					                .get(30, TimeUnit.SECONDS);
 				} catch (ExecutionException | InterruptedException | TimeoutException e) {
 					ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 				} finally {

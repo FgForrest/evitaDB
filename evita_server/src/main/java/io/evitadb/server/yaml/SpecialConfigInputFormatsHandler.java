@@ -67,7 +67,7 @@ public class SpecialConfigInputFormatsHandler extends DeserializationProblemHand
 	@Override
 	public Object handleWeirdStringValue(DeserializationContext ctxt, Class<?> targetType, String valueToConvert, String failureMsg) throws IOException {
 		final String normalizedValue = valueToConvert.trim();
-		final Matcher sizeMatcher = SIZE_FORMAT.matcher(normalizedValue);
+		final Matcher sizeMatcher = this.SIZE_FORMAT.matcher(normalizedValue);
 		if (sizeMatcher.matches()) {
 			final String magnitude = sizeMatcher.group(3);
 			final BigDecimal size = new BigDecimal(sizeMatcher.group(1));
@@ -86,7 +86,7 @@ public class SpecialConfigInputFormatsHandler extends DeserializationProblemHand
 				return resultValue;
 			}
 		}
-		final Matcher numberMatcher = NUMBER_FORMAT.matcher(normalizedValue);
+		final Matcher numberMatcher = this.NUMBER_FORMAT.matcher(normalizedValue);
 		if (numberMatcher.matches()) {
 			final String magnitude = numberMatcher.group(3);
 			final BigDecimal size = new BigDecimal(numberMatcher.group(1).replaceAll("_", ""));
@@ -105,7 +105,7 @@ public class SpecialConfigInputFormatsHandler extends DeserializationProblemHand
 				return resultValue;
 			}
 		}
-		final Matcher timeMatcher = TIME_FORMAT.matcher(normalizedValue);
+		final Matcher timeMatcher = this.TIME_FORMAT.matcher(normalizedValue);
 		if (timeMatcher.matches()) {
 			final String magnitude = timeMatcher.group(3);
 			final BigDecimal time = new BigDecimal(timeMatcher.group(1).replaceAll("_", ""));

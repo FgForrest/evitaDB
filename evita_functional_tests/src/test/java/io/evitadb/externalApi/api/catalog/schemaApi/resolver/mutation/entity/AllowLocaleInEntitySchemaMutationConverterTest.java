@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,7 +51,8 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new AllowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowLocaleInEntitySchemaMutationConverter(
+			new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,30 +62,35 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 			Locale.ENGLISH
 		);
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final AllowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
-					Locale.FRENCH,
-					Locale.ENGLISH
-				))
+				.e(
+					AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
+						Locale.FRENCH,
+						Locale.ENGLISH
+					)
+				)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation2 = converter.convert(
+		final AllowLocaleInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
-					"fr", "en"
-				))
+				.e(
+					AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
+						"fr", "en"
+					)
+				)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
 	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowLocaleInEntitySchemaMutation expectedMutation = new AllowLocaleInEntitySchemaMutation();
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final AllowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of())
 				.build()
@@ -93,7 +100,37 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	/**
+	 * Tests that the converter properly serializes local mutation object back to output map.
+	 * This test verifies the reverse conversion from mutation object to API output format,
+	 * ensuring that the serialized output contains the correct field names and locale values.
+	 */
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final AllowLocaleInEntitySchemaMutation inputMutation = new AllowLocaleInEntitySchemaMutation(
+			Locale.FRENCH,
+			Locale.ENGLISH
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(
+			inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(
+						AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(),
+						new String[]{
+							Locale.FRENCH.toLanguageTag(),
+							Locale.ENGLISH.toLanguageTag()
+						}
+					)
+					.build()
+			);
 	}
 }

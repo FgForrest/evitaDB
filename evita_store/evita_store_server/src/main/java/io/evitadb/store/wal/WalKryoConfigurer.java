@@ -62,7 +62,22 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.*;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
@@ -306,7 +321,13 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 		kryo.register(ReferenceIndexType.class, new EnumNameSerializer<>(), index++);
 
-		Assert.isPremiseValid(index < 500, "Index count overflow.");
+		kryo.register(MakeCatalogAliveMutation.class, new SerialVersionBasedSerializer<>(new MakeCatalogAliveMutationSerializer(), MakeCatalogAliveMutation.class), index++);
+		kryo.register(SetCatalogStateMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogStateMutationSerializer(), SetCatalogStateMutation.class), index++);
+		kryo.register(SetCatalogMutabilityMutation.class, new SerialVersionBasedSerializer<>(new SetCatalogMutabilityMutationSerializer(), SetCatalogMutabilityMutation.class), index++);
+		kryo.register(DuplicateCatalogMutation.class, new SerialVersionBasedSerializer<>(new DuplicateCatalogMutationSerializer(), DuplicateCatalogMutation.class), index++);
+		kryo.register(RestoreCatalogSchemaMutation.class, new SerialVersionBasedSerializer<>(new RestoreCatalogSchemaMutationSerializer(), RestoreCatalogSchemaMutation.class), index++);
+
+		Assert.isPremiseValid(index < 801, "Index count overflow.");
 	}
 
 }

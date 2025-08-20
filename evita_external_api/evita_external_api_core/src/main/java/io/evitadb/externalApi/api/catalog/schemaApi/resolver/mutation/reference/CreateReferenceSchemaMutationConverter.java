@@ -25,10 +25,11 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
@@ -41,47 +42,51 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutationConverter<CreateReferenceSchemaMutation> {
+public class CreateReferenceSchemaMutationConverter
+	extends ReferenceSchemaMutationConverter<CreateReferenceSchemaMutation> {
 
-	public CreateReferenceSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateReferenceSchemaMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateReferenceSchemaMutationDescriptor.THIS.name();
+	protected Class<CreateReferenceSchemaMutation> getMutationClass() {
+		return CreateReferenceSchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected CreateReferenceSchemaMutation convert(@Nonnull Input input) {
-		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalField(
+	protected CreateReferenceSchemaMutation convertFromInput(@Nonnull Input input) {
+		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalProperty(
 			CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
-			new FieldObjectListMapper<>(
+			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
 				CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES,
 				ScopedReferenceIndexType.class,
 				nestedInput -> new ScopedReferenceIndexType(
-					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
 				)
 			)
 		);
 
 		return new CreateReferenceSchemaMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
-			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
+			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
 			indexedInScopes,
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES)
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES)
 		);
 	}
+
 }

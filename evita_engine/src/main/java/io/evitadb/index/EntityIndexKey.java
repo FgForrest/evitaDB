@@ -63,12 +63,6 @@ public record EntityIndexKey(
 		this(type, Scope.DEFAULT_SCOPE, discriminator);
 	}
 
-	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope, @Nonnull Serializable discriminator) {
-		this.type = type;
-		this.scope = scope;
-		this.discriminator = discriminator;
-	}
-
 	@Override
 	public EntityIndexKey entityIndexKey() {
 		return this;
@@ -95,6 +89,7 @@ public record EntityIndexKey(
 		}
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " index: " +

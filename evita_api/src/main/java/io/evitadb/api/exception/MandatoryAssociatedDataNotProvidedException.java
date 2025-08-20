@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -70,6 +71,7 @@ public class MandatoryAssociatedDataNotProvidedException extends InvalidMutation
 						it.getValue()
 							.stream()
 							.map(AssociatedDataKey::locale)
+							.filter(Objects::nonNull)
 							.map(Locale::toLanguageTag)
 							.sorted()
 							.map(locale -> "`" + locale + "`")

@@ -27,7 +27,7 @@
 module evita.engine {
 
 	exports io.evitadb.core;
-	exports io.evitadb.core.async;
+	exports io.evitadb.core.executor;
 	exports io.evitadb.core.buffer;
 	exports io.evitadb.core.cache;
 	exports io.evitadb.core.cache.model;
@@ -41,6 +41,7 @@ module evita.engine {
 	exports io.evitadb.core.metric.event.system;
 	exports io.evitadb.core.metric.event.transaction;
 	exports io.evitadb.core.query;
+	exports io.evitadb.core.cdc;
 	exports io.evitadb.core.query.response;
 	exports io.evitadb.core.query.algebra.price.filteredPriceRecords;
 	exports io.evitadb.core.query.algebra.price.predicate;
@@ -78,7 +79,7 @@ module evita.engine {
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
 
-	uses io.evitadb.api.CatalogStructuralChangeObserver;
+	uses io.evitadb.store.spi.EnginePersistenceServiceFactory;
 	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 	uses io.evitadb.store.spi.TrafficRecorder;
 
@@ -102,9 +103,13 @@ module evita.engine {
 	requires java.sql;
 	requires jdk.jdi;
 	requires proxycian.bytebuddy;
+	requires jdk.xml.dom;
+	requires jdk.compiler;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
+	exports io.evitadb.core.metric.event.cdc;
+	exports io.evitadb.core.task;
 
 }

@@ -49,8 +49,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

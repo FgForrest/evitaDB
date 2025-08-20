@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,18 +58,18 @@ public class InverseOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
-		return !operator.compute(context, Boolean.class);
+		return !this.operator.compute(context, Boolean.class);
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return operator.determinePossibleRange().inverse(16);
+		return this.operator.determinePossibleRange().inverse(16);
 	}
 
 	@Override
 	public String toString() {
-		return operator instanceof ConstantOperand constantOperand && constantOperand.getValue() instanceof Boolean ?
-			"!" + constantOperand.getValue() : "!(" + operator.toString() + ")";
+		return this.operator instanceof ConstantOperand constantOperand && constantOperand.getValue() instanceof Boolean ?
+			"!" + constantOperand.getValue() : "!(" + this.operator.toString() + ")";
 	}
 }

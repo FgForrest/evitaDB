@@ -144,7 +144,7 @@ public class VersionUtils {
 		@Override
 		public String toString() {
 			// construct the SemVer string back again
-			return major + "." + minor + (patch == null ? "" : "." + patch) + (snapshot ? "-SNAPSHOT" : "");
+			return this.major + "." + this.minor + (this.patch == null ? "" : "." + this.patch) + (this.snapshot ? "-SNAPSHOT" : "");
 		}
 
 		/**

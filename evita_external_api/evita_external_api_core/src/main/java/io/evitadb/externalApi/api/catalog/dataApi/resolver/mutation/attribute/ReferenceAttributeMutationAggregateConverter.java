@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION;
@@ -46,20 +47,20 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ReferenceAttributeMutationAggregateConverter extends MutationAggregateConverter<AttributeMutation, AttributeMutationConverter<? extends AttributeMutation>> {
+public class ReferenceAttributeMutationAggregateConverter extends MutationAggregateConverter<AttributeMutation, AttributeMutationConverter<AttributeMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, AttributeMutationConverter<? extends AttributeMutation>> resolvers = createHashMap(5);
+	private final Map<String, AttributeMutationConverter<AttributeMutation>> converters = createHashMap(5);
 
-	public ReferenceAttributeMutationAggregateConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
+	public ReferenceAttributeMutationAggregateConverter(@Nullable AttributeSchemaProvider<?> attributeSchemaProvider,
 	                                                    @Nonnull MutationObjectParser objectParser,
 	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 
-		this.resolvers.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
+		registerConverter(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
+		registerConverter(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
 	}
 
 	@Nonnull

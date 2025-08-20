@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ public class PriceHandlingContainerFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
-		return "DO WITH " + innerRecordHandling;
+		return "DO WITH " + this.innerRecordHandling;
 	}
 
 	@Nonnull
@@ -88,7 +88,7 @@ public class PriceHandlingContainerFormula extends AbstractFormula {
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
-		return new PriceHandlingContainerFormula(innerRecordHandling, innerFormulas[0]);
+		return new PriceHandlingContainerFormula(this.innerRecordHandling, innerFormulas[0]);
 	}
 
 	@Override
@@ -98,7 +98,7 @@ public class PriceHandlingContainerFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInt(innerRecordHandling.ordinal());
+		return hashFunction.hashInt(this.innerRecordHandling.ordinal());
 	}
 
 	@Override

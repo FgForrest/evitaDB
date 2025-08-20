@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	public boolean removeFacet(int facetPrimaryKey, int entityPrimaryKey) {
 		final FacetIdIndex facetIdIndex = this.facetIdIndexes.get(facetPrimaryKey);
 		// fetch index for referenced entity type
-		Assert.notNull(facetIdIndex, "Facet `" + facetPrimaryKey + "` not found in index (group: `" + groupId + "`)!");
+		Assert.notNull(facetIdIndex, "Facet `" + facetPrimaryKey + "` not found in index (group: `" + this.groupId + "`)!");
 		boolean removed = facetIdIndex.removeFacet(entityPrimaryKey);
 		// if facet was removed check whether there are any data left
 		if (removed && facetIdIndex.isEmpty()) {
@@ -189,7 +189,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	@Nonnull
 	public Map<Integer, Bitmap> getAsMap() {
 		final Map<Integer, Bitmap> result = createHashMap(this.facetIdIndexes.size());
-		for (Entry<Integer, FacetIdIndex> entry : facetIdIndexes.entrySet()) {
+		for (Entry<Integer, FacetIdIndex> entry : this.facetIdIndexes.entrySet()) {
 			result.put(entry.getKey(), entry.getValue().getRecords());
 		}
 		return result;
@@ -198,7 +198,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder(
-			ofNullable(groupId).map(it -> "GROUP " + it).orElse("[NO_GROUP]") + ":\n"
+			ofNullable(this.groupId).map(it -> "GROUP " + it).orElse("[NO_GROUP]") + ":\n"
 		);
 		this.facetIdIndexes
 			.keySet()
@@ -225,9 +225,9 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	@Nonnull
 	@Override
 	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(facetIdIndexes);
+		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.facetIdIndexes);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return new FacetGroupIndex(groupId, stateCopy);
+		return new FacetGroupIndex(this.groupId, stateCopy);
 	}
 
 	@Override
@@ -244,19 +244,19 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 		private final TransactionalContainerChanges<Void, FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetIdIndex baseIndex) {
-			items.addCreatedItem(baseIndex);
+			this.items.addCreatedItem(baseIndex);
 		}
 
 		public void addRemovedItem(@Nonnull FacetIdIndex baseIndex) {
-			items.addRemovedItem(baseIndex);
+			this.items.addRemovedItem(baseIndex);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			items.clean(transactionalLayer);
+			this.items.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			items.cleanAll(transactionalLayer);
+			this.items.cleanAll(transactionalLayer);
 		}
 
 	}

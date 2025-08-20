@@ -179,13 +179,13 @@ public record TrafficRecordingOptions(
 		@Nonnull
 		public TrafficRecordingOptions build() {
 			return new TrafficRecordingOptions(
-				enabled,
-				sourceQueryTracking,
-				trafficMemoryBufferSizeInBytes,
-				trafficDiskBufferSizeInBytes,
-				exportFileChunkSizeInBytes,
-				trafficSamplingPercentage,
-				trafficFlushIntervalInMilliseconds
+				this.enabled,
+				this.sourceQueryTracking,
+				this.trafficMemoryBufferSizeInBytes,
+				this.trafficDiskBufferSizeInBytes,
+				this.exportFileChunkSizeInBytes,
+				this.trafficSamplingPercentage,
+				this.trafficFlushIntervalInMilliseconds
 			);
 		}
 

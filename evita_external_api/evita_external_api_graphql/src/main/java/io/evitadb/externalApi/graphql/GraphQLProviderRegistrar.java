@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql;
 
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLRefreshingObserver;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -62,7 +61,6 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
         @Nonnull GraphQLOptions graphQLConfig
     ) {
         final GraphQLManager graphQLManager = new GraphQLManager(evita, apiOptions.headers(), graphQLConfig);
-        evita.registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
         return new GraphQLProvider(graphQLConfig, graphQLManager, apiOptions.requestTimeoutInMillis());
     }
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,10 +63,10 @@ public class Iterators {
 		@Override
 		public int nextInt() {
 			do {
-				if (iterators[index].hasNext()) {
-					return iterators[index].nextInt();
+				if (this.iterators[this.index].hasNext()) {
+					return this.iterators[this.index].nextInt();
 				}
-			} while (index++ < iterators.length - 1);
+			} while (this.index++ < this.iterators.length - 1);
 
 			throw new NoSuchElementException("All iterators are exhausted!");
 		}
@@ -75,7 +75,7 @@ public class Iterators {
 		public boolean hasNext() {
 			int i = this.index;
 			do {
-				if (iterators[i].hasNext()) {
+				if (this.iterators[i].hasNext()) {
 					return true;
 				}
 			} while (i++ < this.iterators.length - 1);

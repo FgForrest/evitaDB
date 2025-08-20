@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -53,7 +54,7 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyReferenceAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -63,7 +64,7 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 			new ModifyAttributeSchemaDescriptionMutation("code", "desc")
 		);
 
-		final ModifyReferenceAttributeSchemaMutation convertedMutation = converter.convert(
+		final ModifyReferenceAttributeSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name(), map()
@@ -81,7 +82,7 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name(), Map.of())
@@ -90,7 +91,7 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name(), Map.of())
 					.build()
@@ -98,13 +99,37 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReferenceAttributeSchemaMutation inputMutation = new ModifyReferenceAttributeSchemaMutation(
+			"tags",
+			new ModifyAttributeSchemaDescriptionMutation("code", "desc")
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name(), map()
+						.e(ReferenceAttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+							.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
+							.build())
+						.build())
+					.build()
+			);
 	}
 }

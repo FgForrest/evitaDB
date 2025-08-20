@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,19 +72,19 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		// we always start with root nodes, but we respect the children exclusion
-		final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
+		final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			executionContext,
-			context.removeEmptyResults(),
+			this.context.removeEmptyResults(),
 			0,
 			hierarchyNodes::contains,
 			scopePredicate,
 			filterPredicate,
-			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
-			entityFetcher,
-			statisticsType
+			value -> this.context.directlyQueriedEntitiesFormulaProducer().apply(value, this.statisticsBase),
+			this.entityFetcher,
+			this.statisticsType
 		);
-		context.entityIndex().traverseHierarchy(
+		this.context.entityIndex().traverseHierarchy(
 			visitor,
 			filterPredicate
 		);

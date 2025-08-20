@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ public class JsonArrayBuilder {
 	};
 
 	public JsonArrayBuilder add(@Nonnull JsonNode jsonNode) {
-		arrayNode.add(jsonNode);
+		this.arrayNode.add(jsonNode);
 		return this;
 	}
 
@@ -102,56 +102,56 @@ public class JsonArrayBuilder {
 	}
 
 	public JsonArrayBuilder add(@Nullable Integer value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Long value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable String value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Character value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Boolean value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable BigDecimal value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Short value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Byte value) {
-		arrayNode.add(value);
+		this.arrayNode.add(value);
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Locale value) {
-		arrayNode.add(value.toString());
+		this.arrayNode.add(value.toString());
 		return this;
 	}
 
 	public JsonArrayBuilder add(@Nullable Currency value) {
-		arrayNode.add(value.toString());
+		this.arrayNode.add(value.toString());
 		return this;
 	}
 
 	public ArrayNode build() {
-		return arrayNode;
+		return this.arrayNode;
 	}
 }

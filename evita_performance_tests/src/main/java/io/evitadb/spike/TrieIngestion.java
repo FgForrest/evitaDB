@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,17 +58,17 @@ public class TrieIngestion {
 		private final StringBuilder wordBuilder = new StringBuilder();
 
 		public TextInputState() {
-			words = new ArrayList<>(64000);
+			this.words = new ArrayList<>(64000);
 			try (final InputStreamReader reader = new InputStreamReader(TrieIngestion.class.getResourceAsStream(BOOK_LOCATION), StandardCharsets.UTF_8)) {
 				do {
 					final int character = reader.read();
 					if (character == -1) {
 						endWord();
-						System.out.println("\nLoaded " + words.size() + " words\n");
+						System.out.println("\nLoaded " + this.words.size() + " words\n");
 						return;
 					} else if (Character.isWhitespace(character)) {
 						endWord();
-						if (words.size() % 3000 == 0) {
+						if (this.words.size() % 3000 == 0) {
 							System.out.print("#");
 						}
 					} else if (Character.isLetterOrDigit(character)) {
@@ -97,16 +97,16 @@ public class TrieIngestion {
 		 * @param character
 		 */
 		private void appendToWord(char character) {
-			wordBuilder.append(character);
+			this.wordBuilder.append(character);
 		}
 
 		/**
 		 * Finishes the word - there is some whitespace that delimits the words.
 		 */
 		private void endWord() {
-			if (wordBuilder.length() > 0) {
-				words.add(wordBuilder.toString());
-				wordBuilder.setLength(0);
+			if (this.wordBuilder.length() > 0) {
+				this.words.add(this.wordBuilder.toString());
+				this.wordBuilder.setLength(0);
 			}
 		}
 
@@ -129,7 +129,7 @@ public class TrieIngestion {
 		final Kryo baseKryo = KryoFactory.createKryo();
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		try (final Output output = new Output(baos)) {
-			baseKryo.writeObject(output, trie);
+			baseKryo.writeObject(output, this.trie);
 		}
 
 		System.out.println("Size after serialization is: " + baos.toByteArray().length + "B");
@@ -146,10 +146,10 @@ public class TrieIngestion {
 		int autocompleteResults = 0;
 		final int lookupCount = 50000;
 		a: for (int i = 0; i < lookupCount; i++) {
-			final int randomIndex = rnd.nextInt(state.words.size());
+			final int randomIndex = this.rnd.nextInt(state.words.size());
 			final String randomWord = state.words.get(randomIndex);
 			long start = System.nanoTime();
-			final Set<String> autocompletedWords = trie.getWordsStartingWith(randomWord);
+			final Set<String> autocompletedWords = this.trie.getWordsStartingWith(randomWord);
 			duration += System.nanoTime() - start;
 			if (autocompletedWords.isEmpty()) {
 				throw new GenericEvitaInternalError("Indexes doesn't match!");
@@ -174,7 +174,7 @@ public class TrieIngestion {
 		for (int i = 0; i < state.words.size(); i++) {
 			final String word = state.getWord(i);
 			long start = System.nanoTime();
-			trie.insert(word, i);
+			this.trie.insert(word, i);
 			duration += System.nanoTime() - start;
 		}
 

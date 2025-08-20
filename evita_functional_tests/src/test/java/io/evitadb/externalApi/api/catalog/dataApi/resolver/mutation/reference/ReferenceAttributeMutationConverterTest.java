@@ -38,10 +38,11 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.test.Entities;
@@ -52,7 +53,8 @@ import org.junit.jupiter.api.Test;
 import java.util.EnumSet;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -84,7 +86,7 @@ class ReferenceAttributeMutationConverterTest {
 					.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			)
 			.toInstance();
-		converter =  new ReferenceAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new ReferenceAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -94,13 +96,13 @@ class ReferenceAttributeMutationConverterTest {
 			new RemoveAttributeMutation(ATTRIBUTE_CODE)
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 					.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-						.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 						.build())
 					.build())
 				.build()
@@ -115,13 +117,13 @@ class ReferenceAttributeMutationConverterTest {
 			new UpsertAttributeMutation(ATTRIBUTE_ALT_CODE, "phone")
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 					.e(ReferenceAttributeMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
-						.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_ALT_CODE)
+						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_ALT_CODE)
 						.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 						.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class)
 						.build())
@@ -138,13 +140,13 @@ class ReferenceAttributeMutationConverterTest {
 			new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, 10)
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 					.e(ReferenceAttributeMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
-						.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 						.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 						.build())
 					.build())
@@ -157,12 +159,12 @@ class ReferenceAttributeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.build())
 					.build()
@@ -170,12 +172,12 @@ class ReferenceAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.build())
 					.build()
@@ -183,31 +185,31 @@ class ReferenceAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMultipleAttributeMutationsArePresent() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.e(ReferenceAttributeMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
-							.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_ALT_CODE)
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_ALT_CODE)
 							.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 							.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class)
 							.build())
@@ -215,5 +217,29 @@ class ReferenceAttributeMutationConverterTest {
 					.build()
 			)
 		);
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ReferenceAttributeMutation inputMutation = new ReferenceAttributeMutation(
+			new ReferenceKey(REFERENCE_TAGS, 1),
+			new RemoveAttributeMutation(ATTRIBUTE_CODE)
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
+						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+							.build())
+						.build())
+					.build()
+			);
 	}
 }

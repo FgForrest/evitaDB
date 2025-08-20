@@ -66,7 +66,7 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 	 */
 	@Nonnull
 	public SerialVersionBasedSerializer<T> addBackwardCompatibleSerializer(long serialVersionUID, @Nonnull Serializer<T> backwardCompatibleSerializer) {
-		final Map<Long, Serializer<T>> serializerIndex = ofNullable(backwardCompatibleSerializers)
+		final Map<Long, Serializer<T>> serializerIndex = ofNullable(this.backwardCompatibleSerializers)
 			.orElseGet(() -> {
 				this.backwardCompatibleSerializers = new HashMap<>(32);
 				return this.backwardCompatibleSerializers;
@@ -83,8 +83,8 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 		// write version of the schema object definition
 		// this becomes crucial so that we can evolve schema structure along with Evita progress
 		// without loosing ability to read schemas stored in old versions
-		output.writeLong(currentSerializerUID);
-		currentVersionSerializer.write(kryo, output, object);
+		output.writeLong(this.currentSerializerUID);
+		this.currentVersionSerializer.write(kryo, output, object);
 	}
 
 	/**
@@ -99,17 +99,17 @@ public class SerialVersionBasedSerializer<T> extends Serializer<T> {
 	public T read(Kryo kryo, Input input, Class<? extends T> type) throws StoredVersionNotSupportedException {
 		final long serializedUID = input.readLong();
 		// fast line - this will be the most common way
-		if (serializedUID == currentSerializerUID) {
-			return currentVersionSerializer.read(kryo, input, type);
+		if (serializedUID == this.currentSerializerUID) {
+			return this.currentVersionSerializer.read(kryo, input, type);
 		} else {
-			final Serializer<T> backwardCompatibleSerializer = ofNullable(backwardCompatibleSerializers)
+			final Serializer<T> backwardCompatibleSerializer = ofNullable(this.backwardCompatibleSerializers)
 				.map(it -> it.get(serializedUID))
 				.orElse(null);
 			Assert.isTrue(
 				backwardCompatibleSerializer != null,
 				() -> new StoredVersionNotSupportedException(
 					type, serializedUID,
-					ofNullable(backwardCompatibleSerializers).map(Map::keySet).orElse(Collections.emptySet())
+					ofNullable(this.backwardCompatibleSerializers).map(Map::keySet).orElse(Collections.emptySet())
 				)
 			);
 			return backwardCompatibleSerializer.read(kryo, input, type);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ListUnknownEntitiesEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UnknownEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -52,10 +52,10 @@ import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.ATTRIB
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -91,7 +91,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 		tester.test(TEST_CATALOG)
 			.get("/entity/get")
 			.requestParam(ATTRIBUTE_CODE, archivedEntity.getAttribute(ATTRIBUTE_CODE))
-			.requestParam(ListUnknownEntitiesEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
+			.requestParam(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), List.of(Scope.ARCHIVED.name()))
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBodyOfArchivedEntities));

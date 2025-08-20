@@ -1170,7 +1170,7 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
-    if (schemaType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaType.GLOBAL.getNumber()) {
+    if (schemaType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaType.GLOBAL_SCHEMA.getNumber()) {
       output.writeEnum(2, schemaType_);
     }
     if (description_ != null) {
@@ -1247,7 +1247,7 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
     }
-    if (schemaType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaType.GLOBAL.getNumber()) {
+    if (schemaType_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaType.GLOBAL_SCHEMA.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, schemaType_);
     }

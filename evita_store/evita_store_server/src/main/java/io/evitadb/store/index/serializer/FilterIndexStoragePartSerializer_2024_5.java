@@ -54,7 +54,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 	public FilterIndexStoragePart read(Kryo kryo, Input input, Class<? extends FilterIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
 		final InvertedIndex invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();

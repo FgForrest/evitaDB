@@ -46,7 +46,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -84,7 +83,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 			final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 				buildHead(executionContext),
-				FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
+				FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, this.restHandlingContext.getCatalogSchema()),
 				RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 			));
 			log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
@@ -131,8 +130,8 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")
 		);
 		//noinspection unchecked
-		return entityJsonSerializer.serialize(
-			new EntitySerializationContext(restHandlingContext.getCatalogSchema()),
+		return this.entityJsonSerializer.serialize(
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
 			(List<EntityClassifier>) entities
 		);
 	}

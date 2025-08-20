@@ -45,7 +45,7 @@ public class PropertyDescriptorToGraphQLInputFieldTransformer implements Propert
 	private final PropertyDataTypeDescriptorTransformer<GraphQLType> propertyDataTypeTransformer;
 
 	@Override
-	public GraphQLInputObjectField.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public GraphQLInputObjectField.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final GraphQLInputObjectField.Builder fieldBuilder = GraphQLInputObjectField.newInputObjectField()
 			.description(propertyDescriptor.description());
 
@@ -53,7 +53,7 @@ public class PropertyDescriptorToGraphQLInputFieldTransformer implements Propert
 			fieldBuilder.name(propertyDescriptor.name());
 		}
 		if (propertyDescriptor.type() != null) {
-			final GraphQLInputType graphQLType = (GraphQLInputType) propertyDataTypeTransformer.apply(propertyDescriptor.type());
+			final GraphQLInputType graphQLType = (GraphQLInputType) this.propertyDataTypeTransformer.apply(propertyDescriptor.type());
 			fieldBuilder.type(graphQLType);
 		}
 		if (propertyDescriptor.defaultValue() != null) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,11 +68,11 @@ public class PathNormalizingHandler implements HttpService {
 				path = baseUrl;
 			}
 		} else {
-			return next.serve(ctx, req);
+			return this.next.serve(ctx, req);
 		}
 
  		final RequestHeaders newHeaders = req.headers().withMutations(builder -> builder.set(":path", path));
-		return next.serve(ctx, req.withHeaders(newHeaders));
+		return this.next.serve(ctx, req.withHeaders(newHeaders));
 	}
 
 }

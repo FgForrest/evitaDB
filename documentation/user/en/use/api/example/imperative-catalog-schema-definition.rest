@@ -163,6 +163,7 @@ PUT /rest/evita/schema
               "name": "categories",
               "referencedEntityType": "Category",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
               "indexedInScopes": ["LIVE"]
             }
@@ -185,6 +186,7 @@ PUT /rest/evita/schema
               "name": "brand",
               "referencedEntityType": "Brand",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_ONE",
               "indexedInScopes": ["LIVE"],
               "facetedInScopes": ["LIVE"]
@@ -196,6 +198,7 @@ PUT /rest/evita/schema
               "name": "stock",
               "referencedEntityType": "Stock",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
               "indexedInScopes": ["LIVE"],
               "facetedInScopes": ["LIVE"]

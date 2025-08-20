@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,17 +63,17 @@ class SinglePriceEntityPrices extends EntityPrices {
 
 	@Override
 	public PriceRecordContract[] getLowestPriceRecords() {
-		return price;
+		return this.price;
 	}
 
 	@Override
 	public int getSize() {
-		return price.length;
+		return this.price.length;
 	}
 
 	@Override
 	public boolean containsPriceRecord(int priceId) {
-		return price.length > 0 && price[0].priceId() == priceId;
+		return this.price.length > 0 && this.price[0].priceId() == priceId;
 	}
 
 	@Override
@@ -90,19 +90,19 @@ class SinglePriceEntityPrices extends EntityPrices {
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] getAllPrices() {
-		return price;
+		return this.price;
 	}
 
 	@Override
 	protected boolean isInnerRecordSpecific() {
-		return price.length > 0 && price[0].isInnerRecordSpecific();
+		return this.price.length > 0 && this.price[0].isInnerRecordSpecific();
 	}
 
 
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] computePricesAdding(@Nonnull PriceRecordContract priceRecord) {
-		if (price.length == 0) {
+		if (this.price.length == 0) {
 			return new PriceRecordContract[] {priceRecord};
 		} else {
 			if (PRICE_ID_COMPARATOR.compare(priceRecord, this.price[0]) >= 0) {
@@ -117,7 +117,7 @@ class SinglePriceEntityPrices extends EntityPrices {
 	@Override
 	protected PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract priceRecord) {
 		Assert.isTrue(
-			price.length > 0 && priceRecord.internalPriceId() == price[0].internalPriceId(),
+			this.price.length > 0 && priceRecord.internalPriceId() == this.price[0].internalPriceId(),
 			"Price with id `" + priceRecord.priceId() + "` (internal id `" + priceRecord.internalPriceId() + "`) was not found!"
 		);
 		return EMPTY_PRICES;

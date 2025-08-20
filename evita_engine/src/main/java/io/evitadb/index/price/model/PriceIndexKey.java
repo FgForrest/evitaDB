@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,21 +61,21 @@ public class PriceIndexKey extends AbstractPriceKey implements Comparable<PriceI
 		if (o == null || getClass() != o.getClass()) return false;
 		if (!super.equals(o)) return false;
 		PriceIndexKey that = (PriceIndexKey) o;
-		return hashCode == that.hashCode && priceList.equals(that.priceList) && currency.equals(that.currency) && recordHandling == that.recordHandling;
+		return this.hashCode == that.hashCode && this.priceList.equals(that.priceList) && this.currency.equals(that.currency) && this.recordHandling == that.recordHandling;
 	}
 
 	@Override
 	public String toString() {
-		return super.toString() + "/" + recordHandling;
+		return super.toString() + "/" + this.recordHandling;
 	}
 
 	@Override
 	public int compareTo(PriceIndexKey o) {
-		int result = currency.getCurrencyCode().compareTo(o.currency.getCurrencyCode());
+		int result = this.currency.getCurrencyCode().compareTo(o.currency.getCurrencyCode());
 		if (result == 0) {
-			result = priceList.compareTo(o.priceList);
+			result = this.priceList.compareTo(o.priceList);
 			if (result == 0) {
-				result = recordHandling.compareTo(o.recordHandling);
+				result = this.recordHandling.compareTo(o.recordHandling);
 			}
 		}
 		return result;

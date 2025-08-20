@@ -61,36 +61,36 @@ abstract class AbstractConstraintResolverTest {
 				@Nonnull
 				@Override
 				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return entitySchemaIndex.values();
+					return AbstractConstraintResolverTest.this.entitySchemaIndex.values();
 				}
 
 				@Nonnull
 				@Override
 				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return Optional.ofNullable(entitySchemaIndex.get(entityType));
+					return Optional.ofNullable(AbstractConstraintResolverTest.this.entitySchemaIndex.get(entityType));
 				}
 			}
 		);
 
 		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.CATEGORY)
 		)
 			.withPrice()
 			.withAttribute("NAME", String.class)
 			.withReferenceToEntity("RELATED_PRODUCTS", Entities.PRODUCT, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("ORDER", Integer.class))
 			.toInstance();
-		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
+		this.entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
 
 		final EntitySchemaContract brandSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.BRAND)
 		)
 			.toInstance();
-		entitySchemaIndex.put(Entities.BRAND, brandSchema);
+		this.entitySchemaIndex.put(Entities.BRAND, brandSchema);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withPrice()
@@ -103,6 +103,6 @@ abstract class AbstractConstraintResolverTest {
 				.withGroupType("brandGroup"))
 			.toInstance();
 
-		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
+		this.entitySchemaIndex.put(Entities.PRODUCT, productSchema);
 	}
 }

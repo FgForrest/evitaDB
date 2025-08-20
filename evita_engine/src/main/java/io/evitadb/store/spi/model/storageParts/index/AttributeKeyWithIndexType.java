@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,17 +82,17 @@ public class AttributeKeyWithIndexType implements Comparable<AttributeKeyWithInd
 	 * Returns true if attribute is localized.
 	 */
 	public boolean isLocalized() {
-		return locale != null;
+		return this.locale != null;
 	}
 
 	@Override
 	public int compareTo(AttributeKeyWithIndexType o) {
 		return ComparatorUtils.compareLocale(
-			locale, o.locale,
+			this.locale, o.locale,
 			() -> {
-				final int attributeNameResult = attributeName.compareTo(o.attributeName);
+				final int attributeNameResult = this.attributeName.compareTo(o.attributeName);
 				if (attributeNameResult == 0) {
-					return indexType.compareTo(o.indexType);
+					return this.indexType.compareTo(o.indexType);
 				} else {
 					return attributeNameResult;
 				}

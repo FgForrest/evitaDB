@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ public class AttributeSchemaAccessor {
 			if (referenceSchema != null) {
 				for (Scope scope : requestedScopes) {
 					if (!referenceSchema.isIndexedInScope(scope)) {
-						throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
+						throw new ReferenceNotIndexedException(referenceSchema.getName(), Objects.requireNonNull(entitySchema), scope);
 					}
 				}
 			}
@@ -321,7 +321,7 @@ public class AttributeSchemaAccessor {
 	@Nonnull
 	public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
 		return new AttributeSchemaAccessor(
-			catalogSchema, entitySchema, entitySchema -> entitySchema.getReferenceOrThrowException(referenceName)
+			this.catalogSchema, this.entitySchema, entitySchema -> entitySchema.getReferenceOrThrowException(referenceName)
 		);
 	}
 

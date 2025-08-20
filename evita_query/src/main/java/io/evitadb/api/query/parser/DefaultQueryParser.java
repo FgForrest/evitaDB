@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -406,7 +406,7 @@ public class DefaultQueryParser implements QueryParser {
         final EvitaQLParser parser = ParserFactory.getParser(query);
         return ParserExecutor.execute(
             context,
-            () -> parser.queryUnit().query().accept(queryVisitor)
+            () -> parser.queryUnit().query().accept(this.queryVisitor)
         );
     }
 
@@ -415,7 +415,7 @@ public class DefaultQueryParser implements QueryParser {
         final EvitaQLParser parser = ParserFactory.getParser(headConstraintList);
         return ParserExecutor.execute(
             context,
-            () -> parser.headConstraintListUnit().headConstraintList().accept(headConstraintListVisitor)
+            () -> parser.headConstraintListUnit().headConstraintList().accept(this.headConstraintListVisitor)
         );
     }
 
@@ -424,7 +424,7 @@ public class DefaultQueryParser implements QueryParser {
         final EvitaQLParser parser = ParserFactory.getParser(filterConstraintList);
         return ParserExecutor.execute(
             context,
-            () -> parser.filterConstraintListUnit().filterConstraintList().accept(filterConstraintListVisitor)
+            () -> parser.filterConstraintListUnit().filterConstraintList().accept(this.filterConstraintListVisitor)
         );
     }
 
@@ -433,7 +433,7 @@ public class DefaultQueryParser implements QueryParser {
         final EvitaQLParser parser = ParserFactory.getParser(orderConstraintList);
         return ParserExecutor.execute(
             context,
-            () -> parser.orderConstraintListUnit().orderConstraintList().accept(orderConstraintListVisitor)
+            () -> parser.orderConstraintListUnit().orderConstraintList().accept(this.orderConstraintListVisitor)
         );
     }
 
@@ -442,7 +442,7 @@ public class DefaultQueryParser implements QueryParser {
         final EvitaQLParser parser = ParserFactory.getParser(requireConstraintList);
         return ParserExecutor.execute(
             context,
-            () -> parser.requireConstraintListUnit().requireConstraintList().accept(requireConstraintListVisitor)
+            () -> parser.requireConstraintListUnit().requireConstraintList().accept(this.requireConstraintListVisitor)
         );
     }
 
@@ -453,7 +453,7 @@ public class DefaultQueryParser implements QueryParser {
         //noinspection unchecked
         return ParserExecutor.execute(
             context,
-            () -> (T) parser.valueTokenUnit().valueToken().accept(valueTokenVisitor).asSerializable()
+            () -> (T) parser.valueTokenUnit().valueToken().accept(this.valueTokenVisitor).asSerializable()
         );
     }
 

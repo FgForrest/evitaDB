@@ -174,7 +174,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 					.type(typeRefTo(LOCALE_ENUM.name()))
 					.build());
 			}
-			pathBuilder.staticItem(entitySchema.getName());
+			pathBuilder.staticItem(this.entitySchema.getName());
 
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
@@ -257,59 +257,59 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nonnull
 		public OpenApiCollectionEndpoint build() {
 			Assert.isPremiseValid(
-				path != null,
+				this.path != null,
 				() -> new OpenApiBuildingError("Missing endpoint path.")
 			);
 			Assert.isPremiseValid(
-				method != null,
-				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing method.")
+				this.method != null,
+				() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing method.")
 			);
 			Assert.isPremiseValid(
-				operationId != null && !operationId.isEmpty(),
-				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing operationId.")
+				this.operationId != null && !this.operationId.isEmpty(),
+				() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing operationId.")
 			);
 			Assert.isPremiseValid(
-				description != null && !description.isEmpty(),
-				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing description.")
+				this.description != null && !this.description.isEmpty(),
+				() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing description.")
 			);
 
-			if (Set.of(POST, PUT, PATCH).contains(method)) {
+			if (Set.of(POST, PUT, PATCH).contains(this.method)) {
 				Assert.isPremiseValid(
-					requestBody != null,
-					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing request body.")
+					this.requestBody != null,
+					() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing request body.")
 				);
-			} else if (Set.of(GET, HEAD, TRACE, OPTIONS).contains(method)) {
+			} else if (Set.of(GET, HEAD, TRACE, OPTIONS).contains(this.method)) {
 				Assert.isPremiseValid(
-					requestBody == null,
-					() -> new OpenApiBuildingError("Endpoint `" + path + "` doesn't support request body.")
-				);
-			}
-
-			if (Set.of(GET, POST, PUT, PATCH).contains(method)) {
-				Assert.isPremiseValid(
-					successResponse != null,
-					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing success response.")
+					this.requestBody == null,
+					() -> new OpenApiBuildingError("Endpoint `" + this.path + "` doesn't support request body.")
 				);
 			}
 
+			if (Set.of(GET, POST, PUT, PATCH).contains(this.method)) {
+				Assert.isPremiseValid(
+					this.successResponse != null,
+					() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing success response.")
+				);
+			}
+
 			Assert.isPremiseValid(
-				handlerBuilder != null,
-				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing handler.")
+				this.handlerBuilder != null,
+				() -> new OpenApiBuildingError("Endpoint `" + this.path + "` is missing handler.")
 			);
 
 			return new OpenApiCollectionEndpoint(
-				catalogSchema,
-				entitySchema,
-				method,
-				path,
-				localized,
-				operationId,
-				description,
-				deprecationNotice,
-				parameters,
-				requestBody,
-				successResponse,
-				handlerBuilder
+				this.catalogSchema,
+				this.entitySchema,
+				this.method,
+				this.path,
+				this.localized,
+				this.operationId,
+				this.description,
+				this.deprecationNotice,
+				this.parameters,
+				this.requestBody,
+				this.successResponse,
+				this.handlerBuilder
 			);
 		}
 	}

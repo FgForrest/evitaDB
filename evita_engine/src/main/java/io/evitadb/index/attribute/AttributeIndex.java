@@ -243,7 +243,7 @@ public class AttributeIndex implements AttributeIndexContract,
 			createUniqueAttributeKey(attributeSchema, allowedLocales, scope, locale, value),
 			lookupKey -> {
 				final UniqueIndex newUniqueIndex = new UniqueIndex(
-					entityType,
+					this.entityType,
 					lookupKey,
 					attributeSchema.getType()
 				);
@@ -590,16 +590,16 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void resetDirty() {
-		for (UniqueIndex theUniqueIndex : uniqueIndex.values()) {
+		for (UniqueIndex theUniqueIndex : this.uniqueIndex.values()) {
 			theUniqueIndex.resetDirty();
 		}
-		for (FilterIndex theFilterIndex : filterIndex.values()) {
+		for (FilterIndex theFilterIndex : this.filterIndex.values()) {
 			theFilterIndex.resetDirty();
 		}
-		for (SortIndex theSortIndex : sortIndex.values()) {
+		for (SortIndex theSortIndex : this.sortIndex.values()) {
 			theSortIndex.resetDirty();
 		}
-		for (ChainIndex theChainIndex : chainIndex.values()) {
+		for (ChainIndex theChainIndex : this.chainIndex.values()) {
 			theChainIndex.resetDirty();
 		}
 	}

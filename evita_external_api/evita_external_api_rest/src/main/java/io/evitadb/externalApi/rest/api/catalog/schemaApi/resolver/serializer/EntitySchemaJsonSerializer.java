@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;

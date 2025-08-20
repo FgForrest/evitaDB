@@ -162,7 +162,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 		priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, 1, null, 1000, 1210);
 
-		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
 		assertNotNull(priceAndCurrencyIndex);
 		assertFalse(priceAndCurrencyIndex.isEmpty());
 
@@ -188,7 +188,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 		priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 1, null, 1000, 1210);
 
-		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.LOWEST_PRICE);
 		assertNotNull(priceAndCurrencyIndex);
 		assertFalse(priceAndCurrencyIndex.isEmpty());
 
@@ -214,7 +214,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 
 		priceIndex.priceRemove(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.SUM, 1, null, 1000, 1210);
 
-		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.SUM);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = this.priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.SUM);
 		assertNotNull(priceAndCurrencyIndex);
 		assertFalse(priceAndCurrencyIndex.isEmpty());
 
@@ -260,9 +260,9 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 		assertStateAfterCommit(
 			priceIndex,
 			pi -> {
-				priceIndex.removePrice(0, priceToInternalId.get(32), DateTimeRange.between(OffsetDateTime.now().minusMinutes(469), OffsetDateTime.now().plusMinutes(469)));
-				priceIndex.removePrice(11, priceToInternalId.get(33), DateTimeRange.between(OffsetDateTime.now().minusMinutes(4092), OffsetDateTime.now().plusMinutes(4092)));
-				priceIndex.removePrice(0, priceToInternalId.get(53), DateTimeRange.between(OffsetDateTime.now().minusMinutes(5718), OffsetDateTime.now().plusMinutes(5718)));
+				priceIndex.removePrice(0, this.priceToInternalId.get(32), DateTimeRange.between(OffsetDateTime.now().minusMinutes(469), OffsetDateTime.now().plusMinutes(469)));
+				priceIndex.removePrice(11, this.priceToInternalId.get(33), DateTimeRange.between(OffsetDateTime.now().minusMinutes(4092), OffsetDateTime.now().plusMinutes(4092)));
+				priceIndex.removePrice(0, this.priceToInternalId.get(53), DateTimeRange.between(OffsetDateTime.now().minusMinutes(5718), OffsetDateTime.now().plusMinutes(5718)));
 			},
 			(original, committed) -> {
 
@@ -333,7 +333,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 								final OffsetDateTime from = OffsetDateTime.now().minusMinutes(differenceInMinutes);
 								final DateTimeRange validity = DateTimeRange.between(from, from.plusMinutes(differenceInMinutes));
 
-								final int internalPriceId = priceIdSequence.incrementAndGet();
+								final int internalPriceId = this.priceIdSequence.incrementAndGet();
 								final PriceRecordWithValidity priceRecord = new PriceRecordWithValidity(
 									internalPriceId, newPriceId, newEntityId, newInnerRecordId,
 									randomPriceWithTax, randomPriceWithoutTax, differenceInMinutes, validity
@@ -425,10 +425,10 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 		int priceWithTax
 	) {
 		final PriceRecordContract priceRecord = innerRecordId == null ?
-			new PriceRecord(priceIdSequence.incrementAndGet(), priceId, entityPrimaryKey, priceWithTax, priceWithoutTax) :
-			new PriceRecordInnerRecordSpecific(priceIdSequence.incrementAndGet(), priceId, entityPrimaryKey, innerRecordId, priceWithTax, priceWithoutTax);
+			new PriceRecord(this.priceIdSequence.incrementAndGet(), priceId, entityPrimaryKey, priceWithTax, priceWithoutTax) :
+			new PriceRecordInnerRecordSpecific(this.priceIdSequence.incrementAndGet(), priceId, entityPrimaryKey, innerRecordId, priceWithTax, priceWithoutTax);
 		priceListIndex.addPrice(priceRecord, validity);
-		priceToInternalId.put(priceRecord.priceId(), priceRecord.internalPriceId());
+		this.priceToInternalId.put(priceRecord.priceId(), priceRecord.internalPriceId());
 	}
 
 	private PriceRecordContract[] buildPriceRecordsFrom(PriceRecordWithValidity[] priceRecords) {
@@ -472,7 +472,7 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	) implements Comparable<PriceRecordWithValidity> {
 		@Override
 		public int compareTo(PriceRecordWithValidity o) {
-			return Integer.compare(priceId, o.priceId);
+			return Integer.compare(this.priceId, o.priceId);
 		}
 
 	}

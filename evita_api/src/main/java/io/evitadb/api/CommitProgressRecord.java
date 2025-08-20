@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.function.Functions;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -45,9 +46,6 @@ import java.util.function.BiConsumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class CommitProgressRecord implements CommitProgress {
-	/* TODO JNO - replace by Functions.noXXX */
-	private static final BiConsumer<CommitVersions, Throwable> NO_CALLBACK = (commitVersions, throwable) -> {
-	};
 
 	/**
 	 * Callback that is executed just before the particular stage is marked as completed.
@@ -127,7 +125,7 @@ public class CommitProgressRecord implements CommitProgress {
 	 * Creates a new instance of CommitProgressRecord with the specified CompletableFuture objects.
 	 */
 	public CommitProgressRecord() {
-		this(NO_CALLBACK);
+		this(Functions.noOpBiConsumer());
 	}
 
 	/**

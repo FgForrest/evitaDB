@@ -53,7 +53,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	private ClientCertificateManager clientCertificateManager;
 
 	public void setUp() {
-		clientCertificateManager = new ClientCertificateManager.Builder()
+		this.clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(true, HOST, SystemOptions.DEFAULT_SYSTEM_PORT)
 			.build();
 	}
@@ -64,7 +64,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	@Override
 	public EvitaSessionServiceBlockingStub getSession() {
 		return getSession(() -> {
-			final ClientFactoryBuilder clientFactoryBuilder = clientCertificateManager
+			final ClientFactoryBuilder clientFactoryBuilder = this.clientCertificateManager
 				.buildClientSslContext(
 					null,
 					ClientFactory.builder()

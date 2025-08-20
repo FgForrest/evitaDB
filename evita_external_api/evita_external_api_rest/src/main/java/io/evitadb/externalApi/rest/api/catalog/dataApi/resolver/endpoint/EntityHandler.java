@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,8 +65,8 @@ public abstract class EntityHandler<CTX extends CatalogRestHandlingContext> exte
 			deletedEntity instanceof EntityClassifier,
 			() -> new RestInternalError("Entity must be instance of EntityClassifier, but got `" + deletedEntity.getClass().getName() + "`.")
 		);
-		return entityJsonSerializer.serialize(
-			new EntitySerializationContext(restHandlingContext.getCatalogSchema()),
+		return this.entityJsonSerializer.serialize(
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
 			(EntityClassifier) deletedEntity
 		);
 	}

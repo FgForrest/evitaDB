@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,7 +56,7 @@ class ReferenceAttributeSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ReferenceAttributeSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ReferenceAttributeSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -64,7 +66,7 @@ class ReferenceAttributeSchemaMutationAggregateConverterTest {
 			new ModifyAttributeSchemaNameMutation("code", "betterCode")
 		);
 
-		final List<ReferenceAttributeSchemaMutation> convertedMutations = converter.convert(
+		final List<ReferenceAttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
@@ -80,12 +82,37 @@ class ReferenceAttributeSchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<ReferenceAttributeSchemaMutation> convertedMutations = converter.convert(Map.of());
+		final List<ReferenceAttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final List<ReferenceAttributeSchemaMutation> inputMutation = List.of(
+			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
+			new ModifyAttributeSchemaNameMutation("code", "betterCode")
+		);
+
+		//noinspection unchecked
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				list()
+					.i(map()
+						.e(ReferenceAttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+							.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")))
+					.i(map()
+						.e(ReferenceAttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_NAME_MUTATION.name(), map()
+							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+							.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "betterCode")))
+					.build()
+			);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class RestTestContextFactory implements TestContextFactory<RestTestContex
 	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Init Evita REST connection (" + profile + ")",
-			() -> testContextRef.set(new RestTestContext(profile))
+			() -> this.testContextRef.set(new RestTestContext(profile))
 		);
 	}
 
@@ -63,6 +63,6 @@ public class RestTestContextFactory implements TestContextFactory<RestTestContex
 	@Nonnull
 	@Override
 	public RestTestContext getContext() {
-		return Objects.requireNonNull(testContextRef.get());
+		return Objects.requireNonNull(this.testContextRef.get());
 	}
 }

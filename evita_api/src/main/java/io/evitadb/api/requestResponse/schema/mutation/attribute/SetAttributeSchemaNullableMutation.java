@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class SetAttributeSchemaNullableMutation
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof SetAttributeSchemaNullableMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaNullableMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -92,7 +92,7 @@ public class SetAttributeSchemaNullableMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetAttributeSchemaNullableMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaNullableMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -143,7 +143,7 @@ public class SetAttributeSchemaNullableMutation
 		} else  {
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
-				name,
+				this.name,
 				attributeSchema.getNameVariants(),
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
@@ -151,7 +151,7 @@ public class SetAttributeSchemaNullableMutation
 				attributeSchema.getFilterableInScopes(),
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
-				nullable,
+				this.nullable,
 				(Class) attributeSchema.getType(),
 				attributeSchema.getDefaultValue(),
 				attributeSchema.getIndexedDecimalPlaces()
@@ -161,11 +161,11 @@ public class SetAttributeSchemaNullableMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
@@ -178,9 +178,9 @@ public class SetAttributeSchemaNullableMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 
 		final EntityAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class);
@@ -193,7 +193,7 @@ public class SetAttributeSchemaNullableMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, name);
+		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, this.name);
 		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema
@@ -208,8 +208,8 @@ public class SetAttributeSchemaNullableMutation
 
 	@Override
 	public String toString() {
-		return "Set attribute `" + name + "` schema: " +
-			"nullable=" + nullable;
+		return "Set attribute `" + this.name + "` schema: " +
+			"nullable=" + this.nullable;
 	}
 
 }

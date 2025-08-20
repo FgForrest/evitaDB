@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -317,7 +318,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 				}
 
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final ReferenceSchemaContract referenceSchema = proxyState.getReferenceSchema();
+				final ReferenceSchemaContract referenceSchema = Objects.requireNonNull(proxyState.getReferenceSchema());
 				final String referenceName = referenceSchema.getName();
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,8 +85,8 @@ public abstract class ClientAttributeAndHierarchyFilteringState extends ClientDa
 	@Setup(Level.Invocation)
 	public void prepareCall() {
 		this.query = generateRandomHierarchyQuery(
-			generateRandomAttributeQuery(random, productSchema, filterableAttributes, sortableAttributes),
-			random, categoryIds, CATEGORY_ENTITY_TYPE
+			generateRandomAttributeQuery(this.random, this.productSchema, this.filterableAttributes, this.sortableAttributes),
+			this.random, this.categoryIds, CATEGORY_ENTITY_TYPE
 		);
 	}
 
@@ -110,9 +110,9 @@ public abstract class ClientAttributeAndHierarchyFilteringState extends ClientDa
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(PRODUCT_ENTITY_TYPE)) {
-			updateAttributeStatistics(entity, random, filterableAttributes);
+			updateAttributeStatistics(entity, this.random, this.filterableAttributes);
 		} else if (entity.getType().equals(CATEGORY_ENTITY_TYPE)) {
-			categoryIds.add(entity.getPrimaryKey());
+			this.categoryIds.add(entity.getPrimaryKey());
 		}
 	}
 

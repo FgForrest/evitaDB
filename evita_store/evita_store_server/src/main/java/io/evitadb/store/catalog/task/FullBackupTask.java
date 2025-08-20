@@ -25,8 +25,8 @@ package io.evitadb.store.catalog.task;
 
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
-import io.evitadb.core.async.ClientCallableTask;
-import io.evitadb.core.async.Interruptible;
+import io.evitadb.core.executor.ClientCallableTask;
+import io.evitadb.core.executor.Interruptible;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.exception.GenericEvitaInternalError;

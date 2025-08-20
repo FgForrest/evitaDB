@@ -25,8 +25,8 @@ package io.evitadb.store.kryo;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;
@@ -92,6 +92,17 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	public long getLockTimeoutSeconds() {
 		return this.options.lockTimeoutSeconds();
+	}
+
+	public ObservableOutputKeeper(@Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
+		this.catalogName = null;
+		this.options = options;
+		this.cutTask = new DelayedAsyncTask(
+			null, "Write buffer releaser",
+			scheduler,
+			this::cutOutputCache,
+			CUT_OUTPUTS_AFTER_INACTIVITY_MS, TimeUnit.MILLISECONDS
+		);
 	}
 
 	public ObservableOutputKeeper(@Nonnull String catalogName, @Nonnull StorageOptions options, @Nonnull Scheduler scheduler) {
@@ -179,16 +190,23 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			}
 			Thread.onSpinWait();
 		} while (
-			!cachedOutputToFiles.isEmpty() &&
-				System.currentTimeMillis() - start < options.waitOnCloseSeconds() * 1000L
+			!this.cachedOutputToFiles.isEmpty() &&
+				System.currentTimeMillis() - start < this.options.waitOnCloseSeconds() * 1000L
 		);
 
 		// emit event
-		new ObservableOutputChangeEvent(
-			this.catalogName,
-			this.cachedOutputToFiles.size(),
-			(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
-		).commit();
+		if (this.catalogName == null) {
+			new ObservableOutputChangeEvent(
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		} else {
+			new ObservableOutputChangeEvent(
+				this.catalogName,
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		}
 
 		if (!this.cachedOutputToFiles.isEmpty()) {
 			log.error(
@@ -208,7 +226,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct
 	) {
 		this.cutTask.schedule();
-		return cachedOutputToFiles
+		return this.cachedOutputToFiles
 			.computeIfAbsent(targetFile, path -> new OpenedOutputToFile(createFct.apply(path)));
 	}
 
@@ -236,11 +254,18 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		}
 
 		// emit event
-		new ObservableOutputChangeEvent(
-			this.catalogName,
-			this.cachedOutputToFiles.size(),
-			(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
-		).commit();
+		if (this.catalogName == null) {
+			new ObservableOutputChangeEvent(
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		} else {
+			new ObservableOutputChangeEvent(
+				this.catalogName,
+				this.cachedOutputToFiles.size(),
+				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+			).commit();
+		}
 
 		// re-plan the scheduled cut to the moment when the next entry should be cut down
 		return oldestNotCutEntryTouchTime > -1L ? (oldestNotCutEntryTouchTime - threshold) + 1 : -1L;
@@ -276,7 +301,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			Assert.isPremiseValid(!this.leased, "The output is already leased");
 			this.leased = true;
 			this.lastReadTime = System.currentTimeMillis();
-			return output;
+			return this.output;
 		}
 
 		/**

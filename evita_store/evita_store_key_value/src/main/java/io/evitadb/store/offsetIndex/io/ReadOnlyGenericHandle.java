@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,17 +41,17 @@ public class ReadOnlyGenericHandle implements ReadOnlyHandle {
 
 	@Override
 	public <T> T execute(@Nonnull Function<ObservableInput<?>, T> logic) {
-		return logic.apply(observableInput);
+		return logic.apply(this.observableInput);
 	}
 
 	@Override
 	public void close() {
-		observableInput.close();
+		this.observableInput.close();
 	}
 
 	@Override
 	public long getLastWrittenPosition() {
-		return lastWrittenPosition;
+		return this.lastWrittenPosition;
 	}
 
 }

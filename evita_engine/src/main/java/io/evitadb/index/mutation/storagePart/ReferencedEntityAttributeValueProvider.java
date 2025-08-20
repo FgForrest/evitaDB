@@ -116,8 +116,8 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceKey referenceCarrier, @Nonnull String attributeName) {
 		// fetch the referenced entity reference part, this is quite expensive operation
-		final ReferencesStoragePart referencedEntityReferencePart = dataStoreReader.fetch(
-			catalogVersion, referenceCarrier.primaryKey(), ReferencesStoragePart.class
+		final ReferencesStoragePart referencedEntityReferencePart = this.dataStoreReader.fetch(
+			this.catalogVersion, referenceCarrier.primaryKey(), ReferencesStoragePart.class
 		);
 		if (referencedEntityReferencePart == null) {
 			return List.of();

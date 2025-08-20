@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,13 +77,14 @@ public record PriceEvaluationContext(
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			MemoryMeasuringConstants.ARRAY_BASE_SIZE +
 			MemoryMeasuringConstants.LONG_SIZE +
-			targetPriceIndexes.length * (MemoryMeasuringConstants.REFERENCE_SIZE + PriceIndexKey.MEMORY_SIZE);
+			this.targetPriceIndexes.length * (MemoryMeasuringConstants.REFERENCE_SIZE + PriceIndexKey.MEMORY_SIZE);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return Arrays.toString(targetPriceIndexes) + (validIn == Long.MIN_VALUE ? "" : " validIn: " +
-			ofEpochSecond(validIn, 0, ZoneOffset.UTC));
+		return Arrays.toString(this.targetPriceIndexes) + (this.validIn == Long.MIN_VALUE ? "" : " validIn: " +
+			ofEpochSecond(this.validIn, 0, ZoneOffset.UTC));
 	}
 
 	/**
@@ -93,8 +94,8 @@ public record PriceEvaluationContext(
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			LongStream.concat(
-					LongStream.of(validIn),
-					Arrays.stream(targetPriceIndexes)
+					LongStream.of(this.validIn),
+					Arrays.stream(this.targetPriceIndexes)
 						.mapToLong(it -> hashFunction.hashChars(it.toString()))
 				)
 				.toArray()

@@ -31,9 +31,11 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -55,8 +57,8 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATT
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -154,7 +156,8 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.e(TYPENAME_FIELD, GlobalEntityDescriptor.THIS.name())
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.ATTRIBUTES.name(), map()
+						.e(
+							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 							.e(ATTRIBUTE_RELATIVE_URL, relativeUrl.value())
 							.build())
 						.build()
@@ -223,7 +226,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.VERSION.name(), entity.version())
+						.e(VersionedDescriptor.VERSION.name(), entity.version())
 						.build()
 				)
 			);
@@ -363,7 +366,8 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
 						.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().filter(Objects::nonNull).map(Locale::toString).toList())
-						.e(EntityDescriptor.ATTRIBUTES.name(), map()
+						.e(
+							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 							.e(ATTRIBUTE_URL, urlAttribute)
 							.build())
@@ -425,7 +429,8 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
 						.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().filter(Objects::nonNull).map(Locale::toString).toList())
-						.e(EntityDescriptor.ATTRIBUTES.name(), map()
+						.e(
+							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 							.e(ATTRIBUTE_CODE, codeAttribute)
 							.e(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
@@ -1209,20 +1214,23 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
 							.e("parameter", map()
 								.e(TYPENAME_FIELD, ReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
-								.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 									.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 									.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString()))
 								.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, "Parameter")
 									.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+									.e(
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))))
 								.e(ReferenceDescriptor.GROUP_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, "ParameterGroup")
 									.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+									.e(
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))))))
 						.build()
 				)
@@ -1305,8 +1313,8 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	}
 
 	@Nonnull
-	private SealedEntity findEntity(@Nonnull List<SealedEntity> originalProductEntities,
-	                                @Nonnull Predicate<SealedEntity> filter) {
+	private static SealedEntity findEntity(@Nonnull List<SealedEntity> originalProductEntities,
+	                                       @Nonnull Predicate<SealedEntity> filter) {
 		return originalProductEntities.stream()
 			.filter(filter)
 			.findFirst()
@@ -1314,7 +1322,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	}
 
 	@Nonnull
-	private SealedEntity findEntityWithPrice(List<SealedEntity> originalProductEntities) {
+	private static SealedEntity findEntityWithPrice(List<SealedEntity> originalProductEntities) {
 		return findEntity(
 			originalProductEntities,
 			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1
@@ -1322,7 +1330,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	}
 
 	@Nonnull
-	private SealedEntity findEntityWithPrice(List<SealedEntity> originalProductEntities, @Nonnull String... priceLists) {
+	private static SealedEntity findEntityWithPrice(List<SealedEntity> originalProductEntities, @Nonnull String... priceLists) {
 		return findEntity(
 			originalProductEntities,
 			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(CURRENCY_CZK, pl).size() == 1)

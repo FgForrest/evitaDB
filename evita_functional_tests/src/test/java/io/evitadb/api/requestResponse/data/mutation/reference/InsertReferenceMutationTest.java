@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ class InsertReferenceMutationTest extends AbstractMutationTest {
 			"brand"
 		);
 
-		final ReferenceContract reference = mutation.mutateLocal(productSchema, null);
+		final ReferenceContract reference = mutation.mutateLocal(this.productSchema, null);
 		assertNotNull(reference);
 		assertEquals(1, reference.version());
 		assertEquals("brand", reference.getReferenceName());
@@ -61,12 +61,12 @@ class InsertReferenceMutationTest extends AbstractMutationTest {
 				new ReferenceKey("brand", 5),
 				Cardinality.ZERO_OR_ONE,
 				"brand"
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new InsertReferenceMutation(
 				new ReferenceKey("brand", 10),
 				Cardinality.ZERO_OR_ONE,
 				"brand"
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 
@@ -77,12 +77,12 @@ class InsertReferenceMutationTest extends AbstractMutationTest {
 				new ReferenceKey("brand", 5),
 				Cardinality.ZERO_OR_ONE,
 				"brand"
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new InsertReferenceMutation(
 				new ReferenceKey("category", 5),
 				Cardinality.ZERO_OR_ONE,
 				"brand"
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

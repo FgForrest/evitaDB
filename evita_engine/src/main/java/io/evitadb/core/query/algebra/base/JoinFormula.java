@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -172,13 +172,13 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
-		return "JOIN: " + Arrays.stream(bitmaps).map(it -> String.valueOf(it.size())).collect(Collectors.joining(", ")) + " primary keys";
+		return "JOIN: " + Arrays.stream(this.bitmaps).map(it -> String.valueOf(it.size())).collect(Collectors.joining(", ")) + " primary keys";
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		return "JOIN: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+		return "JOIN: " + Arrays.stream(this.bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
 	}
 
 	@Nonnull
@@ -205,10 +205,10 @@ public class JoinFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		if (bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-			return indexTransactionId;
+		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
+			return this.indexTransactionId;
 		} else {
-			return Stream.of(bitmaps)
+			return Stream.of(this.bitmaps)
 				.filter(TransactionalLayerProducer.class::isInstance)
 				.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId())
 				.toArray();
@@ -219,7 +219,7 @@ public class JoinFormula extends AbstractFormula {
 	public long getEstimatedCostInternal() {
 		try {
 			long costs = 0L;
-			for (Bitmap bitmap : bitmaps) {
+			for (Bitmap bitmap : this.bitmaps) {
 				costs = Math.addExact(costs, bitmap.size());
 			}
 			return Math.multiplyExact(costs, getOperationCost());
@@ -235,11 +235,11 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-			return hashFunction.hashLongs(indexTransactionId);
+		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
+			return hashFunction.hashLongs(this.indexTransactionId);
 		} else {
 			return hashFunction.hashLongs(
-				Stream.of(bitmaps)
+				Stream.of(this.bitmaps)
 					.filter(Objects::nonNull)
 					.mapToLong(it -> {
 						if (it instanceof TransactionalLayerProducer) {
@@ -264,7 +264,7 @@ public class JoinFormula extends AbstractFormula {
 	protected long getCostInternal() {
 		return ofNullable(this.bitmaps)
 			.map(it -> Arrays.stream(it).mapToLong(Bitmap::size).sum())
-			.orElseGet(() -> super.getCostInternal());
+			.orElseGet(super::getCostInternal);
 	}
 
 	/*
@@ -275,7 +275,7 @@ public class JoinFormula extends AbstractFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		// init priority queue that will produce numbers from all bitmaps from lowest to highest keeping duplicates
-		final IntIterator[] iterators = getImmutableRoaringBitmapIterators(bitmaps);
+		final IntIterator[] iterators = getImmutableRoaringBitmapIterators(this.bitmaps);
 		final CompositeIntArray intArray = new CompositeIntArray();
 		if (iterators.length == 2) {
 			// if there are two iterators, just merge them into one bitmap
@@ -310,7 +310,7 @@ public class JoinFormula extends AbstractFormula {
 		@Override
 		public int compareTo(@Nonnull IntIteratorPointer o) {
 			// comparator compare next number to return with other pointer numbers
-			return Integer.compare(nextValue, o.getNextValue());
+			return Integer.compare(this.nextValue, o.getNextValue());
 		}
 
 		private boolean hasNextValue() {

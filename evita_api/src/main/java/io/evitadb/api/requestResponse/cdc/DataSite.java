@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.cdc;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,7 +38,7 @@ import javax.annotation.Nullable;
  * @param entityPrimaryKey the {@link EntityContract#getPrimaryKey()} of the intercepted entity
  * @param operation        the intercepted type of {@link Operation}
  * @param containerType    the intercepted {@link ContainerType} of the entity data
- * @param containerName   the intercepted name of the classifier
+ * @param containerName    the intercepted name of the container (e.g. `attribute`, `reference`, `associatedData`)
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record DataSite(
@@ -46,12 +47,53 @@ public record DataSite(
 	@Nullable Operation[] operation,
 	@Nullable ContainerType[] containerType,
 	@Nullable String[] containerName
-) implements CaptureSite {
+) implements CaptureSite<DataSite> {
+	public static final DataSite ALL = new DataSite(null, null, null, null, null);
 
-	public static final CaptureSite ALL = new DataSite(null, null, null, null, null);
+	public DataSite {
+		if (operation != null) {
+			java.util.Arrays.sort(operation);
+		}
+		if (containerType != null) {
+			java.util.Arrays.sort(containerType);
+		}
+		if (containerName != null) {
+			java.util.Arrays.sort(containerName);
+		}
+	}
+
+	@Override
+	public int compareTo(@Nonnull DataSite other) {
+		if (this == other) return 0;
+		int result = this.entityType == null ?
+			(other.entityType == null ? 0 : -1) :
+			(other.entityType == null ? 1 : this.entityType.compareTo(other.entityType));
+		if (result == 0) {
+			result = this.entityPrimaryKey == null ?
+				(other.entityPrimaryKey == null ? 0 : -1) :
+				(other.entityPrimaryKey == null ? 1 : this.entityPrimaryKey.compareTo(other.entityPrimaryKey));
+		}
+		if (result == 0) {
+			result = this.operation == null ?
+				(other.operation == null ? 0 : -1) :
+				(other.operation == null ? 1 : ArrayUtils.compare(this.operation, other.operation));
+		}
+		if (result == 0) {
+			result = this.containerType == null ?
+				(other.containerType == null ? 0 : -1) :
+				(other.containerType == null ? 1 : ArrayUtils.compare(this.containerType, other.containerType));
+		}
+		if (result == 0) {
+			result = this.containerName == null ?
+				(other.containerName == null ? 0 : -1) :
+				(other.containerName == null ? 1 : ArrayUtils.compare(this.containerName, other.containerName));
+		}
+		return result;
+	}
 
 	/**
 	 * Creates builder object that helps you create DataSite record using builder pattern.
+	 *
 	 * @return new instance of {@link Builder}
 	 */
 	@Nonnull
@@ -63,14 +105,15 @@ public record DataSite(
 	 * Builder class for {@link DataSite}.
 	 */
 	public static class Builder {
-		private String entityType;
-		private Integer entityPrimaryKey;
-		private Operation[] operation;
-		private ContainerType[] containerType;
-		private String[] containerName;
+		@Nullable private String entityType;
+		@Nullable private Integer entityPrimaryKey;
+		@Nullable private Operation[] operation;
+		@Nullable private ContainerType[] containerType;
+		@Nullable private String[] containerName;
 
 		/**
 		 * Sets the entity type.
+		 *
 		 * @param entityType the entity type
 		 * @return this builder
 		 */
@@ -82,17 +125,19 @@ public record DataSite(
 
 		/**
 		 * Sets the entity primary key.
+		 *
 		 * @param entityPrimaryKey the entity primary key
 		 * @return this builder
 		 */
 		@Nonnull
-		public Builder entityPrimaryKey(int entityPrimaryKey) {
+		public Builder entityPrimaryKey(@Nullable Integer entityPrimaryKey) {
 			this.entityPrimaryKey = entityPrimaryKey;
 			return this;
 		}
 
 		/**
 		 * Sets the operation.
+		 *
 		 * @param operation the operation
 		 * @return this builder
 		 */
@@ -104,6 +149,7 @@ public record DataSite(
 
 		/**
 		 * Sets the container type.
+		 *
 		 * @param containerType the container type
 		 * @return this builder
 		 */
@@ -115,6 +161,7 @@ public record DataSite(
 
 		/**
 		 * Sets the classifier name.
+		 *
 		 * @param containerName the classifier name
 		 * @return this builder
 		 */
@@ -126,11 +173,18 @@ public record DataSite(
 
 		/**
 		 * Builds the {@link DataSite} record.
+		 *
 		 * @return the {@link DataSite} record
 		 */
 		@Nonnull
 		public DataSite build() {
-			return new DataSite(entityType, entityPrimaryKey, operation, containerType, containerName);
+			return new DataSite(
+				this.entityType,
+				this.entityPrimaryKey,
+				this.operation,
+				this.containerType,
+				this.containerName
+			);
 		}
 
 	}

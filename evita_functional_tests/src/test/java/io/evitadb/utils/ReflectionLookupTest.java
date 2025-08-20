@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ class ReflectionLookupTest {
 
 	@Test
 	void shouldReturnClassAnnotationsForSettingsClass() {
-		final List<MarkedClass> annotations = tested.getClassAnnotations(SomeSettings.class, MarkedClass.class);
+		final List<MarkedClass> annotations = this.tested.getClassAnnotations(SomeSettings.class, MarkedClass.class);
 		assertEquals(2, annotations.size());
 		assertEquals("SomeSettings", annotations.get(0).value());
 		assertEquals("Transactional", annotations.get(1).value());
@@ -68,7 +68,7 @@ class ReflectionLookupTest {
 
 	@Test
 	void shouldReturnClassAnnotationsForSettingsClassWithInterface() {
-		final List<MarkedClass> annotations = tested.getClassAnnotations(ExtendedStandardSettings.class, MarkedClass.class);
+		final List<MarkedClass> annotations = this.tested.getClassAnnotations(ExtendedStandardSettings.class, MarkedClass.class);
 		assertEquals(3, annotations.size());
 		assertEquals("AnotherSettings", annotations.get(0).value());
 		assertEquals("SomeSettings", annotations.get(1).value());
@@ -77,7 +77,7 @@ class ReflectionLookupTest {
 
 	@Test
 	void shouldReturnClassAnnotationsForSettingsClassWithOverriddenAnnotation() {
-		final List<MarkedClass> annotations = tested.getClassAnnotations(ExtendedSettings.class, MarkedClass.class);
+		final List<MarkedClass> annotations = this.tested.getClassAnnotations(ExtendedSettings.class, MarkedClass.class);
 		assertEquals(2, annotations.size());
 		assertEquals("Whatever", annotations.get(0).value());
 		assertEquals("AnotherSettings", annotations.get(1).value());
@@ -85,21 +85,21 @@ class ReflectionLookupTest {
 
 	@Test
 	void shouldReturnFieldAnnotationsForSettingsClass() {
-		final Map<Field, List<ClearBeforeStore>> fields = tested.getFields(SomeSettings.class, ClearBeforeStore.class);
+		final Map<Field, List<ClearBeforeStore>> fields = this.tested.getFields(SomeSettings.class, ClearBeforeStore.class);
 		assertEquals(1, fields.size());
 		assertNotNull(getFieldByName(fields, "whatever"));
 	}
 
 	@Test
 	void shouldReturnFieldAnnotationsForClassWithAnotherAnnotations() {
-		final Map<Field, List<TranslateToWidgetId>> fields = tested.getFields(SomeSettings.class, TranslateToWidgetId.class);
+		final Map<Field, List<TranslateToWidgetId>> fields = this.tested.getFields(SomeSettings.class, TranslateToWidgetId.class);
 		assertEquals(1, fields.size());
 		assertNotNull(getFieldByName(fields, "anotherField"));
 	}
 
 	@Test
 	void shouldReturnAllFieldsWithInheritedAnnotations() {
-		final Map<Field, List<NodeReference>> fields = tested.getFields(SomeSettings.class, NodeReference.class);
+		final Map<Field, List<NodeReference>> fields = this.tested.getFields(SomeSettings.class, NodeReference.class);
 		assertEquals(3, fields.size());
 		assertNotNull(getFieldByName(fields, "someField"));
 		assertNotNull(getFieldByName(fields, "anotherField"));
@@ -108,107 +108,114 @@ class ReflectionLookupTest {
 
 	@Test
 	void shouldReturnProperFieldAnnotationInstance() {
-		final Map<Field, List<NodeReference>> fields = tested.getFields(SomeSettings.class, NodeReference.class);
-		assertTrue(tested.getAnnotationInstance(getFieldByName(fields, "someField"), NodeReference.class).exact());
-		assertTrue(tested.getAnnotationInstance(getFieldByName(fields, "anotherField"), NodeReference.class).exact());
-		assertFalse(tested.getAnnotationInstance(getFieldByName(fields, "expression"), NodeReference.class).exact());
+		final Map<Field, List<NodeReference>> fields = this.tested.getFields(SomeSettings.class, NodeReference.class);
+		assertTrue(this.tested.getAnnotationInstance(getFieldByName(fields, "someField"), NodeReference.class).exact());
+		assertTrue(this.tested.getAnnotationInstance(getFieldByName(fields, "anotherField"), NodeReference.class).exact());
+		assertFalse(this.tested.getAnnotationInstance(getFieldByName(fields, "expression"), NodeReference.class).exact());
 	}
 
 	@Test
 	void shouldReturnGettersAndSetters() throws Exception {
 		final Class<PojoExample> examinedClass = PojoExample.class;
-		assertNull(tested.findSetter(examinedClass, examinedClass.getMethod("getReadOnly")));
-		assertNull(tested.findGetter(examinedClass, examinedClass.getMethod("setWriteOnly", String.class)));
-		assertEquals(examinedClass.getMethod("isValid"), tested.findGetter(examinedClass, examinedClass.getMethod("setValid", boolean.class)));
-		assertEquals(examinedClass.getMethod("getDate"), tested.findGetter(examinedClass, examinedClass.getMethod("setDate", LocalDateTime.class)));
-		assertEquals(examinedClass.getMethod("getNumber"), tested.findGetter(examinedClass, examinedClass.getMethod("setNumber", int.class)));
-		assertEquals(examinedClass.getMethod("getText"), tested.findGetter(examinedClass, examinedClass.getMethod("setText", String.class)));
-		assertEquals(examinedClass.getMethod("setValid", boolean.class), tested.findSetter(examinedClass, examinedClass.getMethod("isValid")));
-		assertEquals(examinedClass.getMethod("setDate", LocalDateTime.class), tested.findSetter(examinedClass, examinedClass.getMethod("getDate")));
-		assertEquals(examinedClass.getMethod("setNumber", int.class), tested.findSetter(examinedClass, examinedClass.getMethod("getNumber")));
-		assertEquals(examinedClass.getMethod("setText", String.class), tested.findSetter(examinedClass, examinedClass.getMethod("getText")));
+		assertNull(this.tested.findSetter(examinedClass, examinedClass.getMethod("getReadOnly")));
+		assertNull(this.tested.findGetter(examinedClass, examinedClass.getMethod("setWriteOnly", String.class)));
+		assertEquals(examinedClass.getMethod("isValid"), this.tested.findGetter(examinedClass, examinedClass.getMethod("setValid", boolean.class)));
+		assertEquals(examinedClass.getMethod("getDate"), this.tested.findGetter(examinedClass, examinedClass.getMethod("setDate", LocalDateTime.class)));
+		assertEquals(examinedClass.getMethod("getNumber"), this.tested.findGetter(examinedClass, examinedClass.getMethod("setNumber", int.class)));
+		assertEquals(examinedClass.getMethod("getText"), this.tested.findGetter(examinedClass, examinedClass.getMethod("setText", String.class)));
+		assertEquals(examinedClass.getMethod("setValid", boolean.class), this.tested.findSetter(examinedClass, examinedClass.getMethod("isValid")));
+		assertEquals(examinedClass.getMethod("setDate", LocalDateTime.class), this.tested.findSetter(examinedClass, examinedClass.getMethod("getDate")));
+		assertEquals(examinedClass.getMethod("setNumber", int.class), this.tested.findSetter(examinedClass, examinedClass.getMethod("getNumber")));
+		assertEquals(examinedClass.getMethod("setText", String.class), this.tested.findSetter(examinedClass, examinedClass.getMethod("getText")));
 	}
 
 	@Test
 	void shouldReturnAllGetters() {
 		final Class<PojoExample> examinedClass = PojoExample.class;
-		final Collection<Method> allGetters = tested.findAllGetters(examinedClass);
+		final Collection<Method> allGetters = this.tested.findAllGetters(examinedClass);
 		assertEquals(6, allGetters.size());
 	}
 
 	@Test
+	void shouldReturnAllGettersOnRecord() {
+		final Class<RecordExample> examinedClass = RecordExample.class;
+		final Collection<Method> allGetters = this.tested.findAllGetters(examinedClass);
+		assertEquals(5, allGetters.size());
+	}
+
+	@Test
 	void shouldReturnAllGettersDeeply() {
-		final List<Method> allGetters = tested.findAllGettersHavingAnnotationDeeply(ComplexClass.class, PropertyAnnotation.class);
+		final List<Method> allGetters = this.tested.findAllGettersHavingAnnotationDeeply(ComplexClass.class, PropertyAnnotation.class);
 		assertEquals(4, allGetters.size());
 	}
 
 	@Test
 	void shouldReturnAllSetters() {
 		final Class<PojoExample> examinedClass = PojoExample.class;
-		final Collection<Method> allGetters = tested.findAllSetters(examinedClass);
+		final Collection<Method> allGetters = this.tested.findAllSetters(examinedClass);
 		assertEquals(5, allGetters.size());
 	}
 
 	@Test
 	void shouldReturnAllGettersAndSettersHavingCorrespondingSetter() {
 		final Class<PojoExample> examinedClass = PojoExample.class;
-		final Collection<Method> allGetters = tested.findAllGettersHavingCorrespondingSetter(examinedClass);
-		final Collection<Method> allSetters = tested.findAllSettersHavingCorrespondingSetter(examinedClass);
+		final Collection<Method> allGetters = this.tested.findAllGettersHavingCorrespondingSetter(examinedClass);
+		final Collection<Method> allSetters = this.tested.findAllSettersHavingCorrespondingSetter(examinedClass);
 		assertEquals(4, allGetters.size());
 		assertEquals(4, allSetters.size());
 	}
 
 	@Test
 	void shouldRecognizeGenericsFromBasicCollections() {
-		assertEquals(String.class, tested.extractGenericType(tested.findGetter(GenericsExample.class, "set").getGenericReturnType(), 0));
-		assertEquals(String.class, tested.extractGenericType(tested.findGetter(GenericsExample.class, "list").getGenericReturnType(), 0));
-		assertEquals(String.class, tested.extractGenericType(tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 0));
-		assertEquals(Integer.class, tested.extractGenericType(tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 1));
+		assertEquals(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "set").getGenericReturnType(), 0));
+		assertEquals(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "list").getGenericReturnType(), 0));
+		assertEquals(String.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 0));
+		assertEquals(Integer.class, this.tested.extractGenericType(this.tested.findGetter(GenericsExample.class, "map").getGenericReturnType(), 1));
 	}
 
 	@Test
 	void shouldFindPropertyField() {
-		assertNotNull(tested.findPropertyField(PropertyClassExample.class, "propertyA"));
-		assertNotNull(tested.findPropertyField(PropertyClassExample.class, "propertyB"));
-		assertNotNull(tested.findPropertyField(PropertyClassExample.class, "propertyD"));
-		assertNull(tested.findPropertyField(PropertyClassExample.class, "propertyC"));
+		assertNotNull(this.tested.findPropertyField(PropertyClassExample.class, "propertyA"));
+		assertNotNull(this.tested.findPropertyField(PropertyClassExample.class, "propertyB"));
+		assertNotNull(this.tested.findPropertyField(PropertyClassExample.class, "propertyD"));
+		assertNull(this.tested.findPropertyField(PropertyClassExample.class, "propertyC"));
 	}
 
 	@Test
 	void shouldFindPropertyAnnotation() {
-		assertNotNull(tested.getAnnotationInstanceForProperty(tested.findGetter(PropertyClassExample.class, "propertyA"), PropertyAnnotation.class));
-		assertNotNull(tested.getAnnotationInstanceForProperty(tested.findGetter(PropertyClassExample.class, "propertyB"), PropertyAnnotation.class));
-		assertNotNull(tested.getAnnotationInstanceForProperty(tested.findGetter(PropertyClassExample.class, "propertyC"), PropertyAnnotation.class));
-		assertNull(tested.getAnnotationInstanceForProperty(tested.findGetter(PropertyClassExample.class, "propertyD"), PropertyAnnotation.class));
+		assertNotNull(this.tested.getAnnotationInstanceForProperty(this.tested.findGetter(PropertyClassExample.class, "propertyA"), PropertyAnnotation.class));
+		assertNotNull(this.tested.getAnnotationInstanceForProperty(this.tested.findGetter(PropertyClassExample.class, "propertyB"), PropertyAnnotation.class));
+		assertNotNull(this.tested.getAnnotationInstanceForProperty(this.tested.findGetter(PropertyClassExample.class, "propertyC"), PropertyAnnotation.class));
+		assertNull(this.tested.getAnnotationInstanceForProperty(this.tested.findGetter(PropertyClassExample.class, "propertyD"), PropertyAnnotation.class));
 	}
 
 	@Test
 	void shouldFindPropertyGettersOnImmutableDto() {
-		final Collection<Method> getters = tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDto.class);
+		final Collection<Method> getters = this.tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDto.class);
 		assertEquals(3, getters.size());
 	}
 
 	@Test
 	void shouldFindPropertyGettersOnImmutableDtoWithUnusableConstructor() {
-		final Collection<Method> getters = tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDtoWithUnusableConstructor.class);
+		final Collection<Method> getters = this.tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDtoWithUnusableConstructor.class);
 		assertEquals(0, getters.size());
 	}
 
 	@Test
 	void shouldFindPropertyGettersOnImmutableDtoWithMultipleConstructors() {
-		final Collection<Method> getters = tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDtoWithMultipleConstructors.class);
+		final Collection<Method> getters = this.tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDtoWithMultipleConstructors.class);
 		assertEquals(5, getters.size());
 	}
 
 	@Test
 	void shouldNotFindPropertyGettersOnImmutableDtoWithAmbiguousConstructors() {
-		final Collection<Method> getters = tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDtoWithAmbiguousConstructors.class);
+		final Collection<Method> getters = this.tested.findAllGettersHavingCorrespondingSetterOrConstructorArgument(ImmutableDtoWithAmbiguousConstructors.class);
 		assertEquals(0, getters.size());
 	}
 
 	@Test
 	void shouldFindAllGettersWithAnnotation() {
-		final List<Method> gettersHavingAnnotation = tested.findAllGettersHavingAnnotation(ClassWithGetters.class, PropertyAnnotation.class);
+		final List<Method> gettersHavingAnnotation = this.tested.findAllGettersHavingAnnotation(ClassWithGetters.class, PropertyAnnotation.class);
 		assertEquals(2, gettersHavingAnnotation.size());
 		final Set<String> properties = gettersHavingAnnotation.stream()
 			.map(it -> ReflectionLookup.getPropertyNameFromMethodName(it.getName()))
@@ -313,6 +320,15 @@ class ReflectionLookupTest {
 
 	}
 
+	private record RecordExample(
+		Boolean readOnly,
+		boolean valid,
+		String text,
+		LocalDateTime date,
+		int number
+	) {
+	}
+
 	@Data
 	private static class GenericsExample {
 		private final Set<String> set;
@@ -335,7 +351,7 @@ class ReflectionLookupTest {
 
 		@PropertyAnnotation
 		public int getPropertyB() {
-			return propertyB;
+			return this.propertyB;
 		}
 
 		@PropertyAnnotation

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -136,11 +136,11 @@ public class FormulaFinder<T> implements FormulaVisitor {
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		if (!skipPredicate.test(formula)) {
-			if (predicate.test(formula)) {
+		if (!this.skipPredicate.test(formula)) {
+			if (this.predicate.test(formula)) {
 				//noinspection unchecked
-				result.add((T) formula);
-				if (lookUp == LookUp.DEEP) {
+				this.result.add((T) formula);
+				if (this.lookUp == LookUp.DEEP) {
 					for (Formula innerFormula : formula.getInnerFormulas()) {
 						innerFormula.accept(this);
 					}

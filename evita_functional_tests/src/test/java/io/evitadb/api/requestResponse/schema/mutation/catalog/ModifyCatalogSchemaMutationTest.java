@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -47,6 +48,7 @@ public class ModifyCatalogSchemaMutationTest {
 	void shouldMutateCatalogSchema() {
 		ModifyCatalogSchemaMutation mutation = new ModifyCatalogSchemaMutation(
 			"catalogName",
+			null,
 			new SetAttributeSchemaGloballyUniqueMutation("someAttribute", GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 		);
 		final CatalogSchemaContract catalogSchema = Mockito.mock(CatalogSchema.class);

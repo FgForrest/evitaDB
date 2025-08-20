@@ -75,7 +75,7 @@
 						<configuration>
 							<transformations>
 								<transformation>
-									<plugin>io.evitadb.core.async.InterruptionTransformer</plugin>
+									<plugin>io.evitadb.core.executor.InterruptionTransformer</plugin>
 								</transformation>
 							</transformations>
 						</configuration>

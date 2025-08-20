@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ abstract class AbstractMutatorTestBase {
 	protected final SealedCatalogSchema sealedCatalogSchema;
 
 	{
-		catalog = Mockito.mock(Catalog.class);
+		this.catalog = Mockito.mock(Catalog.class);
 		final InternalCatalogSchemaBuilder catalogSchemaBuilder = new InternalCatalogSchemaBuilder(
 			CatalogSchema._internalBuild(
 				TestConstants.TEST_CATALOG,
@@ -83,41 +83,41 @@ abstract class AbstractMutatorTestBase {
 					@Nonnull
 					@Override
 					public Collection<EntitySchemaContract> getEntitySchemas() {
-						return catalog.getEntitySchemaIndex().values();
+						return AbstractMutatorTestBase.this.catalog.getEntitySchemaIndex().values();
 					}
 
 					@Nonnull
 					@Override
 					public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-						return catalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
+						return AbstractMutatorTestBase.this.catalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
 					}
 				}
 			)
 		);
 		alterCatalogSchema(catalogSchemaBuilder);
-		catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
-		sealedCatalogSchema = new CatalogSchemaDecorator(catalogSchema);
-		catalogIndex = new CatalogIndex(Scope.LIVE);
-		catalogIndex.attachToCatalog(null, catalog);
+		this.catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
+		this.sealedCatalogSchema = new CatalogSchemaDecorator(this.catalogSchema);
+		this.catalogIndex = new CatalogIndex(Scope.LIVE);
+		this.catalogIndex.attachToCatalog(null, this.catalog);
 
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
-		Mockito.when(catalog.getSchema()).thenReturn(sealedCatalogSchema);
-		Mockito.when(mockSession.getCatalogSchema()).thenReturn(sealedCatalogSchema);
+		Mockito.when(this.catalog.getSchema()).thenReturn(this.sealedCatalogSchema);
+		Mockito.when(mockSession.getCatalogSchema()).thenReturn(this.sealedCatalogSchema);
 
-		productSchema = unwrap(
-			dataGenerator.getSampleProductSchema(
+		this.productSchema = unwrap(
+			this.dataGenerator.getSampleProductSchema(
 				mockSession,
 				EntitySchemaEditor.EntitySchemaBuilder::toInstance,
 				AbstractMutatorTestBase.this::alterProductSchema
 			)
 		);
-		productIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+		this.productIndex = new GlobalEntityIndex(1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
 		final AtomicInteger sequencer = new AtomicInteger(1);
-		executor = new EntityIndexLocalMutationExecutor(
-			containerAccessor, 1,
-			new MockEntityIndexCreator<>(productIndex),
-			new MockEntityIndexCreator<>(catalogIndex),
-			() -> productSchema,
+		this.executor = new EntityIndexLocalMutationExecutor(
+			this.containerAccessor, 1,
+			new MockEntityIndexCreator<>(this.productIndex),
+			new MockEntityIndexCreator<>(this.catalogIndex),
+			() -> this.productSchema,
 			sequencer::getAndIncrement,
 			false,
 			() -> {
@@ -126,9 +126,9 @@ abstract class AbstractMutatorTestBase {
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);
-		Mockito.when(catalog.getCollectionForEntityOrThrowException(productSchema.getName())).thenReturn(productCollection);
-		Mockito.when(catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
-		Mockito.when(productCollection.getEntityType()).thenReturn(productSchema.getName());
+		Mockito.when(this.catalog.getCollectionForEntityOrThrowException(this.productSchema.getName())).thenReturn(productCollection);
+		Mockito.when(this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(1)).thenReturn(productCollection);
+		Mockito.when(productCollection.getEntityType()).thenReturn(this.productSchema.getName());
 		Mockito.when(productCollection.getEntityTypePrimaryKey()).thenReturn(1);
 	}
 

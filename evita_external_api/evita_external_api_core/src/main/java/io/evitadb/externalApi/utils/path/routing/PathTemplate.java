@@ -192,9 +192,9 @@ public class PathTemplate implements Comparable<PathTemplate> {
 	 */
 	public boolean matches(final String path, final Map<String, String> pathParameters) {
 
-		if (!template && base.contains("*")) {
-			final int indexOf = base.indexOf("*");
-			final String startBase = base.substring(0, indexOf);
+		if (!this.template && this.base.contains("*")) {
+			final int indexOf = this.base.indexOf("*");
+			final String startBase = this.base.substring(0, indexOf);
 			if (!path.startsWith(startBase)) {
 				return false;
 			}
@@ -203,14 +203,14 @@ public class PathTemplate implements Comparable<PathTemplate> {
 		}
 
 
-		if (!path.startsWith(base)) {
+		if (!path.startsWith(this.base)) {
 			return false;
 		}
-		int baseLength = base.length();
-		if (!template) {
+		int baseLength = this.base.length();
+		if (!this.template) {
 			return path.length() == baseLength;
 		}
-		if(trailingSlash) {
+		if(this.trailingSlash) {
 			//the template has a trailing slash
 			//we verify this first as it is cheap
 			//and it simplifies the matching algorithm below
@@ -220,7 +220,7 @@ public class PathTemplate implements Comparable<PathTemplate> {
 		}
 
 		int currentPartPosition = 0;
-		PathTemplate.Part current = parts.get(currentPartPosition);
+		PathTemplate.Part current = this.parts.get(currentPartPosition);
 		int stringStart = baseLength;
 		int i;
 		for (i = baseLength; i < path.length(); ++i) {
@@ -236,15 +236,15 @@ public class PathTemplate implements Comparable<PathTemplate> {
 					return false;
 				}
 				++currentPartPosition;
-				if (currentPartPosition == parts.size()) {
+				if (currentPartPosition == this.parts.size()) {
 					//this is a match if this is the last character
 					return i == (path.length() - 1);
 				}
-				current = parts.get(currentPartPosition);
+				current = this.parts.get(currentPartPosition);
 				stringStart = i + 1;
 			}
 		}
-		if (currentPartPosition + 1 != parts.size()) {
+		if (currentPartPosition + 1 != this.parts.size()) {
 			pathParameters.clear();
 			return false;
 		}
@@ -277,9 +277,9 @@ public class PathTemplate implements Comparable<PathTemplate> {
 	@Override
 	public int hashCode() {
 		int result = getTemplateString() != null ? getTemplateString().hashCode() : 0;
-		result = 31 * result + (template ? 1 : 0);
+		result = 31 * result + (this.template ? 1 : 0);
 		result = 31 * result + (getBase() != null ? getBase().hashCode() : 0);
-		result = 31 * result + (parts != null ? parts.hashCode() : 0);
+		result = 31 * result + (this.parts != null ? this.parts.hashCode() : 0);
 		result = 31 * result + (getParameterNames() != null ? getParameterNames().hashCode() : 0);
 		return result;
 	}
@@ -290,19 +290,19 @@ public class PathTemplate implements Comparable<PathTemplate> {
 		//so we sort in reverse priority order
 
 		//templates have lower priority
-		if (template && !o.template) {
+		if (this.template && !o.template) {
 			return 1;
-		} else if (o.template && !template) {
+		} else if (o.template && !this.template) {
 			return -1;
 		}
 
-		int res = base.compareTo(o.base);
+		int res = this.base.compareTo(o.base);
 		if (res > 0) {
 			//our base is longer
 			return -1;
 		} else if (res < 0) {
 			return 1;
-		} else if (!template) {
+		} else if (!this.template) {
 			//they are the same path
 			return 0;
 		}
@@ -310,16 +310,16 @@ public class PathTemplate implements Comparable<PathTemplate> {
 		//the first path with a non-template element
 		int i = 0;
 		for (; ; ) {
-			if (parts.size() == i) {
+			if (this.parts.size() == i) {
 				if (o.parts.size() == i) {
-					return base.compareTo(o.base);
+					return this.base.compareTo(o.base);
 				}
 				return 1;
 			} else if (o.parts.size() == i) {
 				//we have more parts, so should be checked first
 				return -1;
 			}
-			Part thisPath = parts.get(i);
+			Part thisPath = this.parts.get(i);
 			Part otherPart = o.parts.get(i);
 			if (thisPath.template && !otherPart.template) {
 				//non template part sorts first
@@ -337,15 +337,15 @@ public class PathTemplate implements Comparable<PathTemplate> {
 	}
 
 	public String getBase() {
-		return base;
+		return this.base;
 	}
 
 	public String getTemplateString() {
-		return templateString;
+		return this.templateString;
 	}
 
 	public Set<String> getParameterNames() {
-		return parameterNames;
+		return this.parameterNames;
 	}
 
 	private static class Part {
@@ -360,8 +360,8 @@ public class PathTemplate implements Comparable<PathTemplate> {
 		@Override
 		public String toString() {
 			return "Part{" +
-				"template=" + template +
-				", part='" + part + '\'' +
+				"template=" + this.template +
+				", part='" + this.part + '\'' +
 				'}';
 		}
 	}
@@ -369,9 +369,9 @@ public class PathTemplate implements Comparable<PathTemplate> {
 	@Override
 	public String toString() {
 		return "PathTemplate{" +
-			"template=" + template +
-			", base='" + base + '\'' +
-			", parts=" + parts +
+			"template=" + this.template +
+			", base='" + this.base + '\'' +
+			", parts=" + this.parts +
 			'}';
 	}
 }

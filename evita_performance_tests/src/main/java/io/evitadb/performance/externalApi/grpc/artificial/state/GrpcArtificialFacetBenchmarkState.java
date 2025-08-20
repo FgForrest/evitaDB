@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,8 +69,8 @@ public class GrpcArtificialFacetBenchmarkState extends GrpcArtificialFullDatabas
 				.values()
 				.forEach(it -> {
 					if (it.isFaceted()) {
-						facetedReferences.put(it.getReferencedEntityType(), new HashSet<>());
-						facetGroupsIndex.put(it.getReferencedEntityType(), new HashMap<>());
+						this.facetedReferences.put(it.getReferencedEntityType(), new HashSet<>());
+						this.facetGroupsIndex.put(it.getReferencedEntityType(), new HashMap<>());
 					}
 				});
 		}
@@ -80,9 +80,9 @@ public class GrpcArtificialFacetBenchmarkState extends GrpcArtificialFullDatabas
 	@Override
 	protected void processEntity(SealedEntity entity) {
 		if (entity.getType().equals(Entities.PRODUCT)) {
-			updateFacetStatistics(entity, facetedReferences, facetGroupsIndex);
+			updateFacetStatistics(entity, this.facetedReferences, this.facetGroupsIndex);
 		} else if (entity.getType().equals(Entities.CATEGORY)) {
-			categoryIds.add(entity.getPrimaryKey());
+			this.categoryIds.add(entity.getPrimaryKey());
 		}
 	}
 

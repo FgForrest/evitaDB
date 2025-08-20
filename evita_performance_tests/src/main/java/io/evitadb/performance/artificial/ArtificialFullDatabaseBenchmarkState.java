@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,16 +53,16 @@ public class ArtificialFullDatabaseBenchmarkState extends ArtificialBenchmarkSta
 	@Setup(Level.Trial)
 	public void setUp() {
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
-			dataGenerator,
+			this.dataGenerator,
 			PRODUCT_COUNT,
 			this::shouldStartFromScratch,
 			this::isCatalogAvailable,
 			this::createEvitaInstanceFromExistingData,
 			this::createEmptyEvitaInstance,
 			getCatalogName(),
-			generatedEntities,
+			this.generatedEntities,
 			SEED,
-			randomEntityPicker,
+			this.randomEntityPicker,
 			this::processEntity,
 			this::processCreatedEntityReference,
 			this::createEntity,

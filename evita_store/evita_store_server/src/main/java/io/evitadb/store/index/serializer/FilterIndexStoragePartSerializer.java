@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		final Long uniquePartId = filterIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(filterIndex.getAttributeKey()), true);
 		kryo.writeClass(output, filterIndex.getAttributeType());
 
 		final ValueToRecordBitmap[] points = filterIndex.getHistogramPoints();
@@ -71,7 +71,7 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 	public FilterIndexStoragePart read(Kryo kryo, Input input, Class<? extends FilterIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		final Class<?> attributeType = kryo.readClass(input).getType();
 
 		final int pointCount = input.readInt();

@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import io.evitadb.test.Entities;
@@ -46,7 +47,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.array;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -70,27 +73,27 @@ class ApplyDeltaAttributeMutationConverterTest {
 			.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			.withPrice()
 			.toInstance();
-		converter =  new ApplyDeltaAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new ApplyDeltaAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final ApplyDeltaAttributeMutation<?> expectedMutation = new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, Locale.ENGLISH, 10, IntegerNumberRange.between(0, 20));
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-				.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 				.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of(0, 20))
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-				.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), "en")
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.LOCALE.name(), "en")
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "10")
 				.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of("0", "20"))
 				.build()
@@ -103,9 +106,9 @@ class ApplyDeltaAttributeMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final ApplyDeltaAttributeMutation<?> expectedMutation = new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, 10);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 				.build()
 		);
@@ -116,21 +119,42 @@ class ApplyDeltaAttributeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ApplyDeltaAttributeMutation<?> inputMutation = new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, Locale.ENGLISH, 10, IntegerNumberRange.between(0, 20));
+
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
+					.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), array()
+						.i(0).i(20))
+					.build()
+			);
+
 	}
 }

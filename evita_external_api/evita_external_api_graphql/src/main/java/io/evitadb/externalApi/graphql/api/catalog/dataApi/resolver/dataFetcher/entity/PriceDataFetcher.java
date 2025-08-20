@@ -70,7 +70,7 @@ public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceCont
 
     @Nonnull
     @Override
-    public DataFetcherResult<PriceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public DataFetcherResult<PriceContract> get(DataFetchingEnvironment environment) throws Exception {
         final String priceList = environment.getArgument(PriceFieldHeaderDescriptor.PRICE_LIST.name());
         final Currency customCurrency = environment.getArgument(PriceFieldHeaderDescriptor.CURRENCY.name());
         final EntityQueryContext context = environment.getLocalContext();

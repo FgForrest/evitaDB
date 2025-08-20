@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 			catalogSchema,
 			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
-		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
+		this.wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
 	}
 
 	@Nullable
@@ -84,7 +84,7 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 	@Nonnull
 	@Override
 	protected Optional<ConstraintDescriptor> getWrapperContainer() {
-		return Optional.of(wrapperContainer);
+		return Optional.of(this.wrapperContainer);
 	}
 
 	@Nonnull

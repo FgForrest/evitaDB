@@ -78,6 +78,29 @@ message GetMutationsHistoryResponse {
   repeated GrpcChangeCatalogCapture changeCapture = 1;
 }
 
+// Request to RegisterChangeCatalogCapture request.
+message GrpcRegisterChangeCatalogCaptureRequest {
+  // Starting point for the search (catalog version)
+  google.protobuf.Int64Value sinceVersion = 1;
+  // Starting point for the search (index of the mutation within catalog version)
+  google.protobuf.Int32Value sinceIndex = 2;
+  // The criteria of the capture, allows to define constraints on the returned mutations
+  repeated GrpcChangeCaptureCriteria criteria = 3;
+  // The scope of the returned data - either header of the mutation, or the whole mutation
+  GrpcChangeCaptureContent content = 4;
+}
+
+// Response to RegisterChangeCatalogCapture request.
+message GrpcRegisterChangeCatalogCaptureResponse {
+  // Identification of the registered capture
+  GrpcUuid uuid = 1;
+  // The list of mutations (CDC events) that match the criteria
+  GrpcChangeCatalogCapture capture = 2;
+  // The type of the response - when subscription is set-up, acknowledgement is sent
+  // Then with each capture event, the type is set to `change`
+  GrpcCaptureResponseType responseType = 3;
+}
+
 // Request to GetCatalogSchema request.
 message GrpcGetCatalogSchemaRequest {
   // True, if the schema should include name variants for it and all sub-schemas.
@@ -553,6 +576,7 @@ message GrpcTransactionResponse {
 // includes their creating, updating and deleting. Same operations could be done with entities, which in addition could
 // be fetched by specifying a complex queries.
 service EvitaSessionService {
+
   // Procedure that returns the current (the one on which the used session operates) catalog schema.
   rpc GetCatalogSchema(GrpcGetCatalogSchemaRequest) returns (GrpcCatalogSchemaResponse);
   // Procedure that returns the current state of the catalog.
@@ -634,4 +658,6 @@ service EvitaSessionService {
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
+  // Procedure that registers a change capture.
+  rpc RegisterChangeCatalogCapture(GrpcRegisterChangeCatalogCaptureRequest) returns (stream GrpcRegisterChangeCatalogCaptureResponse);
 }

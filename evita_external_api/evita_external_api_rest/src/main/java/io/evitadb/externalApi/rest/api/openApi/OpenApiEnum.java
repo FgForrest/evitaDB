@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -188,21 +188,21 @@ public class OpenApiEnum implements OpenApiComplexType {
 		 */
 		@Nonnull
 		public Builder item(@Nonnull String item) {
-			items.add(item);
+			this.items.add(item);
 			return this;
 		}
 
 		@Nonnull
 		public OpenApiEnum build() {
 			Assert.isPremiseValid(
-				name != null && !name.isEmpty(),
+				this.name != null && !this.name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing enum name.")
 			);
 			Assert.isPremiseValid(
-				!items.isEmpty(),
-				() -> new OpenApiBuildingError("Enum `" + name + "` is missing items.")
+				!this.items.isEmpty(),
+				() -> new OpenApiBuildingError("Enum `" + this.name + "` is missing items.")
 			);
-			return new OpenApiEnum(null, name, description, deprecationNotice, format, items);
+			return new OpenApiEnum(null, this.name, this.description, this.deprecationNotice, this.format, this.items);
 		}
 	}
 }

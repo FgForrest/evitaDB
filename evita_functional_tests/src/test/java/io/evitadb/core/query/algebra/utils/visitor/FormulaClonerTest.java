@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class FormulaClonerTest {
 
 	@BeforeEach
 	void setUp() {
-		formula = new AndFormula(
+		this.formula = new AndFormula(
 			new OrFormula(
 				EmptyFormula.INSTANCE,
 				new ConstantFormula(new ArrayBitmap(3)),
@@ -66,41 +66,41 @@ class FormulaClonerTest {
 
 	@Test
 	void shouldLeaveFormulaUntouched() {
-		final Formula cloneResult = FormulaCloner.clone(formula, UnaryOperator.identity());
-		assertSame(formula, cloneResult);
+		final Formula cloneResult = FormulaCloner.clone(this.formula, UnaryOperator.identity());
+		assertSame(this.formula, cloneResult);
 	}
 
 	@Test
 	void shouldReplaceEntireFormula() {
 		final ConstantFormula replacedFormula = new ConstantFormula(new ArrayBitmap(7));
-		final Formula cloneResult = FormulaCloner.clone(formula, examinedFormula -> replacedFormula);
+		final Formula cloneResult = FormulaCloner.clone(this.formula, examinedFormula -> replacedFormula);
 		assertSame(replacedFormula, cloneResult);
 	}
 
 	@Test
 	void shouldGetRidOfEmptyFormulas() {
-		final Formula cloneResult = FormulaCloner.clone(formula, examinedFormula -> examinedFormula instanceof EmptyFormula ? null : examinedFormula);
-		assertNotSame(formula, cloneResult);
-		assertTrue(FormulaLocator.contains(formula, EmptyFormula.class));
+		final Formula cloneResult = FormulaCloner.clone(this.formula, examinedFormula -> examinedFormula instanceof EmptyFormula ? null : examinedFormula);
+		assertNotSame(this.formula, cloneResult);
+		assertTrue(FormulaLocator.contains(this.formula, EmptyFormula.class));
 		assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
 
-		assertNotSame(formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
-		assertSame(formula.getInnerFormulas()[0].getInnerFormulas()[1], cloneResult.getInnerFormulas()[0].getInnerFormulas()[0]);
-		assertSame(formula.getInnerFormulas()[0].getInnerFormulas()[2], cloneResult.getInnerFormulas()[0].getInnerFormulas()[1]);
-		assertSame(formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
+		assertNotSame(this.formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
+		assertSame(this.formula.getInnerFormulas()[0].getInnerFormulas()[1], cloneResult.getInnerFormulas()[0].getInnerFormulas()[0]);
+		assertSame(this.formula.getInnerFormulas()[0].getInnerFormulas()[2], cloneResult.getInnerFormulas()[0].getInnerFormulas()[1]);
+		assertSame(this.formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
 	}
 
 	@Test
 	void shouldHandleUnnecessaryFormulas() {
-		final Formula cloneResult = FormulaCloner.clone(formula, examinedFormula -> examinedFormula instanceof UserFilterFormula ? null : examinedFormula);
-		assertNotSame(formula, cloneResult);
-		assertSame(formula.getInnerFormulas()[0], cloneResult);
+		final Formula cloneResult = FormulaCloner.clone(this.formula, examinedFormula -> examinedFormula instanceof UserFilterFormula ? null : examinedFormula);
+		assertNotSame(this.formula, cloneResult);
+		assertSame(this.formula.getInnerFormulas()[0], cloneResult);
 	}
 
 	@Test
 	void shouldResolveIsWithin() {
 		final Formula cloneResult = FormulaCloner.clone(
-			formula, (formulaCloner, currentFormula) -> {
+			this.formula, (formulaCloner, currentFormula) -> {
 				if (formulaCloner.isWithin(UserFilterFormula.class)) {
 					return null;
 				} else {
@@ -109,11 +109,11 @@ class FormulaClonerTest {
 			}
 		);
 
-		assertNotSame(formula, cloneResult);
-		assertTrue(FormulaLocator.contains(formula, UserFilterFormula.class));
+		assertNotSame(this.formula, cloneResult);
+		assertTrue(FormulaLocator.contains(this.formula, UserFilterFormula.class));
 
-		assertSame(formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
-		assertNotSame(formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
+		assertSame(this.formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
+		assertNotSame(this.formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
 		assertEquals(0, cloneResult.getInnerFormulas()[1].getInnerFormulas().length);
 	}
 }

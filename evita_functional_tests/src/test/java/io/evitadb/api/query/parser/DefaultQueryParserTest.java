@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class DefaultQueryParserTest {
             query(
                 collection("a")
             ),
-            parser.parseQueryUnsafe("query(collection('a'))")
+	        this.parser.parseQueryUnsafe("query(collection('a'))")
         );
 
         assertEquals(
@@ -71,7 +71,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQuery(
+	        this.parser.parseQuery(
                 "query(collection(?),filterBy(attributeEqualsTrue(?)))",
                 "a",
                 "b"
@@ -83,7 +83,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQuery(
+	        this.parser.parseQuery(
                 "query(collection(?),filterBy(attributeEqualsTrue(?)))",
                 List.of("a", "b")
             )
@@ -94,7 +94,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQuery(
+	        this.parser.parseQuery(
                 "query(collection(@collection),filterBy(attributeEqualsTrue(@attr)))",
                 Map.of(
                     "collection", "a",
@@ -108,7 +108,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQuery(
+	        this.parser.parseQuery(
                 "query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
                 Map.of("collection", "a"),
                 "b"
@@ -120,7 +120,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQuery(
+	        this.parser.parseQuery(
                 "query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
                 Map.of("collection", "a"),
                 List.of("b")
@@ -132,7 +132,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQuery("""
+	        this.parser.parseQuery("""
                 query(
                     collection(?),
                     filterBy(
@@ -161,7 +161,7 @@ class DefaultQueryParserTest {
                     )
                 )
             ),
-            parser.parseQuery("""
+	        this.parser.parseQuery("""
                         query(
                          	collection(?),
                          	filterBy(
@@ -188,7 +188,7 @@ class DefaultQueryParserTest {
                 filterBy(attributeEqualsTrue("b")),
                 orderBy(attributeNatural("c"))
             ),
-            parser.parseQuery(
+	        this.parser.parseQuery(
                 """
                     query(
                         collection(?),
@@ -211,7 +211,7 @@ class DefaultQueryParserTest {
             query(
                 collection("a")
             ),
-            parser.parseQueryUnsafe("query(collection('a'))")
+	        this.parser.parseQueryUnsafe("query(collection('a'))")
         );
 
         assertEquals(
@@ -221,7 +221,7 @@ class DefaultQueryParserTest {
                 orderBy(random()),
                 require(attributeContentAll())
             ),
-            parser.parseQueryUnsafe("query(collection('a'),filterBy(attributeEqualsTrue('b')),orderBy(random()),require(attributeContentAll()))")
+	        this.parser.parseQueryUnsafe("query(collection('a'),filterBy(attributeEqualsTrue('b')),orderBy(random()),require(attributeContentAll()))")
         );
 
         assertEquals(
@@ -229,7 +229,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQueryUnsafe(
+	        this.parser.parseQueryUnsafe(
                 "query(collection(?),filterBy(attributeEqualsTrue(?)))",
                 "a",
                 "b"
@@ -241,7 +241,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQueryUnsafe(
+	        this.parser.parseQueryUnsafe(
                 "query(collection(@collection),filterBy(attributeEqualsTrue(@attr)))",
                 Map.of(
                     "collection", "a",
@@ -255,7 +255,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQueryUnsafe(
+	        this.parser.parseQueryUnsafe(
                 "query(collection(@collection),filterBy(attributeEqualsTrue(?)))",
                 Map.of("collection", "a"),
                 "b"
@@ -267,7 +267,7 @@ class DefaultQueryParserTest {
                 collection("a"),
                 filterBy(attributeEqualsTrue("b"))
             ),
-            parser.parseQueryUnsafe("""
+	        this.parser.parseQueryUnsafe("""
                 query(
                     collection('a'),
                     filterBy(
@@ -298,7 +298,7 @@ class DefaultQueryParserTest {
                     )
                 )
             ),
-            parser.parseQuery("""
+	        this.parser.parseQuery("""
                         // this is a comment
                         query(
                          	collection(?),
@@ -331,7 +331,7 @@ class DefaultQueryParserTest {
                     attributeEquals("a", "b")
                 )
             ),
-            parser.parseQueryUnsafe("""
+	        this.parser.parseQueryUnsafe("""
                 query(
                     collection('Product'),
                     filterBy(
@@ -348,7 +348,7 @@ class DefaultQueryParserTest {
                     attributeEquals("a", "b")
                 )
             ),
-            parser.parseQueryUnsafe("""
+	        this.parser.parseQueryUnsafe("""
                 query(
                     collection("Product"),
                     filterBy(
@@ -365,7 +365,7 @@ class DefaultQueryParserTest {
                     attributeEquals("a", "b")
                 )
             ),
-            parser.parseQueryUnsafe("""
+	        this.parser.parseQueryUnsafe("""
                 query(
                     collection('Product'),
                     filterBy(
@@ -378,47 +378,47 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseQueryString() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(filterBy(attributeEquals('a','b')))"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(?))"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(@collection))"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection(@collection))", Map.of("attr", "some")));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery(""));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("'b'"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("attributeEqualsTrue('a')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQuery("query(collection('a')) query(collection('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("query(filterBy(attributeEquals('a','b')))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("query(collection(?))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("query(collection(@collection))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("query(collection(@collection))", Map.of("attr", "some")));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery(""));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("'b'"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQuery("query(collection('a')) query(collection('b'))"));
     }
 
     @Test
     void shouldNotParseQueryUnsafeString() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(?))"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(@collection))"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection(@collection))", Map.of("attr", "some")));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe(""));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("'b'"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("query(collection(?))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("query(collection(@collection))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("query(collection(@collection))", Map.of("attr", "some")));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe(""));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("'b'"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))"));
     }
 
     @Test
     void shouldParseQueryWithIncorrectQuotationMarks() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseQueryUnsafe("query(collection('a\"))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseQueryUnsafe("query(collection('a\"))"));
     }
 
     @Test
     void shouldParseHeadConstraintListString() {
-        final List<HeadConstraint> constraintList2 = parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
+        final List<HeadConstraint> constraintList2 = this.parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
         assertEquals(
             List.of(collection("product"), collection("brand")),
             constraintList2
         );
 
-        final List<HeadConstraint> constraintList3 = parser.parseHeadConstraintList("collection(?)", "product");
+        final List<HeadConstraint> constraintList3 = this.parser.parseHeadConstraintList("collection(?)", "product");
         assertEquals(
             List.of(collection("product")),
             constraintList3
         );
 
-        final List<HeadConstraint> constraintList4 = parser.parseHeadConstraintList(
+        final List<HeadConstraint> constraintList4 = this.parser.parseHeadConstraintList(
             "collection(@product),collection(@col)",
             Map.of("product", "product", "col", "brand")
         );
@@ -427,7 +427,7 @@ class DefaultQueryParserTest {
             constraintList4
         );
 
-        final List<HeadConstraint> constraintList5 = parser.parseHeadConstraintList(
+        final List<HeadConstraint> constraintList5 = this.parser.parseHeadConstraintList(
             "collection(?),collection(@col)",
             Map.of("col", "brand"),
             "product"
@@ -440,13 +440,13 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseHeadConstraintList() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintList("attributeEqualsTrue('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseHeadConstraintList("attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseHeadConstraintList("collection('product'),attributeEqualsTrue('code')"));
     }
 
     @Test
     void shouldParseHeadConstraintListUnsafeString() {
-        final List<HeadConstraint> constraintList2 = parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
+        final List<HeadConstraint> constraintList2 = this.parser.parseHeadConstraintListUnsafe("collection('product'),collection('brand')");
         assertEquals(
             List.of(collection("product"), collection("brand")),
             constraintList2
@@ -455,25 +455,25 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseHeadConstraintUnsafeList() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintListUnsafe("attributeEqualsTrue('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseHeadConstraintListUnsafe("collection('product'),attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseHeadConstraintListUnsafe("attributeEqualsTrue('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseHeadConstraintListUnsafe("collection('product'),attributeEqualsTrue('code')"));
     }
 
     @Test
     void shouldParseFilterConstraintList() {
-        final List<FilterConstraint> constraintList2 = parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('code'),attributeEqualsTrue('age')");
+        final List<FilterConstraint> constraintList2 = this.parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('code'),attributeEqualsTrue('age')");
         assertEquals(
             List.of(attributeEqualsTrue("code"), attributeEqualsTrue("age")),
             constraintList2
         );
 
-        final List<FilterConstraint> constraintList3 = parser.parseFilterConstraintList("attributeEqualsTrue(?)", "code");
+        final List<FilterConstraint> constraintList3 = this.parser.parseFilterConstraintList("attributeEqualsTrue(?)", "code");
         assertEquals(
             List.of(attributeEqualsTrue("code")),
             constraintList3
         );
 
-        final List<FilterConstraint> constraintList4 = parser.parseFilterConstraintList(
+        final List<FilterConstraint> constraintList4 = this.parser.parseFilterConstraintList(
             "attributeEqualsTrue(@code),attributeEqualsTrue(@name)",
             Map.of("code", "code", "name", "age")
         );
@@ -482,7 +482,7 @@ class DefaultQueryParserTest {
             constraintList4
         );
 
-        final List<FilterConstraint> constraintList5 = parser.parseFilterConstraintList(
+        final List<FilterConstraint> constraintList5 = this.parser.parseFilterConstraintList(
             "attributeEqualsTrue(?),attributeEqualsTrue(@name)",
             Map.of("name", "age"),
             "code"
@@ -495,14 +495,14 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseFilterConstraintList() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintList("collection('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintList("attributeEquals('code',2)"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseFilterConstraintList("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseFilterConstraintList("attributeEquals('code',2)"));
     }
 
     @Test
     void shouldParseFilterConstraintUnsafeList() {
-        final List<FilterConstraint> constraintList2 = parser.parseFilterConstraintListUnsafe("attributeEquals('code', 1),attributeEquals('age', 2)");
+        final List<FilterConstraint> constraintList2 = this.parser.parseFilterConstraintListUnsafe("attributeEquals('code', 1),attributeEquals('age', 2)");
         assertEquals(
             List.of(attributeEquals("code", 1L), attributeEquals("age", 2L)),
             constraintList2
@@ -511,25 +511,25 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseFilterConstraintUnsafeList() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintListUnsafe("collection('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseFilterConstraintListUnsafe("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseFilterConstraintListUnsafe("attributeEqualsTrue('product'),collection('code')"));
     }
 
     @Test
     void shouldParseOrderConstraintList() {
-        final List<OrderConstraint> constraintList2 = parser.parseOrderConstraintListUnsafe("attributeNatural('code'),attributeNatural('age')");
+        final List<OrderConstraint> constraintList2 = this.parser.parseOrderConstraintListUnsafe("attributeNatural('code'),attributeNatural('age')");
         assertEquals(
             List.of(attributeNatural("code"), attributeNatural("age")),
             constraintList2
         );
 
-        final List<OrderConstraint> constraintList3 = parser.parseOrderConstraintList("attributeNatural(?)", "code");
+        final List<OrderConstraint> constraintList3 = this.parser.parseOrderConstraintList("attributeNatural(?)", "code");
         assertEquals(
             List.of(attributeNatural("code")),
             constraintList3
         );
 
-        final List<OrderConstraint> constraintList4 = parser.parseOrderConstraintList(
+        final List<OrderConstraint> constraintList4 = this.parser.parseOrderConstraintList(
             "attributeNatural(@code),attributeNatural(@name)",
             Map.of("code", "code", "name", "age")
         );
@@ -538,7 +538,7 @@ class DefaultQueryParserTest {
             constraintList4
         );
 
-        final List<OrderConstraint> constraintList5 = parser.parseOrderConstraintList(
+        final List<OrderConstraint> constraintList5 = this.parser.parseOrderConstraintList(
             "attributeNatural(?),attributeNatural(@name)",
             Map.of("name", "age"),
             "code"
@@ -551,14 +551,14 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseOrderConstraintList() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintList("collection('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintList("attributeNatural('product'),collection('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintList("attributeNatural('code',DESC)"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseOrderConstraintList("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseOrderConstraintList("attributeNatural('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseOrderConstraintList("attributeNatural('code',DESC)"));
     }
 
     @Test
     void shouldParseOrderConstraintListUnsafe() {
-        final List<OrderConstraint> constraintList2 = parser.parseOrderConstraintListUnsafe("attributeNatural('code',ASC),attributeNatural('age',DESC)");
+        final List<OrderConstraint> constraintList2 = this.parser.parseOrderConstraintListUnsafe("attributeNatural('code',ASC),attributeNatural('age',DESC)");
         assertEquals(
             List.of(attributeNatural("code", OrderDirection.ASC), attributeNatural("age", OrderDirection.DESC)),
             constraintList2
@@ -567,25 +567,25 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseOrderConstraintListUnsafe() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintListUnsafe("collection('code')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseOrderConstraintListUnsafe("attributeNatural('product'),collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseOrderConstraintListUnsafe("collection('code')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseOrderConstraintListUnsafe("attributeNatural('product'),collection('code')"));
     }
 
     @Test
     void shouldParseRequireConstraintList() {
-        final List<RequireConstraint> constraintList2 = parser.parseRequireConstraintListUnsafe("attributeContent('code'),attributeContent('age')");
+        final List<RequireConstraint> constraintList2 = this.parser.parseRequireConstraintListUnsafe("attributeContent('code'),attributeContent('age')");
         assertEquals(
             List.of(attributeContent("code"), attributeContent("age")),
             constraintList2
         );
 
-        final List<RequireConstraint> constraintList3 = parser.parseRequireConstraintList("attributeContent(?)", "code");
+        final List<RequireConstraint> constraintList3 = this.parser.parseRequireConstraintList("attributeContent(?)", "code");
         assertEquals(
             List.of(attributeContent("code")),
             constraintList3
         );
 
-        final List<RequireConstraint> constraintList4 = parser.parseRequireConstraintList(
+        final List<RequireConstraint> constraintList4 = this.parser.parseRequireConstraintList(
             "attributeContent(@code),attributeContent(@name)",
             Map.of("code", "code", "name", "age")
         );
@@ -594,7 +594,7 @@ class DefaultQueryParserTest {
             constraintList4
         );
 
-        final List<RequireConstraint> constraintList5 = parser.parseRequireConstraintList(
+        final List<RequireConstraint> constraintList5 = this.parser.parseRequireConstraintList(
             "attributeContent(?),attributeContent(@name)",
             Map.of("name", "age"),
             "code"
@@ -607,14 +607,14 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseRequireConstraintList() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintList("collection('product')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintList("attributeContent('code'),collection('product')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintList("priceType(WITH_TAX)"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseRequireConstraintList("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseRequireConstraintList("attributeContent('code'),collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseRequireConstraintList("priceType(WITH_TAX)"));
     }
 
     @Test
     void shouldParseRequireConstraintListUnsafe() {
-        final List<RequireConstraint> constraintList2 = parser.parseRequireConstraintListUnsafe("priceType(WITH_TAX),attributeContent('age')");
+        final List<RequireConstraint> constraintList2 = this.parser.parseRequireConstraintListUnsafe("priceType(WITH_TAX),attributeContent('age')");
         assertEquals(
             List.of(priceType(QueryPriceMode.WITH_TAX), attributeContent("age")),
             constraintList2
@@ -623,28 +623,28 @@ class DefaultQueryParserTest {
 
     @Test
     void shouldNotParseRequireConstraintListUnsafe() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintListUnsafe("collection('product')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseRequireConstraintListUnsafe("collection('product')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseRequireConstraintListUnsafe("attributeContent('code'),collection('product')"));
     }
 
     @Test
     void shouldParseValueString() {
-        assertEquals("a", parser.parseValue("'a'"));
-        assertEquals(123L, (Long) parser.parseValue("123"));
-        assertEquals(EnumWrapper.fromString("SOME_ENUM"), parser.parseValue("SOME_ENUM"));
-        assertEquals("a", parser.parseValue("?", "a"));
-        assertEquals("a", parser.parseValue("@name", Map.of("name", "a")));
+        assertEquals("a", this.parser.parseValue("'a'"));
+        assertEquals(123L, (Long) this.parser.parseValue("123"));
+        assertEquals(EnumWrapper.fromString("SOME_ENUM"), this.parser.parseValue("SOME_ENUM"));
+        assertEquals("a", this.parser.parseValue("?", "a"));
+        assertEquals("a", this.parser.parseValue("@name", Map.of("name", "a")));
     }
 
     @Test
     void shouldNotParseValueString() {
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("?"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("@name"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("@name", Map.of("col", "some")));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue(""));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("_"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("attributeEqualsTrue('a')"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("12 24"));
-        assertThrows(EvitaSyntaxException.class, () -> parser.parseValue("query(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("?"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("@name"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("@name", Map.of("col", "some")));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue(""));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("_"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("attributeEqualsTrue('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("12 24"));
+        assertThrows(EvitaSyntaxException.class, () -> this.parser.parseValue("query(collection('a'))"));
     }
 }

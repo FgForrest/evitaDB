@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.UpsertEntityUpsertRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UpsertEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -106,7 +105,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 				final Optional<Object> rawRequire = requestData.getRequire().map(it -> deserializeConstraintContainer(EntityUpsertRequestDescriptor.REQUIRE.name(), it));
 				requestExecutedEvent.finishInputDeserialization();
 
-				if (withPrimaryKeyInPath) {
+				if (this.withPrimaryKeyInPath) {
 					final Map<String, Object> parametersFromRequest = getParametersFromRequest(executionContext);
 					Assert.isTrue(
 						parametersFromRequest.containsKey(UpsertEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
@@ -116,7 +115,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 				}
 
 				final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-					mutationResolver.convert(
+					this.mutationResolver.convertFromInput(
 						requestData.getPrimaryKey()
 							.orElse(null),
 						requestData.getEntityExistence()
@@ -144,7 +143,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 	@Nonnull
 	@Override
 	public Set<HttpMethod> getSupportedHttpMethods() {
-		return Set.of(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST);
+		return Set.of(this.withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST);
 	}
 
 	@Nonnull
@@ -155,7 +154,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 	@Nonnull
 	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull Object rawRequire) {
-		return Optional.ofNullable((Require) requireConstraintResolver.resolve(restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.REQUIRE.name(), rawRequire))
+		return Optional.ofNullable((Require) this.requireConstraintResolver.resolve(this.restHandlingContext.getEntityType(), FetchEntityRequestDescriptor.REQUIRE.name(), rawRequire))
 			.flatMap(require -> Arrays.stream(require.getChildren())
 				.filter(EntityFetch.class::isInstance)
 				.findFirst()
@@ -179,19 +178,19 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 		//noinspection rawtypes
 		final Schema rootSchema = (Schema) SchemaUtils.getTargetSchema(
-				restHandlingContext.getEndpointOperation()
+				this.restHandlingContext.getEndpointOperation()
 					.getRequestBody()
 					.getContent()
 					.get(MimeTypes.APPLICATION_JSON)
 					.getSchema(),
-				restHandlingContext.getOpenApi()
+				this.restHandlingContext.getOpenApi()
 			)
 			.getProperties()
 			.get(key);
 
 		try {
-			return dataDeserializer.deserializeTree(
-				SchemaUtils.getTargetSchema(rootSchema, restHandlingContext.getOpenApi()),
+			return this.dataDeserializer.deserializeTree(
+				SchemaUtils.getTargetSchema(rootSchema, this.restHandlingContext.getOpenApi()),
 				(JsonNode) value
 			);
 		} catch (Exception e) {

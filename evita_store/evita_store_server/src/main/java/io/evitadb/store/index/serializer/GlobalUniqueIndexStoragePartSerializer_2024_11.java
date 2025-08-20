@@ -59,7 +59,7 @@ public class GlobalUniqueIndexStoragePartSerializer_2024_11 extends Serializer<G
 	@Override
 	public GlobalUniqueIndexStoragePart read(Kryo kryo, Input input, Class<? extends GlobalUniqueIndexStoragePart> type) {
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 
 		final int uniqueValueCount = input.readVarInt(true);

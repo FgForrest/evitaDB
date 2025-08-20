@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 				.log()
 				.ifValidationFails().
 			when()
-				.post(baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
+				.post(this.baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
 			then()
 				.log()
 				.ifError();
@@ -145,7 +145,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 			if (!this.headers.containsKey(ACCEPT_HEADER)) {
 				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, APPLICATION_GRAPHQL_RESPONSE_JSON));
 			}
-			return tester.executeAndThen(this);
+			return this.tester.executeAndThen(this);
 		}
 
 		/**

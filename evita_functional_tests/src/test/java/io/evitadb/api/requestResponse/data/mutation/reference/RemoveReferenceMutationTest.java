@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,9 +50,9 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 		);
 
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
+				this.productSchema,
 				"brand",
 				5,
 				"brand", Cardinality.ZERO_OR_ONE,
@@ -76,7 +76,7 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 		final RemoveReferenceMutation mutation = new RemoveReferenceMutation(
 			new ReferenceKey("brand", 5)
 		);
-		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
+		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(this.productSchema, null));
 	}
 
 	@Test
@@ -87,9 +87,9 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 		assertThrows(
 			InvalidMutationException.class,
 			() -> mutation.mutateLocal(
-				productSchema,
+				this.productSchema,
 				new Reference(
-					productSchema,
+					this.productSchema,
 					2,
 					"brand",
 					5,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 				// read it from mem table
 				return cacheEntityStorageContainer(
 					entityPrimaryKey,
-					ofNullable(dataStoreReader.fetch(catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
+					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
 						.map(it -> {
 							// if it was found, verify whether it was expected
 							if (expects == EntityExistence.MUST_NOT_EXIST && !it.isMarkedForRemoval()) {
@@ -124,7 +124,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 					final EntityAttributesSetKey globalAttributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
 					return cacheAttributeStorageContainer(
 						entityPrimaryKey,
-						ofNullable(dataStoreReader.fetch(catalogVersion, globalAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
+						ofNullable(this.dataStoreReader.fetch(this.catalogVersion, globalAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
 							// when not found in storage - create new container
 							.orElseGet(() -> new AttributesStoragePart(entityPrimaryKey))
 					);
@@ -143,7 +143,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 			language -> {
 				// try to compute container id (keyCompressor must already recognize the EntityAttributesSetKey)
 				final EntityAttributesSetKey localeSpecificAttributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, language);
-				return ofNullable(dataStoreReader.fetch(catalogVersion, localeSpecificAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
+				return ofNullable(this.dataStoreReader.fetch(this.catalogVersion, localeSpecificAttributeSetKey, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId))
 					// when not found in storage - create new container
 					.orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
 			}
@@ -161,7 +161,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 			associatedDataKey -> {
 				// try to compute container id (keyCompressor must already recognize the EntityAssociatedDataKey)
 				final EntityAssociatedDataKey entityAssociatedDataKey = new EntityAssociatedDataKey(entityPrimaryKey, key.associatedDataName(), key.locale());
-				return ofNullable(dataStoreReader.fetch(catalogVersion, entityAssociatedDataKey, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId))
+				return ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityAssociatedDataKey, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId))
 					// when not found in storage - create new container
 					.orElseGet(() -> new AssociatedDataStoragePart(entityPrimaryKey, associatedDataKey));
 			}
@@ -177,7 +177,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 			.orElseGet(
 				() -> cacheReferencesStorageContainer(
 					entityPrimaryKey,
-					ofNullable(dataStoreReader.fetch(catalogVersion, entityPrimaryKey, ReferencesStoragePart.class))
+					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class))
 						// and when not found even there create new container
 						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
 				)
@@ -193,7 +193,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 			.orElseGet(
 				() -> cachePricesStorageContainer(
 					entityPrimaryKey,
-					ofNullable(dataStoreReader.fetch(catalogVersion, entityPrimaryKey, PricesStoragePart.class))
+					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, PricesStoragePart.class))
 						// and when not found even there create new container
 						.orElseGet(() -> new PricesStoragePart(entityPrimaryKey))
 				)

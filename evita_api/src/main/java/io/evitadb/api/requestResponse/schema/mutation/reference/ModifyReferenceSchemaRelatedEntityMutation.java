@@ -77,7 +77,7 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceSchemaRelatedEntityMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReferenceSchemaRelatedEntityMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -128,7 +128,7 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = mutate(entitySchema, theSchema);
+			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
 			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}

@@ -67,7 +67,7 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
-			EvitaEnumConverter.toCardinality(mutation.getCardinality()),
+			EvitaEnumConverter.toCardinality(mutation.getCardinality()).orElse(null),
 			mutation.getReferencedEntityType(),
 			mutation.getReferencedEntityTypeManaged(),
 			mutation.hasReferencedGroupType() ? mutation.getReferencedGroupType().getValue() : null,

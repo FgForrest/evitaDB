@@ -207,7 +207,7 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 				this.nonSortedEntities.add(o2);
 				return -1;
 			} else {
-				return comparator.compare(
+				return this.comparator.compare(
 					o1Reference.getReferencedPrimaryKey(),
 					o2Reference.getReferencedPrimaryKey()
 				);

@@ -38,7 +38,7 @@ import com.linecorp.armeria.server.logging.AccessLogWriter;
 import com.linecorp.armeria.server.logging.LoggingService;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.system.ProbesMaintainer;
@@ -372,7 +372,7 @@ public class ExternalApiServer implements AutoCloseable {
 		);
 		if (this.registeredApiProviders.isEmpty()) {
 			log.info("No external API providers were registered. No server will be created.");
-			server = null;
+			this.server = null;
 			return;
 		}
 
@@ -418,14 +418,14 @@ public class ExternalApiServer implements AutoCloseable {
 	 * Starts this configured HTTP server with registered APIs.
 	 */
 	public void start() {
-		if (server == null) {
+		if (this.server == null) {
 			return;
 		}
 
-		server.closeOnJvmShutdown();
+		this.server.closeOnJvmShutdown();
 		try {
-			server.start().get();
-			registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
+			this.server.start().get();
+			this.registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
 		} catch (InterruptedException | ExecutionException e) {
 			throw new RuntimeException(e);
 		}
@@ -438,7 +438,7 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@Nonnull
 	public List<ProbesProvider> getProbeProviders() {
-		return probesMaintainer.getProbes();
+		return this.probesMaintainer.getProbes();
 	}
 
 	/**
@@ -502,7 +502,7 @@ public class ExternalApiServer implements AutoCloseable {
 		// due to context switching between threads and branch misses
 		final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(apiOptions.workerGroupThreadsAsInt());
 		serverBuilder
-			.blockingTaskExecutor(evita.getServiceExecutor(), gracefulShutdown)
+			.blockingTaskExecutor(evita.getServiceExecutor(), false)
 			// this may be changed in future versions to a limited set
 			// but without trusting all client IP addresses the client address source wouldn't be evaluated
 			.clientAddressTrustedProxyFilter(inetAddress -> true)
@@ -534,10 +534,9 @@ public class ExternalApiServer implements AutoCloseable {
 			.idleTimeoutMillis(apiOptions.idleTimeoutInMillis())
 			.requestTimeoutMillis(apiOptions.requestTimeoutInMillis())
 			.pingIntervalMillis(1000)
-			.serviceWorkerGroup(workerGroup, gracefulShutdown)
+			.serviceWorkerGroup(workerGroup, true)
 			.maxRequestLength(apiOptions.maxEntitySizeInBytes())
-			.verboseResponses(true)
-			.workerGroup(workerGroup, gracefulShutdown)
+			.workerGroup(workerGroup, true)
 			.unloggedExceptionsReportInterval(Duration.ofMillis(10));
 
 		if (apiOptions.accessLog()) {
@@ -552,7 +551,7 @@ public class ExternalApiServer implements AutoCloseable {
 		PathHandlingService dynamicPathHandlingService = null;
 
 		// list of proxy provider configurations
-		final AbstractApiOptions[] proxyConfigs = registeredApiProviders.values()
+		final AbstractApiOptions[] proxyConfigs = this.registeredApiProviders.values()
 			.stream()
 			.filter(ProxyingEndpointProvider.class::isInstance)
 			.map(it -> apiOptions.endpoints().get(it.getCode()))
@@ -560,7 +559,7 @@ public class ExternalApiServer implements AutoCloseable {
 			.toArray(AbstractApiOptions[]::new);
 
 		// for each API provider do
-		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
+		for (ExternalApiProvider<?> registeredApiProvider : this.registeredApiProviders.values()) {
 			final AbstractApiOptions configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			// ok, only for those that are actually enabled ;)
 			if (configuration.isEnabled()) {
@@ -681,7 +680,7 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	public boolean reloadCertificatesIfAnyModified() {
 		if (this.certificateService != null) {
-			return certificateService.reloadCertificatesIfAnyModified();
+			return this.certificateService.reloadCertificatesIfAnyModified();
 		} else {
 			return false;
 		}

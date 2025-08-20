@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,12 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -39,28 +35,20 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyAssociatedDataSchemaTypeMutationConverter extends AssociatedDataSchemaMutationConverter<ModifyAssociatedDataSchemaTypeMutation> {
+public class ModifyAssociatedDataSchemaTypeMutationConverter
+	extends AssociatedDataSchemaMutationConverter<ModifyAssociatedDataSchemaTypeMutation> {
 
-	public ModifyAssociatedDataSchemaTypeMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyAssociatedDataSchemaTypeMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.name();
+	protected Class<ModifyAssociatedDataSchemaTypeMutation> getMutationClass() {
+		return ModifyAssociatedDataSchemaTypeMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected ModifyAssociatedDataSchemaTypeMutation convert(@Nonnull Input input) {
-		return new ModifyAssociatedDataSchemaTypeMutation(
-			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			input.getRequiredField(
-				ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(),
-				new ValueTypeMapper(getExceptionFactory(), ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE)
-			)
-		);
-	}
 }

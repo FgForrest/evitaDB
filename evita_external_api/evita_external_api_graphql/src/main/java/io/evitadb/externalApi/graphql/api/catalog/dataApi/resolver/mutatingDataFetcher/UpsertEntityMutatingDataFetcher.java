@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -102,12 +102,12 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-			entityUpsertMutationResolver.convert(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
+			this.entityUpsertMutationResolver.convertFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
 		final EntityContentRequire[] contentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 			buildEnrichingRequires(environment));
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		log.debug("Upserting entity `{}` with PK {} and fetching new version with `{}`.",  entitySchema.getName(), arguments.primaryKey(), Arrays.toString(contentRequires));
+		log.debug("Upserting entity `{}` with PK {} and fetching new version with `{}`.", this.entitySchema.getName(), arguments.primaryKey(), Arrays.toString(contentRequires));
 		final SealedEntity upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 			evitaSession.upsertAndFetchEntity(entityMutation, contentRequires));
 
@@ -119,10 +119,10 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	@Nonnull
 	private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment) {
-		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+		final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetAggregator.from(environment.getSelectionSet()),
 			null,
-			entitySchema
+			this.entitySchema
 		);
 		return entityFetch
 			.map(EntityFetch::getRequirements)

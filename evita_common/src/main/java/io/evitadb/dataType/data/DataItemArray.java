@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,9 +47,9 @@ public record DataItemArray(
 	 * is a flag `hasNext` - true when the current data item is not the last item in the array.
 	 */
 	public void forEach(@Nonnull BiConsumer<DataItem, Boolean> consumer) {
-		for (int i = 0; i < children.length; i++) {
-			final DataItem child = children[i];
-			consumer.accept(child, i < children.length - 1);
+		for (int i = 0; i < this.children.length; i++) {
+			final DataItem child = this.children[i];
+			consumer.accept(child, i < this.children.length - 1);
 		}
 	}
 
@@ -62,17 +62,17 @@ public record DataItemArray(
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			2 * MemoryMeasuringConstants.REFERENCE_SIZE +
-			MemoryMeasuringConstants.computeArraySize(children);
+			MemoryMeasuringConstants.computeArraySize(this.children);
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return children.length == 0;
+		return this.children.length == 0;
 	}
 
 	@Override
 	public int hashCode() {
-		return Arrays.hashCode(children);
+		return Arrays.hashCode(this.children);
 	}
 
 	@Override
@@ -80,11 +80,12 @@ public record DataItemArray(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		DataItemArray that = (DataItemArray) o;
-		return Arrays.equals(children, that.children);
+		return Arrays.equals(this.children, that.children);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return '[' + Arrays.toString(children) + ']';
+		return '[' + Arrays.toString(this.children) + ']';
 	}
 }

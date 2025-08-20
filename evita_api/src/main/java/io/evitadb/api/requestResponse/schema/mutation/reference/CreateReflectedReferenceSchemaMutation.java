@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -83,8 +84,8 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Getter @Nonnull private final String reflectedReferenceName;
 	@Getter @Nullable private final ScopedReferenceIndexType[] indexedInScopes;
 	@Getter @Nullable private final Scope[] facetedInScopes;
-	@Getter @Nonnull private final AttributeInheritanceBehavior attributesInheritanceBehavior;
-	@Getter @Nullable private final String[] attributeInheritanceFilter;
+	@Getter @Nonnull private final AttributeInheritanceBehavior attributeInheritanceBehavior;
+	@Getter @Nonnull private final String[] attributeInheritanceFilter;
 
 	@Nullable
 	private static <T> LocalEntitySchemaMutation makeMutationIfDifferent(
@@ -106,7 +107,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nonnull String referencedEntityType,
 		@Nonnull String reflectedReferenceName,
 		@Nullable Boolean faceted,
-		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
 		this(
@@ -115,10 +116,11 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			null,
 			// by default reflected reference is not faceted unless explicitly set
 			faceted == null ? null : faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
-			attributesInheritanceBehavior, attributeInheritanceFilter
+			attributeInheritanceBehavior, attributeInheritanceFilter
 		);
 	}
 
+	@SerializableCreator
 	public CreateReflectedReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -128,7 +130,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nonnull String reflectedReferenceName,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes,
-		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
@@ -141,8 +143,9 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		this.reflectedReferenceName = reflectedReferenceName;
 		this.indexedInScopes = indexedInScopes;
 		this.facetedInScopes = facetedInScopes;
-		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
-		this.attributeInheritanceFilter = attributeInheritanceFilter;
+		this.attributeInheritanceBehavior = attributeInheritanceBehavior;
+		this.attributeInheritanceFilter = attributeInheritanceFilter == null ?
+			ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 	}
 
 	public boolean isFaceted() {
@@ -166,7 +169,9 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		) {
 			// we can convert mutation to updates only if the reference type matches
 			if (currentReference.get() instanceof ReflectedReferenceSchemaContract existingVersion) {
-				final ReflectedReferenceSchemaContract createdVersion = (ReflectedReferenceSchemaContract) mutate(currentEntitySchema, null);
+				final ReflectedReferenceSchemaContract createdVersion = Objects.requireNonNull(
+					(ReflectedReferenceSchemaContract) mutate(currentEntitySchema, null)
+				);
 				return new MutationCombinationResult<>(
 					null,
 					Stream.of(
@@ -229,7 +234,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			this.facetedInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap(),
-			this.attributesInheritanceBehavior,
+			this.attributeInheritanceBehavior,
 			this.attributeInheritanceFilter
 		);
 	}
@@ -238,7 +243,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final ReflectedReferenceSchema newReferenceSchema = (ReflectedReferenceSchema) this.mutate(entitySchema, null);
+		final ReflectedReferenceSchema newReferenceSchema = Objects.requireNonNull((ReflectedReferenceSchema) this.mutate(entitySchema, null));
 		final Optional<ReferenceSchemaContract> referencedReferenceSchema = catalogSchema.getEntitySchema(newReferenceSchema.getReferencedEntityType())
 			.flatMap(it -> it.getReference(newReferenceSchema.getReflectedReferenceName()));
 		final ReferenceSchemaContract referenceToInsert = referencedReferenceSchema
@@ -304,7 +309,7 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			", reflectedReferenceName='" + this.reflectedReferenceName + '\'' +
 			", indexed=" + (this.indexedInScopes == null ? "(inherited)" : (ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes) ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)")) +
 			", faceted=" + (this.facetedInScopes == null ? "(inherited)" : (ArrayUtils.isEmptyOrItsValuesNull(this.facetedInScopes) ? "(faceted in scopes: " + Arrays.toString(this.facetedInScopes) + ")" : "(not faceted)")) +
-			", attributesInherited=" + this.attributesInheritanceBehavior +
+			", attributesInherited=" + this.attributeInheritanceBehavior +
 			", attributesExcludedFromInheritance=" + Arrays.toString(this.attributeInheritanceFilter);
 	}
 

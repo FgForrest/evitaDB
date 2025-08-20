@@ -165,7 +165,7 @@ public class ReducedEntityIndex extends EntityIndex
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 			final EntityIndexKey theIndexKey = proxy.getIndexKey();
 			throw new ReferenceNotIndexedException(
-				((ReferenceKey) theIndexKey.discriminator()).referenceName(),
+				Objects.requireNonNull((ReferenceKey) theIndexKey.discriminator()).referenceName(),
 				proxyState.getEntitySchema(),
 				theIndexKey.scope()
 			);

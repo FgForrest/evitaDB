@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,7 +58,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 			catalogSchema,
 			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
-		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
+		this.wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
 	}
 
 	@Nullable
@@ -85,7 +84,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Nonnull
 	@Override
 	protected Optional<ConstraintDescriptor> getWrapperContainer() {
-		return Optional.of(wrapperContainer);
+		return Optional.of(this.wrapperContainer);
 	}
 
 	@Nonnull

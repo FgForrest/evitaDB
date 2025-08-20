@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -203,7 +203,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName);
-		attributeValues.remove(attributeKey);
+		this.attributeValues.remove(attributeKey);
 		//noinspection unchecked
 		return (T) this;
 	}
@@ -215,13 +215,13 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			if (!suppressVerification) {
+			if (!this.suppressVerification) {
 				verifyAttributeIsInSchemaAndTypeMatch(
-					entitySchema, attributeName, attributeValue.getClass(),
+					this.entitySchema, attributeName, attributeValue.getClass(),
 					getLocationResolver()
 				);
 			}
-			attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
+			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
 			return (T) this;
 		}
@@ -234,10 +234,10 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			if (!suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(entitySchema, attributeName, attributeValue.getClass(), getLocationResolver());
+			if (!this.suppressVerification) {
+				verifyAttributeIsInSchemaAndTypeMatch(this.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver());
 			}
-			attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
+			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
 			return (T) this;
 		}
@@ -259,8 +259,8 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			if (!suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver());
+			if (!this.suppressVerification) {
+				verifyAttributeIsInSchemaAndTypeMatch(this.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver());
 			}
 			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
@@ -275,8 +275,8 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			if (!suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver());
+			if (!this.suppressVerification) {
+				verifyAttributeIsInSchemaAndTypeMatch(this.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver());
 			}
 			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
@@ -314,7 +314,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nullable
 	public <U extends Serializable> U getAttribute(@Nonnull String attributeName) {
 		//noinspection unchecked
-		return (U) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
+		return (U) ofNullable(this.attributeValues.get(new AttributeKey(attributeName)))
 			.map(AttributeValue::value)
 			.orElse(null);
 	}
@@ -323,7 +323,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nullable
 	public <U extends Serializable> U[] getAttributeArray(@Nonnull String attributeName) {
 		//noinspection unchecked
-		return (U[]) ofNullable(attributeValues.get(new AttributeKey(attributeName)))
+		return (U[]) ofNullable(this.attributeValues.get(new AttributeKey(attributeName)))
 			.map(AttributeValue::value)
 			.orElse(null);
 	}
@@ -331,7 +331,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
-		return ofNullable(attributeValues.get(new AttributeKey(attributeName)));
+		return ofNullable(this.attributeValues.get(new AttributeKey(attributeName)));
 	}
 
 	@Override

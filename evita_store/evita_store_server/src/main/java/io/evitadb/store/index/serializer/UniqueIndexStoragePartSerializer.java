@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		final Long uniquePartId = uniqueIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
 
 		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
 		kryo.writeClass(output, plainType);
@@ -73,7 +73,7 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 	public UniqueIndexStoragePart read(Kryo kryo, Input input, Class<? extends UniqueIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 		final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
 

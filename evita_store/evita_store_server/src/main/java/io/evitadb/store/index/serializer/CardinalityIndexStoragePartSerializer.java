@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class CardinalityIndexStoragePartSerializer extends Serializer<Cardinalit
 		final Long uniquePartId = filterIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(filterIndex.getAttributeKey()), true);
 
 		kryo.writeObject(output, filterIndex.getCardinalityIndex());
 	}
@@ -58,7 +58,7 @@ public class CardinalityIndexStoragePartSerializer extends Serializer<Cardinalit
 	public CardinalityIndexStoragePart read(Kryo kryo, Input input, Class<? extends CardinalityIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
 		final CardinalityIndex cardinalityIndex = kryo.readObject(input, CardinalityIndex.class);
 		return new CardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);

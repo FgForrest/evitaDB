@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ public class SystemEndpointBuilder {
 		return newSystemEndpoint()
 			.path(p -> p
 				.staticItem(SystemRootDescriptor.GET_CATALOG.urlPathItem())
-				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(this.operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.GET)
 			.operationId(SystemRootDescriptor.GET_CATALOG.operation())
 			.description(SystemRootDescriptor.GET_CATALOG.description())
@@ -134,7 +134,7 @@ public class SystemEndpointBuilder {
 		return newSystemEndpoint()
 			.path(p -> p
 				.staticItem(SystemRootDescriptor.UPDATE_CATALOG.urlPathItem())
-				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(this.operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.PATCH)
 			.operationId(SystemRootDescriptor.UPDATE_CATALOG.operation())
 			.description(SystemRootDescriptor.UPDATE_CATALOG.description())
@@ -149,7 +149,7 @@ public class SystemEndpointBuilder {
 		return newSystemEndpoint()
 			.path(p -> p
 				.staticItem(SystemRootDescriptor.DELETE_CATALOG.urlPathItem())
-				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(this.operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.DELETE)
 			.operationId(SystemRootDescriptor.DELETE_CATALOG.operation())
 			.description(SystemRootDescriptor.DELETE_CATALOG.description())

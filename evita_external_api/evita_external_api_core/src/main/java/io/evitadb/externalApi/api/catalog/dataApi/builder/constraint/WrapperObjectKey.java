@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ public class WrapperObjectKey extends CacheableElementKey {
 	public String toHash() {
 		final LongHashFunction hashFunction = LongHashFunction.xx3();
 		final long keyHash;
-		if (!childParameters.isEmpty() || !additionalChildParameters.isEmpty()) {
+		if (!this.childParameters.isEmpty() || !this.additionalChildParameters.isEmpty()) {
 			// if there is any child parameter, we cannot create hash simply, because for each instance of wrapper object
 			// with same parameters, different contexts applies, thus resulting in different inner containers
 			keyHash = fullKeyToHash(hashFunction);

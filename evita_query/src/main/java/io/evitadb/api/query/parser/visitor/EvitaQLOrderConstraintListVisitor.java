@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
-import javax.annotation.Nonnull;
 import java.util.List;
 
 /**
@@ -41,12 +40,12 @@ public class EvitaQLOrderConstraintListVisitor extends EvitaQLBaseVisitor<List<O
     protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
 
     @Override
-    public List<OrderConstraint> visitOrderConstraintList(@Nonnull EvitaQLParser.OrderConstraintListContext ctx) {
+    public List<OrderConstraint> visitOrderConstraintList(EvitaQLParser.OrderConstraintListContext ctx) {
         return parse(
             ctx,
             () -> ctx.constraints
                 .stream()
-                .map(c -> c.accept(orderConstraintVisitor))
+                .map(c -> c.accept(this.orderConstraintVisitor))
                 .toList()
         );
     }

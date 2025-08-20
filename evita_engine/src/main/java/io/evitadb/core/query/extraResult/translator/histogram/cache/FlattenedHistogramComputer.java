@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public class FlattenedHistogramComputer extends CachePayloadHeader implements Tr
 	@Nonnull
 	@Override
 	public CacheableHistogramContract compute() {
-		return histogram;
+		return this.histogram;
 	}
 
 	@Override
@@ -71,18 +71,18 @@ public class FlattenedHistogramComputer extends CachePayloadHeader implements Tr
 
 	@Override
 	public long getHash() {
-		return recordHash;
+		return this.recordHash;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		return transactionalIdHash;
+		return this.transactionalIdHash;
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherTransactionalIds() {
-		return transactionalDataIds;
+		return this.transactionalDataIds;
 	}
 
 	@Override

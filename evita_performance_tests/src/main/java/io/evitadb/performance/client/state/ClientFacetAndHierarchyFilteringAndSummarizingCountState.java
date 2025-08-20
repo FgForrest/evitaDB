@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -87,10 +87,10 @@ public abstract class ClientFacetAndHierarchyFilteringAndSummarizingCountState e
 	public void prepareCall() {
 		this.query = generateRandomHierarchyQuery(
 			generateRandomFacetSummaryQuery(
-				generateRandomFacetQuery(random, productSchema, facetedReferences),
-				random, productSchema, FacetStatisticsDepth.COUNTS, facetGroupsIndex
+				generateRandomFacetQuery(this.random, this.productSchema, this.facetedReferences),
+				this.random, this.productSchema, FacetStatisticsDepth.COUNTS, this.facetGroupsIndex
 			),
-			random, categoryIds, CATEGORY_ENTITY_TYPE
+			this.random, this.categoryIds, CATEGORY_ENTITY_TYPE
 		);
 	}
 
@@ -102,8 +102,8 @@ public abstract class ClientFacetAndHierarchyFilteringAndSummarizingCountState e
 				.values()
 				.forEach(it -> {
 					if (it.isFaceted()) {
-						facetedReferences.put(it.getReferencedEntityType(), new HashSet<>());
-						facetGroupsIndex.put(it.getReferencedEntityType(), new HashMap<>());
+						this.facetedReferences.put(it.getReferencedEntityType(), new HashSet<>());
+						this.facetGroupsIndex.put(it.getReferencedEntityType(), new HashMap<>());
 					}
 				});
 		}
@@ -112,9 +112,9 @@ public abstract class ClientFacetAndHierarchyFilteringAndSummarizingCountState e
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(PRODUCT_ENTITY_TYPE)) {
-			updateFacetStatistics(entity, facetedReferences, facetGroupsIndex);
+			updateFacetStatistics(entity, this.facetedReferences, this.facetGroupsIndex);
 		} else if (entity.getType().equals(CATEGORY_ENTITY_TYPE)) {
-			categoryIds.add(entity.getPrimaryKey());
+			this.categoryIds.add(entity.getPrimaryKey());
 		}
 	}
 

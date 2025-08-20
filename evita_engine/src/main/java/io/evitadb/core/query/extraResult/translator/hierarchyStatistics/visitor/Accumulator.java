@@ -99,7 +99,7 @@ public class Accumulator {
 	 * - {@link #omittedQueuedEntities}
 	 * - {@link #children}
 	 */
-	private Formula queriedEntitiesFormula;
+	@Nullable private Formula queriedEntitiesFormula;
 	/**
 	 * Performance optimization variable that speeds up evaluation of {@link #hasQueriedEntity()}.
 	 */
@@ -134,9 +134,9 @@ public class Accumulator {
 	 * Adds information about this hierarchy node children statistics.
 	 */
 	public void add(@Nonnull Accumulator childNode) {
-		if (!this.children.isEmpty() && this.children.getLast().getEntity().getPrimaryKey() > childNode.getEntity().getPrimaryKey()) {
+		if (!this.children.isEmpty() && this.children.getLast().getEntity().getPrimaryKeyOrThrowException() > childNode.getEntity().getPrimaryKeyOrThrowException()) {
 			// we need to keep the children sorted by their primary key in ascending order
-			int index = Collections.binarySearch(this.children, childNode, Comparator.comparingInt(o -> o.getEntity().getPrimaryKey()));
+			int index = Collections.binarySearch(this.children, childNode, Comparator.comparingInt(o -> o.getEntity().getPrimaryKeyOrThrowException()));
 			Assert.isPremiseValid(index < 0, "Child node already exists in the accumulator!");
 			this.children.add(-index - 1, childNode);
 		} else {

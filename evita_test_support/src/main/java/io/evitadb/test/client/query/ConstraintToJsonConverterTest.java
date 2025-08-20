@@ -67,19 +67,19 @@ abstract class ConstraintToJsonConverterTest {
 				@Nonnull
 				@Override
 				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return entitySchemaIndex.values();
+					return ConstraintToJsonConverterTest.this.entitySchemaIndex.values();
 				}
 
 				@Nonnull
 				@Override
 				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return Optional.ofNullable(entitySchemaIndex.get(entityType));
+					return Optional.ofNullable(ConstraintToJsonConverterTest.this.entitySchemaIndex.get(entityType));
 				}
 			}
 		);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withPrice()
@@ -92,23 +92,23 @@ abstract class ConstraintToJsonConverterTest {
 				.withGroupType("brandGroup"))
 			.toInstance();
 
-		entitySchemaIndex.put(Entities.PRODUCT, new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) productSchema));
+		this.entitySchemaIndex.put(Entities.PRODUCT, new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) productSchema));
 
 		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.CATEGORY)
 		)
 			.withPrice()
 			.withAttribute("NAME", String.class)
 			.withReferenceToEntity("RELATED_PRODUCTS", Entities.PRODUCT, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("ORDER", Integer.class))
 			.toInstance();
-		entitySchemaIndex.put(Entities.CATEGORY, new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) categorySchema));
+		this.entitySchemaIndex.put(Entities.CATEGORY, new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) categorySchema));
 
 		final EntitySchemaContract brandSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
+			this.catalogSchema,
 			EntitySchema._internalBuild(Entities.BRAND)
 		)
 			.toInstance();
-		entitySchemaIndex.put(Entities.BRAND, new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) brandSchema));
+		this.entitySchemaIndex.put(Entities.BRAND, new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) brandSchema));
 	}
 }

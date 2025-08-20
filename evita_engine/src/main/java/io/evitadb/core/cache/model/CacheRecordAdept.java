@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ public class CacheRecordAdept {
 	 * Records usage of this record. More frequently records have higher chance to occupy the cache.
 	 */
 	public void used() {
-		timesUsed.incrementAndGet();
+		this.timesUsed.incrementAndGet();
 	}
 
 	/**
@@ -102,7 +102,7 @@ public class CacheRecordAdept {
 	 */
 	public long getSpaceToPerformanceRatio(int minimalUsageThreshold) {
 		try {
-			return Math.multiplyExact(costToPerformanceRatio, Math.max(0, timesUsed.get() - minimalUsageThreshold)) / sizeInBytes;
+			return Math.multiplyExact(this.costToPerformanceRatio, Math.max(0, this.timesUsed.get() - minimalUsageThreshold)) / this.sizeInBytes;
 		} catch (ArithmeticException ex) {
 			return Long.MAX_VALUE;
 		}
@@ -113,13 +113,13 @@ public class CacheRecordAdept {
 	 * {@link TransactionalDataRelatedStructure#getTransactionalIdHash()}
 	 */
 	public int getTimesUsed() {
-		return timesUsed.get();
+		return this.timesUsed.get();
 	}
 
 	/**
 	 * Creates {@link CachedRecord} from this adept. This means that the adept was promoted to finally cached record.
 	 */
 	public CachedRecord toCachedRecord() {
-		return new CachedRecord(recordType, recordHash, costToPerformanceRatio, 0, sizeInBytes);
+		return new CachedRecord(this.recordType, this.recordHash, this.costToPerformanceRatio, 0, this.sizeInBytes);
 	}
 }

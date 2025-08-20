@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ public class OrFormula extends AbstractCacheableFormula {
 
 	@Nonnull
 	public Bitmap[] getBitmaps() {
-		return bitmaps == null ? EMPTY_BITMAP_ARRAY : bitmaps;
+		return this.bitmaps == null ? EMPTY_BITMAP_ARRAY : this.bitmaps;
 	}
 
 	@Nonnull
@@ -121,7 +121,7 @@ public class OrFormula extends AbstractCacheableFormula {
 		return new OrFormula(
 			selfOperator,
 			innerFormulas,
-			indexTransactionId,
+			this.indexTransactionId,
 			this.bitmaps
 		);
 	}
@@ -129,18 +129,18 @@ public class OrFormula extends AbstractCacheableFormula {
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		if (bitmaps == null) {
-			return Arrays.stream(innerFormulas)
+		if (this.bitmaps == null) {
+			return Arrays.stream(this.innerFormulas)
 				.flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
 				.toArray();
 		} else {
 			return LongStream.concat(
-				bitmaps.length > EXCESSIVE_HIGH_CARDINALITY ?
-					LongStream.of(indexTransactionId) :
-					Arrays.stream(bitmaps)
+				this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY ?
+					LongStream.of(this.indexTransactionId) :
+					Arrays.stream(this.bitmaps)
 						.filter(TransactionalLayerProducer.class::isInstance)
 						.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId()),
-				Arrays.stream(innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
+				Arrays.stream(this.innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
 			).toArray();
 		}
 	}
@@ -154,7 +154,7 @@ public class OrFormula extends AbstractCacheableFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (bitmaps == null) {
+		if (this.bitmaps == null) {
 			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).sum();
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).sum();
@@ -163,11 +163,11 @@ public class OrFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (bitmaps == null) {
+		if (this.bitmaps == null) {
 			return 0L;
 		} else {
 			return hashFunction.hashLongs(
-				Arrays.stream(bitmaps).mapToLong(it -> {
+				Arrays.stream(this.bitmaps).mapToLong(it -> {
 						if (it instanceof TransactionalLayerProducer) {
 							return ((TransactionalLayerProducer<?, ?>) it).getId();
 						} else {
@@ -196,10 +196,10 @@ public class OrFormula extends AbstractCacheableFormula {
 
 	@Override
 	public String toString() {
-		if (ArrayUtils.isEmpty(bitmaps)) {
+		if (ArrayUtils.isEmpty(this.bitmaps)) {
 			return "OR";
 		} else {
-			return "OR: " + Arrays.stream(bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
+			return "OR: " + Arrays.stream(this.bitmaps).map(Bitmap::toString).collect(Collectors.joining(", "));
 		}
 	}
 

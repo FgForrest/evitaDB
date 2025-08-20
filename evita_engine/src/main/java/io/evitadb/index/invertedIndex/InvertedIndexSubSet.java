@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,31 +61,31 @@ public class InvertedIndexSubSet {
 	 * Result of this call is memoized so that additional calls are cheap and returns already computed result.
 	 */
 	public Formula getFormula() {
-		if (memoizedResult == null) {
-			this.memoizedResult = histogramBuckets.length == 0 ?
-				EmptyFormula.INSTANCE : aggregationLambda.apply(indexTransactionId, histogramBuckets);
+		if (this.memoizedResult == null) {
+			this.memoizedResult = this.histogramBuckets.length == 0 ?
+				EmptyFormula.INSTANCE : this.aggregationLambda.apply(this.indexTransactionId, this.histogramBuckets);
 		}
-		return memoizedResult;
+		return this.memoizedResult;
 	}
 
 	/**
 	 * Returns true if this histogram subset contains no buckets / no record ids.
 	 */
 	public boolean isEmpty() {
-		return ArrayUtils.isEmpty(histogramBuckets);
+		return ArrayUtils.isEmpty(this.histogramBuckets);
 	}
 
 	/**
 	 * Returns minimal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
 	public Serializable getMinimalValue() {
-		return isEmpty() ? null : histogramBuckets[0].getValue();
+		return isEmpty() ? null : this.histogramBuckets[0].getValue();
 	}
 
 	/**
 	 * Returns maximal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
 	public Serializable getMaximalValue() {
-		return isEmpty() ? null : histogramBuckets[histogramBuckets.length - 1].getValue();
+		return isEmpty() ? null : this.histogramBuckets[this.histogramBuckets.length - 1].getValue();
 	}
 }

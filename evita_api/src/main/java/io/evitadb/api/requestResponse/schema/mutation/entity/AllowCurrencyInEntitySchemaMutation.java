@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 				new AllowCurrencyInEntitySchemaMutation(
 					Stream.concat(
 							Arrays.stream(allowCurrencyInEntitySchema.getCurrencies()),
-							Arrays.stream(currencies)
+							Arrays.stream(this.currencies)
 						)
 						.distinct()
 						.toArray(Currency[]::new)
@@ -87,15 +87,15 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 		} else if (existingMutation instanceof DisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchema) {
 			final Set<Currency> currenciesToRemove = disallowCurrencyInEntitySchema.getCurrencies()
 				.stream()
-				.filter(removed -> Arrays.stream(currencies).noneMatch(added -> added.equals(removed)))
+				.filter(removed -> Arrays.stream(this.currencies).noneMatch(added -> added.equals(removed)))
 				.collect(Collectors.toSet());
-			final Currency[] currenciesToAdd = Arrays.stream(currencies)
+			final Currency[] currenciesToAdd = Arrays.stream(this.currencies)
 				.filter(added -> !currentEntitySchema.getCurrencies().contains(added))
 				.toArray(Currency[]::new);
 
 			return new MutationCombinationResult<>(
 				currenciesToRemove.isEmpty() ? null : (currenciesToRemove.size() == ((DisallowCurrencyInEntitySchemaMutation) existingMutation).getCurrencies().size() ? existingMutation : new DisallowCurrencyInEntitySchemaMutation(currenciesToRemove)),
-				currenciesToAdd.length == currencies.length ? this : (currenciesToAdd.length == 0 ? null : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd))
+				currenciesToAdd.length == this.currencies.length ? this : (currenciesToAdd.length == 0 ? null : new AllowCurrencyInEntitySchemaMutation(currenciesToAdd))
 			);
 		} else {
 			return null;
@@ -106,7 +106,7 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (Arrays.stream(currencies).allMatch(entitySchema::supportsCurrency)) {
+		if (Arrays.stream(this.currencies).allMatch(entitySchema::supportsCurrency)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -125,7 +125,7 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 				entitySchema.getLocales(),
 				Stream.concat(
 						entitySchema.getCurrencies().stream(),
-						Arrays.stream(currencies)
+						Arrays.stream(this.currencies)
 					)
 					.collect(Collectors.toSet()),
 				entitySchema.getAttributes(),
@@ -145,6 +145,6 @@ public class AllowCurrencyInEntitySchemaMutation implements CombinableLocalEntit
 
 	@Override
 	public String toString() {
-		return "Allow: currencies=" + Arrays.toString(currencies);
+		return "Allow: currencies=" + Arrays.toString(this.currencies);
 	}
 }

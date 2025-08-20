@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ public abstract class AbstractPriceKey implements Serializable {
 	protected AbstractPriceKey(@Nonnull Price.PriceKey priceKey) {
 		this.priceList = priceKey.priceList();
 		this.currency = priceKey.currency();
-		this.hashCode = Objects.hash(priceList, currency);
+		this.hashCode = Objects.hash(this.priceList, this.currency);
 	}
 
 	protected AbstractPriceKey(@Nonnull String priceList, @Nonnull Currency currency) {
@@ -64,7 +64,7 @@ public abstract class AbstractPriceKey implements Serializable {
 
 	@Override
 	public int hashCode() {
-		return hashCode;
+		return this.hashCode;
 	}
 
 	@Override
@@ -72,11 +72,11 @@ public abstract class AbstractPriceKey implements Serializable {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		AbstractPriceKey that = (AbstractPriceKey) o;
-		return hashCode == that.hashCode && priceList.equals(that.priceList) && currency.equals(that.currency);
+		return this.hashCode == that.hashCode && this.priceList.equals(that.priceList) && this.currency.equals(that.currency);
 	}
 
 	@Override
 	public String toString() {
-		return priceList + "/" + currency;
+		return this.priceList + "/" + this.currency;
 	}
 }

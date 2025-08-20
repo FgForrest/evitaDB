@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -138,6 +138,16 @@ private static final long serialVersionUID = 0L;
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.parser(), extensionRegistry));
             break;
           }
+          case 80: {
+
+            readOnly_ = input.readBool();
+            break;
+          }
+          case 88: {
+
+            unusable_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -227,7 +237,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogName_ = s;
@@ -247,7 +257,7 @@ private static final long serialVersionUID = 0L;
       getCatalogNameBytes() {
     java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogName_ = b;
@@ -264,11 +274,12 @@ private static final long serialVersionUID = 0L;
    * true if the catalog is corrupted (other data will be not available)
    * </pre>
    *
-   * <code>bool corrupted = 3;</code>
+   * <code>bool corrupted = 3 [deprecated = true];</code>
+   * @deprecated
    * @return The corrupted.
    */
   @java.lang.Override
-  public boolean getCorrupted() {
+  @java.lang.Deprecated public boolean getCorrupted() {
     return corrupted_;
   }
 
@@ -380,7 +391,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
       getEntityCollectionStatisticsOrBuilderList() {
     return entityCollectionStatistics_;
   }
@@ -417,6 +428,36 @@ private static final long serialVersionUID = 0L;
   public io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder getEntityCollectionStatisticsOrBuilder(
       int index) {
     return entityCollectionStatistics_.get(index);
+  }
+
+  public static final int READONLY_FIELD_NUMBER = 10;
+  private boolean readOnly_;
+  /**
+   * <pre>
+   * true if the catalog is read-only, false otherwise
+   * </pre>
+   *
+   * <code>bool readOnly = 10;</code>
+   * @return The readOnly.
+   */
+  @java.lang.Override
+  public boolean getReadOnly() {
+    return readOnly_;
+  }
+
+  public static final int UNUSABLE_FIELD_NUMBER = 11;
+  private boolean unusable_;
+  /**
+   * <pre>
+   * true if the catalog is unusable, false otherwise
+   * </pre>
+   *
+   * <code>bool unusable = 11;</code>
+   * @return The unusable.
+   */
+  @java.lang.Override
+  public boolean getUnusable() {
+    return unusable_;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -459,6 +500,12 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < entityCollectionStatistics_.size(); i++) {
       output.writeMessage(9, entityCollectionStatistics_.get(i));
+    }
+    if (readOnly_ != false) {
+      output.writeBool(10, readOnly_);
+    }
+    if (unusable_ != false) {
+      output.writeBool(11, unusable_);
     }
     unknownFields.writeTo(output);
   }
@@ -504,6 +551,14 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(9, entityCollectionStatistics_.get(i));
     }
+    if (readOnly_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(10, readOnly_);
+    }
+    if (unusable_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(11, unusable_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -539,6 +594,10 @@ private static final long serialVersionUID = 0L;
         != other.getSizeOnDiskInBytes()) return false;
     if (!getEntityCollectionStatisticsList()
         .equals(other.getEntityCollectionStatisticsList())) return false;
+    if (getReadOnly()
+        != other.getReadOnly()) return false;
+    if (getUnusable()
+        != other.getUnusable()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -577,6 +636,12 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ENTITYCOLLECTIONSTATISTICS_FIELD_NUMBER;
       hash = (53 * hash) + getEntityCollectionStatisticsList().hashCode();
     }
+    hash = (37 * hash) + READONLY_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getReadOnly());
+    hash = (37 * hash) + UNUSABLE_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getUnusable());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -741,6 +806,10 @@ private static final long serialVersionUID = 0L;
       } else {
         entityCollectionStatisticsBuilder_.clear();
       }
+      readOnly_ = false;
+
+      unusable_ = false;
+
       return this;
     }
 
@@ -789,6 +858,8 @@ private static final long serialVersionUID = 0L;
       } else {
         result.entityCollectionStatistics_ = entityCollectionStatisticsBuilder_.build();
       }
+      result.readOnly_ = readOnly_;
+      result.unusable_ = unusable_;
       onBuilt();
       return result;
     }
@@ -880,13 +951,19 @@ private static final long serialVersionUID = 0L;
             entityCollectionStatisticsBuilder_ = null;
             entityCollectionStatistics_ = other.entityCollectionStatistics_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            entityCollectionStatisticsBuilder_ = 
+            entityCollectionStatisticsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEntityCollectionStatisticsFieldBuilder() : null;
           } else {
             entityCollectionStatisticsBuilder_.addAllMessages(other.entityCollectionStatistics_);
           }
         }
+      }
+      if (other.getReadOnly() != false) {
+        setReadOnly(other.getReadOnly());
+      }
+      if (other.getUnusable() != false) {
+        setUnusable(other.getUnusable());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1033,7 +1110,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getCatalogIdBuilder() {
-      
+
       onChanged();
       return getCatalogIdFieldBuilder().getBuilder();
     }
@@ -1060,7 +1137,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
         getCatalogIdFieldBuilder() {
       if (catalogIdBuilder_ == null) {
         catalogIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1106,7 +1183,7 @@ private static final long serialVersionUID = 0L;
         getCatalogNameBytes() {
       java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogName_ = b;
@@ -1129,7 +1206,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       catalogName_ = value;
       onChanged();
       return this;
@@ -1143,7 +1220,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogName() {
-      
+
       catalogName_ = getDefaultInstance().getCatalogName();
       onChanged();
       return this;
@@ -1163,7 +1240,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       catalogName_ = value;
       onChanged();
       return this;
@@ -1175,11 +1252,12 @@ private static final long serialVersionUID = 0L;
      * true if the catalog is corrupted (other data will be not available)
      * </pre>
      *
-     * <code>bool corrupted = 3;</code>
+     * <code>bool corrupted = 3 [deprecated = true];</code>
+     * @deprecated
      * @return The corrupted.
      */
     @java.lang.Override
-    public boolean getCorrupted() {
+    @java.lang.Deprecated public boolean getCorrupted() {
       return corrupted_;
     }
     /**
@@ -1187,12 +1265,13 @@ private static final long serialVersionUID = 0L;
      * true if the catalog is corrupted (other data will be not available)
      * </pre>
      *
-     * <code>bool corrupted = 3;</code>
+     * <code>bool corrupted = 3 [deprecated = true];</code>
+     * @deprecated
      * @param value The corrupted to set.
      * @return This builder for chaining.
      */
-    public Builder setCorrupted(boolean value) {
-      
+    @java.lang.Deprecated public Builder setCorrupted(boolean value) {
+
       corrupted_ = value;
       onChanged();
       return this;
@@ -1202,11 +1281,12 @@ private static final long serialVersionUID = 0L;
      * true if the catalog is corrupted (other data will be not available)
      * </pre>
      *
-     * <code>bool corrupted = 3;</code>
+     * <code>bool corrupted = 3 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearCorrupted() {
-      
+    @java.lang.Deprecated public Builder clearCorrupted() {
+
       corrupted_ = false;
       onChanged();
       return this;
@@ -1234,7 +1314,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogStateValue(int value) {
-      
+
       catalogState_ = value;
       onChanged();
       return this;
@@ -1266,7 +1346,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       catalogState_ = value.getNumber();
       onChanged();
       return this;
@@ -1280,7 +1360,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogState() {
-      
+
       catalogState_ = 0;
       onChanged();
       return this;
@@ -1309,7 +1389,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCatalogVersion(long value) {
-      
+
       catalogVersion_ = value;
       onChanged();
       return this;
@@ -1323,7 +1403,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCatalogVersion() {
-      
+
       catalogVersion_ = 0L;
       onChanged();
       return this;
@@ -1352,7 +1432,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setTotalRecords(long value) {
-      
+
       totalRecords_ = value;
       onChanged();
       return this;
@@ -1366,7 +1446,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearTotalRecords() {
-      
+
       totalRecords_ = 0L;
       onChanged();
       return this;
@@ -1395,7 +1475,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setIndexCount(long value) {
-      
+
       indexCount_ = value;
       onChanged();
       return this;
@@ -1409,7 +1489,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearIndexCount() {
-      
+
       indexCount_ = 0L;
       onChanged();
       return this;
@@ -1438,7 +1518,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setSizeOnDiskInBytes(long value) {
-      
+
       sizeOnDiskInBytes_ = value;
       onChanged();
       return this;
@@ -1452,7 +1532,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearSizeOnDiskInBytes() {
-      
+
       sizeOnDiskInBytes_ = 0L;
       onChanged();
       return this;
@@ -1713,7 +1793,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
          getEntityCollectionStatisticsOrBuilderList() {
       if (entityCollectionStatisticsBuilder_ != null) {
         return entityCollectionStatisticsBuilder_.getMessageOrBuilderList();
@@ -1751,12 +1831,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder>
          getEntityCollectionStatisticsBuilderList() {
       return getEntityCollectionStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
         getEntityCollectionStatisticsFieldBuilder() {
       if (entityCollectionStatisticsBuilder_ == null) {
         entityCollectionStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -1768,6 +1848,92 @@ private static final long serialVersionUID = 0L;
         entityCollectionStatistics_ = null;
       }
       return entityCollectionStatisticsBuilder_;
+    }
+
+    private boolean readOnly_ ;
+    /**
+     * <pre>
+     * true if the catalog is read-only, false otherwise
+     * </pre>
+     *
+     * <code>bool readOnly = 10;</code>
+     * @return The readOnly.
+     */
+    @java.lang.Override
+    public boolean getReadOnly() {
+      return readOnly_;
+    }
+    /**
+     * <pre>
+     * true if the catalog is read-only, false otherwise
+     * </pre>
+     *
+     * <code>bool readOnly = 10;</code>
+     * @param value The readOnly to set.
+     * @return This builder for chaining.
+     */
+    public Builder setReadOnly(boolean value) {
+
+      readOnly_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * true if the catalog is read-only, false otherwise
+     * </pre>
+     *
+     * <code>bool readOnly = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearReadOnly() {
+
+      readOnly_ = false;
+      onChanged();
+      return this;
+    }
+
+    private boolean unusable_ ;
+    /**
+     * <pre>
+     * true if the catalog is unusable, false otherwise
+     * </pre>
+     *
+     * <code>bool unusable = 11;</code>
+     * @return The unusable.
+     */
+    @java.lang.Override
+    public boolean getUnusable() {
+      return unusable_;
+    }
+    /**
+     * <pre>
+     * true if the catalog is unusable, false otherwise
+     * </pre>
+     *
+     * <code>bool unusable = 11;</code>
+     * @param value The unusable to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUnusable(boolean value) {
+
+      unusable_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * true if the catalog is unusable, false otherwise
+     * </pre>
+     *
+     * <code>bool unusable = 11;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearUnusable() {
+
+      unusable_ = false;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

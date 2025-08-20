@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -597,8 +597,8 @@ public class ProxycianFactory implements ProxyFactory {
 			recipe.getInstantiationCallback()
 		);
 		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(type, entityName);
-		recipes.put(key, theRecipe);
-		collectedRecipes.put(key, theRecipe);
+		this.recipes.put(key, theRecipe);
+		this.collectedRecipes.put(key, theRecipe);
 	}
 
 	/**
@@ -631,8 +631,8 @@ public class ProxycianFactory implements ProxyFactory {
 			recipe.getInstantiationCallback()
 		);
 		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(mainType, entityName, referenceType, referenceName);
-		recipes.put(key, theRecipe);
-		collectedRecipes.put(key, theRecipe);
+		this.recipes.put(key, theRecipe);
+		this.collectedRecipes.put(key, theRecipe);
 	}
 
 	@Nonnull
@@ -662,10 +662,10 @@ public class ProxycianFactory implements ProxyFactory {
 		 */
 		@Nonnull
 		public Object[] constructorArguments(@Nonnull EntityContract entity) throws Exception {
-			final Class<?>[] parameterTypes = constructor.getParameterTypes();
+			final Class<?>[] parameterTypes = this.constructor.getParameterTypes();
 			final Object[] parameterArguments = new Object[parameterTypes.length];
 			for (int i = 0; i < parameterTypes.length; i++) {
-				parameterArguments[i] = extractionLambda.apply(i, entity);
+				parameterArguments[i] = this.extractionLambda.apply(i, entity);
 			}
 			return parameterArguments;
 		}
@@ -688,10 +688,10 @@ public class ProxycianFactory implements ProxyFactory {
 		 */
 		@Nonnull
 		public Object[] constructorArguments(@Nonnull EntityContract EntityContract, @Nonnull ReferenceContract reference) throws Exception {
-			final Class<?>[] parameterTypes = constructor.getParameterTypes();
+			final Class<?>[] parameterTypes = this.constructor.getParameterTypes();
 			final Object[] parameterArguments = new Object[parameterTypes.length];
 			for (int i = 0; i < parameterTypes.length; i++) {
-				parameterArguments[i] = extractionLambda.apply(i, EntityContract, reference);
+				parameterArguments[i] = this.extractionLambda.apply(i, EntityContract, reference);
 			}
 			return parameterArguments;
 		}
@@ -736,7 +736,7 @@ public class ProxycianFactory implements ProxyFactory {
 			@Nonnull EntityContract entityContract,
 			@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 		) throws EntityClassInvalidException {
-			return ProxycianFactory.createEntityProxy(expectedType, recipes, collectedRecipes, entityContract, referencedEntitySchemas, reflectionLookup);
+			return ProxycianFactory.createEntityProxy(expectedType, this.recipes, this.collectedRecipes, entityContract, referencedEntitySchemas, this.reflectionLookup);
 		}
 
 	}
@@ -760,9 +760,9 @@ public class ProxycianFactory implements ProxyFactory {
 			@Nonnull ReferenceContract reference
 		) throws EntityClassInvalidException {
 			return ProxycianFactory.createEntityReferenceProxy(
-				mainType, expectedType, recipes, collectedRecipes,
+				mainType, expectedType, this.recipes, this.collectedRecipes,
 				entity, () -> null,
-				referencedEntitySchemas, reference, reflectionLookup,
+				referencedEntitySchemas, reference, this.reflectionLookup,
 				null
 			);
 		}

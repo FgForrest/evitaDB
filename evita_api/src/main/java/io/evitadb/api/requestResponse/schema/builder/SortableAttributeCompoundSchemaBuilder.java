@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,11 +97,11 @@ public final class SortableAttributeCompoundSchemaBuilder
 		if (createNew) {
 			this.mutations.add(
 				new CreateSortableAttributeCompoundSchemaMutation(
-					baseSchema.getName(),
-					baseSchema.getDescription(),
-					baseSchema.getDeprecationNotice(),
+					this.baseSchema.getName(),
+					this.baseSchema.getDescription(),
+					this.baseSchema.getDeprecationNotice(),
 					Arrays.stream(Scope.values())
-						.filter(baseSchema::isIndexedInScope)
+						.filter(this.baseSchema::isIndexedInScope)
 						.toArray(Scope[]::new),
 					attributeElements.toArray(AttributeElement[]::new)
 				)
@@ -196,7 +196,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 	public Collection<SortableAttributeCompoundSchemaMutation> toSortableAttributeCompoundSchemaMutation() {
 		return this.mutations
 			.stream()
-			.map(it -> (SortableAttributeCompoundSchemaMutation) it)
+			.map(SortableAttributeCompoundSchemaMutation.class::cast)
 			.collect(Collectors.toList());
 	}
 
@@ -227,9 +227,9 @@ public final class SortableAttributeCompoundSchemaBuilder
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+			for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
 				final EntitySchemaMutation mutation = this.mutations.get(i);
-				currentSchema = ((SortableAttributeCompoundSchemaMutation) mutation).mutate(entitySchema, referenceSchema, currentSchema);
+				currentSchema = ((SortableAttributeCompoundSchemaMutation) mutation).mutate(this.entitySchema, this.referenceSchema, currentSchema);
 				if (currentSchema == null) {
 					throw new GenericEvitaInternalError("Attribute unexpectedly removed from inside!");
 				}

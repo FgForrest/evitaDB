@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
@@ -57,6 +58,15 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
+    EndpointDescriptor ON_CATALOG_SCHEMA_CHANGE = EndpointDescriptor.builder()
+        .operation("on*schemaChange")
+        .urlPathItem("schema")
+        .classifier("catalog")
+        .description("""
+            Subscribes client to a stream of catalog schema changes which are sent over as individual capture events.
+            """)
+        .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
+        .build();
 
     EndpointDescriptor GET_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("get*schema")
@@ -67,7 +77,6 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();
-
     EndpointDescriptor UPDATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("update*schema")
         .urlPathItem("schema")
@@ -75,5 +84,13 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             Updates evitaDB's internal schema for entities from `%s` collection.
             """)
         // type is expected to be a collection-specific `EntitySchema` object
+        .build();
+    EndpointDescriptor ON_ENTITY_SCHEMA_CHANGE = EndpointDescriptor.builder()
+        .operation("on*schemaChange")
+        .urlPathItem("schema")
+        .description("""
+            Subscribes client to a stream of specific entity schema changes which are sent over as individual capture events.
+            """)
+        .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
         .build();
 }

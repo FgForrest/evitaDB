@@ -68,6 +68,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Gra
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BucketsFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordStripFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.*;
@@ -187,8 +188,8 @@ public class FullResponseObjectBuilder {
 		final GraphQLFieldDefinition recordPageField = ResponseDescriptor.RECORD_PAGE
 			.to(this.fieldBuilderTransformer)
 			.type(recordPageObject)
-			.argument(RecordPageFieldHeaderDescriptor.NUMBER.to(this.argumentBuilderTransformer))
-			.argument(RecordPageFieldHeaderDescriptor.SIZE.to(this.argumentBuilderTransformer))
+			.argument(PaginatedListFieldHeaderDescriptor.NUMBER.to(this.argumentBuilderTransformer))
+			.argument(PaginatedListFieldHeaderDescriptor.SIZE.to(this.argumentBuilderTransformer))
 			.argument(RecordPageFieldHeaderDescriptor.SPACING
 				.to(this.argumentBuilderTransformer)
 				.type(spacingConstraint))
@@ -207,7 +208,7 @@ public class FullResponseObjectBuilder {
 		return RecordPageDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
-			.field(RecordPageDescriptor.DATA
+			.field(DataChunkDescriptor.DATA
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema)))))))
 			.build();
@@ -634,7 +635,7 @@ public class FullResponseObjectBuilder {
 		final GraphQLFieldDefinition hierarchyOfSelfField = HierarchyDescriptor.SELF
 			.to(this.fieldBuilderTransformer)
 			.type(nonNull(hierarchyOfSelfObject))
-			.argument(HierarchyOfSelfHeaderDescriptor.ORDER_BY
+			.argument(HierarchyHeaderDescriptor.ORDER_BY
 				.to(this.argumentBuilderTransformer)
 				.type(orderByConstraint))
 			.build();
@@ -745,7 +746,7 @@ public class FullResponseObjectBuilder {
 				: new ExternalEntityTypePointer(referenceSchema.getReferencedEntityType())
 		);
 		final GraphQLInputType orderByConstraint = this.orderConstraintSchemaBuilder.build(hierarchyDataLocator);
-		hierarchyOfReferenceFieldBuilder.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
+		hierarchyOfReferenceFieldBuilder.argument(HierarchyHeaderDescriptor.ORDER_BY
 			.to(this.argumentBuilderTransformer)
 			.type(orderByConstraint));
 
@@ -849,10 +850,10 @@ public class FullResponseObjectBuilder {
 			HierarchyOfDescriptor.FROM_ROOT
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(levelInfoObject))))
-				.argument(HierarchyFromRootHeaderDescriptor.STOP_AT
+				.argument(HierarchyRequireHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS_BASE
+				.argument(HierarchyRequireHeaderDescriptor.STATISTICS_BASE
 					.to(this.argumentBuilderTransformer))
 				.build(),
 			SpecificHierarchyDataFetcher.getInstance()
@@ -870,10 +871,10 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyFromNodeHeaderDescriptor.NODE
 					.to(this.argumentBuilderTransformer)
 					.type(nonNull(nodeConstraint)))
-				.argument(HierarchyFromNodeHeaderDescriptor.STOP_AT
+				.argument(HierarchyRequireHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS_BASE
+				.argument(HierarchyRequireHeaderDescriptor.STATISTICS_BASE
 					.to(this.argumentBuilderTransformer))
 				.build(),
 			SpecificHierarchyDataFetcher.getInstance()
@@ -887,10 +888,10 @@ public class FullResponseObjectBuilder {
 			HierarchyOfDescriptor.CHILDREN
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(levelInfoObject))))
-				.argument(HierarchyChildrenHeaderDescriptor.STOP_AT
+				.argument(HierarchyRequireHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS_BASE
+				.argument(HierarchyRequireHeaderDescriptor.STATISTICS_BASE
 					.to(this.argumentBuilderTransformer))
 				.build(),
 			SpecificHierarchyDataFetcher.getInstance()
@@ -905,10 +906,10 @@ public class FullResponseObjectBuilder {
 			HierarchyOfDescriptor.PARENTS
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(levelInfoObject))))
-				.argument(HierarchyParentsHeaderDescriptor.STOP_AT
+				.argument(HierarchyRequireHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyParentsHeaderDescriptor.STATISTICS_BASE
+				.argument(HierarchyRequireHeaderDescriptor.STATISTICS_BASE
 					.to(this.argumentBuilderTransformer))
 				.argument(HierarchyParentsHeaderDescriptor.SIBLINGS
 					.to(this.argumentBuilderTransformer)
@@ -925,10 +926,10 @@ public class FullResponseObjectBuilder {
 			HierarchyOfDescriptor.SIBLINGS
 				.to(this.fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(levelInfoObject))))
-				.argument(HierarchySiblingsHeaderDescriptor.STOP_AT
+				.argument(HierarchyRequireHeaderDescriptor.STOP_AT
 					.to(this.argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS_BASE
+				.argument(HierarchyRequireHeaderDescriptor.STATISTICS_BASE
 					.to(this.argumentBuilderTransformer))
 				.build(),
 			SpecificHierarchyDataFetcher.getInstance()

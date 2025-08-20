@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -111,23 +111,23 @@ public class ParseContext {
 	 */
 	@Nonnull
 	public <A extends Serializable & Comparable<?>> A getNextPositionalArgument() {
-		Assert.notNull(positionalArguments, "Query uses positional parameters but no positional arguments were passed.");
+		Assert.notNull(this.positionalArguments, "Query uses positional parameters but no positional arguments were passed.");
 		final Object argument;
 		try {
-			lastPositionalArgumentIndex++;
-			argument = positionalArguments.remove();
+			this.lastPositionalArgumentIndex++;
+			argument = this.positionalArguments.remove();
 		} catch (Exception e) {
 			throw new EvitaInvalidUsageException(
-				"Missing argument of index " + lastPositionalArgumentIndex + "."
+				"Missing argument of index " + this.lastPositionalArgumentIndex + "."
 			);
 		}
 		Assert.notNull(
 			argument,
-			"Positional argument of index " + lastPositionalArgumentIndex + " is null."
+			"Positional argument of index " + this.lastPositionalArgumentIndex + " is null."
 		);
 		Assert.isTrue(
 			isArgumentDataTypeSupported(argument),
-			"Positional argument of index " + lastPositionalArgumentIndex + " has unsupported data type."
+			"Positional argument of index " + this.lastPositionalArgumentIndex + " has unsupported data type."
 		);
 
 		//noinspection unchecked
@@ -140,8 +140,8 @@ public class ParseContext {
 	 */
 	@Nonnull
 	public <A extends Serializable & Comparable<?>> A getNamedArgument(@Nonnull String name) {
-		Assert.notNull(namedArguments, "Query uses named parameters but no named arguments were passed.");
-		final Object argument = namedArguments.get(name);
+		Assert.notNull(this.namedArguments, "Query uses named parameters but no named arguments were passed.");
+		final Object argument = this.namedArguments.get(name);
 		Assert.notNull(
 			argument,
 			"Missing argument of name `" + name + "`."

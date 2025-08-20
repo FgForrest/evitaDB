@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -127,7 +127,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 
 	@Override
 	public EntityAssociatedDataKey getStoragePartSourceKey() {
-		return associatedDataKey;
+		return this.associatedDataKey;
 	}
 
 	@Override
@@ -148,13 +148,13 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 
 	@Override
 	public boolean isEmpty() {
-		return value == null || value.dropped();
+		return this.value == null || this.value.dropped();
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt sizeInBytes() {
-		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+		return this.sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(this.sizeInBytes);
 	}
 
 	/**
@@ -185,10 +185,10 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 
 		@Override
 		public int compareTo(@Nonnull EntityAssociatedDataKey o) {
-			final int primaryKeyComparison = Integer.compare(entityPrimaryKey, o.entityPrimaryKey);
+			final int primaryKeyComparison = Integer.compare(this.entityPrimaryKey, o.entityPrimaryKey);
 			if (primaryKeyComparison == 0) {
 				return compareLocale(
-					locale, o.locale, () -> associatedDataName.compareTo(o.associatedDataName)
+					this.locale, o.locale, () -> this.associatedDataName.compareTo(o.associatedDataName)
 				);
 			} else {
 				return primaryKeyComparison;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -125,13 +125,13 @@ public class EntityRemoveMutation implements EntityMutation {
 	@Nonnull
 	@Override
 	public String getEntityType() {
-		return entityType;
+		return this.entityType;
 	}
 
-	@Nullable
+	@Nonnull
 	@Override
 	public Integer getEntityPrimaryKey() {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Nonnull
@@ -183,7 +183,7 @@ public class EntityRemoveMutation implements EntityMutation {
 		if (predicate.test(this)) {
 			final MutationPredicateContext context = predicate.getContext();
 			context.setEntityType(this.entityType);
-			context.setPrimaryKey(this.entityPrimaryKey);
+			context.setEntityPrimaryKey(this.entityPrimaryKey);
 			context.advance();
 			return Stream.of(
 				ChangeCatalogCapture.dataCapture(
@@ -199,6 +199,6 @@ public class EntityRemoveMutation implements EntityMutation {
 
 	@Override
 	public String toString() {
-		return "entity `" + entityType + "` removal: " + entityPrimaryKey;
+		return "entity `" + this.entityType + "` removal: " + this.entityPrimaryKey;
 	}
 }

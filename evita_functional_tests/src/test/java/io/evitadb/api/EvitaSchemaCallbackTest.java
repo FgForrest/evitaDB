@@ -26,11 +26,17 @@ package io.evitadb.api;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.proxy.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.mock.MockCatalogChangeCaptureSubscriber;
+import io.evitadb.api.mock.MockEngineChangeCaptureSubscriber;
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -42,6 +48,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -52,204 +59,184 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	public static final String DIR_EVITA_NOTIFICATION_TEST = "evitaNotificationTest";
 	public static final String DIR_EVITA_NOTIFICATION_TEST_EXPORT = "evitaNotificationTest_export";
 	private Evita evita;
-	private String evitaInstanceId;
+	private final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
+	private final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
 
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
-		evitaInstanceId = evita.management().getSystemStatus().instanceId();
+		this.evita.defineCatalog(TEST_CATALOG);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.goLiveAndClose();
+				return null;
+			}
+		);
+
+		this.evita.registerSystemChangeCapture(
+			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+		).subscribe(this.engineSubscriber);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.criteria(
+							ChangeCatalogCaptureCriteria
+								.builder()
+								.schemaArea()
+								.build()
+						)
+						.build()
+				).subscribe(this.catalogSubscriber);
+				return null;
+			}
+		);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_NOTIFICATION_TEST_EXPORT);
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogCreation() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
+		this.evita.defineCatalog("newCatalog");
 
-		evita.defineCatalog("newCatalog");
-
-		assertEquals(1, MockCatalogStructuralChangeObserver.getOrInitializeCollectionMonitor(evitaInstanceId, "newCatalog"));
+		assertEquals(1, this.engineSubscriber.getCatalogCreated("newCatalog"));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogDelete() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
+		this.evita.deleteCatalogIfExists(TEST_CATALOG);
 
-		evita.deleteCatalogIfExists(TEST_CATALOG);
-
-		assertEquals(1, MockCatalogStructuralChangeObserver.getCatalogDeleted(evitaInstanceId, TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogDeleted(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaUpdate() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
 				.withAttribute("newAttribute", int.class)
 				.updateVia(session);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getCatalogSchemaUpdated(evitaInstanceId, TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogUpdated(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogSchemaDescriptionChange() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.update(
-			new ModifyCatalogSchemaMutation(
-				TEST_CATALOG,
-				new ModifyCatalogSchemaDescriptionMutation("Brand new description.")
-			)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(
+					new ModifyCatalogSchemaDescriptionMutation("Brand new description.")
+				);
+			}
 		);
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getCatalogSchemaUpdated(evitaInstanceId, TEST_CATALOG));
+		assertEquals(1, this.engineSubscriber.getCatalogUpdated(TEST_CATALOG));
 
 		assertEquals(
 			"Brand new description.",
-			evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getSchema().getDescription()
+			this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getSchema().getDescription()
+		);
+	}
+
+	@Test
+	void shouldFailToUpdateCatalogSchemaWithoutExistingSession() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> {
+				this.evita.applyMutation(
+					new ModifyCatalogSchemaMutation(
+						TEST_CATALOG,
+						null,
+						new CreateEntitySchemaMutation(Entities.PRODUCT),
+						new ModifyEntitySchemaMutation(
+							Entities.PRODUCT,
+							new ModifyEntitySchemaDescriptionMutation("Brand new description.")
+						)
+					)
+				);
+			}
 		);
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutEntitySchemaDescriptionChange() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.update(
-			new ModifyCatalogSchemaMutation(
-				TEST_CATALOG,
-				new CreateEntitySchemaMutation(Entities.PRODUCT),
-				new ModifyEntitySchemaMutation(
-					Entities.PRODUCT,
-					new ModifyEntitySchemaDescriptionMutation("Brand new description.")
-				)
-			)
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateCatalogSchema(
+					new CreateEntitySchemaMutation(Entities.PRODUCT),
+					new ModifyEntitySchemaMutation(
+						Entities.PRODUCT,
+						new ModifyEntitySchemaDescriptionMutation("Brand new description.")
+					)
+				);
+			}
 		);
 
 		assertEquals(
 			"Brand new description.",
-			evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getEntitySchema(Entities.PRODUCT).orElseThrow().getDescription()
+			this.evita.getCatalogInstanceOrThrowException(TEST_CATALOG).getEntitySchema(Entities.PRODUCT).orElseThrow().getDescription()
 		);
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
-	}
-
-	@Test
-	void shouldNotifyCallbackAboutCatalogSchemaUpdateInTransactionalMode() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.getCatalogSchema()
-				.openForWrite()
-				.withAttribute("newAttribute", int.class)
-				.updateVia(session);
-		});
-
-		assertEquals(1, MockCatalogStructuralChangeObserver.getCatalogSchemaUpdated(evitaInstanceId, TEST_CATALOG));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated(Entities.PRODUCT));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionCreate() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema("newEntity");
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, "newEntity"));
-	}
-
-	@Test
-	void shouldNotifyCallbackAboutCatalogEntityCollectionCreateInTransactionalMode() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.goLiveAndClose();
-		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema("newEntity");
-		});
-
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, "newEntity"));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionCreated("newEntity"));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionDelete() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
+		this.engineSubscriber.reset();
 
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.deleteCollection(Entities.PRODUCT);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
-	}
-
-	@Test
-	void shouldNotifyCallbackAboutCatalogEntityCollectionDeleteInTransactionalMode() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT);
-			session.goLiveAndClose();
-		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.deleteCollection(Entities.PRODUCT);
-		});
-
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
 	}
 
 	@Test
 	void shouldNotifyCallbackAboutCatalogEntityCollectionSchemaUpdate() {
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT);
 		});
 
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
+		this.engineSubscriber.reset();
 
-		evita.updateCatalog(TEST_CATALOG, session -> {
+		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.PRODUCT)
 				.withAttribute("code", String.class)
 				.updateVia(session);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
-	}
-
-	@Test
-	void shouldNotifyCallbackAboutCatalogEntityCollectionSchemaUpdateInTransactionalMode() {
-		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
-
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT);
-			session.goLiveAndClose();
-		});
-		evita.updateCatalog(TEST_CATALOG, session -> {
-			session.defineEntitySchema(Entities.PRODUCT)
-				.withAttribute("code", String.class)
-				.updateVia(session);
-		});
-
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, this.catalogSubscriber.getEntityCollectionSchemaUpdated(Entities.PRODUCT));
 	}
 
 	@Nonnull

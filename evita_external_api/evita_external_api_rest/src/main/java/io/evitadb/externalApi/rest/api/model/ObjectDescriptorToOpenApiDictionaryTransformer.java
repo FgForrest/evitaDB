@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,8 +30,6 @@ import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
-
 /**
  * Transforms API-independent {@link ObjectDescriptor} to {@link io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary}.
  *
@@ -41,7 +39,7 @@ import javax.annotation.Nonnull;
 public class ObjectDescriptorToOpenApiDictionaryTransformer implements ObjectDescriptorTransformer<OpenApiDictionary.Builder> {
 
 	@Override
-	public OpenApiDictionary.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public OpenApiDictionary.Builder apply(ObjectDescriptor objectDescriptor) {
 		final OpenApiDictionary.Builder unionBuilder = OpenApiDictionary.newDictionary();
 
 		if (objectDescriptor.isNameStatic()) {

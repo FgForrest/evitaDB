@@ -397,7 +397,7 @@ public final class ReferenceSchemaBuilder
 					attributeSchemaBuilder
 						.toReferenceMutation(getName())
 						.stream()
-						.map(it -> (LocalEntitySchemaMutation) it)
+						.map(LocalEntitySchemaMutation.class::cast)
 						.toArray(LocalEntitySchemaMutation[]::new)
 				)
 			);
@@ -504,7 +504,7 @@ public final class ReferenceSchemaBuilder
 					schemaBuilder
 						.toReferenceMutation(getName())
 						.stream()
-						.map(it -> (LocalEntitySchemaMutation) it)
+						.map(LocalEntitySchemaMutation.class::cast)
 						.toArray(LocalEntitySchemaMutation[]::new)
 				)
 			);

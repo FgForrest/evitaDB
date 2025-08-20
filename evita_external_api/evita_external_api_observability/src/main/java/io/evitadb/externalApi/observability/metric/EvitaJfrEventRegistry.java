@@ -27,6 +27,9 @@ import io.evitadb.api.observability.annotation.EventGroup;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.metric.event.cache.AnteroomWastedEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerAreaEvent;
+import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityTypeEvent;
 import io.evitadb.core.metric.event.query.EntityEnrichEvent;
 import io.evitadb.core.metric.event.query.EntityFetchEvent;
 import io.evitadb.core.metric.event.query.FinishedEvent;
@@ -134,6 +137,11 @@ public class EvitaJfrEventRegistry {
 		RequestForkJoinPoolStatisticsEvent.class,
 		TransactionForkJoinPoolStatisticsEvent.class,
 		ScheduledExecutorStatisticsEvent.class,
+
+		//cdc
+		ChangeCatalogCaptureStatisticsEvent.class,
+		ChangeCatalogCaptureStatisticsPerAreaEvent.class,
+		ChangeCatalogCaptureStatisticsPerEntityTypeEvent.class,
 
 		//cache
 		AnteroomRecordStatisticsUpdatedEvent.class,

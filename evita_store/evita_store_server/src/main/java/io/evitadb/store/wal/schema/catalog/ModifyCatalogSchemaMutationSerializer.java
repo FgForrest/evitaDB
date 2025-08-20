@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,9 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
+
+import java.util.UUID;
 
 /**
  * Serializer for {@link ModifyCatalogSchemaMutation}.
@@ -40,6 +42,12 @@ public class ModifyCatalogSchemaMutationSerializer extends Serializer<ModifyCata
 	@Override
 	public void write(Kryo kryo, Output output, ModifyCatalogSchemaMutation mutation) {
 		output.writeString(mutation.getCatalogName());
+		if (mutation.getSessionId() == null) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			kryo.writeObject(output, mutation.getSessionId());
+		}
 		final LocalCatalogSchemaMutation[] schemaMutations = mutation.getSchemaMutations();
 		output.writeVarInt(schemaMutations.length, true);
 		for (LocalCatalogSchemaMutation schemaMutation : schemaMutations) {
@@ -50,11 +58,12 @@ public class ModifyCatalogSchemaMutationSerializer extends Serializer<ModifyCata
 	@Override
 	public ModifyCatalogSchemaMutation read(Kryo kryo, Input input, Class<? extends ModifyCatalogSchemaMutation> type) {
 		final String catalogName = input.readString();
+		final UUID sessionId = input.readBoolean() ? kryo.readObject(input, UUID.class) : null;
 		final int length = input.readVarInt(true);
 		final LocalCatalogSchemaMutation[] schemaMutations = new LocalCatalogSchemaMutation[length];
 		for (int i = 0; i < length; i++) {
 			schemaMutations[i] = (LocalCatalogSchemaMutation) kryo.readClassAndObject(input);
 		}
-		return new ModifyCatalogSchemaMutation(catalogName, schemaMutations);
+		return new ModifyCatalogSchemaMutation(catalogName, sessionId, schemaMutations);
 	}
 }

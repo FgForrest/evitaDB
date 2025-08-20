@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,42 +51,42 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class LocalCatalogSchemaMutationAggregateConverter extends MutationAggregateConverter<LocalCatalogSchemaMutation, SchemaMutationConverter<? extends LocalCatalogSchemaMutation>> {
+public class LocalCatalogSchemaMutationAggregateConverter extends MutationAggregateConverter<LocalCatalogSchemaMutation, SchemaMutationConverter<LocalCatalogSchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, SchemaMutationConverter<? extends LocalCatalogSchemaMutation>> resolvers = createHashMap(20);
+	private final Map<String, SchemaMutationConverter<LocalCatalogSchemaMutation>> converters = createHashMap(20);
 
 	public LocalCatalogSchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
 	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 
 		// catalog schema mutations
-		this.resolvers.put(MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifyCatalogSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), new AllowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), new DisallowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifyCatalogSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
+		registerConverter(ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), new AllowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), new DisallowEvolutionModeInCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 
 		// global attribute schema mutations
-		this.resolvers.put(CREATE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION.name(), new CreateGlobalAttributeSchemaMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ATTRIBUTE_SCHEMA_DEFAULT_VALUE_MUTATION.name(), new ModifyAttributeSchemaDefaultValueMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ATTRIBUTE_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifyAttributeSchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifyAttributeSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ATTRIBUTE_SCHEMA_NAME_MUTATION.name(), new ModifyAttributeSchemaNameMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ATTRIBUTE_SCHEMA_TYPE_MUTATION.name(), new ModifyAttributeSchemaTypeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_ATTRIBUTE_SCHEMA_MUTATION.name(), new RemoveAttributeSchemaMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION.name(), new SetAttributeSchemaFilterableMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION.name(), new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION.name(), new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION.name(), new SetAttributeSchemaRepresentativeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION.name(), new SetAttributeSchemaSortableMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION.name(), new SetAttributeSchemaUniqueMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_ATTRIBUTE_SCHEMA_GLOBALLY_UNIQUE_MUTATION.name(), new SetAttributeSchemaGloballyUniqueMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION.name(), new CreateGlobalAttributeSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ATTRIBUTE_SCHEMA_DEFAULT_VALUE_MUTATION.name(), new ModifyAttributeSchemaDefaultValueMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ATTRIBUTE_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifyAttributeSchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifyAttributeSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ATTRIBUTE_SCHEMA_NAME_MUTATION.name(), new ModifyAttributeSchemaNameMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ATTRIBUTE_SCHEMA_TYPE_MUTATION.name(), new ModifyAttributeSchemaTypeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_ATTRIBUTE_SCHEMA_MUTATION.name(), new RemoveAttributeSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION.name(), new SetAttributeSchemaFilterableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION.name(), new SetAttributeSchemaLocalizedMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION.name(), new SetAttributeSchemaNullableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION.name(), new SetAttributeSchemaRepresentativeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION.name(), new SetAttributeSchemaSortableMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION.name(), new SetAttributeSchemaUniqueMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_ATTRIBUTE_SCHEMA_GLOBALLY_UNIQUE_MUTATION.name(), new SetAttributeSchemaGloballyUniqueMutationConverter(objectParser, exceptionFactory));
 
 		// entity schema mutations
-		this.resolvers.put(CREATE_ENTITY_SCHEMA_MUTATION.name(), new CreateEntitySchemaMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ENTITY_SCHEMA_MUTATION.name(), new ModifyEntitySchemaMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_ENTITY_SCHEMA_NAME_MUTATION.name(), new ModifyEntitySchemaNameMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_ENTITY_SCHEMA_MUTATION.name(), new RemoveEntitySchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_ENTITY_SCHEMA_MUTATION.name(), new CreateEntitySchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ENTITY_SCHEMA_MUTATION.name(), new ModifyEntitySchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_ENTITY_SCHEMA_NAME_MUTATION.name(), new ModifyEntitySchemaNameMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_ENTITY_SCHEMA_MUTATION.name(), new RemoveEntitySchemaMutationConverter(objectParser, exceptionFactory));
 	}
 
 	@Nonnull

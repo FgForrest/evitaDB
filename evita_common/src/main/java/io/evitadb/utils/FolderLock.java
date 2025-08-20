@@ -115,8 +115,8 @@ public class FolderLock implements Closeable {
 				"Failed to release and close the lock file " + this.lockFilePath + ".",
 				"Failed to release and close the lock file."
 			),
-			this.lockFileLock::release,
-			this.lockFileChannel::close
+			(IOUtils.IOExceptionThrowingRunnable) this.lockFileLock::release,
+			(IOUtils.IOExceptionThrowingRunnable) this.lockFileChannel::close
 		);
 		FileUtils.deleteFileIfExists(this.lockFilePath);
 		ACQUIRED_LOCKS.remove(this.lockFilePath.toAbsolutePath().toString());

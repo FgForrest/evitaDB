@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,12 +58,14 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 
 	public void recordPrice(PriceRecordContract price) {
 		this.priceRecords = this.priceRecords == null ?
-			new PriceRecordContract[]{price} : ArrayUtils.insertRecordIntoOrderedArray(price, this.priceRecords, PriceRecord.PRICE_RECORD_COMPARATOR);
+			new PriceRecordContract[]{price} : ArrayUtils.insertRecordIntoOrderedArray(price, this.priceRecords,
+			                                                                           PriceRecordContract.PRICE_RECORD_COMPARATOR
+		);
 		this.priceRecordIds = ArrayUtils.insertIntIntoOrderedArray(price.innerRecordId(), this.priceRecordIds);
 
 		final int entityId = price.entityPrimaryKey();
-		final int[] existingPriceIds = priceIdsIndex.get(entityId);
-		priceIdsIndex.put(
+		final int[] existingPriceIds = this.priceIdsIndex.get(entityId);
+		this.priceIdsIndex.put(
 			entityId,
 			existingPriceIds == null ?
 				new int[]{price.internalPriceId()} :
@@ -124,7 +126,7 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {
-		return priceIdsIndex.get(entityId);
+		return this.priceIdsIndex.get(entityId);
 	}
 
 	@Nullable
@@ -136,13 +138,13 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 	@Nonnull
 	@Override
 	public PriceRecordContract[] getPriceRecords() {
-		return priceRecords;
+		return this.priceRecords;
 	}
 
 	@Nonnull
 	@Override
 	public int[] getIndexedPriceIds() {
-		return priceRecordIds;
+		return this.priceRecordIds;
 	}
 
 	@Nonnull

@@ -115,7 +115,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	 * Function allowing to pseudo randomly pick referenced entity for the product.
 	 */
 	protected final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-		final Integer entityCount = generatedEntities.computeIfAbsent(entityType, serializable -> 0);
+		final Integer entityCount = this.generatedEntities.computeIfAbsent(entityType, serializable -> 0);
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
@@ -136,9 +136,9 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	 * Creates new product stream for the iteration.
 	 */
 	protected Stream<EntityBuilder> getProductStream() {
-		return dataGenerator.generateEntities(
-			productSchema,
-			randomEntityPicker,
+		return this.dataGenerator.generateEntities(
+			this.productSchema,
+			this.randomEntityPicker,
 			SEED
 		);
 	}
@@ -181,7 +181,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						SEED
 					)
 					.limit(5)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleCategorySchema(session),
@@ -189,7 +189,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						SEED
 					)
 					.limit(10)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSamplePriceListSchema(session),
@@ -197,7 +197,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						SEED
 					)
 					.limit(4)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleStoreSchema(session),
@@ -205,7 +205,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						SEED
 					)
 					.limit(12)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleParameterGroupSchema(session),
@@ -213,7 +213,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						SEED
 					)
 					.limit(20)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleParameterSchema(session),
@@ -221,9 +221,9 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 						SEED
 					)
 					.limit(200)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
-				this.productSchema = dataGenerator.getSampleProductSchema(
+				this.productSchema = this.dataGenerator.getSampleProductSchema(
 					session,
 					entitySchemaBuilder -> {
 						entitySchemaBuilder
@@ -261,7 +261,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Test
 	void manualTrafficRecordingStartAndStop() throws IOException {
-		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.queryCatalog(
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -274,7 +274,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 		generateSomeTraffic();
 
-		this.evita.queryCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -296,7 +296,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Test
 	void manualTrafficRecordingStartAndStopWithoutExportingFile() {
-		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.queryCatalog(
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -309,7 +309,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 		generateSomeTraffic();
 
-		this.evita.queryCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -323,7 +323,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Test
 	void manualTrafficRecordingStartAndAutomaticStopWhenFileSizeIsReached() throws IOException {
-		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.queryCatalog(
+		final ServerTask<TrafficRecordingSettings, FileForFetch> recordingTask = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -336,7 +336,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 		generateSomeTraffic();
 
-		this.evita.queryCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaInternalSessionContract internalSession = (EvitaInternalSessionContract) session;
@@ -435,7 +435,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		final byte[] buffer = new byte[4_096];
 		final List<String> filesInZip = new ArrayList<>(16);
 		try (
-			final InputStream inputStream = evita.management().fetchFile(fileForFetch.fileId());
+			final InputStream inputStream = this.evita.management().fetchFile(fileForFetch.fileId());
 			final ZipInputStream zipInputStream = new ZipInputStream(inputStream)
 		) {
 			ZipEntry nextEntry;

@@ -24,10 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
-import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
@@ -47,14 +44,8 @@ public class SetEntityScopeMutationConverter extends LocalMutationConverter<SetE
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetEntityScopeMutationDescriptor.THIS.name();
+	protected Class<SetEntityScopeMutation> getMutationClass() {
+		return SetEntityScopeMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected SetEntityScopeMutation convert(@Nonnull Input input) {
-		final Scope scope = input.getRequiredField(SetEntityScopeMutationDescriptor.SCOPE);
-		return new SetEntityScopeMutation(scope);
-	}
 }

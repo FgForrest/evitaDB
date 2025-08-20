@@ -329,7 +329,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns true if the input {@link #evitaRequest} contains specification of the entity collection.
 	 */
 	public boolean isEntityTypeKnown() {
-		return entityType != null;
+		return this.entityType != null;
 	}
 
 	@Override
@@ -345,7 +345,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @return estimated prefetch cost
 	 */
 	public long estimatePrefetchCost(int prefetchEntityCount, @Nonnull EntityFetchRequire requirements) {
-		return planningPolicy.estimatePrefetchCost(
+		return this.planningPolicy.estimatePrefetchCost(
 			prefetchEntityCount, requirements, isDebugModeEnabled(DebugMode.PREFER_PREFETCHING)
 		);
 	}
@@ -393,9 +393,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
-		if (!telemetryStack.isEmpty()) {
-			telemetryStack.push(
-				telemetryStack.peek().addStep(phase)
+		if (!this.telemetryStack.isEmpty()) {
+			this.telemetryStack.push(
+				this.telemetryStack.peek().addStep(phase)
 			);
 		}
 	}
@@ -404,9 +404,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull String message) {
-		if (!telemetryStack.isEmpty()) {
-			telemetryStack.push(
-				telemetryStack.peek().addStep(phase, message)
+		if (!this.telemetryStack.isEmpty()) {
+			this.telemetryStack.push(
+				this.telemetryStack.peek().addStep(phase, message)
 			);
 		}
 	}
@@ -415,9 +415,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
-		if (!telemetryStack.isEmpty()) {
-			telemetryStack.push(
-				telemetryStack.peek().addStep(phase, messageSupplier.get())
+		if (!this.telemetryStack.isEmpty()) {
+			this.telemetryStack.push(
+				this.telemetryStack.peek().addStep(phase, messageSupplier.get())
 			);
 		}
 	}
@@ -427,8 +427,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public QueryTelemetry getCurrentStep() {
-		if (!telemetryStack.isEmpty()) {
-			return telemetryStack.peek();
+		if (!this.telemetryStack.isEmpty()) {
+			return this.telemetryStack.peek();
 		}
 		return null;
 	}
@@ -437,8 +437,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Finishes current query evaluation step.
 	 */
 	public void popStep() {
-		if (!telemetryStack.isEmpty()) {
-			telemetryStack.pop().finish();
+		if (!this.telemetryStack.isEmpty()) {
+			this.telemetryStack.pop().finish();
 		}
 	}
 
@@ -446,8 +446,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Finishes current query evaluation step.
 	 */
 	public void popStep(@Nonnull String message) {
-		if (!telemetryStack.isEmpty()) {
-			telemetryStack.pop().finish(message);
+		if (!this.telemetryStack.isEmpty()) {
+			this.telemetryStack.pop().finish(message);
 		}
 	}
 
@@ -456,14 +456,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public QueryTelemetry finalizeAndGetTelemetry() {
-		Assert.isPremiseValid(!telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
+		Assert.isPremiseValid(!this.telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
 
 		// there may be some steps still open at the time extra results is fabricated
 		QueryTelemetry rootStep;
 		do {
-			rootStep = telemetryStack.pop();
+			rootStep = this.telemetryStack.pop();
 			rootStep.finish();
-		} while (!telemetryStack.isEmpty());
+		} while (!this.telemetryStack.isEmpty());
 
 		return rootStep;
 	}
@@ -473,7 +473,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public FilterBy getFilterBy() {
-		return evitaRequest.getQuery().getFilterBy();
+		return this.evitaRequest.getQuery().getFilterBy();
 	}
 
 	/**
@@ -481,7 +481,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public OrderConstraint getOrderBy() {
-		return evitaRequest.getQuery().getOrderBy();
+		return this.evitaRequest.getQuery().getOrderBy();
 	}
 
 	/**
@@ -489,7 +489,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable
 	public RequireConstraint getRequire() {
-		return evitaRequest.getQuery().getRequire();
+		return this.evitaRequest.getQuery().getRequire();
 	}
 
 	/**
@@ -498,7 +498,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Override
 	@Nullable
 	public Locale getLocale() {
-		return evitaRequest.getLocale();
+		return this.evitaRequest.getLocale();
 	}
 
 	/**
@@ -506,7 +506,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public QueryPriceMode getQueryPriceMode() {
-		return evitaRequest.getQueryPriceMode();
+		return this.evitaRequest.getQueryPriceMode();
 	}
 
 	/**
@@ -514,7 +514,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public SealedCatalogSchema getCatalogSchema() {
-		return catalog.getSchema();
+		return this.catalog.getSchema();
 	}
 
 	/**
@@ -523,7 +523,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nonnull
 	public EntitySchema getSchema() {
 		if (this.entitySchema == null) {
-			this.entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getInternalSchema();
+			this.entitySchema = getEntityCollectionOrThrowException(this.entityType, "access entity schema").getInternalSchema();
 		}
 		return this.entitySchema;
 	}
@@ -541,7 +541,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Accessor method cache the found result so that consecutive calls of this method are pretty fast.
 	 */
 	public boolean isDebugModeEnabled(@Nonnull DebugMode debugMode) {
-		return evitaRequest.isDebugModeEnabled(debugMode);
+		return this.evitaRequest.isDebugModeEnabled(debugMode);
 	}
 
 	/**
@@ -575,8 +575,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Formula analyse(@Nonnull Formula formula) {
-		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> cacheSupervisor.analyse(evitaSession, it, formula))
+		return ofNullable(this.evitaRequest.getEntityType())
+			.map(it -> this.cacheSupervisor.analyse(this.evitaSession, it, formula))
 			.orElse(formula);
 	}
 
@@ -586,8 +586,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <U, T extends CacheableEvitaResponseExtraResultComputer<U>> EvitaResponseExtraResultComputer<U> analyse(@Nonnull T computer) {
-		return ofNullable(evitaRequest.getEntityType())
-			.map(it -> planningPolicy.analyse(cacheSupervisor, evitaSession, it, computer))
+		return ofNullable(this.evitaRequest.getEntityType())
+			.map(it -> this.planningPolicy.analyse(this.cacheSupervisor, this.evitaSession, it, computer))
 			.orElse(computer);
 	}
 
@@ -597,7 +597,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see io.evitadb.api.requestResponse.EvitaBinaryEntityResponse
 	 */
 	public boolean isRequiresBinaryForm() {
-		return evitaSession.isBinaryFormat();
+		return this.evitaSession.isBinaryFormat();
 	}
 
 	/**
@@ -607,11 +607,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	public Optional<EntityCollection> getEntityCollection(@Nullable String entityType) {
 		if (entityType == null) {
 			return Optional.empty();
-		} else if (Objects.equals(entityType, this.entityType) && entityCollection != null) {
-			return Optional.of(entityCollection);
+		} else if (Objects.equals(entityType, this.entityType) && this.entityCollection != null) {
+			return Optional.of(this.entityCollection);
 		} else {
 			return Optional.ofNullable(
-				(EntityCollection) catalog.getCollectionForEntity(entityType).orElse(null)
+				(EntityCollection) this.catalog.getCollectionForEntity(entityType).orElse(null)
 			);
 		}
 	}
@@ -646,7 +646,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public EvitaRequest fabricateFetchRequest(@Nullable String entityType, @Nonnull EntityFetchRequire requirements) {
-		return evitaRequest.deriveCopyWith(entityType, requirements);
+		return this.evitaRequest.deriveCopyWith(entityType, requirements);
 	}
 
 	/**
@@ -1086,21 +1086,22 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			InternalCacheKey that = (InternalCacheKey) o;
-			return Arrays.equals(indexKeys, that.indexKeys) && Objects.equals(constraint, that.constraint);
+			return Arrays.equals(this.indexKeys, that.indexKeys) && Objects.equals(this.constraint, that.constraint);
 		}
 
 		@Override
 		public int hashCode() {
-			int result = Objects.hash(constraint);
-			result = 31 * result + Arrays.hashCode(indexKeys);
+			int result = Objects.hash(this.constraint);
+			result = 31 * result + Arrays.hashCode(this.indexKeys);
 			return result;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return "InternalCacheKey{" +
-				"indexKeys=" + Arrays.toString(indexKeys) +
-				", constraint=" + constraint +
+				"indexKeys=" + Arrays.toString(this.indexKeys) +
+				", constraint=" + this.constraint +
 				'}';
 		}
 	}

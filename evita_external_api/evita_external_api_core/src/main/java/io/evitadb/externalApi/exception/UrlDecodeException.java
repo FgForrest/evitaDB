@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,15 +30,27 @@ import java.io.Serial;
 public class UrlDecodeException extends ExternalApiInternalError {
 	@Serial private static final long serialVersionUID = 1351003149802542253L;
 
-	public UrlDecodeException(@Nonnull String publicMessage, @Nullable Throwable throwable) {
+	public UrlDecodeException(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
+
+	public UrlDecodeException(@Nonnull String publicMessage, @Nonnull Throwable throwable) {
 		super(publicMessage, throwable);
 	}
 
-	public static UrlDecodeException failedToDecodeURL(@Nonnull String url, @Nonnull String encoding) {
-		return failedToDecodeURL(url, encoding, null);
-	}
-
+	/**
+	 * Creates a new {@link UrlDecodeException} with a message indicating the failure to decode a URL using
+	 * a specific charset encoding.
+	 *
+	 * @param url the URL that failed to decode
+	 * @param encoding the character encoding used for decoding the URL
+	 * @param throwable an optional cause of the decoding failure, or {@code null} if the cause is not specified
+	 * @return a new instance of {@link UrlDecodeException} with a detailed message
+	 */
+	@Nonnull
 	public static UrlDecodeException failedToDecodeURL(@Nonnull String url, @Nonnull String encoding, @Nullable Throwable throwable) {
-		return new UrlDecodeException("Failed to decode url %s to charset %s".formatted(url, encoding), throwable);
+		return throwable == null ?
+			new UrlDecodeException("Failed to decode url %s to charset %s".formatted(url, encoding)) :
+			new UrlDecodeException("Failed to decode url %s to charset %s".formatted(url, encoding), throwable);
 	}
 }

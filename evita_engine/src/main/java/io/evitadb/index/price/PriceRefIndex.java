@@ -167,7 +167,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	@Nonnull
 	protected PriceListAndCurrencyPriceRefIndex createNewPriceListAndCurrencyIndex(@Nonnull PriceIndexKey lookupKey) {
 		final PriceListAndCurrencyPriceRefIndex newPriceListIndex = new PriceListAndCurrencyPriceRefIndex(this.scope, lookupKey);
-		initCallback.accept(newPriceListIndex);
+		this.initCallback.accept(newPriceListIndex);
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 			.ifPresent(it -> it.addCreatedItem(newPriceListIndex));
 		return newPriceListIndex;
@@ -234,7 +234,7 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			collectedPriceIndexChanges.cleanAll(transactionalLayer);
+			this.collectedPriceIndexChanges.cleanAll(transactionalLayer);
 		}
 	}
 

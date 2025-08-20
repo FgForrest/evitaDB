@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -38,25 +35,20 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyReferenceSchemaNameMutationConverter extends ReferenceSchemaMutationConverter<ModifyReferenceSchemaNameMutation> {
+public class ModifyReferenceSchemaNameMutationConverter
+	extends ReferenceSchemaMutationConverter<ModifyReferenceSchemaNameMutation> {
 
-	public ModifyReferenceSchemaNameMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyReferenceSchemaNameMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyReferenceSchemaNameMutationDescriptor.THIS.name();
+	protected Class<ModifyReferenceSchemaNameMutation> getMutationClass() {
+		return ModifyReferenceSchemaNameMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected ModifyReferenceSchemaNameMutation convert(@Nonnull Input input) {
-		return new ModifyReferenceSchemaNameMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getRequiredField(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME)
-		);
-	}
 }

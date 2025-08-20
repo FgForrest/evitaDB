@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,87 +51,87 @@ public record PriceWithInternalIds(
 
 	@Override
 	public int getInternalPriceId() {
-		return internalPriceId;
+		return this.internalPriceId;
 	}
 
 	@Override
 	public boolean dropped() {
-		return delegate.dropped();
+		return this.delegate.dropped();
 	}
 
 	@Nonnull
 	@Override
 	public PriceKey priceKey() {
-		return delegate.priceKey();
+		return this.delegate.priceKey();
 	}
 
 	@Override
 	public int priceId() {
-		return delegate.priceId();
+		return this.delegate.priceId();
 	}
 
 	@Nonnull
 	@Override
 	public String priceList() {
-		return delegate.priceList();
+		return this.delegate.priceList();
 	}
 
 	@Nonnull
 	@Override
 	public Currency currency() {
-		return delegate.currency();
+		return this.delegate.currency();
 	}
 
 	@Nullable
 	@Override
 	public Integer innerRecordId() {
-		return delegate.innerRecordId();
+		return this.delegate.innerRecordId();
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimal priceWithoutTax() {
-		return delegate.priceWithoutTax();
+		return this.delegate.priceWithoutTax();
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimal taxRate() {
-		return delegate.taxRate();
+		return this.delegate.taxRate();
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimal priceWithTax() {
-		return delegate.priceWithTax();
+		return this.delegate.priceWithTax();
 	}
 
 	@Nullable
 	@Override
 	public DateTimeRange validity() {
-		return delegate.validity();
+		return this.delegate.validity();
 	}
 
 	@Override
 	public boolean indexed() {
-		return delegate.indexed();
+		return this.delegate.indexed();
 	}
 
 	@Override
 	public boolean relatesTo(@Nonnull PriceContract anotherPrice) {
-		return delegate.relatesTo(anotherPrice);
+		return this.delegate.relatesTo(anotherPrice);
 	}
 
 	@Override
 	public int estimateSize() {
-		return delegate.estimateSize() +
+		return this.delegate.estimateSize() +
 			MemoryMeasuringConstants.REFERENCE_SIZE +
-			Optional.ofNullable(internalPriceId).stream().mapToInt(it -> MemoryMeasuringConstants.INT_SIZE).sum();
+			Optional.ofNullable(this.internalPriceId).stream().mapToInt(it -> MemoryMeasuringConstants.INT_SIZE).sum();
 	}
 
 	@Override
 	public int version() {
-		return delegate.version();
+		return this.delegate.version();
 	}
 
 	@Override
@@ -139,16 +139,17 @@ public record PriceWithInternalIds(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		PriceWithInternalIds that = (PriceWithInternalIds) o;
-		return Objects.equals(internalPriceId, that.internalPriceId) && delegate.equals(that.delegate);
+		return Objects.equals(this.internalPriceId, that.internalPriceId) && this.delegate.equals(that.delegate);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(internalPriceId, delegate);
+		return Objects.hash(this.internalPriceId, this.delegate);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return delegate + ", internal id " + internalPriceId;
+		return this.delegate + ", internal id " + this.internalPriceId;
 	}
 }

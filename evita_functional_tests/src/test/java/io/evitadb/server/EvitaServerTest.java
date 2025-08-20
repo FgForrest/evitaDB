@@ -98,6 +98,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 		output = Pattern.compile("(\"serverName\": \"evitaDB-)(.+?)\"").matcher(output).replaceAll("$1RANDOM\"");
 		output = Pattern.compile("(\"version\": \")((?:\\?)|(?:\\d{4}\\.\\d{1,2}(-SNAPSHOT)?))\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"startedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
+		output = Pattern.compile("(\"introducedAt\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(\"uptime\": )(.+?),").matcher(output).replaceAll("$1VARIABLE,");
 		output = Pattern.compile("(\"uptimeForHuman\": \")(.+?)\"").matcher(output).replaceAll("$1VARIABLE\"");
 		output = Pattern.compile("(//)(.+:[0-9]+)(/)").matcher(output).replaceAll("$1VARIABLE$3");
@@ -709,7 +710,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	void shouldSignalizeReadinessAndHealthinessCorrectly() {
 		final EvitaServer evitaServer = new EvitaServer(
 			getPathInTargetDirectory(DIR_EVITA_SERVER_TEST),
-			constructTestArguments()
+			constructTestArguments(GrpcProvider.CODE, GraphQLProvider.CODE, RestProvider.CODE, SystemProvider.CODE, LabProvider.CODE, ObservabilityProvider.CODE)
 		);
 		try {
 			evitaServer.run();
@@ -791,8 +792,11 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					   "startedAt": "VARIABLE",
 					   "uptime": VARIABLE,
 					   "uptimeForHuman": "VARIABLE",
+					   "engineVersion": 1,
+					   "introducedAt": "VARIABLE",
 					   "catalogsCorrupted": 0,
-					   "catalogsOk": 0,
+					   "catalogsActive": 0,
+					   "catalogsInactive": 0,
 					   "healthProblems": [],
 					   "apis": [
 					      {
@@ -1009,6 +1013,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 					Stream.of(
 						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
 						property("cache.enabled", "false"),
+						property("server.directExecutor", "false"),
 						property("api.requestTimeoutInMillis", "10K")
 					),
 					allApis.stream()

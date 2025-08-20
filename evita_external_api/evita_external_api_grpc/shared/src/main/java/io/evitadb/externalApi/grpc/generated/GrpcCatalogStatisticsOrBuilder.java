@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,10 +82,11 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    * true if the catalog is corrupted (other data will be not available)
    * </pre>
    *
-   * <code>bool corrupted = 3;</code>
+   * <code>bool corrupted = 3 [deprecated = true];</code>
+   * @deprecated
    * @return The corrupted.
    */
-  boolean getCorrupted();
+  @java.lang.Deprecated boolean getCorrupted();
 
   /**
    * <pre>
@@ -153,7 +154,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics>
       getEntityCollectionStatisticsList();
   /**
    * <pre>
@@ -178,7 +179,7 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
       getEntityCollectionStatisticsOrBuilderList();
   /**
    * <pre>
@@ -189,4 +190,24 @@ public interface GrpcCatalogStatisticsOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder getEntityCollectionStatisticsOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * true if the catalog is read-only, false otherwise
+   * </pre>
+   *
+   * <code>bool readOnly = 10;</code>
+   * @return The readOnly.
+   */
+  boolean getReadOnly();
+
+  /**
+   * <pre>
+   * true if the catalog is unusable, false otherwise
+   * </pre>
+   *
+   * <code>bool unusable = 11;</code>
+   * @return The unusable.
+   */
+  boolean getUnusable();
 }

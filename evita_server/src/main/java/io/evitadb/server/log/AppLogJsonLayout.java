@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,8 +55,8 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 	@Override
 	public void start() {
-		messageConverter.start();
-		throwableProxyConverter.start();
+		this.messageConverter.start();
+		this.throwableProxyConverter.start();
 		super.start();
 	}
 
@@ -66,9 +66,9 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append("{");
 
-		if (logTimestamp) {
+		if (this.logTimestamp) {
 			buf.append("\"timestamp\":\"");
-			buf.append(cachingDateFormatter.format(event.getTimeStamp()));
+			buf.append(this.cachingDateFormatter.format(event.getTimeStamp()));
 			buf.append("\"");
 
 			buf.append(",");
@@ -80,9 +80,9 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append(",");
 
-		String completeMessage = messageConverter.convert(event);
+		String completeMessage = this.messageConverter.convert(event);
 		if (event.getThrowableProxy() != null) {
-			completeMessage += "\n" + throwableProxyConverter.convert(event);
+			completeMessage += "\n" + this.throwableProxyConverter.convert(event);
 		}
 		buf.append("\"message\":\"");
 		buf.append(escapeMessage(completeMessage));

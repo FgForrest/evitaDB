@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,22 +52,22 @@ class HistogramSubSetTest {
 
 	@Test
 	void shouldNotBeEmpty() {
-		assertFalse(tested.isEmpty());
+		assertFalse(this.tested.isEmpty());
 	}
 
 	@Test
 	void shouldReturnMin() {
-		assertEquals(1, tested.getMinimalValue());
+		assertEquals(1, this.tested.getMinimalValue());
 	}
 
 	@Test
 	void shouldReturnMax() {
-		assertEquals(5, tested.getMaximalValue());
+		assertEquals(5, this.tested.getMaximalValue());
 	}
 
 	@Test
 	void shouldReturnAggregatedRecordIds() {
-		assertArrayEquals(new int[]{1, 2, 8, 9}, tested.getRecordIds().getArray());
+		assertArrayEquals(new int[]{1, 2, 8, 9}, this.tested.getRecordIds().getArray());
 	}
 
 }

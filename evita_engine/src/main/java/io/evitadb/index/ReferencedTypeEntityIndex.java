@@ -421,7 +421,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -467,7 +467,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -517,7 +517,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -530,7 +530,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		@Nonnull Serializable value,
+		Serializable value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -543,7 +543,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
+		Serializable[] value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -555,7 +555,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
+		Serializable[] value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple

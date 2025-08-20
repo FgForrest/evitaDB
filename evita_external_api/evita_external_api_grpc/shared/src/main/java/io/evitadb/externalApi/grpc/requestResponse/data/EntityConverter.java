@@ -310,7 +310,7 @@ public class EntityConverter {
 			grpcReference.hasReferencedEntityReference() ?
 				grpcReference.getReferencedEntityReference().getEntityType() :
 				grpcReference.getReferencedEntity().getEntityType(),
-			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
+			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()).orElse(null),
 			group,
 			toAttributeValues(
 				grpcReference.getGlobalAttributesMap(),
@@ -664,7 +664,9 @@ public class EntityConverter {
 	@Nonnull
 	public static <T> T parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
 		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
-		return null;
+		throw new UnsupportedOperationException(
+			"Parsing of binary entities is not yet supported in gRPC API! Please use the sealed entity form instead."
+		);
 	}
 
 	/**
@@ -976,19 +978,19 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
-			return parentId -> parentEntity;
+			return parentId -> this.parentEntity;
 		}
 
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
+			return primaryKey -> this.entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
 		}
 
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
+			return primaryKey -> this.groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
 		}
 
 		@Nullable

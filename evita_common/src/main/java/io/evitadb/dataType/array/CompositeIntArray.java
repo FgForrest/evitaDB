@@ -108,14 +108,14 @@ public class CompositeIntArray implements Serializable {
 	 * Returns true if the instance is empty and contains no numbers.
 	 */
 	public boolean isEmpty() {
-		return chunkPeek == -1;
+		return this.chunkPeek == -1;
 	}
 
 	/**
 	 * Returns last number written to the composite array.
 	 */
 	public int getLast() {
-		return currentChunk[chunkPeek];
+		return this.currentChunk[this.chunkPeek];
 	}
 
 	/**
@@ -124,8 +124,8 @@ public class CompositeIntArray implements Serializable {
 	public int get(int index) {
 		final int chunkIndex = index / CHUNK_SIZE;
 		final int indexInChunk = index % CHUNK_SIZE;
-		Assert.isTrue(chunkIndex < chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + chunks.size() + ").");
-		return chunks.get(chunkIndex)[indexInChunk];
+		Assert.isTrue(chunkIndex < this.chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + this.chunks.size() + ").");
+		return this.chunks.get(chunkIndex)[indexInChunk];
 	}
 
 	/**
@@ -139,14 +139,14 @@ public class CompositeIntArray implements Serializable {
 		int resultPeek = 0;
 		final int[] result = new int[bytesToCopy];
 		do {
-			boolean lastChunk = chunkIndex == chunks.size() - 1;
-			if (lastChunk && bytesToCopy > chunkPeek + 1 - startIndex) {
+			boolean lastChunk = chunkIndex == this.chunks.size() - 1;
+			if (lastChunk && bytesToCopy > this.chunkPeek + 1 - startIndex) {
 				throw new ArrayIndexOutOfBoundsException(
-					"Index: " + chunkPeek + ", Size: " + getSize()
+					"Index: " + this.chunkPeek + ", Size: " + getSize()
 				);
 			}
 			final int copiedSize = Math.min(bytesToCopy, CHUNK_SIZE - startIndex);
-			System.arraycopy(chunks.get(chunkIndex), startIndex, result, resultPeek, copiedSize);
+			System.arraycopy(this.chunks.get(chunkIndex), startIndex, result, resultPeek, copiedSize);
 			bytesToCopy -= copiedSize;
 			resultPeek += copiedSize;
 			startIndex = 0;
@@ -160,12 +160,12 @@ public class CompositeIntArray implements Serializable {
 	 * Returns true if the specified record is already part of the array.
 	 */
 	public boolean contains(int recordId) {
-		for (int[] chunk : chunks) {
-			if (monotonic) {
+		for (int[] chunk : this.chunks) {
+			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
 				//noinspection ArrayEquality
-				if (chunk == currentChunk) {
-					if (Arrays.binarySearch(chunk, 0, chunkPeek + 1, recordId) >= 0) {
+				if (chunk == this.currentChunk) {
+					if (Arrays.binarySearch(chunk, 0, this.chunkPeek + 1, recordId) >= 0) {
 						return true;
 					}
 				} else {
@@ -189,10 +189,10 @@ public class CompositeIntArray implements Serializable {
 	 * Returns index of the recordId in the array.
 	 */
 	public int indexOf(int recordId) {
-		for (int i = 0; i < chunks.size(); i++) {
-			final int[] chunk = chunks.get(i);
+		for (int i = 0; i < this.chunks.size(); i++) {
+			final int[] chunk = this.chunks.get(i);
 			int index;
-			if (monotonic) {
+			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
 				index = Arrays.binarySearch(chunk, recordId);
 			} else {
@@ -229,7 +229,7 @@ public class CompositeIntArray implements Serializable {
 	 */
 	public void set(int recordId, int index) {
 		Assert.isTrue(index < getSize(), "Index out of bounds!");
-		chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
+		this.chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
 	}
 
 	/**
@@ -237,18 +237,18 @@ public class CompositeIntArray implements Serializable {
 	 */
 	public void add(int number) {
 		// keep eye on monotonic row
-		if (monotonic && chunkPeek != -1 && number <= currentChunk[chunkPeek]) {
-			monotonic = false;
+		if (this.monotonic && this.chunkPeek != -1 && number <= this.currentChunk[this.chunkPeek]) {
+			this.monotonic = false;
 		}
 
 		// if last chunk was depleted obtain another one
-		if (++chunkPeek == CHUNK_SIZE) {
-			chunkPeek = 0;
-			currentChunk = new int[CHUNK_SIZE];
-			chunks.add(currentChunk);
+		if (++this.chunkPeek == CHUNK_SIZE) {
+			this.chunkPeek = 0;
+			this.currentChunk = new int[CHUNK_SIZE];
+			this.chunks.add(this.currentChunk);
 		}
 
-		currentChunk[chunkPeek] = number;
+		this.currentChunk[this.chunkPeek] = number;
 	}
 
 	/**
@@ -265,14 +265,14 @@ public class CompositeIntArray implements Serializable {
 		}
 
 		// reset monotonic flag if added numbers violate monotonic row
-		if (monotonic) {
-			if (chunkPeek != -1 && currentChunk[chunkPeek] >= numbers[srcPosition]) {
-				monotonic = false;
+		if (this.monotonic) {
+			if (this.chunkPeek != -1 && this.currentChunk[this.chunkPeek] >= numbers[srcPosition]) {
+				this.monotonic = false;
 			} else {
 				int lastNumber = numbers[srcPosition];
 				for (int i = srcPosition + 1; i < length; i++) {
 					if (lastNumber >= numbers[i]) {
-						monotonic = false;
+						this.monotonic = false;
 						break;
 					}
 					lastNumber = numbers[i];
@@ -288,19 +288,19 @@ public class CompositeIntArray implements Serializable {
 			final int copyPosition;
 
 			// if the current chunk is depleted borrow another one
-			if (chunkPeek + 1 == CHUNK_SIZE) {
-				chunkPeek = -1;
-				currentChunk = new int[CHUNK_SIZE];
-				chunks.add(currentChunk);
+			if (this.chunkPeek + 1 == CHUNK_SIZE) {
+				this.chunkPeek = -1;
+				this.currentChunk = new int[CHUNK_SIZE];
+				this.chunks.add(this.currentChunk);
 			}
-			copyPosition = chunkPeek + 1;
+			copyPosition = this.chunkPeek + 1;
 
 			final int availableSizeInChunk = CHUNK_SIZE - copyPosition;
 			final int copyLength = Math.min(availableSizeInChunk, restLength);
 
-			System.arraycopy(numbers, currentSrcPos, currentChunk, copyPosition, copyLength);
+			System.arraycopy(numbers, currentSrcPos, this.currentChunk, copyPosition, copyLength);
 
-			chunkPeek += copyLength;
+			this.chunkPeek += copyLength;
 			currentSrcPos += copyLength;
 			restLength -= copyLength;
 		}
@@ -313,7 +313,7 @@ public class CompositeIntArray implements Serializable {
 	public int[] toArray() {
 		final int size = getSize();
 		final int[] result = new int[size];
-		final Iterator<int[]> it = chunks.iterator();
+		final Iterator<int[]> it = this.chunks.iterator();
 		int copied = 0;
 		while (copied < size) {
 			final int[] chunk = it.next();
@@ -366,8 +366,8 @@ public class CompositeIntArray implements Serializable {
 	 */
 	public int getSizeInBytes() {
 		return OBJECT_HEADER_SIZE + 2 * REFERENCE_SIZE + BYTE_SIZE + INT_SIZE +
-			chunkPeek * ARRAY_BASE_SIZE +
-			chunkPeek * CHUNK_SIZE * INT_SIZE;
+			this.chunkPeek * ARRAY_BASE_SIZE +
+			this.chunkPeek * CHUNK_SIZE * INT_SIZE;
 	}
 
 	@Override
@@ -445,30 +445,30 @@ public class CompositeIntArray implements Serializable {
 
 		@Override
 		public boolean hasNext() {
-			return CompositeIntArray.this.chunks.size() > peekArray + 1;
+			return CompositeIntArray.this.chunks.size() > this.peekArray + 1;
 		}
 
 		@Override
 		public int[] nextBatch() {
-			if (peekArray == CompositeIntArray.this.chunks.size()) {
+			if (this.peekArray == CompositeIntArray.this.chunks.size()) {
 				throw new NoSuchElementException("End of the array reached - max number of batches is " + CompositeIntArray.this.chunkPeek);
 			}
-			return CompositeIntArray.this.chunks.get(++peekArray);
+			return CompositeIntArray.this.chunks.get(++this.peekArray);
 		}
 
 		@Override
 		public void advanceIfNeeded(int target) {
-			if (monotonic) {
-				while (peekArray + 1 < CompositeIntArray.this.chunkPeek - 1 &&
-					CompositeIntArray.this.chunks.get(peekArray + 1)[CHUNK_SIZE - 1] < target) {
-					peekArray++;
+			if (CompositeIntArray.this.monotonic) {
+				while (this.peekArray + 1 < CompositeIntArray.this.chunkPeek - 1 &&
+					CompositeIntArray.this.chunks.get(this.peekArray + 1)[CHUNK_SIZE - 1] < target) {
+					this.peekArray++;
 				}
 			}
 		}
 
 		@Override
 		public int getPeek() {
-			if (CompositeIntArray.this.chunks.size() == peekArray + 1) {
+			if (CompositeIntArray.this.chunks.size() == this.peekArray + 1) {
 				return CompositeIntArray.this.chunkPeek + 1;
 			} else {
 				return CHUNK_SIZE;

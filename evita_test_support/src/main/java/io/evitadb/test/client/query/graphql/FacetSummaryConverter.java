@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -79,7 +80,7 @@ public class FacetSummaryConverter extends RequireConverter {
 			return;
 		}
 
-		final EntitySchemaContract entitySchema = catalogSchema.getEntitySchemaOrThrowException(entityType);
+		final EntitySchemaContract entitySchema = this.catalogSchema.getEntitySchemaOrThrowException(entityType);
 
 		fieldsBuilder.addObjectField(
 			ExtraResultsDescriptor.FACET_SUMMARY,
@@ -183,8 +184,8 @@ public class FacetSummaryConverter extends RequireConverter {
 					convertFilterConstraint(
 						new EntityDataLocator(
 							referenceSchema.isReferencedGroupTypeManaged()
-								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
-								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+								? new ManagedEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
+								: new ExternalEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
 						),
 						facetSummaryOfReference.getFilterGroupBy().get()
 					)
@@ -203,8 +204,8 @@ public class FacetSummaryConverter extends RequireConverter {
 					convertOrderConstraint(
 						new EntityDataLocator(
 							referenceSchema.isReferencedGroupTypeManaged()
-								? new ManagedEntityTypePointer(referenceSchema.getReferencedGroupType())
-								: new ExternalEntityTypePointer(referenceSchema.getReferencedGroupType())
+								? new ManagedEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
+								: new ExternalEntityTypePointer(Objects.requireNonNull(referenceSchema.getReferencedGroupType()))
 						),
 						facetSummaryOfReference.getOrderGroupBy().get()
 					)
@@ -226,7 +227,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		if (referenceSchema.getReferencedGroupType() != null) {
 			facetSummaryOfReferenceBuilder.addObjectField(
 				FacetGroupStatisticsDescriptor.GROUP_ENTITY,
-				groupEntityBuilder -> entityFetchBuilder.convert(
+				groupEntityBuilder -> this.entityFetchBuilder.convert(
 					groupEntityBuilder,
 					referenceSchema.getReferencedGroupType(),
 					locale,
@@ -317,7 +318,7 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		facetStatisticsBuilder.addObjectField(
 			FacetStatisticsDescriptor.FACET_ENTITY,
-			facetEntityBuilder -> entityFetchBuilder.convert(
+			facetEntityBuilder -> this.entityFetchBuilder.convert(
 				facetEntityBuilder,
 				referenceSchema.getReferencedEntityType(),
 				locale,

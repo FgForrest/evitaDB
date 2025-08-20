@@ -84,89 +84,92 @@ public class EntitySchemaObjectBuilder {
 
 	public void buildCommonTypes() {
 		// build common reusable objects
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT.to(
+			this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// entity schema mutations
-		buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(AllowLocaleInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(CreateEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(DisallowCurrencyInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(DisallowLocaleInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyEntitySchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyEntitySchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetEntitySchemaWithHierarchyMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetEntitySchemaWithPriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AllowLocaleInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(DisallowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(DisallowLocaleInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyEntitySchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyEntitySchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetEntitySchemaWithHierarchyMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetEntitySchemaWithPriceMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// associated data schema mutations
-		buildingContext.registerType(CreateAssociatedDataSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAssociatedDataSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAssociatedDataSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateAssociatedDataSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAssociatedDataSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveAssociatedDataSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// attribute schema mutations
-		buildingContext.registerType(CreateAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAttributeSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAttributeSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyAttributeSchemaTypeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAttributeSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAttributeSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyAttributeSchemaTypeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// sortable attribute compound schema mutations
-		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// reference schema mutations
-		buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(CreateReflectedReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceSchemaCardinalityMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CreateReflectedReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceSchemaCardinalityMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
-		buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpdateEntitySchemaRequestDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpdateEntitySchemaRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
 
 	/**
@@ -178,7 +181,7 @@ public class EntitySchemaObjectBuilder {
 	public OpenApiTypeReference build(@Nonnull EntitySchemaContract entitySchema) {
 		// build specific entity schema object
 		final OpenApiObject.Builder entitySchemaObjectBuilder = EntitySchemaDescriptor.THIS_SPECIFIC
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema));
 
 		entitySchemaObjectBuilder.property(buildAttributeSchemasProperty(entitySchema));
@@ -186,13 +189,13 @@ public class EntitySchemaObjectBuilder {
 		entitySchemaObjectBuilder.property(buildSortableAttributeCompoundSchemasProperty(entitySchema));
 		entitySchemaObjectBuilder.property(buildReferenceSchemasProperty(entitySchema));
 
-		return buildingContext.registerType(entitySchemaObjectBuilder.build());
+		return this.buildingContext.registerType(entitySchemaObjectBuilder.build());
 	}
 
 	@Nonnull
 	private OpenApiProperty buildAttributeSchemasProperty(@Nonnull EntitySchemaContract entitySchema) {
 		return EntitySchemaDescriptor.ATTRIBUTES
-			.to(propertyBuilderTransformer)
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildAttributeSchemasObject(entitySchema)))
 			.build();
 	}
@@ -200,13 +203,13 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildAttributeSchemasObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder attributeSchemasObjectBuilder = AttributeSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(AttributeSchemasDescriptor.THIS.name(entitySchema));
 
 		entitySchema.getAttributes().values().forEach(attributeSchema ->
 			attributeSchemasObjectBuilder.property(buildAttributeSchemaProperty(attributeSchema)));
 
-		return buildingContext.registerType(attributeSchemasObjectBuilder.build());
+		return this.buildingContext.registerType(attributeSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
@@ -230,8 +233,8 @@ public class EntitySchemaObjectBuilder {
 
 	@Nonnull
 	private OpenApiProperty buildSortableAttributeCompoundSchemasProperty(@Nonnull EntitySchemaContract entitySchema) {
-		return EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
-			.to(propertyBuilderTransformer)
+		return SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildSortableAttributeCompoundSchemasObject(entitySchema)))
 			.build();
 	}
@@ -239,13 +242,13 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildSortableAttributeCompoundSchemasObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder objectBuilder = SortableAttributeCompoundSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(SortableAttributeCompoundSchemasDescriptor.THIS.name(entitySchema));
 
 		entitySchema.getSortableAttributeCompounds().values().forEach(sortableAttributeCompoundSchema ->
 			objectBuilder.property(buildSortableAttributeCompoundSchemaProperty(sortableAttributeCompoundSchema)));
 
-		return buildingContext.registerType(objectBuilder.build());
+		return this.buildingContext.registerType(objectBuilder.build());
 	}
 
 	@Nonnull
@@ -261,7 +264,7 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiProperty buildAssociatedDataSchemasProperty(@Nonnull EntitySchemaContract entitySchema) {
 		return EntitySchemaDescriptor.ASSOCIATED_DATA
-			.to(propertyBuilderTransformer)
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildAssociatedDataSchemasObject(entitySchema)))
 			.build();
 	}
@@ -269,13 +272,13 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildAssociatedDataSchemasObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder associatedDataSchemasObjectBuilder = AssociatedDataSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(AssociatedDataSchemasDescriptor.THIS.name(entitySchema));
 
 		entitySchema.getAssociatedData().values().forEach(associatedDataSchema ->
 			associatedDataSchemasObjectBuilder.property(buildAssociatedDataSchemaProperty(associatedDataSchema)));
 
-		return buildingContext.registerType(associatedDataSchemasObjectBuilder.build());
+		return this.buildingContext.registerType(associatedDataSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
@@ -291,7 +294,7 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiProperty buildReferenceSchemasProperty(@Nonnull EntitySchemaContract entitySchema) {
 		return EntitySchemaDescriptor.REFERENCES
-			.to(propertyBuilderTransformer)
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildReferenceSchemasObject(entitySchema)))
 			.build();
 	}
@@ -299,13 +302,13 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildReferenceSchemasObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder referenceSchemasObjectBuilder = ReferenceSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(ReferenceSchemasDescriptor.THIS.name(entitySchema));
 
 		entitySchema.getReferences().values().forEach(referenceSchema ->
 			referenceSchemasObjectBuilder.property(buildReferenceSchemaProperty(entitySchema, referenceSchema)));
 
-		return buildingContext.registerType(referenceSchemasObjectBuilder.build());
+		return this.buildingContext.registerType(referenceSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
@@ -323,7 +326,7 @@ public class EntitySchemaObjectBuilder {
 	private OpenApiTypeReference buildReferenceSchemaObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                        @Nonnull ReferenceSchemaContract referenceSchema) {
 		final OpenApiObject.Builder referenceSchemaObjectBuilder = ReferenceSchemaDescriptor.THIS_SPECIFIC
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(entitySchema, referenceSchema));
 
 		if (!referenceSchema.getAttributes().isEmpty()) {
@@ -333,14 +336,14 @@ public class EntitySchemaObjectBuilder {
 			referenceSchemaObjectBuilder.property(buildReferencedSortableAttributeCompoundSchemasProperty(entitySchema, referenceSchema));
 		}
 
-		return buildingContext.registerType(referenceSchemaObjectBuilder.build());
+		return this.buildingContext.registerType(referenceSchemaObjectBuilder.build());
 	}
 
 	@Nonnull
 	private OpenApiProperty buildReferencedAttributeSchemasProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                                @Nonnull ReferenceSchemaContract referenceSchema) {
 		return ReferenceSchemaDescriptor.ATTRIBUTES
-			.to(propertyBuilderTransformer)
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildReferencedAttributeSchemasObject(entitySchema, referenceSchema)))
 			.build();
 	}
@@ -349,20 +352,20 @@ public class EntitySchemaObjectBuilder {
 	private OpenApiTypeReference buildReferencedAttributeSchemasObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                                   @Nonnull ReferenceSchemaContract referenceSchema) {
 		final OpenApiObject.Builder attributeSchemasObjectBuilder = AttributeSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(AttributeSchemasDescriptor.THIS.name(entitySchema, referenceSchema));
 
 		entitySchema.getAttributes().values().forEach(attributeSchema ->
 			attributeSchemasObjectBuilder.property(buildAttributeSchemaProperty(attributeSchema)));
 
-		return buildingContext.registerType(attributeSchemasObjectBuilder.build());
+		return this.buildingContext.registerType(attributeSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
 	private OpenApiProperty buildReferencedSortableAttributeCompoundSchemasProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                                                @Nonnull ReferenceSchemaContract referenceSchema) {
-		return ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
-			.to(propertyBuilderTransformer)
+		return SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS
+			.to(this.propertyBuilderTransformer)
 			.type(nonNull(buildReferencedSortableAttributeCompoundSchemasObject(entitySchema, referenceSchema)))
 			.build();
 	}
@@ -371,12 +374,12 @@ public class EntitySchemaObjectBuilder {
 	private OpenApiTypeReference buildReferencedSortableAttributeCompoundSchemasObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                                                   @Nonnull ReferenceSchemaContract referenceSchema) {
 		final OpenApiObject.Builder objectBuilder = SortableAttributeCompoundSchemasDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(SortableAttributeCompoundSchemasDescriptor.THIS.name(entitySchema, referenceSchema));
 
 		entitySchema.getSortableAttributeCompounds().values().forEach(sortableAttributeCompoundSchema ->
 			objectBuilder.property(buildSortableAttributeCompoundSchemaProperty(sortableAttributeCompoundSchema)));
 
-		return buildingContext.registerType(objectBuilder.build());
+		return this.buildingContext.registerType(objectBuilder.build());
 	}
 }

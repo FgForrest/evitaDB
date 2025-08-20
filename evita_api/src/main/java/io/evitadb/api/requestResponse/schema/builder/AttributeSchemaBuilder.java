@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,22 +74,22 @@ public final class AttributeSchemaBuilder
 		super(null, entitySchema, AttributeSchema._internalBuild(name, ofType, false));
 		this.mutations.add(
 			new CreateAttributeSchemaMutation(
-				baseSchema.getName(),
-				baseSchema.getDescription(),
-				baseSchema.getDeprecationNotice(),
+				this.baseSchema.getName(),
+				this.baseSchema.getDescription(),
+				this.baseSchema.getDeprecationNotice(),
 				Arrays.stream(Scope.values())
-					.map(scope -> new ScopedAttributeUniquenessType(scope, baseSchema.getUniquenessType(scope)))
+					.map(scope -> new ScopedAttributeUniquenessType(scope, this.baseSchema.getUniquenessType(scope)))
 					// filter out default values
 					.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
 					.toArray(ScopedAttributeUniquenessType[]::new),
-				Arrays.stream(Scope.values()).filter(baseSchema::isFilterableInScope).toArray(Scope[]::new),
-				Arrays.stream(Scope.values()).filter(baseSchema::isSortableInScope).toArray(Scope[]::new),
-				baseSchema.isLocalized(),
-				baseSchema.isNullable(),
+				Arrays.stream(Scope.values()).filter(this.baseSchema::isFilterableInScope).toArray(Scope[]::new),
+				Arrays.stream(Scope.values()).filter(this.baseSchema::isSortableInScope).toArray(Scope[]::new),
+				this.baseSchema.isLocalized(),
+				this.baseSchema.isNullable(),
 				false,
-				baseSchema.getType(),
-				baseSchema.getDefaultValue(),
-				baseSchema.getIndexedDecimalPlaces()
+				this.baseSchema.getType(),
+				this.baseSchema.getDefaultValue(),
+				this.baseSchema.getIndexedDecimalPlaces()
 			)
 		);
 	}

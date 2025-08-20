@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import javax.annotation.Nullable;
 @ToString
 @EqualsAndHashCode
 class ConstraintToJsonConvertContext implements ConstraintTraverseContext<ConstraintToJsonConvertContext> {
-
 	@Nullable private final DataLocator parentDataLocator;
 	@Nonnull private final DataLocator dataLocator;
 
@@ -51,7 +50,7 @@ class ConstraintToJsonConvertContext implements ConstraintTraverseContext<Constr
 		this(null, dataLocator);
 	}
 
-	public ConstraintToJsonConvertContext(@Nonnull DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
+	public ConstraintToJsonConvertContext(@Nullable DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
 		this.parentDataLocator = parentDataLocator;
 		this.dataLocator = dataLocator;
 	}
@@ -68,7 +67,7 @@ class ConstraintToJsonConvertContext implements ConstraintTraverseContext<Constr
 	 * Whether building context is currently at the root of constraint and thus doesn't have any parent constraints.
 	 */
 	public boolean isAtRoot() {
-		return parentDataLocator == null;
+		return this.parentDataLocator == null;
 	}
 
 	/**
@@ -77,7 +76,7 @@ class ConstraintToJsonConvertContext implements ConstraintTraverseContext<Constr
 	 */
 	@Nullable
 	public DataLocator parentDataLocator() {
-		return parentDataLocator;
+		return this.parentDataLocator;
 	}
 
 	/**
@@ -85,6 +84,6 @@ class ConstraintToJsonConvertContext implements ConstraintTraverseContext<Constr
 	 */
 	@Nonnull
 	public DataLocator dataLocator() {
-		return dataLocator;
+		return this.dataLocator;
 	}
 }

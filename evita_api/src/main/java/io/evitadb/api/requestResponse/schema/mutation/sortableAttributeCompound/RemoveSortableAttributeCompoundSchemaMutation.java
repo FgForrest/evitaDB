@@ -81,7 +81,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		final SchemaMutation mutationToExamine = existingMutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation wrappingMutation ? wrappingMutation.getSortableAttributeCompoundSchemaMutation() : existingMutation;
-		if (mutationToExamine instanceof SortableAttributeCompoundSchemaMutation compoundSchemaMutation && Objects.equals(name, compoundSchemaMutation.getName())) {
+		if (mutationToExamine instanceof SortableAttributeCompoundSchemaMutation compoundSchemaMutation && Objects.equals(this.name, compoundSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ public record DataItemMap(
 	 * is a flag `hasNext` - true when the current data item is not the last item in the array.
 	 */
 	public void forEach(@Nonnull TriConsumer<String, DataItem, Boolean> consumer) {
-		final Iterator<Entry<String, DataItem>> it = childrenIndex.entrySet().iterator();
+		final Iterator<Entry<String, DataItem>> it = this.childrenIndex.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<String, DataItem> entry = it.next();
 			consumer.accept(entry.getKey(), entry.getValue(), it.hasNext());
@@ -70,7 +70,7 @@ public record DataItemMap(
 	 */
 	public void forEachSorted(@Nonnull TriConsumer<String, DataItem, Boolean> consumer) {
 		final Set<Entry<String, DataItem>> entries = new TreeSet<>(Entry.comparingByKey());
-		entries.addAll(childrenIndex.entrySet());
+		entries.addAll(this.childrenIndex.entrySet());
 		final Iterator<Entry<String, DataItem>> it = entries.iterator();
 		while (it.hasNext()) {
 			final Entry<String, DataItem> entry = it.next();
@@ -87,34 +87,34 @@ public record DataItemMap(
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			MemoryMeasuringConstants.REFERENCE_SIZE +
-			MemoryMeasuringConstants.computeHashMapSize(childrenIndex);
+			MemoryMeasuringConstants.computeHashMapSize(this.childrenIndex);
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return childrenIndex.isEmpty();
+		return this.childrenIndex.isEmpty();
 	}
 
 	@Nonnull
 	public Set<String> getPropertyNames() {
-		return childrenIndex.keySet();
+		return this.childrenIndex.keySet();
 	}
 
 	@Nullable
 	public DataItem getProperty(@Nonnull String propertyName) {
-		return childrenIndex.get(propertyName);
+		return this.childrenIndex.get(propertyName);
 	}
 
 	/**
 	 * Returns count of all properties in this map.
 	 */
 	public int getPropertyCount() {
-		return childrenIndex.size();
+		return this.childrenIndex.size();
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(childrenIndex);
+		return Objects.hash(this.childrenIndex);
 	}
 
 	@Override
@@ -122,11 +122,12 @@ public record DataItemMap(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		DataItemMap that = (DataItemMap) o;
-		return Objects.equals(childrenIndex, that.childrenIndex);
+		return Objects.equals(this.childrenIndex, that.childrenIndex);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return "{" + childrenIndex.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue()).collect(Collectors.joining(", ")) + '}';
+		return "{" + this.childrenIndex.entrySet().stream().map(it -> it.getKey() + ": " + it.getValue()).collect(Collectors.joining(", ")) + '}';
 	}
 }

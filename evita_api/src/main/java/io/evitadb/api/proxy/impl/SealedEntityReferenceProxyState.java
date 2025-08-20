@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -108,40 +108,40 @@ public class SealedEntityReferenceProxyState
 	 */
 	@Nullable
 	public ReferenceSchemaContract getReferenceSchema() {
-		return reference.getReferenceSchema().orElseThrow();
+		return this.reference.getReferenceSchema().orElseThrow();
 	}
 
 	@Nonnull
 	public ReferenceBuilder getReferenceBuilderWithMutations(@Nonnull Collection<LocalMutation<?,?>> mutations) {
-		Assert.isPremiseValid(referenceBuilder == null, "Entity builder already created!");
-		if (reference instanceof ReferenceBuilder) {
-			Assert.isPremiseValid(referenceBuilder == null, "Entity builder already created!");
+		Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
+		if (this.reference instanceof ReferenceBuilder) {
+			Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
 		} else {
-			referenceBuilder = new ExistingReferenceBuilder(
-				reference, getEntitySchema(), mutations
+			this.referenceBuilder = new ExistingReferenceBuilder(
+				this.reference, getEntitySchema(), mutations
 			);
 		}
-		return referenceBuilder;
+		return this.referenceBuilder;
 	}
 
 	@Override
 	@Nonnull
 	public ReferenceBuilder getReferenceBuilder() {
-		if (referenceBuilder == null) {
-			if (reference instanceof ReferenceBuilder theBuilder) {
-				referenceBuilder = theBuilder;
+		if (this.referenceBuilder == null) {
+			if (this.reference instanceof ReferenceBuilder theBuilder) {
+				this.referenceBuilder = theBuilder;
 			} else {
-				referenceBuilder = new ExistingReferenceBuilder(
-					reference, getEntitySchema()
+				this.referenceBuilder = new ExistingReferenceBuilder(
+					this.reference, getEntitySchema()
 				);
 			}
 		}
-		return referenceBuilder;
+		return this.referenceBuilder;
 	}
 
 	@Override
 	public void notifyBuilderUpserted() {
-		if (referenceBuilder != null) {
+		if (this.referenceBuilder != null) {
 			this.referenceBuilder = new ExistingReferenceBuilder(
 				this.referenceBuilder.build(), getEntitySchema()
 			);
@@ -151,7 +151,7 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public Optional<ReferenceBuilder> getReferenceBuilderIfPresent() {
-		return ofNullable(referenceBuilder);
+		return ofNullable(this.referenceBuilder);
 	}
 
 	@Override
@@ -164,14 +164,14 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public String getType() {
-		return entity.getType();
+		return this.entity.getType();
 	}
 
 	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
-		return ofNullable(entity.getPrimaryKey())
-			.orElseGet(entityPrimaryKeySupplier);
+		return ofNullable(this.entity.getPrimaryKey())
+			.orElseGet(this.entityPrimaryKeySupplier);
 	}
 
 	/**
@@ -180,12 +180,12 @@ public class SealedEntityReferenceProxyState
 	 */
 	@Nonnull
 	public Class<?> getEntityProxyClass() {
-		return entityProxyClass;
+		return this.entityProxyClass;
 	}
 
 	@Override
 	public String toString() {
-		return reference instanceof ReferenceBuilder rb ?
-			rb.build().toString() : reference.toString();
+		return this.reference instanceof ReferenceBuilder rb ?
+			rb.build().toString() : this.reference.toString();
 	}
 }

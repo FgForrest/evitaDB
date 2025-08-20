@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,8 +96,8 @@ public interface SealedEntityProxy extends
 		 * Method invokes the {@link #upsertCallback} callback if it is present.
 		 */
 		public void updateEntityReference(@Nonnull EntityReference entityReference) {
-			if (upsertCallback != null) {
-				upsertCallback.accept(entityReference);
+			if (this.upsertCallback != null) {
+				this.upsertCallback.accept(entityReference);
 			}
 		}
 

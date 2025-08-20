@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 			if (int.class.equals(parameterType) || Integer.class.equals(parameterType)) {
 				return sealedEntity -> sealedEntity.getParentEntity().map(EntityClassifier::getPrimaryKey).orElse(null);
 			} else if (EntityReferenceContract.class.isAssignableFrom(parameterType)) {
-				return sealedEntity -> sealedEntity.getParentEntity().map(it -> new EntityReference(it.getType(), it.getPrimaryKey())).orElse(null);
+				return sealedEntity -> sealedEntity.getParentEntity().map(it -> new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException())).orElse(null);
 			} else if (EntityClassifier.class.equals(parameterType) || EntityClassifierWithParent.class.equals(parameterType)) {
 				return sealedEntity -> sealedEntity.getParentEntity().orElse(null);
 			} else {
@@ -143,8 +143,8 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 			return resultWrapper.wrap(
 				() -> parentEntityExtractor.apply(sealedEntity)
 					.map(
-						it -> theState.getReferencedEntityObjectIfPresent(sealedEntity.getType(), it.getPrimaryKey(), expectedType, ProxyType.PARENT)
-							.orElseGet(() -> new EntityReference(sealedEntity.getType(), it.getPrimaryKey()))
+						it -> theState.getReferencedEntityObjectIfPresent(sealedEntity.getType(), it.getPrimaryKeyOrThrowException(), expectedType, ProxyType.PARENT)
+							.orElseGet(() -> new EntityReference(sealedEntity.getType(), it.getPrimaryKeyOrThrowException()))
 					)
 					.orElse(null)
 			);
@@ -247,7 +247,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				} else {
 					//noinspection unchecked
 					final BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> simpleCachedParentEntityExtractor = (sealedEntity, sealedEntityProxyState) -> sealedEntity.getParentEntity()
-						.map(parent -> sealedEntityProxyState.getReferencedEntityObjectIfPresent(expectedParentEntityType, parent.getPrimaryKey(), valueType, ProxyType.PARENT)
+						.map(parent -> sealedEntityProxyState.getReferencedEntityObjectIfPresent(expectedParentEntityType, parent.getPrimaryKeyOrThrowException(), valueType, ProxyType.PARENT)
 							.orElse(parent));
 					final BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> cachedParentEntityExtractor =
 						resultWrapper instanceof OptionalProducingOperator ?

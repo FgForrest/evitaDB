@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;

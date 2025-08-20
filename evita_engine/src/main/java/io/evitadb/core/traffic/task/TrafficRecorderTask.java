@@ -26,8 +26,8 @@ package io.evitadb.core.traffic.task;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
-import io.evitadb.core.async.ClientInfiniteCallableTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.ClientInfiniteCallableTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
@@ -212,7 +212,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			if (exportSessionSink != null) {
 				IOUtils.close(
 					() -> new UnexpectedIOException("Failed to close export session sink."),
-					exportSessionSink::close
+					(IOUtils.IOExceptionThrowingRunnable) exportSessionSink::close
 				);
 			}
 		}
@@ -327,7 +327,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 						this.outputStream.write(("\n   - duration " + StringUtils.formatDuration(Duration.between(this.startTime, finishTime))).getBytes());
 						this.outputStream.write(("\n   - exported " + this.exportedSessionCount + " sessions").getBytes());
 						this.outputStream.write(("\n   - exported " + StringUtils.formatByteSize(this.exportedSessionOriginalSize) + " of data").getBytes());
-						this.outputStream.write(("\n   - task was" + getFinishCondition(settings)).getBytes());
+						this.outputStream.write(("\n   - task was" + getFinishCondition(this.settings)).getBytes());
 					},
 					this.outputStream::close
 				);

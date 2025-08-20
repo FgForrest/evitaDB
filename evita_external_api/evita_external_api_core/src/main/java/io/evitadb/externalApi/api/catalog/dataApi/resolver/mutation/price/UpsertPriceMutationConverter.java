@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -46,21 +47,32 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UpsertPriceMutationDescriptor.THIS.name();
+	protected Class<UpsertPriceMutation> getMutationClass() {
+		return UpsertPriceMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected UpsertPriceMutation convert(@Nonnull Input input) {
+	protected UpsertPriceMutation convertFromInput(@Nonnull Input input) {
 		return new UpsertPriceMutation(
 			resolvePriceKey(input),
-			input.getOptionalField(UpsertPriceMutationDescriptor.INNER_RECORD_ID),
-			input.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX),
-			input.getRequiredField(UpsertPriceMutationDescriptor.TAX_RATE),
-			input.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
-			input.getOptionalField(UpsertPriceMutationDescriptor.VALIDITY),
-			input.getRequiredField(UpsertPriceMutationDescriptor.INDEXED)
+			input.getProperty(UpsertPriceMutationDescriptor.INNER_RECORD_ID),
+			input.getProperty(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX),
+			input.getProperty(UpsertPriceMutationDescriptor.TAX_RATE),
+			input.getProperty(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
+			input.getProperty(UpsertPriceMutationDescriptor.VALIDITY),
+			input.getProperty(UpsertPriceMutationDescriptor.INDEXED)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull UpsertPriceMutation mutation, @Nonnull Output output) {
+		output.setProperty(UpsertPriceMutationDescriptor.INNER_RECORD_ID, mutation.getInnerRecordId());
+		output.setProperty(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX, mutation.getPriceWithoutTax());
+		output.setProperty(UpsertPriceMutationDescriptor.TAX_RATE, mutation.getTaxRate());
+		output.setProperty(UpsertPriceMutationDescriptor.PRICE_WITH_TAX, mutation.getPriceWithTax());
+		output.setProperty(UpsertPriceMutationDescriptor.VALIDITY, mutation.getValidity());
+		output.setProperty(UpsertPriceMutationDescriptor.INDEXED, mutation.isIndexed());
+		super.convertToOutput(mutation, output);
 	}
 }

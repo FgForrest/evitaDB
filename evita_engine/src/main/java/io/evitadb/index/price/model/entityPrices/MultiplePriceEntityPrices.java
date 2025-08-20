@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,17 +70,17 @@ class MultiplePriceEntityPrices extends EntityPrices {
 
 	@Override
 	public PriceRecordContract[] getLowestPriceRecords() {
-		return lowestPrice;
+		return this.lowestPrice;
 	}
 
 	@Override
 	public int getSize() {
-		return prices.length;
+		return this.prices.length;
 	}
 
 	@Override
 	public boolean containsPriceRecord(int priceId) {
-		return Arrays.stream(prices).anyMatch(it -> it.priceId() == priceId);
+		return Arrays.stream(this.prices).anyMatch(it -> it.priceId() == priceId);
 	}
 
 	@Override
@@ -91,13 +91,13 @@ class MultiplePriceEntityPrices extends EntityPrices {
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] getAllPrices() {
-		return prices;
+		return this.prices;
 	}
 
 	@Nonnull
 	@Override
 	public int[] getInternalPriceIds() {
-		return internalPriceIds;
+		return this.internalPriceIds;
 	}
 
 	@Override
@@ -108,12 +108,12 @@ class MultiplePriceEntityPrices extends EntityPrices {
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] computePricesAdding(@Nonnull PriceRecordContract PriceRecordContract) {
-		return ArrayUtils.insertRecordIntoOrderedArray(PriceRecordContract, prices, PRICE_ID_COMPARATOR);
+		return ArrayUtils.insertRecordIntoOrderedArray(PriceRecordContract, this.prices, PRICE_ID_COMPARATOR);
 	}
 
 	@Nonnull
 	@Override
 	protected PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract PriceRecordContract) {
-		return ArrayUtils.removeRecordFromOrderedArray(PriceRecordContract, prices, PRICE_ID_COMPARATOR);
+		return ArrayUtils.removeRecordFromOrderedArray(PriceRecordContract, this.prices, PRICE_ID_COMPARATOR);
 	}
 }

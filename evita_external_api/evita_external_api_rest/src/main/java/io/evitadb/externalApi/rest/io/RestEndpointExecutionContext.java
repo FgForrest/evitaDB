@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,20 +63,20 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 
 	@Nonnull
 	public ExecutedEvent requestExecutedEvent() {
-		return requestExecutedEvent;
+		return this.requestExecutedEvent;
 	}
 
 	@Nonnull
 	public EvitaSessionContract session() {
 		Assert.isPremiseValid(
-			session != null,
+			this.session != null,
 			() -> new RestInternalError("Session is not available for this exchange.")
 		);
 		Assert.isPremiseValid(
 			this.session.isActive(),
 			() -> new RestInternalError("Session has been already closed. No one should access the session!")
 		);
-		return session;
+		return this.session;
 	}
 
 	/**
@@ -95,7 +95,7 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	 */
 	@Nonnull
 	public Optional<UUID> trafficSourceQueryRecordingId() {
-		return Optional.ofNullable(trafficSourceQueryRecordingId);
+		return Optional.ofNullable(this.trafficSourceQueryRecordingId);
 	}
 
 	/**
@@ -113,8 +113,8 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 	 * Closes the current session (and transaction) if it is open.
 	 */
 	public void closeSessionIfOpen() {
-		if (session != null) {
-			session.close();
+		if (this.session != null) {
+			this.session.close();
 		}
 	}
 
@@ -124,33 +124,33 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 			this.requestBodyContentType == null,
 			() -> new RestInternalError("Request body content type already provided.")
 		);
-		requestBodyContentType = contentType;
+		this.requestBodyContentType = contentType;
 	}
 
 	@Nullable
 	@Override
 	public String requestBodyContentType() {
-		return requestBodyContentType;
+		return this.requestBodyContentType;
 	}
 
 	@Override
 	public void providePreferredResponseContentType(@Nonnull String contentType) {
 		Assert.isPremiseValid(
-			preferredResponseContentType == null,
+			this.preferredResponseContentType == null,
 			() -> new RestInternalError("Preferred response content type already provided.")
 		);
-		preferredResponseContentType = contentType;
+		this.preferredResponseContentType = contentType;
 	}
 
 	@Nullable
 	@Override
 	public String preferredResponseContentType() {
-		return preferredResponseContentType;
+		return this.preferredResponseContentType;
 	}
 
 	@Override
 	public void notifyError(@Nonnull Exception e) {
-		requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
+		this.requestExecutedEvent.provideResponseStatus(ResponseStatus.ERROR);
 	}
 
 	@Override
@@ -160,6 +160,6 @@ public class RestEndpointExecutionContext extends EndpointExecutionContext {
 		// the session may not be properly closed in case of exception during request handling
 		closeSessionIfOpen();
 
-		requestExecutedEvent.finish().commit();
+		this.requestExecutedEvent.finish().commit();
 	}
 }

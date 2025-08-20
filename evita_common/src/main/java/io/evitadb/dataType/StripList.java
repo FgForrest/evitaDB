@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,35 +91,35 @@ public final class StripList<T extends Serializable> implements DataChunk<T> {
 	 * Returns current offset (indexed from 0).
 	 */
 	public int getOffset() {
-		return offset;
+		return this.offset;
 	}
 
 	/**
 	 * Returns limit - i.e. maximal number of records that are requested after offset.
 	 */
 	public int getLimit() {
-		return limit;
+		return this.limit;
 	}
 
 	@Override
 	@Nonnull
 	public List<T> getData() {
-		return data != null ? data : Collections.emptyList();
+		return this.data != null ? this.data : Collections.emptyList();
 	}
 
 	@Override
 	public int getTotalRecordCount() {
-		return totalRecordCount;
+		return this.totalRecordCount;
 	}
 
 	@Override
 	public boolean isFirst() {
-		return offset == 0;
+		return this.offset == 0;
 	}
 
 	@Override
 	public boolean isLast() {
-		return offset + limit >= totalRecordCount;
+		return this.offset + this.limit >= this.totalRecordCount;
 	}
 
 	@Override
@@ -139,7 +139,7 @@ public final class StripList<T extends Serializable> implements DataChunk<T> {
 
 	@Override
 	public boolean isEmpty() {
-		return totalRecordCount == 0;
+		return this.totalRecordCount == 0;
 	}
 
 	@Nonnull
@@ -150,8 +150,8 @@ public final class StripList<T extends Serializable> implements DataChunk<T> {
 
 	@Override
 	public String toString() {
-		return "Strip " + offset + " with limit " + limit + " (" + totalRecordCount + "recs. found)\n" +
-			data.stream().map(it -> "\t- " + it.toString()).collect(Collectors.joining("\n"));
+		return "Strip " + this.offset + " with limit " + this.limit + " (" + this.totalRecordCount + "recs. found)\n" +
+			this.data.stream().map(it -> "\t- " + it.toString()).collect(Collectors.joining("\n"));
 	}
 
 }

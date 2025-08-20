@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ public record ObjectDescriptor(@Nonnull String name,
 	public String name() {
 		Assert.isPremiseValid(
 			isNameStatic(),
-			() -> new ExternalApiInternalError("Object name `" + name + "` requires you to provide schema to construct the final name.")
+			() -> new ExternalApiInternalError("Object name `" + this.name + "` requires you to provide schema to construct the final name.")
 		);
 		return this.name;
 	}
@@ -97,7 +97,7 @@ public record ObjectDescriptor(@Nonnull String name,
 	public String name(@Nullable String suffix, @Nonnull NamedSchemaContract... schema) {
 		Assert.isPremiseValid(
 			!isNameStatic(),
-			() -> new ExternalApiInternalError("Object name `" + name + "` is static, thus it doesn't support provided schema.")
+			() -> new ExternalApiInternalError("Object name `" + this.name + "` is static, thus it doesn't support provided schema.")
 		);
 		Assert.isPremiseValid(
 			schema.length > 0,

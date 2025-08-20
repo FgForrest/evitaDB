@@ -93,7 +93,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * in the {@link LevelInfo#queriedEntityCount()} statistics. Might be null if the count is not required to be
 	 * computed at all.
 	 */
-	@Nullable
+	@Nonnull
 	protected final StatisticsBase statisticsBase;
 
 	public AbstractHierarchyStatisticsComputer(
@@ -110,7 +110,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 		this.hierarchyFilterPredicateProducer = hierarchyFilterPredicateProducer;
 		this.havingPredicate = havingPredicate;
 		this.scopePredicate = ofNullable(scopePredicate).orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-		this.statisticsBase = statisticsBase;
+		this.statisticsBase = statisticsBase == null ? StatisticsBase.WITHOUT_USER_FILTER : statisticsBase;
 		this.statisticsType = statisticsType;
 	}
 
@@ -125,19 +125,19 @@ abstract class AbstractHierarchyStatisticsComputer {
 		@Nullable Locale language
 	) {
 		HierarchyFilteringPredicate filteringPredicate;
-		if (hierarchyFilterPredicateProducer == null) {
+		if (this.hierarchyFilterPredicateProducer == null) {
 			filteringPredicate = Objects.requireNonNullElse(
-				havingPredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
+				this.havingPredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
 			);
 			if (language != null) {
 				if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
-					filteringPredicate = new LocaleHierarchyEntityPredicate(context.entityIndex(), language);
+					filteringPredicate = new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language);
 				} else {
-					filteringPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language));
+					filteringPredicate.and(new LocaleHierarchyEntityPredicate(this.context.entityIndex(), language));
 				}
 			}
 		} else {
-			filteringPredicate = ofNullable(hierarchyFilterPredicateProducer.apply(statisticsBase))
+			filteringPredicate = ofNullable(this.hierarchyFilterPredicateProducer.apply(this.statisticsBase))
 				.map(it -> {
 					it.initializeIfNotAlreadyInitialized(executionContext);
 					return it;
@@ -150,11 +150,11 @@ abstract class AbstractHierarchyStatisticsComputer {
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		return createStatistics(
 			executionContext,
-			scopePredicate,
+			this.scopePredicate,
 			filteringPredicate
 		)
 			.stream()
-			.map(it -> it.toLevelInfo(statisticsType))
+			.map(it -> it.toLevelInfo(this.statisticsType))
 			.toList();
 	}
 

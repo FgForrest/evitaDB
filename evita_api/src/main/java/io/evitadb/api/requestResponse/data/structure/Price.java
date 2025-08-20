@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -153,19 +153,19 @@ public record Price(
 
 	@Override
 	public int priceId() {
-		return priceKey.priceId();
+		return this.priceKey.priceId();
 	}
 
 	@Nonnull
 	@Override
 	public String priceList() {
-		return priceKey.priceList();
+		return this.priceKey.priceList();
 	}
 
 	@Nonnull
 	@Override
 	public Currency currency() {
-		return priceKey.currency();
+		return this.priceKey.currency();
 	}
 
 	@Override
@@ -187,15 +187,15 @@ public record Price(
 			// price id
 			MemoryMeasuringConstants.INT_SIZE +
 			// price list
-			EvitaDataTypes.estimateSize(priceKey.priceList()) +
+			EvitaDataTypes.estimateSize(this.priceKey.priceList()) +
 			// currency
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// inner record id
-			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(innerRecordId).map(it -> MemoryMeasuringConstants.INT_SIZE).orElse(0) +
+			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(this.innerRecordId).map(it -> MemoryMeasuringConstants.INT_SIZE).orElse(0) +
 			// price without and with tax + tax
 			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE) +
 			// validity
-			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(validity).stream().mapToInt(EvitaDataTypes::estimateSize).sum();
+			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(this.validity).stream().mapToInt(EvitaDataTypes::estimateSize).sum();
 	}
 
 	@Override
@@ -205,25 +205,26 @@ public record Price(
 
 		Price price = (Price) o;
 
-		if (version != price.version) return false;
-		return priceKey.equals(price.priceKey);
+		if (this.version != price.version) return false;
+		return this.priceKey.equals(price.priceKey);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = version;
-		result = 31 * result + priceKey.hashCode();
+		int result = this.version;
+		result = 31 * result + this.priceKey.hashCode();
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return (dropped ? "❌ " : "") +
-			"\uD83D\uDCB0 " + (indexed ? "\uD83D\uDCB5 " : "") + priceWithTax + " " + priceKey.currency() + " (" + taxRate + "%)" +
-			", price list " + priceKey.priceList() +
-			(validity == null ? "" : ", valid in " + validity) +
-			", external id " + priceKey.priceId() +
-			(innerRecordId == null ? "" : "/" + innerRecordId);
+		return (this.dropped ? "❌ " : "") +
+			"\uD83D\uDCB0 " + (this.indexed ? "\uD83D\uDCB5 " : "") + this.priceWithTax + " " + this.priceKey.currency() + " (" + this.taxRate + "%)" +
+			", price list " + this.priceKey.priceList() +
+			(this.validity == null ? "" : ", valid in " + this.validity) +
+			", external id " + this.priceKey.priceId() +
+			(this.innerRecordId == null ? "" : "/" + this.innerRecordId);
 	}
 
 	/**
@@ -260,11 +261,11 @@ public record Price(
 
 		@Override
 		public int compareTo(PriceKey o) {
-			int result = currency.getCurrencyCode().compareTo(o.currency.getCurrencyCode());
+			int result = this.currency.getCurrencyCode().compareTo(o.currency.getCurrencyCode());
 			if (result == 0) {
-				result = priceList.compareTo(o.priceList);
+				result = this.priceList.compareTo(o.priceList);
 				if (result == 0) {
-					return Integer.compare(priceId, o.priceId);
+					return Integer.compare(this.priceId, o.priceId);
 				} else {
 					return result;
 				}
@@ -273,9 +274,10 @@ public record Price(
 			}
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return "\uD83D\uDCB0 " + priceId + " in " + priceList + " " + currency + " ";
+			return "\uD83D\uDCB0 " + this.priceId + " in " + this.priceList + " " + this.currency + " ";
 		}
 	}
 

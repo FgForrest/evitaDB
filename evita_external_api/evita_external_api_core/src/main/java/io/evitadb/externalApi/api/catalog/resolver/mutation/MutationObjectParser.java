@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,4 +39,11 @@ public interface MutationObjectParser {
 	 */
 	@Nullable
 	Object parse(@Nullable Object inputMutationObject);
+
+	/**
+	 * Serializes Java object representing mutation into API's specific representation. It can be nested object or single value (e.g. boolean).
+	 * This object must be serialized from Java primitive type or generic {@link Map} representing nested object into API's format.
+	 */
+	@Nullable
+	Object serialize(@Nullable Object outputMutationObject);
 }

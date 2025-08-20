@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 		@Nonnull Collection<AttributeValue> attributes,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
-		return new ReferenceAttributes(entitySchema, referenceSchema, attributes, attributeTypes);
+		return new ReferenceAttributes(entitySchema, this.referenceSchema, attributes, attributeTypes);
 	}
 
 	@Nonnull
@@ -100,12 +100,12 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 		if (isThereAnyChangeInMutations()) {
 			final Collection<AttributeValue> newAttributeValues = getAttributeValuesWithoutPredicate().collect(Collectors.toList());
 			final Map<String, AttributeSchemaContract> newAttributeTypes = Stream.concat(
-					baseAttributes.attributeTypes.values().stream(),
+					this.baseAttributes.attributeTypes.values().stream(),
 					// we don't check baseAttributes.allowUnknownAttributeTypes here because it gets checked on adding a mutation
 					newAttributeValues
 						.stream()
 						// filter out new attributes that has no type yet
-						.filter(it -> !baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
+						.filter(it -> !this.baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
 						// create definition for them on the fly
 						.map(AttributesBuilder::createImplicitReferenceAttributeSchema)
 				)
@@ -123,13 +123,13 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 					)
 				);
 			return new ReferenceAttributes(
-				baseAttributes.entitySchema,
+				this.baseAttributes.entitySchema,
 				this.referenceSchema,
 				newAttributeValues,
 				newAttributeTypes
 			);
 		} else {
-			return baseAttributes;
+			return this.baseAttributes;
 		}
 	}
 

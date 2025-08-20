@@ -57,7 +57,7 @@ import java.util.function.BiConsumer;
 @RequiredArgsConstructor
 public class OffHeapMemoryOutputStream extends OutputStream {
 	/**
-	 * The region index of the OffHeapMemoryOutputStream in {@link OffHeapMemoryManager} memory block.
+	 * The region index of the OffHeapMemoryOutputStream in {@link CatalogOffHeapMemoryManager} memory block.
 	 */
 	@Getter private int regionIndex;
 	/**
@@ -110,7 +110,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 * @throws IllegalArgumentException If the new mode is invalid.
 	 */
 	private void switchMode(@Nonnull Mode newMode) {
-		switch (mode) {
+		switch (this.mode) {
 			case READ:
 				Assert.isPremiseValid(
 					newMode == Mode.WRITE,
@@ -139,8 +139,8 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 */
 	@Nonnull
 	public OffHeapMemoryInputStream getInputStream() {
-		if (inputStream == null) {
-			inputStream = new OffHeapMemoryInputStream(
+		if (this.inputStream == null) {
+			this.inputStream = new OffHeapMemoryInputStream(
 				this.buffer,
 				this::getMode,
 				this::getWritePosition,
@@ -149,7 +149,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 			);
 			switchMode(Mode.READ);
 		}
-		return inputStream;
+		return this.inputStream;
 	}
 
 	/**
@@ -160,7 +160,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 */
 	@Nonnull
 	public ByteBuffer getByteBuffer() {
-		if (inputStream == null) {
+		if (this.inputStream == null) {
 			this.inputStream = new OffHeapMemoryInputStream(
 				this.buffer,
 				this::getMode,
@@ -170,7 +170,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 			);
 			switchMode(Mode.READ);
 		}
-		return inputStream.getBuffer();
+		return this.inputStream.getBuffer();
 	}
 
 	@Override
@@ -183,10 +183,10 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 
 	@Override
 	public void write(@Nonnull byte[] bytes, int off, int len) throws IOException {
-		if (mode == Mode.READ) {
+		if (this.mode == Mode.READ) {
 			switchMode(Mode.WRITE);
 		}
-		buffer.put(bytes, off, len);
+		this.buffer.put(bytes, off, len);
 	}
 
 	/**
@@ -207,16 +207,16 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	public void dumpToChannel(
 		@Nonnull FileChannel fileChannel
 	) throws IOException {
-		if (mode == Mode.READ) {
+		if (this.mode == Mode.READ) {
 			switchMode(Mode.WRITE);
 		}
 		// reset position to first byte before dumping data
-		buffer.flip();
+		this.buffer.flip();
 		// write all data in a cycle
-		while(buffer.hasRemaining()) {
-			final int written = fileChannel.write(buffer);
+		while(this.buffer.hasRemaining()) {
+			final int written = fileChannel.write(this.buffer);
 			Assert.isPremiseValid(
-				written == buffer.limit(),
+				written == this.buffer.limit(),
 				"Failed to dump data to the file!"
 			);
 		}
@@ -230,7 +230,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 			theInputStream.close();
 		}
 		if (this.finalizer != null) {
-			this.finalizer.accept(regionIndex, this);
+			this.finalizer.accept(this.regionIndex, this);
 			this.buffer = null;
 			this.finalizer = null;
 			this.inputStream = null;

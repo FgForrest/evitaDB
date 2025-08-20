@@ -220,7 +220,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		);
 		this.fetchRequirementCollector.addRequirementsToPrefetch(
 			new ReferenceContent(
-				referenceSchema.getName(),
+				this.referenceSchema.getName(),
 				attributeContent
 			)
 		);
@@ -239,8 +239,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	@Nonnull
 	public OrderingDescriptor getComparator() {
 		return new OrderingDescriptor(
-			ofNullable(comparator).orElse(ReferenceComparator.DEFAULT),
-			nestedQueryComparator
+			ofNullable(this.comparator).orElse(ReferenceComparator.DEFAULT),
+			this.nestedQueryComparator
 		);
 	}
 
@@ -281,7 +281,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
 		@Nonnull String attributeName
 	) {
-		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
+		return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
 			attributeName, this.scope.isEmpty() ? this.getScopes() : this.scope.peek()
 		);
 	}
@@ -301,7 +301,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull String attributeName,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		return attributeSchemaAccessor.getAttributeSchema(
+		return this.attributeSchemaAccessor.getAttributeSchema(
 			attributeName, this.getScopes(), requiredTrait
 		);
 	}

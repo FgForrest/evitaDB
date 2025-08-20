@@ -50,15 +50,17 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.dataType;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model;
 	exports io.evitadb.externalApi.api.catalog.model;
+	exports io.evitadb.externalApi.api.catalog.model.cdc;
 	exports io.evitadb.externalApi.api.system.model;
 	exports io.evitadb.externalApi.api.system;
+	exports io.evitadb.externalApi.api.system.model.cdc;
+	exports io.evitadb.externalApi.certificate;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.trace;
 	exports io.evitadb.externalApi.utils.path;
 	exports io.evitadb.externalApi.utils.path.routing;
 	exports io.evitadb.externalApi.utils.path.routing.cache;
-	exports io.evitadb.externalApi.certificate;
 	exports io.evitadb.externalApi.serialization;
 	exports io.evitadb.externalApi.event;
 

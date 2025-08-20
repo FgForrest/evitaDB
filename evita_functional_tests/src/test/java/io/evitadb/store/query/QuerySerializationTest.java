@@ -338,10 +338,10 @@ public class QuerySerializationTest {
 	private void assertSerializationRound(@Nonnull Object object) {
 		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 		try (final Output output = new Output(os, 4_096)) {
-			kryo.writeObject(output, object);
+			this.kryo.writeObject(output, object);
 		}
 		try (final Input input = new Input(os.toByteArray())) {
-			final Object deserialized = kryo.readObject(input, object.getClass());
+			final Object deserialized = this.kryo.readObject(input, object.getClass());
 			assertEquals(object, deserialized);
 		}
 	}

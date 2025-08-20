@@ -59,7 +59,7 @@ public class PriceWithInternalIdsSerializer_2024_11 extends Serializer<PriceWith
 		final boolean indexed = input.readBoolean();
 		final Integer internalPriceId = indexed ? input.readInt() : null;
 		final int priceId = input.readInt();
-		final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final CompressiblePriceKey priceKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		final boolean innerIdExists = input.readBoolean();
 		final Integer innerRecordId;
 		if (innerIdExists) {

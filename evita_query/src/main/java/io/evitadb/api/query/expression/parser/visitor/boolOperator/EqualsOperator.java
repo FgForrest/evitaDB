@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * The EqualsOperator class implements the ExpressionNode interface and is used to compare two operands for equality.
@@ -56,17 +57,17 @@ public class EqualsOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
-		final Serializable value1 = leftOperator.compute(context);
+		final Serializable value1 = this.leftOperator.compute(context);
 		Assert.isTrue(
 			value1 instanceof Comparable,
 			() -> new ParserException("Equals function left operand must be comparable!")
 		);
-		final Serializable value2 = rightOperator.compute(context);
+		final Serializable value2 = this.rightOperator.compute(context);
 		Assert.isTrue(
 			value2 instanceof Comparable,
 			() -> new ParserException("Equals function right operand must be comparable!")
 		);
-		final Serializable convertedValue2 = EvitaDataTypes.toTargetType(value2, value1.getClass());
+		final Serializable convertedValue2 = Objects.requireNonNull(EvitaDataTypes.toTargetType(value2, value1.getClass()));
 		//noinspection rawtypes,unchecked
 		return ((Comparable) value1).compareTo(convertedValue2) == 0;
 	}
@@ -74,8 +75,8 @@ public class EqualsOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		final BigDecimalNumberRange range1 = leftOperator.determinePossibleRange();
-		final BigDecimalNumberRange range2 = rightOperator.determinePossibleRange();
+		final BigDecimalNumberRange range1 = this.leftOperator.determinePossibleRange();
+		final BigDecimalNumberRange range2 = this.rightOperator.determinePossibleRange();
 		if (range1 == BigDecimalNumberRange.INFINITE || range2 == BigDecimalNumberRange.INFINITE) {
 			return BigDecimalNumberRange.INFINITE;
 		} else {
@@ -85,7 +86,7 @@ public class EqualsOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return leftOperator + " == " + rightOperator;
+		return this.leftOperator + " == " + this.rightOperator;
 	}
 
 }

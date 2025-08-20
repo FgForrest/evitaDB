@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public class ObjectDescriptorToGraphQLInputObjectTransformer implements ObjectDe
 	private final PropertyDescriptorTransformer<GraphQLInputObjectField.Builder> inputFieldBuilderTransformer;
 
 	@Override
-	public GraphQLInputObjectType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLInputObjectType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLInputObjectType.Builder objectBuilder = GraphQLInputObjectType.newInputObject();
 
 		if (objectDescriptor.isNameStatic()) {
@@ -55,7 +55,7 @@ public class ObjectDescriptorToGraphQLInputObjectTransformer implements ObjectDe
 		}
 
 		objectDescriptor.staticFields().stream()
-			.map(inputFieldBuilderTransformer)
+			.map(this.inputFieldBuilderTransformer)
 			.forEach(objectBuilder::field);
 
 		return objectBuilder;

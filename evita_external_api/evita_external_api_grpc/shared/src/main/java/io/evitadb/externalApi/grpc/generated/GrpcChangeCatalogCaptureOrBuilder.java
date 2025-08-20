@@ -101,10 +101,40 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
 
   /**
    * <pre>
+   * the primary key of the entity that was affected by the operation
+   * (null for schema operations)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityPrimaryKey = 5;</code>
+   * @return Whether the entityPrimaryKey field is set.
+   */
+  boolean hasEntityPrimaryKey();
+  /**
+   * <pre>
+   * the primary key of the entity that was affected by the operation
+   * (null for schema operations)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityPrimaryKey = 5;</code>
+   * @return The entityPrimaryKey.
+   */
+  com.google.protobuf.Int32Value getEntityPrimaryKey();
+  /**
+   * <pre>
+   * the primary key of the entity that was affected by the operation
+   * (null for schema operations)
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value entityPrimaryKey = 5;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getEntityPrimaryKeyOrBuilder();
+
+  /**
+   * <pre>
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
    * @return The enum numeric value on the wire for operation.
    */
   int getOperationValue();
@@ -113,53 +143,53 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    * the operation that was performed
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation operation = 6;</code>
    * @return The operation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation getOperation();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return Whether the schemaMutation field is set.
    */
   boolean hasSchemaMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    * @return The schemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation getSchemaMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation schemaMutation = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOrBuilder getSchemaMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    * @return Whether the entityMutation field is set.
    */
   boolean hasEntityMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    * @return The entityMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutation getEntityMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityMutation entityMutation = 8;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOrBuilder getEntityMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    * @return Whether the localMutation field is set.
    */
   boolean hasLocalMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    * @return The localMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutation getLocalMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 8;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocalMutation localMutation = 9;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder getLocalMutationOrBuilder();
 

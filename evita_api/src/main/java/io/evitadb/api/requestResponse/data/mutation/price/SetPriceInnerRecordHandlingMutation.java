@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,13 +65,13 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 	@Override
 	public PricesContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable PricesContract existingValue) {
 		if (existingValue == null) {
-			return new Prices(entitySchema, priceInnerRecordHandling);
-		} else if (existingValue.getPriceInnerRecordHandling() != priceInnerRecordHandling) {
+			return new Prices(entitySchema, this.priceInnerRecordHandling);
+		} else if (existingValue.getPriceInnerRecordHandling() != this.priceInnerRecordHandling) {
 			return new Prices(
 				entitySchema,
 				existingValue.version() + 1,
 				existingValue.getPrices(),
-				priceInnerRecordHandling
+				this.priceInnerRecordHandling
 			);
 		} else {
 			return existingValue;
@@ -86,7 +86,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 
 	@Override
 	public PriceInnerRecordHandling getComparableKey() {
-		return priceInnerRecordHandling;
+		return this.priceInnerRecordHandling;
 	}
 
 	@Nonnull
@@ -97,7 +97,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
-		if (!entitySchemaBuilder.isWithPrice() && priceInnerRecordHandling != PriceInnerRecordHandling.NONE) {
+		if (!entitySchemaBuilder.isWithPrice() && this.priceInnerRecordHandling != PriceInnerRecordHandling.NONE) {
 			if (entitySchemaBuilder.allows(EvolutionMode.ADDING_PRICES)) {
 				entitySchemaBuilder.withPrice();
 			} else {
@@ -123,7 +123,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 
 	@Override
 	public String toString() {
-		return "set price inner record handling to `" + priceInnerRecordHandling + "`";
+		return "set price inner record handling to `" + this.priceInnerRecordHandling + "`";
 	}
 
 }

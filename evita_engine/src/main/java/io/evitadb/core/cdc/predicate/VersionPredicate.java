@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ public class VersionPredicate extends MutationPredicate {
 	@Override
 	public boolean test(Mutation mutation) {
 		if (mutation instanceof TransactionMutation transactionMutation) {
-			this.context.setVersion(transactionMutation.getCatalogVersion(), transactionMutation.getMutationCount());
+			this.context.setVersion(transactionMutation.getVersion(), transactionMutation.getMutationCount());
 		} else {
 			this.context.advance();
 		}

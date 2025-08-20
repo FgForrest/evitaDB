@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 				new AllowLocaleInEntitySchemaMutation(
 					Stream.concat(
 							Arrays.stream(allowLocaleInEntitySchema.getLocales()),
-							Arrays.stream(locales)
+							Arrays.stream(this.locales)
 						)
 						.distinct()
 						.toArray(Locale[]::new)
@@ -87,15 +87,15 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 		} else if (existingMutation instanceof DisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchema) {
 			final Set<Locale> localesToRemove = disallowLocaleInEntitySchema.getLocales()
 				.stream()
-				.filter(removed -> Arrays.stream(locales).noneMatch(added -> added.equals(removed)))
+				.filter(removed -> Arrays.stream(this.locales).noneMatch(added -> added.equals(removed)))
 				.collect(Collectors.toSet());
-			final Locale[] localesToAdd = Arrays.stream(locales)
+			final Locale[] localesToAdd = Arrays.stream(this.locales)
 				.filter(added -> !currentEntitySchema.getLocales().contains(added))
 				.toArray(Locale[]::new);
 
 			return new MutationCombinationResult<>(
 				localesToRemove.isEmpty() ? null : (localesToRemove.size() == ((DisallowLocaleInEntitySchemaMutation) existingMutation).getLocales().size() ? existingMutation : new DisallowLocaleInEntitySchemaMutation(localesToRemove)),
-				localesToAdd.length == locales.length ? this : (localesToAdd.length == 0 ? null : new AllowLocaleInEntitySchemaMutation(localesToAdd))
+				localesToAdd.length == this.locales.length ? this : (localesToAdd.length == 0 ? null : new AllowLocaleInEntitySchemaMutation(localesToAdd))
 			);
 		} else {
 			return null;
@@ -106,7 +106,7 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (Arrays.stream(locales).allMatch(entitySchema::supportsLocale)) {
+		if (Arrays.stream(this.locales).allMatch(entitySchema::supportsLocale)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -124,7 +124,7 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 				entitySchema.getIndexedPricePlaces(),
 				Stream.concat(
 						entitySchema.getLocales().stream(),
-						Arrays.stream(locales)
+						Arrays.stream(this.locales)
 					)
 					.collect(Collectors.toSet()),
 				entitySchema.getCurrencies(),
@@ -145,6 +145,6 @@ public class AllowLocaleInEntitySchemaMutation implements CombinableLocalEntityS
 
 	@Override
 	public String toString() {
-		return "Allow: locales=" + Arrays.toString(locales);
+		return "Allow: locales=" + Arrays.toString(this.locales);
 	}
 }

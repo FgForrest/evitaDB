@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,28 +23,33 @@
 
 package io.evitadb.core.exception;
 
-import io.evitadb.core.CorruptedCatalog;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.nio.file.Path;
 
 /**
- * This exception is thrown when there is any attempt to work with {@link CorruptedCatalog}.
+ * This exception is thrown when there is any attempt to work with {@link UnusableCatalog}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class CatalogCorruptedException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -29086463503529567L;
 
-	public CatalogCorruptedException(@Nonnull CorruptedCatalog corruptedCatalog) {
+	public CatalogCorruptedException(
+		@Nonnull String catalogName,
+		@Nonnull Path absolutePath,
+		@Nonnull Throwable cause
+	) {
 		super(
-			"Catalog on path `" + corruptedCatalog.getCatalogStoragePath().toAbsolutePath() +
-				"` was not correctly initialized due to: " + corruptedCatalog.getCause().getMessage() + ". " +
-				"The catalog `" + corruptedCatalog.getName() + "` cannot be used - only deleted or repaired.",
-			"Catalog `" + corruptedCatalog.getName() + "` cannot be used because it wasn't correctly " +
+			"Catalog on path `" + absolutePath +
+				"` was not correctly initialized due to: " + cause.getMessage() + ". " +
+				"The catalog `" + catalogName + "` cannot be used - only deleted or repaired.",
+			"Catalog `" + catalogName + "` cannot be used because it wasn't correctly " +
 				"initialized. You can only delete it or try to repair it manually.",
-			corruptedCatalog.getCause()
+			cause
 		);
 	}
 

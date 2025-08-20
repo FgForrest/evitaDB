@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,13 +90,13 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.setAssociatedData("int", Locale.ENGLISH, 1)
 			.setAssociatedData("bigDecimal", Locale.ENGLISH, BigDecimal.ONE)
 			.toInstance();
-		initialEntity = (Entity) sealedEntity;
-		this.builder = new ExistingEntityBuilder(initialEntity);
+		this.initialEntity = (Entity) sealedEntity;
+		this.builder = new ExistingEntityBuilder(this.initialEntity);
 	}
 
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
-		builder
+		this.builder
 			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -110,23 +110,23 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.setAssociatedData("int", Locale.ENGLISH, 1)
 			.setAssociatedData("bigDecimal", Locale.ENGLISH, BigDecimal.ONE);
 
-		assertTrue(builder.toMutation().isEmpty());
+		assertTrue(this.builder.toMutation().isEmpty());
 	}
 
 	@Test
 	void shouldRemoveParent() {
-		assertFalse(builder.getParentEntity().isEmpty());
-		builder.removeParent();
-		assertTrue(builder.getParentEntity().isEmpty());
+		assertFalse(this.builder.getParentEntity().isEmpty());
+		this.builder.removeParent();
+		assertTrue(this.builder.getParentEntity().isEmpty());
 
-		final Entity updatedEntity = builder.toMutation()
-			.map(it -> it.mutate(initialEntity.getSchema(), initialEntity))
-			.orElse(initialEntity);
+		final Entity updatedEntity = this.builder.toMutation()
+			.map(it -> it.mutate(this.initialEntity.getSchema(), this.initialEntity))
+			.orElse(this.initialEntity);
 
 		assertFalse(updatedEntity.parentAvailable());
 		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParent);
 		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParentEntity);
-		assertEquals(initialEntity.version() + 1, updatedEntity.version());
+		assertEquals(this.initialEntity.version() + 1, updatedEntity.version());
 	}
 
 	@Test
@@ -138,29 +138,29 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemovePriceInnerRecordHandling() {
-		builder.removePriceInnerRecordHandling();
-		assertEquals(PriceInnerRecordHandling.NONE, builder.getPriceInnerRecordHandling());
+		this.builder.removePriceInnerRecordHandling();
+		assertEquals(PriceInnerRecordHandling.NONE, this.builder.getPriceInnerRecordHandling());
 
-		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
+		final Entity updatedEntity = this.builder.toMutation().orElseThrow().mutate(this.initialEntity.getSchema(), this.initialEntity);
 		assertEquals(PriceInnerRecordHandling.NONE, updatedEntity.getPriceInnerRecordHandling());
 	}
 
 	@Test
 	void shouldOverwriteParent() {
-		builder.setParent(78);
+		this.builder.setParent(78);
 		assertEquals(
-			Optional.of(new EntityReferenceWithParent(initialEntity.getSchema().getName(), 78, null)),
-			builder.getParentEntity()
+			Optional.of(new EntityReferenceWithParent(this.initialEntity.getSchema().getName(), 78, null)),
+			this.builder.getParentEntity()
 		);
 
-		final Entity updatedEntity = builder.toMutation().orElseThrow().mutate(initialEntity.getSchema(), initialEntity);
-		assertEquals(initialEntity.version() + 1, updatedEntity.version());
+		final Entity updatedEntity = this.builder.toMutation().orElseThrow().mutate(this.initialEntity.getSchema(), this.initialEntity);
+		assertEquals(this.initialEntity.version() + 1, updatedEntity.version());
 		assertEquals(of(78), updatedEntity.getParent());
 	}
 
 	@Test
 	void shouldAddNewAttributes() {
-		final SealedEntity updatedInstance = builder
+		final SealedEntity updatedInstance = this.builder
 			.setAttribute("newAttribute", "someValue")
 			.toInstance();
 
@@ -169,7 +169,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAddNewAssociatedData() {
-		final SealedEntity updatedInstance = builder
+		final SealedEntity updatedInstance = this.builder
 			.setAssociatedData("newAttribute", "someValue")
 			.toInstance();
 
@@ -178,7 +178,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSetNewParent() {
-		final SealedEntity updatedInstance = builder
+		final SealedEntity updatedInstance = this.builder
 			.setParent(2)
 			.toInstance();
 
@@ -187,7 +187,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSetNewReference() {
-		final SealedEntity updatedInstance = builder
+		final SealedEntity updatedInstance = this.builder
 			.setReference(
 				"stock", "stock", Cardinality.ZERO_OR_MORE, 2,
 				whichIs -> whichIs.setAttribute("newAttribute", "someValue")
@@ -204,7 +204,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldOverwritePrices() {
-		final SealedEntity updatedInstance = builder
+		final SealedEntity updatedInstance = this.builder
 			.setPrice(1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 			.removePrice(2, "reference", CZK)
 			.setPrice(5, "vip", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -231,7 +231,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalEntityInstanceWhenNothingHasChanged() {
-		final SealedEntity newEntity = new ExistingEntityBuilder(initialEntity)
+		final SealedEntity newEntity = new ExistingEntityBuilder(this.initialEntity)
 			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -246,7 +246,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.setAssociatedData("bigDecimal", Locale.ENGLISH, BigDecimal.ONE)
 			.toInstance();
 
-		assertSame(initialEntity, newEntity);
+		assertSame(this.initialEntity, newEntity);
 	}
 
 	@Test
@@ -289,13 +289,13 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Nonnull
 	private Entity setupEntityWithBrand() {
-		builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
+		this.builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
 
-		final EntityMutation entityMutation = builder.toMutation().orElseThrow();
+		final EntityMutation entityMutation = this.builder.toMutation().orElseThrow();
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
 		assertEquals(2, localMutations.size());
 
-		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, (EntitySchema) initialEntity.getSchema());
+		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, (EntitySchema) this.initialEntity.getSchema());
 		final LocalEntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
 			CATALOG_SCHEMA,
 			sealedEntitySchema,
@@ -306,6 +306,6 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.withMutations(schemaMutations)
 			.toInstance();
 
-		return entityMutation.mutate(updatedSchema, initialEntity);
+		return entityMutation.mutate(updatedSchema, this.initialEntity);
 	}
 }

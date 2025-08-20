@@ -92,56 +92,56 @@ public class TestDataProvider {
 				.withAttribute(ATTRIBUTE_OPTICS, byte[].class, thatIs -> thatIs.withDefaultValue(new byte[] {1, 5, 12}))
 				.updateVia(session);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleBrandSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(5)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleCategorySchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(10)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSamplePriceListSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(4)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleStoreSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleParameterGroupSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleParameterGroupSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(15)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleParameterSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleParameterSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(Math.min(Math.max(10, productCount / 5), 100))
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(
+			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {
 							schemaBuilder

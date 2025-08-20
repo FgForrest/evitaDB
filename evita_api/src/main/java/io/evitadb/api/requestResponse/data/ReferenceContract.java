@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -179,23 +179,23 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 		@Nonnull
 		@Override
 		public String getType() {
-			return referencedEntity;
+			return this.referencedEntity;
 		}
 
 		@Nonnull
 		@Override
 		public Integer getPrimaryKey() {
-			return primaryKey;
+			return this.primaryKey;
 		}
 
 		@Override
 		public boolean dropped() {
-			return dropped;
+			return this.dropped;
 		}
 
 		@Override
 		public int version() {
-			return version;
+			return this.version;
 		}
 
 		@Override
@@ -211,16 +211,16 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 			if (otherReferenceGroup == null) {
 				return true;
 			}
-			if (!Objects.equals(primaryKey, otherReferenceGroup.primaryKey())) {
+			if (!Objects.equals(this.primaryKey, otherReferenceGroup.primaryKey())) {
 				return true;
 			}
-			return dropped != otherReferenceGroup.dropped();
+			return this.dropped != otherReferenceGroup.dropped();
 		}
 
 		public int estimateSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 				// type
-				EvitaDataTypes.estimateSize(referencedEntity) +
+				EvitaDataTypes.estimateSize(this.referencedEntity) +
 				// primary key
 				MemoryMeasuringConstants.INT_SIZE +
 				//version
@@ -229,10 +229,11 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 				MemoryMeasuringConstants.BYTE_SIZE;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return (dropped ? "❌ " : "") +
-				"`" + referencedEntity + "`" + " with key " + getPrimaryKey();
+			return (this.dropped ? "❌ " : "") +
+				"`" + this.referencedEntity + "`" + " with key " + getPrimaryKey();
 		}
 	}
 

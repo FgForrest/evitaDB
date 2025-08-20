@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -98,10 +98,10 @@ public class SelectionSetAggregator {
 	 * field name with `*` wildcard at the end to match all fields starting with the pattern.
 	 */
 	public boolean containsImmediate(@Nonnull String fieldNamePattern) {
-		if (originalSelectionSet != null) {
-			return containsImmediate(fieldNamePattern, originalSelectionSet, entityDtoObjectTypeName);
+		if (this.originalSelectionSet != null) {
+			return containsImmediate(fieldNamePattern, this.originalSelectionSet, this.entityDtoObjectTypeName);
 		} else {
-			return containsImmediate(fieldNamePattern, originalSelectionSets, entityDtoObjectTypeName);
+			return containsImmediate(fieldNamePattern, this.originalSelectionSets, this.entityDtoObjectTypeName);
 		}
 	}
 
@@ -110,10 +110,10 @@ public class SelectionSetAggregator {
 	 */
 	@Nonnull
 	public List<SelectedField> getImmediateFields() {
-		if (originalSelectionSet != null) {
-			return getImmediateFields(originalSelectionSet, entityDtoObjectTypeName);
+		if (this.originalSelectionSet != null) {
+			return getImmediateFields(this.originalSelectionSet, this.entityDtoObjectTypeName);
 		} else {
-			return getImmediateFields(originalSelectionSets, entityDtoObjectTypeName);
+			return getImmediateFields(this.originalSelectionSets, this.entityDtoObjectTypeName);
 		}
 	}
 
@@ -122,10 +122,10 @@ public class SelectionSetAggregator {
 	 */
 	@Nonnull
 	public List<SelectedField> getImmediateFields(@Nonnull String fieldName) {
-		if (originalSelectionSet != null) {
-			return getImmediateFields(fieldName, originalSelectionSet, entityDtoObjectTypeName);
+		if (this.originalSelectionSet != null) {
+			return getImmediateFields(fieldName, this.originalSelectionSet, this.entityDtoObjectTypeName);
 		} else {
-			return getImmediateFields(fieldName, originalSelectionSets, entityDtoObjectTypeName);
+			return getImmediateFields(fieldName, this.originalSelectionSets, this.entityDtoObjectTypeName);
 		}
 	}
 
@@ -134,10 +134,10 @@ public class SelectionSetAggregator {
 	 */
 	@Nonnull
 	public List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames) {
-		if (originalSelectionSet != null) {
-			return getImmediateFields(fieldNames, originalSelectionSet, entityDtoObjectTypeName);
+		if (this.originalSelectionSet != null) {
+			return getImmediateFields(fieldNames, this.originalSelectionSet, this.entityDtoObjectTypeName);
 		} else {
-			return getImmediateFields(fieldNames, originalSelectionSets, entityDtoObjectTypeName);
+			return getImmediateFields(fieldNames, this.originalSelectionSets, this.entityDtoObjectTypeName);
 		}
 	}
 
@@ -145,10 +145,10 @@ public class SelectionSetAggregator {
 	 * Whether there are no fields.
 	 */
 	public boolean isEmpty() {
-		if (originalSelectionSet != null) {
-			return isEmpty(originalSelectionSet, entityDtoObjectTypeName);
+		if (this.originalSelectionSet != null) {
+			return isEmpty(this.originalSelectionSet, this.entityDtoObjectTypeName);
 		} else {
-			return isEmpty(originalSelectionSets, entityDtoObjectTypeName);
+			return isEmpty(this.originalSelectionSets, this.entityDtoObjectTypeName);
 		}
 	}
 

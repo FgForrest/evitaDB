@@ -73,12 +73,12 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> null;
 
-			dataGenerator.getSampleCategorySchema(session);
-			dataGenerator.getSampleBrandSchema(session);
-			dataGenerator.getSampleStoreSchema(session);
+			this.dataGenerator.getSampleCategorySchema(session);
+			this.dataGenerator.getSampleBrandSchema(session);
+			this.dataGenerator.getSampleStoreSchema(session);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(session),
+			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleProductSchema(session),
 					randomEntityPicker,
 					SEED
 				)

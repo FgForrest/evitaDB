@@ -40,25 +40,25 @@ public enum GrpcAttributeSchemaType
    * attribute schema is GlobalAttributeSchemaContract
    * </pre>
    *
-   * <code>GLOBAL = 0;</code>
+   * <code>GLOBAL_SCHEMA = 0;</code>
    */
-  GLOBAL(0),
+  GLOBAL_SCHEMA(0),
   /**
    * <pre>
    * attribute schema is EntityAttributeSchemaContract
    * </pre>
    *
-   * <code>ENTITY = 1;</code>
+   * <code>ENTITY_SCHEMA = 1;</code>
    */
-  ENTITY(1),
+  ENTITY_SCHEMA(1),
   /**
    * <pre>
    * attribute schema is AttributeSchemaContract
    * </pre>
    *
-   * <code>REFERENCE = 2;</code>
+   * <code>REFERENCE_SCHEMA = 2;</code>
    */
-  REFERENCE(2),
+  REFERENCE_SCHEMA(2),
   UNRECOGNIZED(-1),
   ;
 
@@ -67,25 +67,25 @@ public enum GrpcAttributeSchemaType
    * attribute schema is GlobalAttributeSchemaContract
    * </pre>
    *
-   * <code>GLOBAL = 0;</code>
+   * <code>GLOBAL_SCHEMA = 0;</code>
    */
-  public static final int GLOBAL_VALUE = 0;
+  public static final int GLOBAL_SCHEMA_VALUE = 0;
   /**
    * <pre>
    * attribute schema is EntityAttributeSchemaContract
    * </pre>
    *
-   * <code>ENTITY = 1;</code>
+   * <code>ENTITY_SCHEMA = 1;</code>
    */
-  public static final int ENTITY_VALUE = 1;
+  public static final int ENTITY_SCHEMA_VALUE = 1;
   /**
    * <pre>
    * attribute schema is AttributeSchemaContract
    * </pre>
    *
-   * <code>REFERENCE = 2;</code>
+   * <code>REFERENCE_SCHEMA = 2;</code>
    */
-  public static final int REFERENCE_VALUE = 2;
+  public static final int REFERENCE_SCHEMA_VALUE = 2;
 
 
   public final int getNumber() {
@@ -112,9 +112,9 @@ public enum GrpcAttributeSchemaType
    */
   public static GrpcAttributeSchemaType forNumber(int value) {
     switch (value) {
-      case 0: return GLOBAL;
-      case 1: return ENTITY;
-      case 2: return REFERENCE;
+      case 0: return GLOBAL_SCHEMA;
+      case 1: return ENTITY_SCHEMA;
+      case 2: return REFERENCE_SCHEMA;
       default: return null;
     }
   }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,15 +90,15 @@ public class Trie<T extends Serializable> implements Serializable {
 	 * @return count of values
 	 */
 	public int size() {
-		return size;
+		return this.size;
 	}
 
 	/**
 	 * Adds new word to the trie.
 	 */
 	public void insert(@Nonnull String word, @Nonnull T value) {
-		size++;
-		TrieNode<T> current = root;
+		this.size++;
+		TrieNode<T> current = this.root;
 		int i = 0;
 
 		while (i < word.length() && current.hasEdgeLabel(word.charAt(i))) {
@@ -128,12 +128,12 @@ public class Trie<T extends Serializable> implements Serializable {
 					final String remainingLabel = strCopy(label, j);
 					final String remainingWord = strCopy(word, i);
 
-					final TrieNode<T> newChild = new TrieNode<>(arrayFactory);
+					final TrieNode<T> newChild = new TrieNode<>(this.arrayFactory);
 					final TrieNode<T> existingChild = current.swapChildren(examinedChar, newChild);
 
 					current.setEdgeLabelLength(examinedChar, j);
 					newChild.setChildrenAndEdgeLabel(remainingLabel.charAt(0), existingChild, remainingLabel);
-					newChild.setChildrenAndEdgeLabel(remainingWord.charAt(0), new TrieNode<>(arrayFactory, value), remainingWord);
+					newChild.setChildrenAndEdgeLabel(remainingWord.charAt(0), new TrieNode<>(this.arrayFactory, value), remainingWord);
 				}
 
 				return;
@@ -142,7 +142,7 @@ public class Trie<T extends Serializable> implements Serializable {
 
 		if (i < word.length()) {
 			// inserting new node for new word
-			current.setChildrenAndEdgeLabel(word.charAt(i), new TrieNode<>(arrayFactory, value), strCopy(word, i));
+			current.setChildrenAndEdgeLabel(word.charAt(i), new TrieNode<>(this.arrayFactory, value), strCopy(word, i));
 		} else {
 			// inserting "there" when "therein" and "thereafter" are existing
 			current.addValue(this.arrayFactory, value);
@@ -156,7 +156,7 @@ public class Trie<T extends Serializable> implements Serializable {
 		/* TOBEDONE JNO IMPLEMENT */
 		final TrieNode<T> removedNode = null;
 		if (removedNode != null) {
-			size += removedNode.getValues().length;
+			this.size += removedNode.getValues().length;
 		}
 		return null;
 	}
@@ -196,7 +196,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	 * Returns true if there is no single word in trie.
 	 */
 	public boolean isEmpty() {
-		return root.hasNoChildren();
+		return this.root.hasNoChildren();
 	}
 
 	/**
@@ -205,7 +205,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	public Set<String> getWords() {
 		final HashSet<String> result = new HashSet<>();
 		walkTree(
-			root,
+			this.root,
 			new StringBuilder(),
 			(word, trieNode) -> {
 				if (trieNode.isEndOfWord()) {
@@ -224,7 +224,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	 */
 	public boolean containsWordStartingWith(@Nonnull String prefix) {
 		int i = 0;
-		TrieNode<T> current = root;
+		TrieNode<T> current = this.root;
 
 		while (i < prefix.length() && current.hasEdgeLabel(prefix.charAt(i))) {
 			final char examinedChar = prefix.charAt(i);
@@ -343,7 +343,7 @@ public class Trie<T extends Serializable> implements Serializable {
 			// array factory
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// root node
-			MemoryMeasuringConstants.REFERENCE_SIZE + root.estimateSize(valueSizeEstimator) +
+			MemoryMeasuringConstants.REFERENCE_SIZE + this.root.estimateSize(valueSizeEstimator) +
 			// size
 			MemoryMeasuringConstants.INT_SIZE;
 	}
@@ -419,7 +419,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	public Set<Entry<String, T>> wordToValueEntrySet() {
 		final Set<Entry<String, T>> result = new HashSet<>();
 		walkTree(
-			root,
+			this.root,
 			new StringBuilder(),
 			(word, trieNode) -> {
 				if (trieNode.isEndOfWord()) {
@@ -440,7 +440,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	public List<Entry<String, T[]>> wordToValuesEntrySet() {
 		final List<Entry<String, T[]>> result = new LinkedList<>();
 		walkTree(
-			root,
+			this.root,
 			new StringBuilder(),
 			(word, trieNode) -> {
 				if (trieNode.isEndOfWord()) {
@@ -461,14 +461,14 @@ public class Trie<T extends Serializable> implements Serializable {
 
 		Trie<?> trie = (Trie<?>) o;
 
-		if (!type.equals(trie.type)) return false;
-		return root.equals(trie.root);
+		if (!this.type.equals(trie.type)) return false;
+		return this.root.equals(trie.root);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = type.hashCode();
-		result = 31 * result + root.hashCode();
+		int result = this.type.hashCode();
+		result = 31 * result + this.root.hashCode();
 		return result;
 	}
 
@@ -490,7 +490,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	 */
 	private TrieNode<T> getWordTrieNode(String word) {
 		int i = 0;
-		TrieNode<T> current = root;
+		TrieNode<T> current = this.root;
 
 		while (i < word.length() && current.hasEdgeLabel(word.charAt(i))) {
 			final char examinedCharacter = word.charAt(i);
@@ -559,7 +559,7 @@ public class Trie<T extends Serializable> implements Serializable {
 	@Nullable
 	private TrieNode<T> findPrefixRoot(String prefix, StringBuilder pathBuilder) {
 		int i = 0;
-		TrieNode<T> current = root;
+		TrieNode<T> current = this.root;
 
 		while (i < prefix.length() && current.hasEdgeLabel(prefix.charAt(i))) {
 			final char examinedChar = prefix.charAt(i);

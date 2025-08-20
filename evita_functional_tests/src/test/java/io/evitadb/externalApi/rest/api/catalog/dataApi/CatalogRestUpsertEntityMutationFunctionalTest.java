@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,9 +29,11 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
@@ -60,11 +62,11 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -183,11 +185,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.ATTRIBUTES.name(), map()
+			.e(
+				AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 				.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 					.e(ATTRIBUTE_QUANTITY, ((BigDecimal) entity.getAttribute(ATTRIBUTE_QUANTITY)).add(BigDecimal.TEN).toString())
 					.build())
@@ -277,7 +280,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag()))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
@@ -397,7 +400,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
-			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entityInTree.version() + 1)
 			.e(EntityDescriptor.SCOPE.name(), entityInTree.getScope().name())
 			.e(RestEntityDescriptor.PARENT_ENTITY.name(), createEntityDto(new EntityReference(Entities.CATEGORY, parent + 10)))
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
@@ -434,7 +437,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyAfterRemoving = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
-			.e(EntityDescriptor.VERSION.name(), entityInTree.version() + 2)
+			.e(VersionedDescriptor.VERSION.name(), entityInTree.version() + 2)
 			.e(EntityDescriptor.SCOPE.name(), entityInTree.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.build();
@@ -478,7 +481,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
@@ -555,7 +558,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		final Map<String, Object> expectedBodyWithoutNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 2)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 2)
 			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
@@ -664,7 +667,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		assertNotNull(entity);
 
 		final Map<String, Object> expectedBody = new LinkedHashMap<>(createEntityDto(entity));
-		expectedBody.put(EntityDescriptor.VERSION.name(), entity.version() + 1);
+		expectedBody.put(VersionedDescriptor.VERSION.name(), entity.version() + 1);
 		expectedBody.put(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name());
 
 
@@ -730,7 +733,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.stream()
 			.map(r -> map()
 				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
-				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+				.e(
+					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 					.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 						.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))))
 				.build())
@@ -738,7 +742,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
-			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+			.e(
+				AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 				.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)))
 			.build());

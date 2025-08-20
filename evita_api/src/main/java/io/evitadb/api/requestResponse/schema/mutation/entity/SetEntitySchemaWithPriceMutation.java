@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,8 +124,8 @@ public class SetEntitySchemaWithPriceMutation implements CombinableLocalEntitySc
 	public String toString() {
 		final boolean indexed = ArrayUtils.isEmptyOrItsValuesNull(this.indexedInScopes);
 		return "Set entity schema: " +
-			"withPrice=" + withPrice +
-			", indexedPricePlaces=" + indexedPricePlaces +
+			"withPrice=" + this.withPrice +
+			", indexedPricePlaces=" + this.indexedPricePlaces +
 			", indexed=" + (indexed ? "(indexed in scopes: " + Arrays.toString(this.indexedInScopes) + ")" : "(not indexed)");
 	}
 }

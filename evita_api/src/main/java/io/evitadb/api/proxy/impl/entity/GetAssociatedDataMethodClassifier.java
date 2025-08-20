@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -470,16 +470,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			return Enum.valueOf(
-				enumType,
-				entity.getAssociatedDataValue(
-						associatedDataName
-					)
-					.filter(Droppable::exists)
-					.map(AssociatedDataValue::value)
-					.map(value -> getOriginalForm(value, String.class, reflectionLookup))
-					.orElse(null)
-			);
+			return entity.getAssociatedDataValue(
+					associatedDataName
+				)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> getOriginalForm(value, String.class, reflectionLookup))
+				.map(it -> Enum.valueOf(enumType, it))
+				.orElse(null);
 		} else {
 			return null;
 		}
@@ -512,16 +510,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				);
 			} else if (locale != null) {
 				//noinspection unchecked
-				return Enum.valueOf(
-					enumType,
-					entity.getAssociatedDataValue(
-							associatedDataName,
-							locale
-						).filter(Droppable::exists)
-						.map(AssociatedDataValue::value)
-						.map(value -> getOriginalForm(value, String.class, reflectionLookup))
-						.orElse(null)
-				);
+				return entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					).filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> getOriginalForm(value, String.class, reflectionLookup))
+					.map(it -> Enum.valueOf(enumType, it))
+					.orElse(null);
 			} else {
 				return null;
 			}
@@ -631,7 +627,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * @return set of values from associated data
 	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
+	@Nonnull
 	private static Set<?> getAssociatedDataAsSet(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
@@ -662,7 +658,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * @return set of values from associated data
 	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
+	@Nonnull
 	private static Set<?> getLocalizedAssociatedDataAsSet(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
@@ -707,7 +703,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * @return list of values from associated data
 	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
+	@Nonnull
 	private static List<?> getAssociatedDataAsList(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
@@ -736,7 +732,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * @return list of values from associated data
 	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
+	@Nonnull
 	private static List<?> getLocalizedAssociatedDataAsList(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,

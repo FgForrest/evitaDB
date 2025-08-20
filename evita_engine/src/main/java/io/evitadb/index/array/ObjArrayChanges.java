@@ -164,11 +164,11 @@ public class ObjArrayChanges<T> {
 	 * contained in original array and not removed so far.
 	 */
 	boolean contains(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
-		final int delegateIndex = Arrays.binarySearch(delegate, recordId, comparator);
+		final int delegateIndex = Arrays.binarySearch(this.delegate, recordId, comparator);
 		if (delegateIndex >= 0) {
-			return Arrays.binarySearch(removals, delegateIndex) < 0;
+			return Arrays.binarySearch(this.removals, delegateIndex) < 0;
 		} else {
-			for (InsertionBucket<T> insertedValue : insertedValues) {
+			for (InsertionBucket<T> insertedValue : this.insertedValues) {
 				if (Arrays.binarySearch(insertedValue.getInsertedValues(), recordId, comparator) >= 0) {
 					return true;
 				}
@@ -185,17 +185,17 @@ public class ObjArrayChanges<T> {
 		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, comparator);
 		// record id was already part of the array, but may have been removed
 		if (position.alreadyPresent()) {
-			int removalIndex = Arrays.binarySearch(removals, position.position());
+			int removalIndex = Arrays.binarySearch(this.removals, position.position());
 			if (removalIndex >= 0) {
 				// just remove the position from the removals
 				this.removals = ArrayUtils.removeIntFromArrayOnIndex(this.removals, removalIndex);
 			}
 		} else {
 			// compute expected position of the record
-			final int index = Arrays.binarySearch(insertions, position.position());
+			final int index = Arrays.binarySearch(this.insertions, position.position());
 			if (index >= 0) {
 				// if there is already waiting array of appended record append also this record id there
-				insertedValues[index].addRecord(recordId, comparator);
+				this.insertedValues[index].addRecord(recordId, comparator);
 			} else {
 				// if not - create new list of additions on expected position
 				final int startIndex = -1 * (index) - 1;
@@ -242,22 +242,22 @@ public class ObjArrayChanges<T> {
 	 */
 	@Nonnull
 	T[] getMergedArray() {
-		if (insertions.length == 0 && removals.length == 0) {
+		if (this.insertions.length == 0 && this.removals.length == 0) {
 			// if there are no insertions / removals - return the original
-			return delegate;
+			return this.delegate;
 		} else {
 			// compute results only when we can't reuse previous computation
-			if (memoizedMergedArray == null) {
+			if (this.memoizedMergedArray == null) {
 				// create new array that will be filled with updated data
-				@SuppressWarnings("unchecked") final T[] computedArray = (T[]) Array.newInstance(delegate.getClass().getComponentType(), getMergedLength());
+				@SuppressWarnings("unchecked") final T[] computedArray = (T[]) Array.newInstance(this.delegate.getClass().getComponentType(), getMergedLength());
 				int lastPosition = 0;
 				int lastComputedPosition = 0;
 
 				int insPositionIndex = -1;
-				int nextInsertionPosition = insertions.length > 0 ? insertions[0] : -1;
+				int nextInsertionPosition = this.insertions.length > 0 ? this.insertions[0] : -1;
 
 				int remPositionIndex = -1;
-				int nextRemovalPosition = removals.length > 0 ? removals[0] : -1;
+				int nextRemovalPosition = this.removals.length > 0 ? this.removals[0] : -1;
 
 				// from left to right get first position with change operations
 				final ChangePlan plan = new ChangePlan();
@@ -270,17 +270,17 @@ public class ObjArrayChanges<T> {
 						remPositionIndex++;
 
 						// insert requested records in to the target array and skip removed record from original array
-						final InsertionBucket<T> insertedRecords = insertedValues[insPositionIndex];
+						final InsertionBucket<T> insertedRecords = this.insertedValues[insPositionIndex];
 						final int originalCopyLength = plan.getPosition() - lastPosition;
-						System.arraycopy(delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+						System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 						final int insertedLength = insertedRecords.size();
 						System.arraycopy(insertedRecords.getInsertedValues(), 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
 						lastPosition = plan.getPosition() + 1;
 						lastComputedPosition = lastComputedPosition + originalCopyLength + insertedLength;
 
 						// move insertions / removal cursors - if there are any
-						nextInsertionPosition = insertions.length > insPositionIndex + 1 ? insertions[insPositionIndex + 1] : -1;
-						nextRemovalPosition = removals.length > remPositionIndex + 1 ? removals[remPositionIndex + 1] : -1;
+						nextInsertionPosition = this.insertions.length > insPositionIndex + 1 ? this.insertions[insPositionIndex + 1] : -1;
+						nextRemovalPosition = this.removals.length > remPositionIndex + 1 ? this.removals[remPositionIndex + 1] : -1;
 
 					} else {
 						if (plan.isInsertion()) {
@@ -288,16 +288,16 @@ public class ObjArrayChanges<T> {
 							insPositionIndex++;
 
 							// insert requested records in to the target array and after the existing record in original array
-							final InsertionBucket<T> insertedRecords = insertedValues[insPositionIndex];
+							final InsertionBucket<T> insertedRecords = this.insertedValues[insPositionIndex];
 							final int originalCopyLength = plan.getPosition() - lastPosition;
-							System.arraycopy(delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 							final int insertedLength = insertedRecords.size();
 							System.arraycopy(insertedRecords.getInsertedValues(), 0, computedArray, lastComputedPosition + originalCopyLength, insertedLength);
 							lastPosition = plan.getPosition();
 							lastComputedPosition = lastComputedPosition + originalCopyLength + insertedLength;
 
 							// move insertions / removal cursors - if there are any
-							nextInsertionPosition = insertions.length > insPositionIndex + 1 ? insertions[insPositionIndex + 1] : -1;
+							nextInsertionPosition = this.insertions.length > insPositionIndex + 1 ? this.insertions[insPositionIndex + 1] : -1;
 
 						} else {
 							// removal is requested on specified position - move index in removal array
@@ -305,12 +305,12 @@ public class ObjArrayChanges<T> {
 
 							// copy contents of the original array skipping removed record
 							final int originalCopyLength = plan.getPosition() - lastPosition;
-							System.arraycopy(delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
+							System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, originalCopyLength);
 							lastPosition = plan.getPosition() + 1;
 							lastComputedPosition = lastComputedPosition + originalCopyLength;
 
 							// move insertions / removal cursors - if there are any
-							nextRemovalPosition = removals.length > remPositionIndex + 1 ? removals[remPositionIndex + 1] : -1;
+							nextRemovalPosition = this.removals.length > remPositionIndex + 1 ? this.removals[remPositionIndex + 1] : -1;
 
 						}
 					}
@@ -320,16 +320,16 @@ public class ObjArrayChanges<T> {
 				}
 
 				// copy rest of the original array into the result (no operations were planned for this part)
-				if (lastPosition < delegate.length) {
-					System.arraycopy(delegate, lastPosition, computedArray, lastComputedPosition, delegate.length - lastPosition);
+				if (lastPosition < this.delegate.length) {
+					System.arraycopy(this.delegate, lastPosition, computedArray, lastComputedPosition, this.delegate.length - lastPosition);
 				}
 
 				// memoize costly computation and return
-				memoizedMergedArray = computedArray;
+				this.memoizedMergedArray = computedArray;
 				return computedArray;
 			} else {
 				// quickly return previous result
-				return memoizedMergedArray;
+				return this.memoizedMergedArray;
 			}
 		}
 	}
@@ -338,8 +338,8 @@ public class ObjArrayChanges<T> {
 	 * Computes length of the array with all requested changes applied.
 	 */
 	int getMergedLength() {
-		int result = delegate.length - removals.length;
-		for (InsertionBucket<T> insertedValue : insertedValues) {
+		int result = this.delegate.length - this.removals.length;
+		for (InsertionBucket<T> insertedValue : this.insertedValues) {
 			result += insertedValue.size();
 		}
 		return result;
@@ -366,11 +366,11 @@ public class ObjArrayChanges<T> {
 		}
 
 		public boolean isEmpty() {
-			return insertedValues.length == 0;
+			return this.insertedValues.length == 0;
 		}
 
 		public int size() {
-			return insertedValues.length;
+			return this.insertedValues.length;
 		}
 	}
 

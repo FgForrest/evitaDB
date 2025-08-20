@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,10 +112,10 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 			try {
 				final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 				final Path assertSource = outputSnippet == null ?
-					resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+					resolveSiblingWithDifferentExtension(this.resource, outputFormat).normalize() :
 					outputSnippet.path().normalize();
 
-				final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+				final String relativePath = assertSource.toString().substring(this.rootDirectory.normalize().toString().length());
 				final String sourceVariable = outputSnippet == null || outputSnippet.sourceVariable() == null ? null : outputSnippet.sourceVariable();
 				final String output = cShell.evaluate(snippet, outputFormat, sourceVariable);
 				if (outputSnippet != null) {
@@ -140,8 +140,8 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Override
 	public void execute() throws Throwable {
-		final CShell cShell = testContextAccessor.get().getCshell();
-		for (OutputSnippet snippet : outputSnippet) {
+		final CShell cShell = this.testContextAccessor.get().getCshell();
+		for (OutputSnippet snippet : this.outputSnippet) {
 			executeCShellCommands(cShell, getSnippets(), snippet);
 		}
 	}
@@ -151,12 +151,12 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	public List<String> getSnippets() {
-		if (parsedSnippets == null) {
-			parsedSnippets = composeCodeBlockWithRequiredBlocks(
-				sourceContent, codeSnippetIndex
+		if (this.parsedSnippets == null) {
+			this.parsedSnippets = composeCodeBlockWithRequiredBlocks(
+				this.sourceContent, this.codeSnippetIndex
 			);
 		}
-		return parsedSnippets;
+		return this.parsedSnippets;
 	}
 
 	/**
@@ -172,12 +172,12 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 		@Nonnull String sourceCode,
 		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex
 	) {
-		if (ArrayUtils.isEmpty(requires)) {
+		if (ArrayUtils.isEmpty(this.requires)) {
 			// simply return contents of the code snippet as result
 			return List.of(sourceCode);
 		} else {
 			final List<String> requiredSnippet = new LinkedList<>();
-			for (Path require : requires) {
+			for (Path require : this.requires) {
 				final CodeSnippet requiredScript = codeSnippetIndex.get(require);
 				// if the code snippet is not found in the index, it's read from the file system
 				if (requiredScript == null) {

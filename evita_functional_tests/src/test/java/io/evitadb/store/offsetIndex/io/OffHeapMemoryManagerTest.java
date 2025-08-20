@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,17 +35,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies {@link OffHeapMemoryManager} functionality.
+ * This test verifies {@link CatalogOffHeapMemoryManager} functionality.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 class OffHeapMemoryManagerTest {
-	private final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(TestConstants.TEST_CATALOG, 1024, 16);
+	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 1024, 16);
 
 	@Test
 	void shouldAcquireOutputStreamWriteOutputAndReadItAgain() throws IOException {
-		try (final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()) {
-			assertEquals(15, memoryManager.getFreeRegions());
+		try (final var outputStream = this.memoryManager.acquireRegionOutputStream().orElseThrow()) {
+			assertEquals(15, this.memoryManager.getFreeRegions());
 
 			final var expected = "Hello world!";
 			// when
@@ -55,19 +55,19 @@ class OffHeapMemoryManagerTest {
 
 			assertEquals(expected, actual);
 		}
-		assertEquals(16, memoryManager.getFreeRegions());
+		assertEquals(16, this.memoryManager.getFreeRegions());
 	}
 
 	@Test
 	void shouldFailToWriteToStreamAfterItWasClosed() {
-		final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
+		final var outputStream = this.memoryManager.acquireRegionOutputStream().orElseThrow();
 		outputStream.close();
 		assertThrows(RuntimeException.class, () -> outputStream.write("Hello world!".getBytes()));
 	}
 
 	@Test
 	void shouldFailToReadFromStreamAfterItWasClosed() {
-		final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
+		final var outputStream = this.memoryManager.acquireRegionOutputStream().orElseThrow();
 		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
 		inputStream.close();
 		assertThrows(RuntimeException.class, inputStream::read);
@@ -75,7 +75,7 @@ class OffHeapMemoryManagerTest {
 
 	@Test
 	void shouldFailToReadFromStreamAfterOriginalOutputStreamWasClosed() {
-		final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
+		final var outputStream = this.memoryManager.acquireRegionOutputStream().orElseThrow();
 		final var inputStream = outputStream.getInputStream();
 		outputStream.close();
 		assertThrows(RuntimeException.class, inputStream::read);
@@ -83,7 +83,7 @@ class OffHeapMemoryManagerTest {
 
 	@Test
 	void shouFailToWriteBytesOutsideTheRegion() throws IOException {
-		final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
+		final var outputStream = this.memoryManager.acquireRegionOutputStream().orElseThrow();
 		final int regionIndex = outputStream.getRegionIndex();
 		for (int i = 0; i < 64; i++) {
 			outputStream.write((byte) 1);
@@ -92,7 +92,7 @@ class OffHeapMemoryManagerTest {
 		assertThrows(BufferOverflowException.class, () -> outputStream.write((byte) 1));
 		// check only data that fit the region were set
 		final byte[] fullMemoryBlockCopy = new byte[1024];
-		memoryManager.memoryBlock.get().get(fullMemoryBlockCopy, 0, 1024);
+		this.memoryManager.memoryBlock.get().get(fullMemoryBlockCopy, 0, 1024);
 		for (int i = 0; i < 1024; i++) {
 			if (i >= regionIndex * 64 && i < regionIndex * 64 + 64) {
 				assertEquals(1, fullMemoryBlockCopy[i], "Byte at index " + i + " should be 1!");
@@ -105,11 +105,11 @@ class OffHeapMemoryManagerTest {
 	@Test
 	void shouldFailToAcquireOutputStreamWhenFreeRegionsAreExhausted() {
 		for (int i = 0; i < 16; i++) {
-			assertTrue(memoryManager.acquireRegionOutputStream().isPresent());
+			assertTrue(this.memoryManager.acquireRegionOutputStream().isPresent());
 		}
 
-		assertFalse(memoryManager.acquireRegionOutputStream().isPresent());
-		assertEquals(0, memoryManager.getFreeRegions());
-		memoryManager.close();
+		assertFalse(this.memoryManager.acquireRegionOutputStream().isPresent());
+		assertEquals(0, this.memoryManager.getFreeRegions());
+		this.memoryManager.close();
 	}
 }

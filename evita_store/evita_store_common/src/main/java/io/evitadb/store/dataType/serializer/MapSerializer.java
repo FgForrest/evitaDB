@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class MapSerializer<K extends Serializable, V extends Serializable> exten
 	@Override
 	public Map<K, V> read(Kryo kryo, Input input, Class<? extends Map<K, V>> type) {
 		final int itemCount = input.readVarInt(true);
-		final Map<K, V> targetSet = setFactory.apply(itemCount);
+		final Map<K, V> targetSet = this.setFactory.apply(itemCount);
 		Class<K> keyClass = null;
 		Class<V> valueClass = null;
 		for (int i = 0; i < itemCount; i++) {

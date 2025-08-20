@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ public class CollectionUtils {
 	 * Inspired by <a href="https://github.com/google/guava/blob/master/guava/src/com/google/common/collect/Maps.java">Guava</a>.
 	 * Thanks!
 	 */
+	@Nonnull
 	public static <K, V> HashMap<K, V> createHashMap(int expectedCapacity) {
 		if (expectedCapacity <= 0) {
 			return new HashMap<>();
@@ -73,7 +74,9 @@ public class CollectionUtils {
 	/**
 	 * Creates new {@link HashMap} instance with predefined contents.
 	 */
-	public static <K, V> HashMap<K, V> createHashMap(Property<K, V>... properties) {
+	@SafeVarargs
+	@Nonnull
+	public static <K, V> HashMap<K, V> createHashMap(@Nonnull Property<K, V>... properties) {
 		final HashMap<K, V> hashMap = createHashMap(properties.length);
 		for (Property<K, V> property : properties) {
 			hashMap.put(property.name(), property.value());
@@ -88,6 +91,7 @@ public class CollectionUtils {
 	 * Inspired by Guava <a href="https://github.com/google/guava/blob/master/guava/src/com/google/common/collect/Maps.java">Guava</a>.
 	 * Thanks!
 	 */
+	@Nonnull
 	public static <K, V> LinkedHashMap<K, V> createLinkedHashMap(int expectedCapacity) {
 		if (expectedCapacity <= 0) {
 			return new LinkedHashMap<>();
@@ -106,7 +110,9 @@ public class CollectionUtils {
 	/**
 	 * Creates new {@link HashMap} instance with predefined contents.
 	 */
-	public static <K, V> LinkedHashMap<K, V> createLinkedHashMap(Property<K, V>... properties) {
+	@SafeVarargs
+	@Nonnull
+	public static <K, V> LinkedHashMap<K, V> createLinkedHashMap(@Nonnull Property<K, V>... properties) {
 		final LinkedHashMap<K, V> hashMap = createLinkedHashMap(properties.length);
 		for (Property<K, V> property : properties) {
 			hashMap.put(property.name(), property.value());
@@ -121,6 +127,7 @@ public class CollectionUtils {
 	 * Inspired by Guava <a href="https://github.com/google/guava/blob/master/guava/src/com/google/common/collect/Maps.java">Guava</a>.
 	 * Thanks!
 	 */
+	@Nonnull
 	public static <K, V> ConcurrentHashMap<K, V> createConcurrentHashMap(int expectedCapacity) {
 		if (expectedCapacity <= 0) {
 			return new ConcurrentHashMap<>();
@@ -143,6 +150,7 @@ public class CollectionUtils {
 	 * Inspired by Guava <a href="https://github.com/google/guava/blob/master/guava/src/com/google/common/collect/.java">Guava</a>.
 	 * Thanks!
 	 */
+	@Nonnull
 	public static <K> HashSet<K> createHashSet(int expectedCapacity) {
 		if (expectedCapacity <= 0) {
 			return new HashSet<>();
@@ -165,6 +173,7 @@ public class CollectionUtils {
 	 * Inspired by Guava <a href="https://github.com/google/guava/blob/master/guava/src/com/google/common/collect/Sets.java">Guava</a>.
 	 * Thanks!
 	 */
+	@Nonnull
 	public static <K> LinkedHashSet<K> createLinkedHashSet(int expectedCapacity) {
 		if (expectedCapacity <= 0) {
 			return new LinkedHashSet<>();

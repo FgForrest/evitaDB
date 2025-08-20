@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public abstract class JsonExecutable {
         @Override
         public DefaultPrettyPrinter withSeparators(Separators separators) {
             final DefaultPrettyPrinter instance = super.withSeparators(separators);
-            _objectFieldValueSeparatorWithSpaces = separators.getObjectFieldValueSeparator() + " ";
+	        this._objectFieldValueSeparatorWithSpaces = separators.getObjectFieldValueSeparator() + " ";
             return instance;
         }
     }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -188,9 +188,9 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 		if (localMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
 			final AttributeKey attributeKey = upsertAttributeMutation.getAttributeKey();
 			final Serializable attributeValue = upsertAttributeMutation.getAttributeValue();
-			if (!suppressVerification) {
+			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-					baseAttributes.entitySchema,
+					this.baseAttributes.entitySchema,
 					attributeKey.attributeName(), attributeValue.getClass(), attributeKey.locale(), getLocationResolver()
 				);
 			}
@@ -208,17 +208,17 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			final AttributeValue attributeValue = this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey)
 				.map(
 					it -> ofNullable(this.attributeMutations.get(attributeKey))
-						.map(x -> x.mutateLocal(entitySchema, it))
+						.map(x -> x.mutateLocal(this.entitySchema, it))
 						.orElse(it)
 				)
 				.orElseGet(
 					() -> ofNullable(this.attributeMutations.get(attributeKey))
-						.map(x -> x.mutateLocal(entitySchema, null))
+						.map(x -> x.mutateLocal(this.entitySchema, null))
 						.orElseThrow(() -> new EvitaInvalidUsageException("Attribute with name `" + attributeKey + "` doesn't exist!"))
 				);
 
-			final AttributeValue updatedValue = applyDeltaAttributeMutation.mutateLocal(entitySchema, attributeValue);
-			if (attributeMutations.get(attributeKey) == null) {
+			final AttributeValue updatedValue = applyDeltaAttributeMutation.mutateLocal(this.entitySchema, attributeValue);
+			if (this.attributeMutations.get(attributeKey) == null) {
 				this.attributeMutations.put(attributeKey, applyDeltaAttributeMutation);
 			} else {
 				this.attributeMutations.put(attributeKey, new UpsertAttributeMutation(attributeKey, Objects.requireNonNull(updatedValue.value())));
@@ -250,12 +250,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			if (!suppressVerification) {
+			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-					baseAttributes.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver()
+					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver()
 				);
 			}
-			attributeMutations.put(
+			this.attributeMutations.put(
 				attributeKey,
 				new UpsertAttributeMutation(attributeKey, attributeValue)
 			);
@@ -271,12 +271,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			if (!suppressVerification) {
+			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-					baseAttributes.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver()
+					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver()
 				);
 			}
-			attributeMutations.put(
+			this.attributeMutations.put(
 				attributeKey,
 				new UpsertAttributeMutation(attributeKey, attributeValue)
 			);
@@ -305,12 +305,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			if (!suppressVerification) {
+			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-					baseAttributes.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver()
+					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver()
 				);
 			}
-			attributeMutations.put(
+			this.attributeMutations.put(
 				attributeKey,
 				new UpsertAttributeMutation(attributeKey, attributeValue)
 			);
@@ -326,12 +326,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			if (!suppressVerification) {
+			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-					baseAttributes.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver()
+					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver()
 				);
 			}
-			attributeMutations.put(
+			this.attributeMutations.put(
 				attributeKey,
 				new UpsertAttributeMutation(attributeKey, attributeValue)
 			);
@@ -343,7 +343,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	@Override
 	public T mutateAttribute(@Nonnull AttributeMutation mutation) {
-		attributeMutations.put(mutation.getAttributeKey(), mutation);
+		this.attributeMutations.put(mutation.getAttributeKey(), mutation);
 		//noinspection unchecked
 		return (T) this;
 	}
@@ -419,7 +419,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	@Override
 	public Optional<S> getAttributeSchema(@Nonnull String attributeName) {
-		return baseAttributes.getAttributeSchema(attributeName);
+		return this.baseAttributes.getAttributeSchema(attributeName);
 	}
 
 	@Nonnull
@@ -427,7 +427,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	public Set<String> getAttributeNames() {
 		return getAttributeValues()
 			.stream()
-			.filter(attributePredicate)
+			.filter(this.attributePredicate)
 			.map(it -> it.key().attributeName())
 			.collect(Collectors.toSet());
 	}
@@ -455,7 +455,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
 		return getAttributeValuesWithoutPredicate()
-			.filter(attributePredicate)
+			.filter(this.attributePredicate)
 			.collect(Collectors.toList());
 	}
 
@@ -491,12 +491,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	@Override
 	public Stream<? extends AttributeMutation> buildChangeSet() {
-		final Map<AttributeKey, AttributeValue> builtAttributes = new HashMap<>(baseAttributes.attributeValues);
-		return attributeMutations.values()
+		final Map<AttributeKey, AttributeValue> builtAttributes = new HashMap<>(this.baseAttributes.attributeValues);
+		return this.attributeMutations.values()
 			.stream()
 			.filter(it -> {
 				final AttributeValue existingValue = builtAttributes.get(it.getAttributeKey());
-				final AttributeValue newAttribute = it.mutateLocal(entitySchema, existingValue);
+				final AttributeValue newAttribute = it.mutateLocal(this.entitySchema, existingValue);
 				builtAttributes.put(it.getAttributeKey(), newAttribute);
 				return existingValue == null || newAttribute.version() > existingValue.version();
 			});
@@ -519,25 +519,25 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 		return Stream.concat(
 				// process all original attribute values - they will be: either kept intact if there is no mutation
 				// or mutated by the mutation - i.e. updated or removed
-				baseAttributes.attributeValues
+				this.baseAttributes.attributeValues
 					.entrySet()
 					.stream()
 					// use old attribute, or apply mutation on the attribute and return the mutated attribute
-					.map(it -> ofNullable(attributeMutations.get(it.getKey()))
+					.map(it -> ofNullable(this.attributeMutations.get(it.getKey()))
 						.map(mutation -> {
 							final AttributeValue originValue = it.getValue();
-							final AttributeValue mutatedAttribute = mutation.mutateLocal(entitySchema, originValue);
+							final AttributeValue mutatedAttribute = mutation.mutateLocal(this.entitySchema, originValue);
 							return mutatedAttribute.differsFrom(originValue);
 						})
 						.orElse(false)
 					),
 				// all mutations that doesn't hit existing attribute probably produce new ones
 				// we have to process them as well
-				attributeMutations
+				this.attributeMutations
 					.values()
 					.stream()
 					// we want to process only those mutations that have no attribute to mutate in the original set
-					.filter(it -> !baseAttributes.attributeValues.containsKey(it.getAttributeKey()))
+					.filter(it -> !this.baseAttributes.attributeValues.containsKey(it.getAttributeKey()))
 					// apply mutation
 					.map(it -> true)
 			)
@@ -552,27 +552,27 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 		return Stream.concat(
 			// process all original attribute values - they will be: either kept intact if there is no mutation
 			// or mutated by the mutation - i.e. updated or removed
-			baseAttributes.attributeValues
+			this.baseAttributes.attributeValues
 				.entrySet()
 				.stream()
 				// use old attribute, or apply mutation on the attribute and return the mutated attribute
-				.map(it -> ofNullable(attributeMutations.get(it.getKey()))
+				.map(it -> ofNullable(this.attributeMutations.get(it.getKey()))
 					.map(mutation -> {
 						final AttributeValue originValue = it.getValue();
-						final AttributeValue mutatedAttribute = mutation.mutateLocal(entitySchema, originValue);
+						final AttributeValue mutatedAttribute = mutation.mutateLocal(this.entitySchema, originValue);
 						return mutatedAttribute.differsFrom(originValue) ? mutatedAttribute : originValue;
 					})
 					.orElse(it.getValue())
 				),
 			// all mutations that doesn't hit existing attribute probably produce new ones
 			// we have to process them as well
-			attributeMutations
+			this.attributeMutations
 				.values()
 				.stream()
 				// we want to process only those mutations that have no attribute to mutate in the original set
-				.filter(it -> !baseAttributes.attributeValues.containsKey(it.getAttributeKey()))
+				.filter(it -> !this.baseAttributes.attributeValues.containsKey(it.getAttributeKey()))
 				// apply mutation
-				.map(it -> it.mutateLocal(entitySchema, null))
+				.map(it -> it.mutateLocal(this.entitySchema, null))
 		);
 	}
 
@@ -586,16 +586,16 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			.map(it ->
 				ofNullable(this.attributeMutations.get(attributeKey))
 					.map(mut -> {
-						final AttributeValue mutatedValue = mut.mutateLocal(entitySchema, it);
+						final AttributeValue mutatedValue = mut.mutateLocal(this.entitySchema, it);
 						return mutatedValue.differsFrom(it) ? mutatedValue : it;
 					})
 					.orElse(it)
 			)
 			.or(() ->
 				ofNullable(this.attributeMutations.get(attributeKey))
-					.map(it -> it.mutateLocal(entitySchema, null))
+					.map(it -> it.mutateLocal(this.entitySchema, null))
 			);
-		return attributeValue.filter(attributePredicate);
+		return attributeValue.filter(this.attributePredicate);
 	}
 
 }

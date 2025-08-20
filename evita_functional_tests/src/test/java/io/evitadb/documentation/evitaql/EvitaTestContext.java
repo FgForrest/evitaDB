@@ -76,7 +76,7 @@ public class EvitaTestContext implements TestContext {
 					.build()
 		);
 
-		this.graphQLQueryConverter = new GraphQLQueryConverter(evitaContract);
-		this.restQueryConverter = new RestQueryConverter(evitaContract);
+		this.graphQLQueryConverter = new GraphQLQueryConverter(this.evitaContract);
+		this.restQueryConverter = new RestQueryConverter(this.evitaContract);
 	}
 }

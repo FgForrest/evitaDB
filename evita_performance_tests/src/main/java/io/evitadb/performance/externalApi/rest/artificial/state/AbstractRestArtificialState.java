@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public abstract class AbstractRestArtificialState {
 	}
 
 	protected void setRequest(@Nonnull AbstractArtificialBenchmarkState<?> benchmarkState, @Nonnull Query query) {
-		final String request = queryConverter.convert(benchmarkState.getEvita(), TEST_CATALOG, query);
+		final String request = this.queryConverter.convert(benchmarkState.getEvita(), TEST_CATALOG, query);
 
 		final Matcher requestMatcher = REQUEST_PATTERN.matcher(request);
 		Assert.isPremiseValid(requestMatcher.matches(), "Invalid request format.");

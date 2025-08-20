@@ -25,6 +25,7 @@ package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
@@ -60,6 +61,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Converts {@link Query} into GraphQL equivalent query string.
  *
@@ -70,8 +73,7 @@ public class GraphQLQueryConverter {
 
 	private static final String DEFAULT_CATALOG_NAME = "evita";
 	@Nonnull private static final GraphQLInputJsonPrinter INPUT_JSON_PRINTER = new GraphQLInputJsonPrinter();
-
-	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
+	@Nonnull private static final Set<Class<? extends Constraint<?>>> ALLOWED_REQUIRE_CONSTRAINTS = Set.of(
 		Require.class,
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
@@ -95,13 +97,16 @@ public class GraphQLQueryConverter {
 	}
 
 	@Nonnull
-	public String convert(@Nonnull EvitaContract evita, @Nonnull String catalogName, @Nonnull Query query) {
+	public static String convert(@Nonnull EvitaContract evita, @Nonnull String catalogName, @Nonnull Query query) {
 		// we need active session to fetch entity schemas from catalog schema when converting constraints
 		try (final EvitaSessionContract session = evita.createReadOnlySession(catalogName)) {
 			final CatalogSchemaContract catalogSchema = session.getCatalogSchema();
 
 			// convert query parts
-			final String collection = query.getCollection().getEntityType();
+			final String collection = ofNullable(query.getCollection())
+				.map(Collection::getEntityType)
+				.orElseThrow(() -> new EntityCollectionRequiredException("Collection must be provided for GraphQL query."));
+
 			final String header = convertHeader(catalogSchema, query, collection);
 			final String outputFields = convertOutputFields(catalogSchema, query);
 
@@ -110,13 +115,13 @@ public class GraphQLQueryConverter {
 	}
 
 	@Nonnull
-	private String convertHeader(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Query query, @Nonnull String entityType) {
+	private static String convertHeader(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Query query, @Nonnull String entityType) {
 		final HeadConstraintToJsonConverter headConstraintToJsonConverter = new HeadConstraintToJsonConverter(catalogSchema);
 		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			this.allowedRequireConstraints::contains,
+			ALLOWED_REQUIRE_CONSTRAINTS::contains,
 			new AtomicReference<>(filterConstraintToJsonConverter),
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
@@ -162,8 +167,10 @@ public class GraphQLQueryConverter {
 	}
 
 	@Nonnull
-	private String convertOutputFields(@Nonnull CatalogSchemaContract catalogSchema,
-	                                   @Nonnull Query query) {
+	private static String convertOutputFields(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull Query query
+	) {
 		final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, query);
 		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, query);
@@ -172,8 +179,10 @@ public class GraphQLQueryConverter {
 		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, query);
 		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, query);
 
-		final String entityType = query.getCollection().getEntityType();
-		final Locale locale = Optional.ofNullable(query.getFilterBy())
+		final String entityType = ofNullable(query.getCollection())
+			.map(Collection::getEntityType)
+			.orElseThrow(() -> new EntityCollectionRequiredException("Collection must be provided for GraphQL query."));
+		final Locale locale = ofNullable(query.getFilterBy())
 			.map(f -> QueryUtils.findConstraint(f, EntityLocaleEquals.class, SeparateEntityContentRequireContainer.class))
 			.map(EntityLocaleEquals::getLocale)
 			.orElse(null);
@@ -190,7 +199,7 @@ public class GraphQLQueryConverter {
 			final EntityFetch entityFetch = QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			final Page page = QueryUtils.findConstraint(require, Page.class, SeparateEntityContentRequireContainer.class);
 			final Strip strip = QueryUtils.findConstraint(require, Strip.class, SeparateEntityContentRequireContainer.class);
-			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
+			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, ExtraResultRequireConstraint.class::isInstance);
 			final QueryTelemetry queryTelemetry = QueryUtils.findConstraint(require, QueryTelemetry.class);
 
 			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, !extraResultConstraints.isEmpty());
@@ -221,10 +230,10 @@ public class GraphQLQueryConverter {
 							attributeHistograms
 						));
 
-					Optional.ofNullable(QueryUtils.findConstraint(require, PriceHistogram.class))
+					ofNullable(QueryUtils.findConstraint(require, PriceHistogram.class))
 						.ifPresent(priceHistogram -> priceHistogramConverter.convert(extraResultsBuilder, priceHistogram));
 
-					Optional.ofNullable(queryTelemetry)
+					ofNullable(queryTelemetry)
 						.ifPresent(it -> queryTelemetryConverter.convert(extraResultsBuilder, it));
 				});
 			}
@@ -234,7 +243,11 @@ public class GraphQLQueryConverter {
 	}
 
 	@Nonnull
-	private String constructQuery(@Nonnull String collection, @Nonnull String header, @Nonnull String outputFields) {
+	private static String constructQuery(
+		@Nonnull String collection,
+		@Nonnull String header,
+		@Nonnull String outputFields
+	) {
 		final String arguments = header.isEmpty() ? "" : "(\n" + header + "\n  )";
 		return "{\n" +
 			"  query" + StringUtils.toPascalCase(collection) + arguments + " {\n" +

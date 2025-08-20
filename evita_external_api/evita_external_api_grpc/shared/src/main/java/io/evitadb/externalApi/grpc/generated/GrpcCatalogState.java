@@ -72,6 +72,61 @@ public enum GrpcCatalogState
   CORRUPTED(3),
   /**
    * <pre>
+   * State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
+   * the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
+   * </pre>
+   *
+   * <code>INACTIVE = 4;</code>
+   */
+  INACTIVE(4),
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is transitioning catalog from {&#64;link #WARMING_UP} to {&#64;link #ALIVE} state.
+   * Until the transition is fully completed, the catalog is not able to serve any requests.
+   * </pre>
+   *
+   * <code>GOING_ALIVE = 5;</code>
+   */
+  GOING_ALIVE(5),
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
+   * initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
+   * completed.
+   * </pre>
+   *
+   * <code>BEING_ACTIVATED = 6;</code>
+   */
+  BEING_ACTIVATED(6),
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
+   * is moved to {&#64;link #INACTIVE} state.
+   * </pre>
+   *
+   * <code>BEING_DEACTIVATED = 7;</code>
+   */
+  BEING_DEACTIVATED(7),
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
+   * until the creation is fully completed.
+   * </pre>
+   *
+   * <code>BEING_CREATED = 8;</code>
+   */
+  BEING_CREATED(8),
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
+   * is removed from the file system and is no longer available.
+   * </pre>
+   *
+   * <code>BEING_DELETED = 9;</code>
+   */
+  BEING_DELETED(9),
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -118,6 +173,61 @@ public enum GrpcCatalogState
   public static final int CORRUPTED_VALUE = 3;
   /**
    * <pre>
+   * State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
+   * the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
+   * </pre>
+   *
+   * <code>INACTIVE = 4;</code>
+   */
+  public static final int INACTIVE_VALUE = 4;
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is transitioning catalog from {&#64;link #WARMING_UP} to {&#64;link #ALIVE} state.
+   * Until the transition is fully completed, the catalog is not able to serve any requests.
+   * </pre>
+   *
+   * <code>GOING_ALIVE = 5;</code>
+   */
+  public static final int GOING_ALIVE_VALUE = 5;
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
+   * initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
+   * completed.
+   * </pre>
+   *
+   * <code>BEING_ACTIVATED = 6;</code>
+   */
+  public static final int BEING_ACTIVATED_VALUE = 6;
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
+   * is moved to {&#64;link #INACTIVE} state.
+   * </pre>
+   *
+   * <code>BEING_DEACTIVATED = 7;</code>
+   */
+  public static final int BEING_DEACTIVATED_VALUE = 7;
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
+   * until the creation is fully completed.
+   * </pre>
+   *
+   * <code>BEING_CREATED = 8;</code>
+   */
+  public static final int BEING_CREATED_VALUE = 8;
+  /**
+   * <pre>
+   * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
+   * is removed from the file system and is no longer available.
+   * </pre>
+   *
+   * <code>BEING_DELETED = 9;</code>
+   */
+  public static final int BEING_DELETED_VALUE = 9;
+  /**
+   * <pre>
    * Unknown state of the catalog. Used when catalog is corrupted.
    * </pre>
    *
@@ -153,6 +263,12 @@ public enum GrpcCatalogState
       case 0: return WARMING_UP;
       case 1: return ALIVE;
       case 3: return CORRUPTED;
+      case 4: return INACTIVE;
+      case 5: return GOING_ALIVE;
+      case 6: return BEING_ACTIVATED;
+      case 7: return BEING_DEACTIVATED;
+      case 8: return BEING_CREATED;
+      case 9: return BEING_DELETED;
       case 2: return UNKNOWN_CATALOG_STATE;
       default: return null;
     }

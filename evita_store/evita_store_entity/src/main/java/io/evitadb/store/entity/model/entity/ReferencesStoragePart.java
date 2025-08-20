@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.function.ToIntBiFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -99,23 +100,23 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {
-		return (long) entityPrimaryKey;
+		return (long) this.entityPrimaryKey;
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return references.length == 0 || Arrays.stream(references).noneMatch(Droppable::exists);
+		return this.references.length == 0 || Arrays.stream(this.references).noneMatch(Droppable::exists);
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt sizeInBytes() {
-		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+		return this.sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(this.sizeInBytes);
 	}
 
 	/**
@@ -126,8 +127,9 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Nonnull
 	public ReferenceContract replaceOrAddReference(@Nonnull ReferenceKey referenceKey, @Nonnull UnaryOperator<ReferenceContract> mutator) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-			this.references, referenceKey,
-			(examinedReference, rk) -> examinedReference.getReferenceKey().compareTo(rk)
+			referenceKey, this.references,
+			(ToIntBiFunction<ReferenceContract, ReferenceKey>)
+				(examinedReference, rk) -> examinedReference.getReferenceKey().compareTo(rk)
 		);
 		final int position = insertionPosition.position();
 		final ReferenceContract mutatedReference;
@@ -202,9 +204,9 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			this.references, referenceKey,
 			(referenceContract, theReferenceKey) -> referenceContract.getReferenceKey().compareTo(theReferenceKey)
 		);
-		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!");
+		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!");
 		final ReferenceContract reference = this.references[index];
-		Assert.isPremiseValid(reference.exists(), () -> "Reference " + referenceKey + " for entity `" + entityPrimaryKey + "` was not found!");
+		Assert.isPremiseValid(reference.exists(), () -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!");
 		return reference;
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,5 +37,11 @@ public class PassThroughMutationObjectParser implements MutationObjectParser {
 	@Override
 	public Object parse(@Nullable Object inputMutationObject) {
 		return inputMutationObject;
+	}
+
+	@Nullable
+	@Override
+	public Object serialize(@Nullable Object outputMutationObject) {
+		return outputMutationObject;
 	}
 }

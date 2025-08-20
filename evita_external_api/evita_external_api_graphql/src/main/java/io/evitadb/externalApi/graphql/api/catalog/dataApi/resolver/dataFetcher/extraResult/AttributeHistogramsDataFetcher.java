@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
@@ -51,8 +52,8 @@ public class AttributeHistogramsDataFetcher implements DataFetcher<List<Map<Stri
 
 	@Nonnull
 	@Override
-	public List<Map<String, Object>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public List<Map<String, Object>> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
 		if (attributeHistogram == null) {
 			return List.of();
@@ -63,7 +64,7 @@ public class AttributeHistogramsDataFetcher implements DataFetcher<List<Map<Stri
 			.entrySet()
 			.stream()
 			.filter(h -> {
-				final String attributeName = entitySchema
+				final String attributeName = this.entitySchema
 					.getAttribute(h.getKey())
 					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + h.getKey() + "`."))
 					.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION);

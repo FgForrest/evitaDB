@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -129,7 +129,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 		// accumulator is used to gather information about its children gradually
 		this.rootAccumulator = new Accumulator(executionContext, false, null, () -> EmptyFormula.INSTANCE);
-		accumulator.add(rootAccumulator);
+		this.accumulator.add(this.rootAccumulator);
 
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
@@ -138,59 +138,59 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 	@Nonnull
 	public List<LevelInfo> getResult(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
-		return rootAccumulator.getChildrenAsLevelInfo(statisticsTypes);
+		return this.rootAccumulator.getChildrenAsLevelInfo(statisticsTypes);
 	}
 
 	@Nonnull
 	public List<Accumulator> getAccumulators() {
-		return rootAccumulator.getChildren();
+		return this.rootAccumulator.getChildren();
 	}
 
 	@Override
 	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
 		final int entityPrimaryKey = node.entityPrimaryKey();
-		if (filterPredicate.test(entityPrimaryKey)) {
+		if (this.filterPredicate.test(entityPrimaryKey)) {
 			// get current accumulator
-			final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
+			final Accumulator topAccumulator = Objects.requireNonNull(this.accumulator.peek());
 			if (topAccumulator.isInOmissionBlock()) {
 				// we can short-circuit when the caller wants only StatisticsType.CHILDREN_COUNT and accumulator
 				// already registered some cardinality
-				if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT) || !topAccumulator.hasQueriedEntity()) {
+				if (this.statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT) || !topAccumulator.hasQueriedEntity()) {
 					// in omission block compute only cardinality of queued entities
 					topAccumulator.registerOmittedCardinality(
-						queriedEntityComputer.apply(node.entityPrimaryKey())
+						this.queriedEntityComputer.apply(node.entityPrimaryKey())
 					);
 					// we can short-circuit when the caller wants only StatisticsType.CHILDREN_COUNT and accumulator
 					// already registered some cardinality
-					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT) || !topAccumulator.hasQueriedEntity()) {
+					if (this.statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT) || !topAccumulator.hasQueriedEntity()) {
 						traverser.run();
 					}
 				}
 			} else {
-				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceCompensation)) {
+				if (this.scopePredicate.test(entityPrimaryKey, level, distance + this.distanceCompensation)) {
 					// and create element in accumulator that will be filled in
-					final EntityClassifier entityRef = entityFetcher.apply(executionContext, entityPrimaryKey);
+					final EntityClassifier entityRef = this.entityFetcher.apply(this.executionContext, entityPrimaryKey);
 					if (entityRef != null) {
-						accumulator.push(
+						this.accumulator.push(
 							new Accumulator(
-								executionContext,
-								requestedPredicate.test(entityPrimaryKey),
+								this.executionContext,
+								this.requestedPredicate.test(entityPrimaryKey),
 								entityRef,
-								() -> queriedEntityComputer.apply(node.entityPrimaryKey())
+								() -> this.queriedEntityComputer.apply(node.entityPrimaryKey())
 							)
 						);
 						// traverse subtree - filling up the accumulator on previous row
-						if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
-							selfTraversingPredicate.traverse(entityPrimaryKey, level, distance + distanceCompensation, traverser);
+						if (this.scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+							selfTraversingPredicate.traverse(entityPrimaryKey, level, distance + this.distanceCompensation, traverser);
 						} else {
 							traverser.run();
 						}
 						// now remove current accumulator from stack
-						final Accumulator finalizedAccumulator = accumulator.pop();
+						final Accumulator finalizedAccumulator = this.accumulator.pop();
 						// and if its cardinality is greater than zero (contains at least one queried entity)
 						// add it to the result
-						if (removeEmptyResults) {
-							if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
+						if (this.removeEmptyResults) {
+							if (this.statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 								// we need to fully compute cardinality of queried entities
 								if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
 									topAccumulator.add(finalizedAccumulator);
@@ -205,21 +205,21 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 							topAccumulator.add(finalizedAccumulator);
 						}
 					}
-				} else if (!statisticsType.isEmpty() || removeEmptyResults) {
+				} else if (!this.statisticsType.isEmpty() || this.removeEmptyResults) {
 					// and create element in accumulator that will be filled in
 					final Accumulator theOmmissionAccumulator = new Accumulator(
-						executionContext,
-						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
+						this.executionContext,
+						() -> this.queriedEntityComputer.apply(node.entityPrimaryKey())
 					);
-					accumulator.push(theOmmissionAccumulator);
+					this.accumulator.push(theOmmissionAccumulator);
 					// if we need to compute statistics, but the positional predicate stops traversal
 					// we need to traverse the rest of the tree in the omission block
 					theOmmissionAccumulator.executeOmissionBlock(traverser);
 					// now remove current accumulator from stack
-					accumulator.pop();
+					this.accumulator.pop();
 					// when we exit the omission block we may resolve the children count
-					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT) || removeEmptyResults) {
-						if (removeEmptyResults) {
+					if (this.statisticsType.contains(StatisticsType.CHILDREN_COUNT) || this.removeEmptyResults) {
+						if (this.removeEmptyResults) {
 							// we need to fully compute cardinality of queried entities
 							if (theOmmissionAccumulator.hasQueriedEntity()) {
 								topAccumulator.registerOmittedChild();
@@ -230,11 +230,11 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 						}
 					}
 					// and compute overall cardinality
-					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
+					if (this.statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 						// propagated all formulas with omitted children
 						theOmmissionAccumulator.getOmittedQueuedEntities().forEach(topAccumulator::registerOmittedCardinality);
 						// and now register omitted cardinality for this node as well
-						topAccumulator.registerOmittedCardinality(queriedEntityComputer.apply(node.entityPrimaryKey()));
+						topAccumulator.registerOmittedCardinality(this.queriedEntityComputer.apply(node.entityPrimaryKey()));
 					}
 				}
 			}

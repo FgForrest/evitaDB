@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,7 +50,7 @@ class ModifyReferenceSchemaNameMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyReferenceSchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceSchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -59,7 +60,7 @@ class ModifyReferenceSchemaNameMutationConverterTest {
 			"stitky"
 		);
 
-		final ModifyReferenceSchemaNameMutation convertedMutation = converter.convert(
+		final ModifyReferenceSchemaNameMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME.name(), "stitky")
@@ -72,7 +73,7 @@ class ModifyReferenceSchemaNameMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME.name(), "stitky")
 					.build()
@@ -80,13 +81,32 @@ class ModifyReferenceSchemaNameMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReferenceSchemaNameMutation inputMutation = new ModifyReferenceSchemaNameMutation(
+			"tags",
+			"stitky"
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReferenceSchemaNameMutationDescriptor.NEW_NAME.name(), "stitky")
+					.build()
+			);
 	}
 }

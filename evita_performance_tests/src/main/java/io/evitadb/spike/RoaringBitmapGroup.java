@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -205,18 +205,18 @@ public class RoaringBitmapGroup {
 			roaringBitmap.runOptimize();
 			this.allPrimaryKeys = roaringBitmap;
 
-			unsortedMappedKeys = new int[setSize];
+			this.unsortedMappedKeys = new int[setSize];
 			for (int i = 0; i < setSize; i++) {
 				final int position = random.nextInt((int) (FUNNEL * valueCount));
-				final int id = allPrimaryKeys.select(position);
-				unsortedMappedKeys[i] = id;
+				final int id = this.allPrimaryKeys.select(position);
+				this.unsortedMappedKeys[i] = id;
 			}
 
 			final RoaringBitmapWriter<RoaringBitmap> filteredSet = RoaringBitmapWriter.writer().constantMemory().runCompress(false).get();
 			final int filteredCount = (int) (getFilteredKeysShare() * getAllPrimaryKeys().getCardinality());
 			for (int i = 0; i < filteredCount; i++) {
 				final int position = random.nextInt((int) (FUNNEL * valueCount));
-				final int id = allPrimaryKeys.select(position);
+				final int id = this.allPrimaryKeys.select(position);
 				filteredSet.add(id);
 			}
 			this.filteredKeys = filteredSet.get();
@@ -271,26 +271,26 @@ public class RoaringBitmapGroup {
 		}
 
 		public int getPeek() {
-			return unsortedPosition;
+			return this.unsortedPosition;
 		}
 
 		public Map<Integer, List<Integer>> getSwallowMap() {
-			return swallowMap;
+			return this.swallowMap;
 		}
 
 		@Override
 		public void accept(int filteredId) {
-			while (allIt.hasNext()) {
-				++position;
-				final int allId = allIt.next();
+			while (this.allIt.hasNext()) {
+				++this.position;
+				final int allId = this.allIt.next();
 				if (filteredId == allId) {
-					final int unsortedMappedKey = unsortedMappedKeys[position];
-					if (distinctizer.add(unsortedMappedKey)) {
-						unsortedDistinctResult[++unsortedPosition] = unsortedMappedKey;
+					final int unsortedMappedKey = this.unsortedMappedKeys[this.position];
+					if (this.distinctizer.add(unsortedMappedKey)) {
+						this.unsortedDistinctResult[++this.unsortedPosition] = unsortedMappedKey;
 					}
-					if (unsortedPosition <= 50) {
+					if (this.unsortedPosition <= 50) {
 						this.swallowMap.computeIfAbsent(unsortedMappedKey, ArrayList::new)
-							.add(allKeys.select(position));
+							.add(this.allKeys.select(this.position));
 					}
 					break;
 				}

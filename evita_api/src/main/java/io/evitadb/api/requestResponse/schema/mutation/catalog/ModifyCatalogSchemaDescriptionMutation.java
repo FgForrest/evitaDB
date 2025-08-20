@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,12 +73,12 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
 		);
-		if (Objects.equals(description, catalogSchema.getDescription())) {
+		if (Objects.equals(this.description, catalogSchema.getDescription())) {
 			// nothing has changed - we can return existing schema
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
@@ -87,7 +87,7 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
-					description,
+					this.description,
 					catalogSchema.getCatalogEvolutionMode(),
 					catalogSchema.getAttributes(),
 					entitySchemaAccessor
@@ -104,6 +104,6 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 
 	@Override
 	public String toString() {
-		return "Modify catalog description='" + description + '\'';
+		return "Modify catalog description='" + this.description + '\'';
 	}
 }

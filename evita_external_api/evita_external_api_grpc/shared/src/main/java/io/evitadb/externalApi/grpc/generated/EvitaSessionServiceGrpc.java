@@ -1159,6 +1159,37 @@ public final class EvitaSessionServiceGrpc {
     return getGetTransactionIdMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> getRegisterChangeCatalogCaptureMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "RegisterChangeCatalogCapture",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest,
+      io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> getRegisterChangeCatalogCaptureMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> getRegisterChangeCatalogCaptureMethod;
+    if ((getRegisterChangeCatalogCaptureMethod = EvitaSessionServiceGrpc.getRegisterChangeCatalogCaptureMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getRegisterChangeCatalogCaptureMethod = EvitaSessionServiceGrpc.getRegisterChangeCatalogCaptureMethod) == null) {
+          EvitaSessionServiceGrpc.getRegisterChangeCatalogCaptureMethod = getRegisterChangeCatalogCaptureMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.SERVER_STREAMING)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "RegisterChangeCatalogCapture"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("RegisterChangeCatalogCapture"))
+              .build();
+        }
+      }
+    }
+    return getRegisterChangeCatalogCaptureMethod;
+  }
+
   /**
    * Creates a new async stub that supports all call types for the service
    */
@@ -1592,6 +1623,16 @@ public final class EvitaSessionServiceGrpc {
     default void getTransactionId(com.google.protobuf.Empty request,
         io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getGetTransactionIdMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
+     * Procedure that registers a change capture.
+     * </pre>
+     */
+    default void registerChangeCatalogCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getRegisterChangeCatalogCaptureMethod(), responseObserver);
     }
   }
 
@@ -2037,6 +2078,17 @@ public final class EvitaSessionServiceGrpc {
       io.grpc.stub.ClientCalls.asyncUnaryCall(
           getChannel().newCall(getGetTransactionIdMethod(), getCallOptions()), request, responseObserver);
     }
+
+    /**
+     * <pre>
+     * Procedure that registers a change capture.
+     * </pre>
+     */
+    public void registerChangeCatalogCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncServerStreamingCall(
+          getChannel().newCall(getRegisterChangeCatalogCaptureMethod(), getCallOptions()), request, responseObserver);
+    }
   }
 
   /**
@@ -2432,6 +2484,18 @@ public final class EvitaSessionServiceGrpc {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getGetTransactionIdMethod(), getCallOptions(), request);
     }
+
+    /**
+     * <pre>
+     * Procedure that registers a change capture.
+     * </pre>
+     */
+    @io.grpc.ExperimentalApi("https://github.com/grpc/grpc-java/issues/10918")
+    public io.grpc.stub.BlockingClientCall<?, io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse>
+        registerChangeCatalogCapture(io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest request) {
+      return io.grpc.stub.ClientCalls.blockingV2ServerStreamingCall(
+          getChannel(), getRegisterChangeCatalogCaptureMethod(), getCallOptions(), request);
+    }
   }
 
   /**
@@ -2823,6 +2887,17 @@ public final class EvitaSessionServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getTransactionId(com.google.protobuf.Empty request) {
       return io.grpc.stub.ClientCalls.blockingUnaryCall(
           getChannel(), getGetTransactionIdMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Procedure that registers a change capture.
+     * </pre>
+     */
+    public java.util.Iterator<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse> registerChangeCatalogCapture(
+        io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest request) {
+      return io.grpc.stub.ClientCalls.blockingServerStreamingCall(
+          getChannel(), getRegisterChangeCatalogCaptureMethod(), getCallOptions(), request);
     }
   }
 
@@ -3253,6 +3328,7 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_ARCHIVE_ENTITY = 33;
   private static final int METHODID_RESTORE_ENTITY = 34;
   private static final int METHODID_GET_TRANSACTION_ID = 35;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 36;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -3414,6 +3490,10 @@ public final class EvitaSessionServiceGrpc {
         case METHODID_GET_TRANSACTION_ID:
           serviceImpl.getTransactionId((com.google.protobuf.Empty) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>) responseObserver);
+          break;
+        case METHODID_REGISTER_CHANGE_CATALOG_CAPTURE:
+          serviceImpl.registerChangeCatalogCapture((io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse>) responseObserver);
           break;
         default:
           throw new AssertionError();
@@ -3685,6 +3765,13 @@ public final class EvitaSessionServiceGrpc {
               com.google.protobuf.Empty,
               io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse>(
                 service, METHODID_GET_TRANSACTION_ID)))
+        .addMethod(
+          getRegisterChangeCatalogCaptureMethod(),
+          io.grpc.stub.ServerCalls.asyncServerStreamingCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest,
+              io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse>(
+                service, METHODID_REGISTER_CHANGE_CATALOG_CAPTURE)))
         .build();
   }
 
@@ -3769,6 +3856,7 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getArchiveEntityMethod())
               .addMethod(getRestoreEntityMethod())
               .addMethod(getGetTransactionIdMethod())
+              .addMethod(getRegisterChangeCatalogCaptureMethod())
               .build();
         }
       }

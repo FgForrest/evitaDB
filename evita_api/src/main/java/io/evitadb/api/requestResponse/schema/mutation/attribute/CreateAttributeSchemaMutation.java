@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
@@ -123,6 +124,7 @@ public class CreateAttributeSchemaMutation
 		);
 	}
 
+	@SerializableCreator
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -297,7 +299,7 @@ public class CreateAttributeSchemaMutation
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
 		final EntityAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, EntityAttributeSchemaContract.class);
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name).orElse(null);
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name).orElse(null);
 		if (existingAttributeSchema == null) {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
@@ -334,7 +336,7 @@ public class CreateAttributeSchemaMutation
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
-				"The attribute `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
+				"The attribute `" + this.name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
 					" it has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		}

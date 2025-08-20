@@ -24,11 +24,10 @@
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -40,6 +39,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -57,7 +57,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Getter @Nonnull private final CatalogContract catalog;
 	@Getter @Nonnull private final Set<Locale> supportedLocales;
 	@Getter @Nonnull private final Set<Currency> supportedCurrencies;
-	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
+	@Getter @Nonnull private final Collection<EntitySchemaContract> entitySchemas;
 
 	/**
 	 * Gathered all entity objects for all collections (non-localized).
@@ -79,18 +79,14 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 		this.supportedLocales = createHashSet(20);
 		this.supportedCurrencies = createHashSet(20);
 
-		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
-			final Set<String> collections = session.getAllEntityTypes();
-			final Set<EntitySchemaContract> schemas = createHashSet(collections.size());
-			collections.forEach(c -> {
-				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
-					.orElseThrow(() -> new GenericEvitaInternalError("Schema for `" + c + "` entity type unexpectedly not found!"));
-				supportedLocales.addAll(entitySchema.getLocales());
-				supportedCurrencies.addAll(entitySchema.getCurrencies());
-				schemas.add(entitySchema);
-			});
-			return schemas;
-		});
+		final CatalogContract catalogContract = evita
+			.getCatalogInstance(catalog.getName())
+			.orElseThrow(() -> new CatalogNotFoundException(catalog.getName()));
+		this.entitySchemas = catalogContract.getSchema().getEntitySchemas();
+		for (EntitySchemaContract entitySchema : this.entitySchemas) {
+			this.supportedLocales.addAll(entitySchema.getLocales());
+			this.supportedCurrencies.addAll(entitySchema.getCurrencies());
+		}
 
 		this.entityObjects = new ArrayList<>(this.entitySchemas.size());
 		this.localizedEntityObjects = new ArrayList<>(this.entitySchemas.size());
@@ -99,7 +95,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls())
+		return Arrays.stream(this.restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
 				.url(baseUrl + getSchema().getName()))
 			.toList();
@@ -113,7 +109,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 
 	@Nonnull
 	public CatalogSchemaContract getSchema() {
-		return catalog.getSchema();
+		return this.catalog.getSchema();
 	}
 
 	@Nonnull

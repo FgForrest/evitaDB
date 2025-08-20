@@ -249,7 +249,7 @@ public class GuiHandler implements HttpService {
 	 * Passes a {@link #EVITALAB_SERVER_NAME_PARAM_NAME} param to the evitaLab as system property to specify source server.
 	 */
 	private void passServerName(@Nonnull QueryParamsBuilder params) {
-		passEncodedParam(params, EVITALAB_SERVER_NAME_PARAM_NAME, serverName);
+		passEncodedParam(params, EVITALAB_SERVER_NAME_PARAM_NAME, this.serverName);
 	}
 
 	/**
@@ -258,7 +258,7 @@ public class GuiHandler implements HttpService {
 	 * If true, the evitaLab GUI will be in read-only mode.
 	 */
 	private void passReadOnlyFlag(@Nonnull QueryParamsBuilder params) {
-		passEncodedParam(params, EVITALAB_READONLY_PARAM_NAME, String.valueOf(labConfig.getGui().isReadOnly()));
+		passEncodedParam(params, EVITALAB_READONLY_PARAM_NAME, String.valueOf(this.labConfig.getGui().isReadOnly()));
 	}
 
 	/**
@@ -267,7 +267,7 @@ public class GuiHandler implements HttpService {
 	 */
 	private void passPreconfiguredEvitaDBConnections(@Nonnull QueryParamsBuilder params, @Nullable String incomingRequestHostAndPort) throws IOException {
 		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections(incomingRequestHostAndPort);
-		final String serializedSelfConnection = objectMapper.writeValueAsString(preconfiguredConnections);
+		final String serializedSelfConnection = this.objectMapper.writeValueAsString(preconfiguredConnections);
 
 		passEncodedParam(params, EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME, serializedSelfConnection);
 	}

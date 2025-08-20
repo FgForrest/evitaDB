@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,18 +73,18 @@ public abstract class ClientHierarchyStatisticsComputationState extends ClientDa
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		if (referencedHierarchicalEntities.isEmpty()) {
-			productSchema.getReferences()
+		if (this.referencedHierarchicalEntities.isEmpty()) {
+			this.productSchema.getReferences()
 				.values()
 				.forEach(it -> {
-					if (it.isReferencedEntityTypeManaged() && hierarchicalEntities.contains(it.getReferencedEntityType())) {
-						referencedHierarchicalEntities.add(it.getReferencedEntityType());
+					if (it.isReferencedEntityTypeManaged() && this.hierarchicalEntities.contains(it.getReferencedEntityType())) {
+						this.referencedHierarchicalEntities.add(it.getReferencedEntityType());
 					}
 				});
-			Assert.isTrue(!referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
+			Assert.isTrue(!this.referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
 		}
 		this.query = generateRandomParentSummaryQuery(
-			random, productSchema, referencedHierarchicalEntities
+			this.random, this.productSchema, this.referencedHierarchicalEntities
 		);
 	}
 
@@ -94,7 +94,7 @@ public abstract class ClientHierarchyStatisticsComputationState extends ClientDa
 			this.productSchema = schema;
 		} else {
 			if (schema.isWithHierarchy()) {
-				hierarchicalEntities.add(schema.getName());
+				this.hierarchicalEntities.add(schema.getName());
 			}
 		}
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 					)
 				)
 				.map(it -> ((EvitaSessionContract) args[0]).upsertEntity(it))
-				.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()))
+				.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKeyOrThrowException()))
 		);
 	}
 
@@ -185,7 +185,6 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getReferenceBuilderIfPresent()
 				.map(BuilderContract::build)
-				.map(ReferenceContract.class::cast)
 				.map(
 					it -> (Object) proxyState.createNewReferenceProxy(
 						proxyState.getEntityProxyClass(), proxyState.getProxyClass(), proxyState.getEntity(), it

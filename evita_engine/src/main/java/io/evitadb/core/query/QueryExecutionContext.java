@@ -569,7 +569,7 @@ public class QueryExecutionContext implements Closeable {
 	@Nonnull
 	public <T> T convertToRequestedType(@Nonnull Class<T> expectedType, @Nonnull SealedEntity sealedEntity) {
 		//noinspection unchecked
-		return (T) converter.apply(expectedType, sealedEntity);
+		return (T) this.converter.apply(expectedType, sealedEntity);
 	}
 
 	/*

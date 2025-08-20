@@ -167,6 +167,34 @@ private static final long serialVersionUID = 0L;
             readOnly_ = input.readBool();
             break;
           }
+          case 88: {
+
+            catalogsActive_ = input.readInt32();
+            break;
+          }
+          case 96: {
+
+            catalogsInactive_ = input.readInt32();
+            break;
+          }
+          case 104: {
+
+            engineVersion_ = input.readInt64();
+            break;
+          }
+          case 114: {
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder subBuilder = null;
+            if (introducedAt_ != null) {
+              subBuilder = introducedAt_.toBuilder();
+            }
+            introducedAt_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(introducedAt_);
+              introducedAt_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -378,14 +406,15 @@ private static final long serialVersionUID = 0L;
   private int catalogsOk_;
   /**
    * <pre>
-   * Number of catalogs that are ok
+   * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
    * </pre>
    *
-   * <code>int32 catalogsOk = 6;</code>
+   * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+   * @deprecated
    * @return The catalogsOk.
    */
   @java.lang.Override
-  public int getCatalogsOk() {
+  @java.lang.Deprecated public int getCatalogsOk() {
     return catalogsOk_;
   }
 
@@ -606,6 +635,89 @@ private static final long serialVersionUID = 0L;
     return readOnly_;
   }
 
+  public static final int CATALOGSACTIVE_FIELD_NUMBER = 11;
+  private int catalogsActive_;
+  /**
+   * <pre>
+   * Number of catalogs that are active and has been successfully loaded
+   * </pre>
+   *
+   * <code>int32 catalogsActive = 11;</code>
+   * @return The catalogsActive.
+   */
+  @java.lang.Override
+  public int getCatalogsActive() {
+    return catalogsActive_;
+  }
+
+  public static final int CATALOGSINACTIVE_FIELD_NUMBER = 12;
+  private int catalogsInactive_;
+  /**
+   * <pre>
+   * Number of inactive catalogs
+   * </pre>
+   *
+   * <code>int32 catalogsInactive = 12;</code>
+   * @return The catalogsInactive.
+   */
+  @java.lang.Override
+  public int getCatalogsInactive() {
+    return catalogsInactive_;
+  }
+
+  public static final int ENGINEVERSION_FIELD_NUMBER = 13;
+  private long engineVersion_;
+  /**
+   * <pre>
+   * The version of the current evitaDB server engine state (change in engine state).
+   * </pre>
+   *
+   * <code>int64 engineVersion = 13;</code>
+   * @return The engineVersion.
+   */
+  @java.lang.Override
+  public long getEngineVersion() {
+    return engineVersion_;
+  }
+
+  public static final int INTRODUCEDAT_FIELD_NUMBER = 14;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt_;
+  /**
+   * <pre>
+   * The date and time when the current engine version was introduced (last engine level change occurred).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+   * @return Whether the introducedAt field is set.
+   */
+  @java.lang.Override
+  public boolean hasIntroducedAt() {
+    return introducedAt_ != null;
+  }
+  /**
+   * <pre>
+   * The date and time when the current engine version was introduced (last engine level change occurred).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+   * @return The introducedAt.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getIntroducedAt() {
+    return introducedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : introducedAt_;
+  }
+  /**
+   * <pre>
+   * The date and time when the current engine version was introduced (last engine level change occurred).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getIntroducedAtOrBuilder() {
+    return getIntroducedAt();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -657,6 +769,18 @@ private static final long serialVersionUID = 0L;
         9);
     if (readOnly_ != false) {
       output.writeBool(10, readOnly_);
+    }
+    if (catalogsActive_ != 0) {
+      output.writeInt32(11, catalogsActive_);
+    }
+    if (catalogsInactive_ != 0) {
+      output.writeInt32(12, catalogsInactive_);
+    }
+    if (engineVersion_ != 0L) {
+      output.writeInt64(13, engineVersion_);
+    }
+    if (introducedAt_ != null) {
+      output.writeMessage(14, getIntroducedAt());
     }
     unknownFields.writeTo(output);
   }
@@ -719,6 +843,22 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(10, readOnly_);
     }
+    if (catalogsActive_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(11, catalogsActive_);
+    }
+    if (catalogsInactive_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(12, catalogsInactive_);
+    }
+    if (engineVersion_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(13, engineVersion_);
+    }
+    if (introducedAt_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(14, getIntroducedAt());
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -755,6 +895,17 @@ private static final long serialVersionUID = 0L;
         other.internalGetApi())) return false;
     if (getReadOnly()
         != other.getReadOnly()) return false;
+    if (getCatalogsActive()
+        != other.getCatalogsActive()) return false;
+    if (getCatalogsInactive()
+        != other.getCatalogsInactive()) return false;
+    if (getEngineVersion()
+        != other.getEngineVersion()) return false;
+    if (hasIntroducedAt() != other.hasIntroducedAt()) return false;
+    if (hasIntroducedAt()) {
+      if (!getIntroducedAt()
+          .equals(other.getIntroducedAt())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -794,6 +945,17 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + READONLY_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getReadOnly());
+    hash = (37 * hash) + CATALOGSACTIVE_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogsActive();
+    hash = (37 * hash) + CATALOGSINACTIVE_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogsInactive();
+    hash = (37 * hash) + ENGINEVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getEngineVersion());
+    if (hasIntroducedAt()) {
+      hash = (37 * hash) + INTRODUCEDAT_FIELD_NUMBER;
+      hash = (53 * hash) + getIntroducedAt().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -976,6 +1138,18 @@ private static final long serialVersionUID = 0L;
       internalGetMutableApi().clear();
       readOnly_ = false;
 
+      catalogsActive_ = 0;
+
+      catalogsInactive_ = 0;
+
+      engineVersion_ = 0L;
+
+      if (introducedAtBuilder_ == null) {
+        introducedAt_ = null;
+      } else {
+        introducedAt_ = null;
+        introducedAtBuilder_ = null;
+      }
       return this;
     }
 
@@ -1022,6 +1196,14 @@ private static final long serialVersionUID = 0L;
       result.api_ = internalGetApi();
       result.api_.makeImmutable();
       result.readOnly_ = readOnly_;
+      result.catalogsActive_ = catalogsActive_;
+      result.catalogsInactive_ = catalogsInactive_;
+      result.engineVersion_ = engineVersion_;
+      if (introducedAtBuilder_ == null) {
+        result.introducedAt_ = introducedAt_;
+      } else {
+        result.introducedAt_ = introducedAtBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -1107,6 +1289,18 @@ private static final long serialVersionUID = 0L;
           other.internalGetApi());
       if (other.getReadOnly() != false) {
         setReadOnly(other.getReadOnly());
+      }
+      if (other.getCatalogsActive() != 0) {
+        setCatalogsActive(other.getCatalogsActive());
+      }
+      if (other.getCatalogsInactive() != 0) {
+        setCatalogsInactive(other.getCatalogsInactive());
+      }
+      if (other.getEngineVersion() != 0L) {
+        setEngineVersion(other.getEngineVersion());
+      }
+      if (other.hasIntroducedAt()) {
+        mergeIntroducedAt(other.getIntroducedAt());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1574,26 +1768,28 @@ private static final long serialVersionUID = 0L;
     private int catalogsOk_ ;
     /**
      * <pre>
-     * Number of catalogs that are ok
+     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
      * </pre>
      *
-     * <code>int32 catalogsOk = 6;</code>
+     * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+     * @deprecated
      * @return The catalogsOk.
      */
     @java.lang.Override
-    public int getCatalogsOk() {
+    @java.lang.Deprecated public int getCatalogsOk() {
       return catalogsOk_;
     }
     /**
      * <pre>
-     * Number of catalogs that are ok
+     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
      * </pre>
      *
-     * <code>int32 catalogsOk = 6;</code>
+     * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+     * @deprecated
      * @param value The catalogsOk to set.
      * @return This builder for chaining.
      */
-    public Builder setCatalogsOk(int value) {
+    @java.lang.Deprecated public Builder setCatalogsOk(int value) {
       
       catalogsOk_ = value;
       onChanged();
@@ -1601,13 +1797,14 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Number of catalogs that are ok
+     * Number of catalogs that are active and has been successfully loaded, renamed to `catalogsActive`
      * </pre>
      *
-     * <code>int32 catalogsOk = 6;</code>
+     * <code>int32 catalogsOk = 6 [deprecated = true];</code>
+     * @deprecated
      * @return This builder for chaining.
      */
-    public Builder clearCatalogsOk() {
+    @java.lang.Deprecated public Builder clearCatalogsOk() {
       
       catalogsOk_ = 0;
       onChanged();
@@ -2076,6 +2273,290 @@ private static final long serialVersionUID = 0L;
       readOnly_ = false;
       onChanged();
       return this;
+    }
+
+    private int catalogsActive_ ;
+    /**
+     * <pre>
+     * Number of catalogs that are active and has been successfully loaded
+     * </pre>
+     *
+     * <code>int32 catalogsActive = 11;</code>
+     * @return The catalogsActive.
+     */
+    @java.lang.Override
+    public int getCatalogsActive() {
+      return catalogsActive_;
+    }
+    /**
+     * <pre>
+     * Number of catalogs that are active and has been successfully loaded
+     * </pre>
+     *
+     * <code>int32 catalogsActive = 11;</code>
+     * @param value The catalogsActive to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogsActive(int value) {
+      
+      catalogsActive_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of catalogs that are active and has been successfully loaded
+     * </pre>
+     *
+     * <code>int32 catalogsActive = 11;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogsActive() {
+      
+      catalogsActive_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int catalogsInactive_ ;
+    /**
+     * <pre>
+     * Number of inactive catalogs
+     * </pre>
+     *
+     * <code>int32 catalogsInactive = 12;</code>
+     * @return The catalogsInactive.
+     */
+    @java.lang.Override
+    public int getCatalogsInactive() {
+      return catalogsInactive_;
+    }
+    /**
+     * <pre>
+     * Number of inactive catalogs
+     * </pre>
+     *
+     * <code>int32 catalogsInactive = 12;</code>
+     * @param value The catalogsInactive to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogsInactive(int value) {
+      
+      catalogsInactive_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Number of inactive catalogs
+     * </pre>
+     *
+     * <code>int32 catalogsInactive = 12;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogsInactive() {
+      
+      catalogsInactive_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private long engineVersion_ ;
+    /**
+     * <pre>
+     * The version of the current evitaDB server engine state (change in engine state).
+     * </pre>
+     *
+     * <code>int64 engineVersion = 13;</code>
+     * @return The engineVersion.
+     */
+    @java.lang.Override
+    public long getEngineVersion() {
+      return engineVersion_;
+    }
+    /**
+     * <pre>
+     * The version of the current evitaDB server engine state (change in engine state).
+     * </pre>
+     *
+     * <code>int64 engineVersion = 13;</code>
+     * @param value The engineVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setEngineVersion(long value) {
+      
+      engineVersion_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The version of the current evitaDB server engine state (change in engine state).
+     * </pre>
+     *
+     * <code>int64 engineVersion = 13;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearEngineVersion() {
+      
+      engineVersion_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> introducedAtBuilder_;
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     * @return Whether the introducedAt field is set.
+     */
+    public boolean hasIntroducedAt() {
+      return introducedAtBuilder_ != null || introducedAt_ != null;
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     * @return The introducedAt.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getIntroducedAt() {
+      if (introducedAtBuilder_ == null) {
+        return introducedAt_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : introducedAt_;
+      } else {
+        return introducedAtBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    public Builder setIntroducedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (introducedAtBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        introducedAt_ = value;
+        onChanged();
+      } else {
+        introducedAtBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    public Builder setIntroducedAt(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (introducedAtBuilder_ == null) {
+        introducedAt_ = builderForValue.build();
+        onChanged();
+      } else {
+        introducedAtBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    public Builder mergeIntroducedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (introducedAtBuilder_ == null) {
+        if (introducedAt_ != null) {
+          introducedAt_ =
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.newBuilder(introducedAt_).mergeFrom(value).buildPartial();
+        } else {
+          introducedAt_ = value;
+        }
+        onChanged();
+      } else {
+        introducedAtBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    public Builder clearIntroducedAt() {
+      if (introducedAtBuilder_ == null) {
+        introducedAt_ = null;
+        onChanged();
+      } else {
+        introducedAt_ = null;
+        introducedAtBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getIntroducedAtBuilder() {
+      
+      onChanged();
+      return getIntroducedAtFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getIntroducedAtOrBuilder() {
+      if (introducedAtBuilder_ != null) {
+        return introducedAtBuilder_.getMessageOrBuilder();
+      } else {
+        return introducedAt_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : introducedAt_;
+      }
+    }
+    /**
+     * <pre>
+     * The date and time when the current engine version was introduced (last engine level change occurred).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 14;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getIntroducedAtFieldBuilder() {
+      if (introducedAtBuilder_ == null) {
+        introducedAtBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getIntroducedAt(),
+                getParentForChildren(),
+                isClean());
+        introducedAt_ = null;
+      }
+      return introducedAtBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

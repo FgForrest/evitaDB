@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,8 +35,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.ListBuilder.list;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -51,7 +52,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetAttributeSchemaFilterableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetAttributeSchemaFilterableMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -61,7 +62,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 			new Scope[] { Scope.LIVE }
 		);
 
-		final SetAttributeSchemaFilterableMutation convertedMutation1 = converter.convert(
+		final SetAttributeSchemaFilterableMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
@@ -70,7 +71,7 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAttributeSchemaFilterableMutation convertedMutation2 = converter.convert(
+		final SetAttributeSchemaFilterableMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), list()
@@ -81,23 +82,35 @@ class SetAttributeSchemaFilterableMutationConverterTest {
 	}
 
 	@Test
-	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final SetAttributeSchemaFilterableMutation expectedMutation = new SetAttributeSchemaFilterableMutation(
-			"code",
-			null
+	void shouldNotResolveInputWhenMissingRequiredData() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), true)
+					.build()
+			)
 		);
-
-		final SetAttributeSchemaFilterableMutation convertedMutation1 = converter.convert(
-			map()
-				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.build()
-		);
-		assertEquals(expectedMutation, convertedMutation1);
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
 	@Test
-	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+	void shouldSerializeLocalMutationToOutput() {
+		final SetAttributeSchemaFilterableMutation inputMutation = new SetAttributeSchemaFilterableMutation(
+			"code",
+			new Scope[] { Scope.LIVE }
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE_IN_SCOPES.name(), new String[] { Scope.LIVE.name() })
+					.build()
+			);
 	}
 }

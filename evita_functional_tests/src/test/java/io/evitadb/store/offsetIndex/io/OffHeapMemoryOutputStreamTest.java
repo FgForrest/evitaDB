@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,53 +43,53 @@ class OffHeapMemoryOutputStreamTest {
 
 	@BeforeEach
 	void setUp() {
-		outputStream.init(1, ByteBuffer.allocateDirect(32), (regionIndex, os) -> {});
+		this.outputStream.init(1, ByteBuffer.allocateDirect(32), (regionIndex, os) -> {});
 	}
 
 	@AfterEach
 	void tearDown() {
-		outputStream.close();
+		this.outputStream.close();
 	}
 
 	@Test
 	void shouldWriteAndReadSingleByte() throws IOException {
-		outputStream.write(1);
-		outputStream.write(5);
-		outputStream.write(10);
+		this.outputStream.write(1);
+		this.outputStream.write(5);
+		this.outputStream.write(10);
 
-		outputStream.flush();
+		this.outputStream.flush();
 
-		final byte[] bytes = outputStream.getInputStream().readAllBytes();
+		final byte[] bytes = this.outputStream.getInputStream().readAllBytes();
 		assertArrayEquals(new byte[] {1, 5, 10}, bytes);
-		assertEquals(3, outputStream.getPeakDataWrittenLength());
+		assertEquals(3, this.outputStream.getPeakDataWrittenLength());
 	}
 
 	@Test
 	void shouldWriteAndReadAllBytesAtOnce() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
+		this.outputStream.write(new byte[] {1, 5, 10});
 
-		outputStream.flush();
+		this.outputStream.flush();
 
-		final byte[] bytes = outputStream.getInputStream().readAllBytes();
+		final byte[] bytes = this.outputStream.getInputStream().readAllBytes();
 		assertArrayEquals(new byte[] {1, 5, 10}, bytes);
-		assertEquals(3, outputStream.getPeakDataWrittenLength());
+		assertEquals(3, this.outputStream.getPeakDataWrittenLength());
 	}
 
 	@Test
 	void shouldWriteAndReadBytesChunkUsingOffsetAndLength() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10, 15, 20, 25, 30, 35, 40, 45}, 2, 5);
+		this.outputStream.write(new byte[] {1, 5, 10, 15, 20, 25, 30, 35, 40, 45}, 2, 5);
 
-		outputStream.flush();
+		this.outputStream.flush();
 
-		final byte[] bytes = outputStream.getInputStream().readAllBytes();
+		final byte[] bytes = this.outputStream.getInputStream().readAllBytes();
 		assertArrayEquals(new byte[] {10, 15, 20, 25, 30}, bytes);
-		assertEquals(5, outputStream.getPeakDataWrittenLength());
+		assertEquals(5, this.outputStream.getPeakDataWrittenLength());
 	}
 
 	@Test
 	void shouldReadByteUsingProvidedInputStream() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		assertEquals(3, inputStream.available());
 		assertEquals((byte) 1, inputStream.read());
@@ -103,8 +103,8 @@ class OffHeapMemoryOutputStreamTest {
 
 	@Test
 	void shouldReadBytesUsingProvidedInputStreamToLargerByteArray() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		final byte[] array = new byte[5];
 		assertEquals(3, inputStream.read(array));
@@ -113,24 +113,24 @@ class OffHeapMemoryOutputStreamTest {
 
 	@Test
 	void shouldReadAllBytesUsingProvidedInputStream() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		assertArrayEquals(new byte[] {1, 5, 10}, inputStream.readAllBytes());
 	}
 
 	@Test
 	void shouldReadNBytesUsingProvidedInputStream() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		assertArrayEquals(new byte[] {1, 5}, inputStream.readNBytes(2));
 	}
 
 	@Test
 	void shouldReadNBytesUsingOffsetAndLengthProvidedInputStream() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		final byte[] array = new byte[5];
 		assertEquals(2, inputStream.readNBytes(array, 1, 2));
@@ -139,8 +139,8 @@ class OffHeapMemoryOutputStreamTest {
 
 	@Test
 	void shouldReadSomeBytesUsingProvidedInputStreamAndSkippingAByte() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		assertEquals(1, inputStream.skip(1));
 		assertEquals(5, inputStream.read());
@@ -150,8 +150,8 @@ class OffHeapMemoryOutputStreamTest {
 
 	@Test
 	void shouldReadSomeBytesUsingProvidedInputStreamAndSkippingNBytes() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		inputStream.skipNBytes(2);
 		assertEquals(10, inputStream.read());
@@ -160,15 +160,15 @@ class OffHeapMemoryOutputStreamTest {
 
 	@Test
 	void shouldReadAndWriteInterleaved() throws IOException {
-		outputStream.write(new byte[] {1, 5, 10});
-		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+		this.outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = this.outputStream.getInputStream();
 
 		assertEquals(1, inputStream.read());
 		assertEquals(5, inputStream.read());
 		assertEquals(10, inputStream.read());
 		assertEquals(-1, inputStream.read());
 
-		outputStream.write(new byte[] {15, 20, 25});
+		this.outputStream.write(new byte[] {15, 20, 25});
 		assertEquals(15, inputStream.read());
 		assertEquals(20, inputStream.read());
 		assertEquals(25, inputStream.read());

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,14 +70,14 @@ public record ComplexDataObject(
 	 * Returns the root item of the object.
 	 */
 	public DataItem root() {
-		return root;
+		return this.root;
 	}
 
 	/**
 	 * Returns true if no data are present in root container.
 	 */
 	public boolean isEmpty() {
-		return root.isEmpty() && !(root instanceof DataItemArray);
+		return this.root.isEmpty() && !(this.root instanceof DataItemArray);
 	}
 
 	/**
@@ -94,12 +94,12 @@ public record ComplexDataObject(
 	 * Method traverses entire tree using passed visitor.
 	 */
 	public void accept(@Nonnull DataItemVisitor visitor) {
-		root.accept(visitor);
+		this.root.accept(visitor);
 	}
 
 	@Override
 	public int hashCode() {
-		return root.hashCode();
+		return this.root.hashCode();
 	}
 
 	@Override
@@ -109,9 +109,10 @@ public record ComplexDataObject(
 
 		ComplexDataObject that = (ComplexDataObject) o;
 
-		return root.equals(that.root);
+		return this.root.equals(that.root);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		final ToStringDataItemVisitor visitor = new ToStringDataItemVisitor(3);
@@ -131,19 +132,19 @@ public record ComplexDataObject(
 
 		@Override
 		public void visit(@Nonnull DataItemArray arrayItem) {
-			estimatedSize += arrayItem.estimateSize();
+			this.estimatedSize += arrayItem.estimateSize();
 			arrayItem.forEach((dataItem, hasNext) -> ofNullable(dataItem).ifPresent(it -> it.accept(this)));
 		}
 
 		@Override
 		public void visit(@Nonnull DataItemMap mapItem) {
-			estimatedSize += mapItem.estimateSize();
+			this.estimatedSize += mapItem.estimateSize();
 			mapItem.forEach((propertyName, dataItem, hasNext) -> ofNullable(dataItem).ifPresent(it -> it.accept(this)));
 		}
 
 		@Override
 		public void visit(@Nonnull DataItemValue valueItem) {
-			estimatedSize += valueItem.estimateSize();
+			this.estimatedSize += valueItem.estimateSize();
 		}
 	}
 
@@ -166,61 +167,61 @@ public record ComplexDataObject(
 		private int current;
 
 		public String getAsString() {
-			return asString.toString();
+			return this.asString.toString();
 		}
 
 		@Override
 		public void visit(@Nonnull DataItemArray arrayItem) {
 			if (arrayItem.isEmpty()) {
-				asString.append("[]");
+				this.asString.append("[]");
 			} else {
-				asString.append("[\n");
-				current += indentation;
+				this.asString.append("[\n");
+				this.current += this.indentation;
 				arrayItem.forEach((dataItem, hasNext) -> {
-					asString.append(" ".repeat(current));
+					this.asString.append(" ".repeat(this.current));
 					if (dataItem == null) {
-						asString.append("<NULL>");
+						this.asString.append("<NULL>");
 					} else {
 						dataItem.accept(this);
 					}
 					if (hasNext) {
-						asString.append(",");
+						this.asString.append(",");
 					}
-					asString.append("\n");
+					this.asString.append("\n");
 				});
-				current -= indentation;
-				asString.append(" ".repeat(current)).append("]");
+				this.current -= this.indentation;
+				this.asString.append(" ".repeat(this.current)).append("]");
 			}
 		}
 
 		@Override
 		public void visit(@Nonnull DataItemMap mapItem) {
 			if (mapItem.isEmpty()) {
-				asString.append("{}");
+				this.asString.append("{}");
 			} else {
-				asString.append("{\n");
-				current += indentation;
+				this.asString.append("{\n");
+				this.current += this.indentation;
 				mapItem.forEachSorted((propertyName, dataItem, hasNext) -> {
-					asString.append(" ".repeat(current)).append(EvitaDataTypes.formatValue(propertyName)).append(": ");
+					this.asString.append(" ".repeat(this.current)).append(EvitaDataTypes.formatValue(propertyName)).append(": ");
 					if (dataItem == null) {
-						asString.append("<NULL>");
+						this.asString.append("<NULL>");
 					} else {
 						dataItem.accept(this);
 					}
 					if (hasNext) {
-						asString.append(",");
+						this.asString.append(",");
 					}
-					asString.append("\n");
+					this.asString.append("\n");
 				});
-				current -= indentation;
-				asString.append(" ".repeat(current)).append("}");
+				this.current -= this.indentation;
+				this.asString.append(" ".repeat(this.current)).append("}");
 			}
 		}
 
 		@Override
 		public void visit(@Nonnull DataItemValue valueItem) {
 			final Serializable value = valueItem.value();
-			asString.append(value == null ? "<NULL>" : EvitaDataTypes.formatValue(value));
+			this.asString.append(value == null ? "<NULL>" : EvitaDataTypes.formatValue(value));
 		}
 	}
 }

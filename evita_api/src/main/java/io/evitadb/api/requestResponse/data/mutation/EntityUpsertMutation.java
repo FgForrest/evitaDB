@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -119,13 +119,13 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Nullable
 	@Override
 	public Integer getEntityPrimaryKey() {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Nonnull
 	@Override
 	public EntityExistence expects() {
-		return entityExistence;
+		return this.entityExistence;
 	}
 
 	@Nonnull
@@ -138,7 +138,7 @@ public class EntityUpsertMutation implements EntityMutation {
 		final Optional<LocalEntitySchemaMutation> pkMutation;
 		// when the collection is empty - we may redefine primary key behaviour in schema (this is the only moment to do so)
 		if (entityCollectionEmpty) {
-			if (entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
+			if (this.entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
 				// if primary key in first entity is not present switch schema to automatically assign new ids
 				Assert.isTrue(
 					entitySchema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
@@ -148,7 +148,7 @@ public class EntityUpsertMutation implements EntityMutation {
 					)
 				);
 				pkMutation = of(new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true));
-			} else if (entityPrimaryKey != null && entitySchema.isWithGeneratedPrimaryKey()) {
+			} else if (this.entityPrimaryKey != null && entitySchema.isWithGeneratedPrimaryKey()) {
 				// if primary key in first entity is present switch schema to expect ids generated externally
 				Assert.isTrue(
 					entitySchema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
@@ -168,7 +168,7 @@ public class EntityUpsertMutation implements EntityMutation {
 			pkMutation = empty();
 		}
 		// collect schema mutations from the local entity mutations
-		final Optional<LocalEntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, localMutations);
+		final Optional<LocalEntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, this.localMutations);
 		// combine mutation local mutations with the entity primary key mutation is provided
 		return additionalMutations
 			.map(
@@ -185,14 +185,14 @@ public class EntityUpsertMutation implements EntityMutation {
 	public Entity mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable Entity entity) {
 		return Entity.mutateEntity(
 			entitySchema,
-			Objects.requireNonNullElseGet(entity, () -> new Entity(entityType, entityPrimaryKey)),
-			localMutations
+			Objects.requireNonNullElseGet(entity, () -> new Entity(this.entityType, this.entityPrimaryKey)),
+			this.localMutations
 		);
 	}
 
 	@Nonnull
 	public List<? extends LocalMutation<?, ?>> getLocalMutations() {
-		return localMutations;
+		return this.localMutations;
 	}
 
 	@Nonnull
@@ -209,7 +209,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	) {
 		final MutationPredicateContext context = predicate.getContext();
 		context.setEntityType(this.entityType);
-		context.setPrimaryKey(this.entityPrimaryKey);
+		context.setEntityPrimaryKey(this.entityPrimaryKey);
 		context.advance();
 
 		final Stream<ChangeCatalogCapture> entityMutation;
@@ -247,10 +247,10 @@ public class EntityUpsertMutation implements EntityMutation {
 
 	@Override
 	public int hashCode() {
-		int result = entityPrimaryKey != null ? entityPrimaryKey.hashCode() : 0;
-		result = 31 * result + entityType.hashCode();
-		result = 31 * result + entityExistence.hashCode();
-		result = 31 * result + localMutations.hashCode();
+		int result = this.entityPrimaryKey != null ? this.entityPrimaryKey.hashCode() : 0;
+		result = 31 * result + this.entityType.hashCode();
+		result = 31 * result + this.entityExistence.hashCode();
+		result = 31 * result + this.localMutations.hashCode();
 		return result;
 	}
 
@@ -261,12 +261,12 @@ public class EntityUpsertMutation implements EntityMutation {
 
 		EntityUpsertMutation that = (EntityUpsertMutation) o;
 
-		if (!Objects.equals(entityPrimaryKey, that.entityPrimaryKey))
+		if (!Objects.equals(this.entityPrimaryKey, that.entityPrimaryKey))
 			return false;
-		if (!entityType.equals(that.entityType)) return false;
-		if (entityExistence != that.entityExistence) return false;
-		if (localMutations.size() != that.localMutations.size()) return false;
-		final Iterator<? extends LocalMutation<?, ?>> thisIt = localMutations.iterator();
+		if (!this.entityType.equals(that.entityType)) return false;
+		if (this.entityExistence != that.entityExistence) return false;
+		if (this.localMutations.size() != that.localMutations.size()) return false;
+		final Iterator<? extends LocalMutation<?, ?>> thisIt = this.localMutations.iterator();
 		final Iterator<? extends LocalMutation<?, ?>> thatIt = that.localMutations.iterator();
 		while (thisIt.hasNext()) {
 			final LocalMutation<?, ?> thisMutation = thisIt.next();
@@ -280,7 +280,7 @@ public class EntityUpsertMutation implements EntityMutation {
 
 	@Override
 	public String toString() {
-		return "entity `" + entityType + "` upsert (" + entityType + "): " + entityPrimaryKey +
-			" and mutations: [" + localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
+		return "entity `" + this.entityType + "` upsert (" + this.entityType + "): " + this.entityPrimaryKey +
+			" and mutations: [" + this.localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 	}
 }

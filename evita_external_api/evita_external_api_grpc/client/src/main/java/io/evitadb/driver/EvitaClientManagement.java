@@ -48,6 +48,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaManagementServiceGrpc.EvitaMan
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcSpecifiedTaskStatusesRequest.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.function.Functions;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
@@ -174,7 +175,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 						@Override
 						public void onNext(GrpcRestoreCatalogResponse value) {
-							bytesReceived.accumulateAndGet(value.getRead(), Math::max);
+							this.bytesReceived.accumulateAndGet(value.getRead(), Math::max);
 							if (value.hasTask()) {
 								taskStatus.set(EvitaDataTypesConverter.toTaskStatus(value.getTask()));
 							}
@@ -188,12 +189,12 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 
 						@Override
 						public void onCompleted() {
-							if (bytesSent.get() == bytesReceived.get()) {
+							if (bytesSent.get() == this.bytesReceived.get()) {
 								result.complete(taskStatus.get());
 							} else {
 								result.completeExceptionally(
 									new UnexpectedIOException(
-										"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + bytesReceived.get() + ")!",
+										"Number of bytes sent and received during catalog restoration does not match (sent " + bytesSent.get() + ", received " + this.bytesReceived.get() + ")!",
 										"Number of bytes sent and received during catalog restoration does not match!"
 									)
 								);
@@ -228,7 +229,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 				}
 
 				//noinspection unchecked
-				return (Task<?, Void>) clientTaskTracker.createTask(
+				return (Task<?, Void>) this.clientTaskTracker.createTask(
 					Objects.requireNonNull(result.get())
 				);
 			}
@@ -475,10 +476,13 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		return new SystemStatus(
 			response.getVersion(),
 			EvitaDataTypesConverter.toOffsetDateTime(response.getStartedAt()),
+			response.getEngineVersion(),
+			EvitaDataTypesConverter.toOffsetDateTime(response.getIntroducedAt()),
 			Duration.of(response.getUptime(), ChronoUnit.SECONDS),
 			response.getInstanceId(),
 			response.getCatalogsCorrupted(),
-			response.getCatalogsOk()
+			response.getCatalogsActive(),
+			response.getCatalogsInactive()
 		);
 	}
 
@@ -525,7 +529,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	private <T> T executeWithEvitaBlockingService(
 		@Nonnull AsyncCallFunction<EvitaManagementServiceStub, T> lambda
 	) {
-		final Timeout timeout = this.evitaClient.timeout.get().peek();
+		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
 			return lambda.apply(
 				this.evitaManagementServiceStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit())
@@ -533,7 +537,7 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
-				() -> {}
+				Functions.noOpRunnable()
 			);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -556,14 +560,14 @@ public class EvitaClientManagement implements EvitaManagementContract, Closeable
 	private <T> T executeWithEvitaService(
 		@Nonnull AsyncCallFunction<EvitaManagementServiceFutureStub, ListenableFuture<T>> lambda
 	) {
-		final Timeout timeout = this.evitaClient.timeout.get().peek();
+		final Timeout timeout = Objects.requireNonNull(this.evitaClient.timeout.get().peek());
 		try {
 			return lambda.apply(this.evitaManagementServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
 				.get(timeout.timeout(), timeout.timeoutUnit());
 		} catch (ExecutionException e) {
 			throw EvitaClient.transformException(
 				e.getCause() == null ? e : e.getCause(),
-				() -> {}
+				Functions.noOpRunnable()
 			);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();

@@ -74,7 +74,7 @@ public class ModifyReferenceSchemaCardinalityMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceSchemaCardinalityMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReferenceSchemaCardinalityMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -121,11 +121,11 @@ public class ModifyReferenceSchemaCardinalityMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
+		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(this.name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The reference `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The reference `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
@@ -136,7 +136,7 @@ public class ModifyReferenceSchemaCardinalityMutation
 
 	@Override
 	public String toString() {
-		return "Modify entity reference `" + name + "` schema: " +
-			"cardinality=" + cardinality;
+		return "Modify entity reference `" + this.name + "` schema: " +
+			"cardinality=" + this.cardinality;
 	}
 }

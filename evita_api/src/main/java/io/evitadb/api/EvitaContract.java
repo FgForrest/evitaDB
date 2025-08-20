@@ -23,14 +23,19 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
@@ -43,6 +48,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 
 /**
  * Evita is a specialized database with easy-to-use API for e-commerce systems. Purpose of this research is creating a fast
@@ -151,6 +157,191 @@ public interface EvitaContract extends AutoCloseable {
 	CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName);
 
 	/**
+	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
+	 * At the end of this method the catalog has transitioned to the {@link CatalogState#ALIVE} state and is ready
+	 * to be used.
+	 *
+	 * @see CatalogState
+	 */
+	default void makeCatalogAlive(@Nonnull String catalogName) {
+		makeCatalogAliveWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}. Returns
+	 * {@link Progress} that can be used to track the progress of the operation.
+	 *
+	 * @see CatalogState
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<CommitVersions> makeCatalogAliveWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Duplicates an existing catalog to create a new catalog with the specified name.
+	 * The source catalog must exist and be in a valid state (ALIVE or WARMING_UP).
+	 * The target catalog name must not already exist.
+	 * At the end of this method the new catalog has been created with all data and schema
+	 * copied from the source catalog.
+	 *
+	 * @param catalogName name of the source catalog to duplicate
+	 * @param newCatalogName name of the new catalog to create with duplicated contents
+	 */
+	default void duplicateCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
+		duplicateCatalogWithProgress(catalogName, newCatalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Duplicates an existing catalog to create a new catalog with the specified name.
+	 * The source catalog must exist and be in a valid state (ALIVE or WARMING_UP).
+	 * The target catalog name must not already exist.
+	 * Returns {@link Progress} that can be used to track the progress of the operation.
+	 *
+	 * @param catalogName name of the source catalog to duplicate
+	 * @param newCatalogName name of the new catalog to create with duplicated contents
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<Void> duplicateCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName);
+
+	/**
+	 * Activates catalog by loading it from disk into memory. Changes state of the catalog from
+	 * {@link CatalogState#INACTIVE} to {@link CatalogState#ALIVE}.
+	 * At the end of this method the catalog has transitioned to the {@link CatalogState#ALIVE} state and is ready
+	 * to be used.
+	 *
+	 * @param catalogName name of the catalog to activate
+	 * @see CatalogState
+	 */
+	default void activateCatalog(@Nonnull String catalogName) {
+		activateCatalogWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Activates catalog by loading it from disk into memory. Changes state of the catalog from
+	 * {@link CatalogState#INACTIVE} to {@link CatalogState#ALIVE}. Returns {@link Progress} that can be used
+	 * to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to activate
+	 * @return progress that can be used to track the progress of the operation
+	 * @see CatalogState
+	 */
+	@Nonnull
+	Progress<Void> activateCatalogWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Deactivates catalog by unloading it from memory. Changes state of the catalog from
+	 * {@link CatalogState#ALIVE} to {@link CatalogState#INACTIVE}.
+	 * At the end of this method the catalog has transitioned to the {@link CatalogState#INACTIVE} state and is
+	 * no longer loaded in memory, but its data remains on disk.
+	 *
+	 * @param catalogName name of the catalog to deactivate
+	 * @see CatalogState
+	 */
+	default void deactivateCatalog(@Nonnull String catalogName) {
+		deactivateCatalogWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Deactivates catalog by unloading it from memory. Changes state of the catalog from
+	 * {@link CatalogState#ALIVE} to {@link CatalogState#INACTIVE}. Returns {@link Progress} that can be used
+	 * to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to deactivate
+	 * @return progress that can be used to track the progress of the operation
+	 * @see CatalogState
+	 */
+	@Nonnull
+	Progress<Void> deactivateCatalogWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Makes catalog mutable by enabling write operations on it. This allows the catalog to accept
+	 * data modifications and schema changes.
+	 * At the end of this method the catalog has transitioned to mutable state and is ready
+	 * to accept write operations.
+	 *
+	 * @param catalogName name of the catalog to make mutable
+	 */
+	default void makeCatalogMutable(@Nonnull String catalogName) {
+		makeCatalogMutableWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Makes catalog mutable by enabling write operations on it. This allows the catalog to accept
+	 * data modifications and schema changes. Returns {@link Progress} that can be used
+	 * to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to make mutable
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<Void> makeCatalogMutableWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Makes catalog immutable by disabling write operations on it. This puts the catalog into
+	 * read-only mode where no data modifications or schema changes are allowed.
+	 * At the end of this method the catalog has transitioned to immutable state and will
+	 * reject any write operations.
+	 *
+	 * @param catalogName name of the catalog to make immutable
+	 */
+	default void makeCatalogImmutable(@Nonnull String catalogName) {
+		makeCatalogImmutableWithProgress(catalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
+	 * Makes catalog immutable by disabling write operations on it. This puts the catalog into
+	 * read-only mode where no data modifications or schema changes are allowed. Returns {@link Progress}
+	 * that can be used to track the progress of the operation.
+	 *
+	 * @param catalogName name of the catalog to make immutable
+	 * @return progress that can be used to track the progress of the operation
+	 */
+	@Nonnull
+	Progress<Void> makeCatalogImmutableWithProgress(@Nonnull String catalogName);
+
+	/**
+	 * Renames existing catalog to a new name. The `newCatalogName` must not clash with any existing catalog name,
+	 * otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
+	 * the {@link #replaceCatalog(String, String)} method instead.
+	 *
+	 * In case exception occurs the original catalog (`catalogName`) is guaranteed to be untouched,
+	 * and the `newCatalogName` will not be present.
+	 *
+	 * At the end of this method the catalog is already renamed and the new name should be used for any further
+	 * operations with the catalog.
+	 *
+	 * @param catalogName    name of the catalog that will be renamed
+	 * @param newCatalogName new name of the catalog
+	 * @throws CatalogAlreadyPresentException when another catalog with `newCatalogName` already exists
+	 */
+	default void renameCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName)
+		throws CatalogAlreadyPresentException {
+		renameCatalogWithProgress(catalogName, newCatalogName)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
+
+	/**
 	 * Renames existing catalog to a new name. The `newCatalogName` must not clash with any existing catalog name,
 	 * otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
 	 * the {@link #replaceCatalog(String, String)} method instead.
@@ -160,10 +351,33 @@ public interface EvitaContract extends AutoCloseable {
 	 *
 	 * @param catalogName    name of the catalog that will be renamed
 	 * @param newCatalogName new name of the catalog
+	 * @return progress that can be used to track the progress of the operation
 	 * @throws CatalogAlreadyPresentException when another catalog with `newCatalogName` already exists
 	 */
-	void renameCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName)
+	@Nonnull
+	Progress<CommitVersions> renameCatalogWithProgress(@Nonnull String catalogName, @Nonnull String newCatalogName)
 		throws CatalogAlreadyPresentException;
+
+	/**
+	 * Replaces existing catalog of particular with the contents of the another catalog. When this method is
+	 * successfully finished, the catalog `catalogNameToBeReplacedWith` will be known under the name of the
+	 * `catalogNameToBeReplaced` and the original contents of the `catalogNameToBeReplaced` will be purged entirely.
+	 *
+	 * In case exception occurs, the original catalog (`catalogNameToBeReplaced`) is guaranteed to be untouched, the
+	 * state of `catalogNameToBeReplacedWith` is however unknown and should be treated as damaged.
+	 *
+	 * At the end of this method the catalog is already replaced and the new name should be used for any further
+	 * operations with the catalog.
+	 *
+	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
+	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
+	 */
+	default void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
+		replaceCatalogWithProgress(catalogNameToBeReplacedWith, catalogNameToBeReplaced)
+			.onCompletion()
+			.toCompletableFuture()
+			.join();
+	}
 
 	/**
 	 * Replaces existing catalog of particular with the contents of the another catalog. When this method is
@@ -175,23 +389,60 @@ public interface EvitaContract extends AutoCloseable {
 	 *
 	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
 	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
+	 * @return progress that can be used to track the progress of the operation
 	 */
-	void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced);
+	@Nonnull
+	Progress<CommitVersions> replaceCatalogWithProgress(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced);
+
+	/**
+	 * Deletes catalog with name `catalogName` along with its contents on disk. At the end of this method the catalog
+	 * is guaranteed to be removed from the Evita instance and its contents on disk are also removed.
+	 *
+	 * @param catalogName name of the removed catalog
+	 */
+	default void deleteCatalogIfExists(@Nonnull String catalogName) {
+		deleteCatalogIfExistsWithProgress(catalogName)
+			.ifPresent(
+				it -> it.onCompletion()
+				        .toCompletableFuture()
+				        .join()
+			);
+	}
 
 	/**
 	 * Deletes catalog with name `catalogName` along with its contents on disk.
 	 *
 	 * @param catalogName name of the removed catalog
-	 * @return true if catalog was found in Evita and its contents were successfully removed
+	 * @return progress that can be used to track the progress of the operation
 	 */
-	boolean deleteCatalogIfExists(@Nonnull String catalogName);
+	@Nonnull
+	Optional<Progress<Void>> deleteCatalogIfExistsWithProgress(@Nonnull String catalogName);
 
 	/**
-	 * Applies catalog mutation affecting entire catalog.
-	 * The reason why we use mutations for this is to be able to include those operations to the WAL that is
-	 * synchronized to replicas.
+	 * Applies top-level engine mutation to the Evita instance. This method is used for applying catalog schema changes
+	 * and other engine-level changes that are not related to any particular catalog. The reason why we use mutations
+	 * for this is to be able to include those operations to the WAL that is synchronized to replicas.
+	 *
+	 * Top-level mutations are always applied immediately and cannot be rolled back or wrapped into a larger transaction.
+	 * To revert the changes made by this mutation, you have to create a new mutation that performs the opposite operation
+	 * (e.g. if you create a new catalog with this mutation, you have to create another mutation that deletes the catalog).
 	 */
-	void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations);
+	@Nonnull
+	default <T> Progress<T> applyMutation(@Nonnull EngineMutation<T> engineMutation) {
+		return applyMutation(engineMutation, null);
+	}
+
+	/**
+	 * Applies top-level engine mutation to the Evita instance. This method is used for applying catalog schema changes
+	 * and other engine-level changes that are not related to any particular catalog. The reason why we use mutations
+	 * for this is to be able to include those operations to the WAL that is synchronized to replicas.
+	 *
+	 * Top-level mutations are always applied immediately and cannot be rolled back or wrapped into a larger transaction.
+	 * To revert the changes made by this mutation, you have to create a new mutation that performs the opposite operation
+	 * (e.g. if you create a new catalog with this mutation, you have to create another mutation that deletes the catalog).
+	 */
+	@Nonnull
+	<T> Progress<T> applyMutation(@Nonnull EngineMutation<T> engineMutation, @Nullable IntConsumer intConsumer);
 
 	/**
 	 * Executes querying logic in the newly created Evita session. Session is safely closed at the end of this method
@@ -251,7 +502,10 @@ public interface EvitaContract extends AutoCloseable {
 	 * @param updater     application logic that reads and writes data
 	 * @param flags       optional flags that can be passed to the session and affect its behavior
 	 */
-	default <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
+	default <T> T updateCatalog(
+		@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater,
+		@Nullable SessionFlags... flags
+	) {
 		return updateCatalog(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
 	}
 
@@ -260,7 +514,8 @@ public interface EvitaContract extends AutoCloseable {
 	 *
 	 * @see #updateCatalog(String, Function, SessionFlags[])
 	 */
-	default void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
+	default void updateCatalog(
+		@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
 		updateCatalog(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
 	}
 
@@ -361,9 +616,9 @@ public interface EvitaContract extends AutoCloseable {
 	 * object containing futures that refer to all transaction processing phases that are completed when the transaction
 	 * processing finishes the particular processing stage.
 	 *
-	 * @param catalogName     name of the catalog
-	 * @param updater         application logic that reads and writes data
-	 * @param flags           optional flags that can be passed to the session and affect its behavior
+	 * @param catalogName name of the catalog
+	 * @param updater     application logic that reads and writes data
+	 * @param flags       optional flags that can be passed to the session and affect its behavior
 	 * @return object containing futures that refer to all transaction processing phases
 	 * @throws TransactionException when transaction fails
 	 * @see #updateCatalog(String, Function, CommitBehavior, SessionFlags[])
@@ -397,6 +652,17 @@ public interface EvitaContract extends AutoCloseable {
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	) throws TransactionException;
+
+	/**
+	 * Creates new publisher that emits {@link ChangeSystemCapture}s that match the request.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeSystemCapture}s that match the request
+	 */
+	@Nonnull
+	ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
+		@Nonnull ChangeSystemCaptureRequest request
+	);
 
 	/**
 	 * Returns management service that allows to execute various management tasks on the Evita instance and retrieve

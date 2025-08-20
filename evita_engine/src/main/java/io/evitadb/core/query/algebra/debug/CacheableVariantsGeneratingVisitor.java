@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,11 +69,11 @@ public class CacheableVariantsGeneratingVisitor implements FormulaVisitor {
 	 */
 	@Nonnull
 	public List<Formula> getFormulaVariants() {
-		final List<Formula> formulaVariants = new ArrayList<>(replacements.size());
-		for (Entry<Formula, CachePayloadHeader> entry : replacements.entrySet()) {
+		final List<Formula> formulaVariants = new ArrayList<>(this.replacements.size());
+		for (Entry<Formula, CachePayloadHeader> entry : this.replacements.entrySet()) {
 			formulaVariants.add(
 				FormulaCloner.clone(
-					topFormula,
+					this.topFormula,
 					formula -> entry.getKey() == formula ? (Formula) entry.getValue() : formula
 				)
 			);
@@ -83,10 +83,10 @@ public class CacheableVariantsGeneratingVisitor implements FormulaVisitor {
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		if (topFormula == null) {
+		if (this.topFormula == null) {
 			this.topFormula = formula;
 		}
-		nonCacheableScope.push(new AtomicBoolean());
+		this.nonCacheableScope.push(new AtomicBoolean());
 		// when we detect non cacheable scope, we don't examine the child formulas
 		if (!(formula instanceof NonCacheableFormulaScope)) {
 			for (Formula innerFormula : formula.getInnerFormulas()) {
@@ -94,18 +94,18 @@ public class CacheableVariantsGeneratingVisitor implements FormulaVisitor {
 			}
 		}
 		// if the formula itself is cacheable and doesn't contain non-cacheable formula
-		if (formula instanceof CacheableFormula cacheableFormula && !nonCacheableScope.peek().get()) {
+		if (formula instanceof CacheableFormula cacheableFormula && !this.nonCacheableScope.peek().get()) {
 			// register it for replacement
-			replacements.put(
+			this.replacements.put(
 				formula,
 				// we don't care about hashes here - we just need some throw away cacheable form of the formula
-				cacheableFormula.toSerializableFormula(replacements.size(), CacheSupervisor.createHashFunction())
+				cacheableFormula.toSerializableFormula(this.replacements.size(), CacheSupervisor.createHashFunction())
 			);
 		}
 		// if the formula itself is non-cacheable we need to mark the parent scope as non-cacheable
-		final AtomicBoolean containsUserFilter = nonCacheableScope.pop();
-		if (!nonCacheableScope.isEmpty() && (formula instanceof NonCacheableFormula || containsUserFilter.get())) {
-			nonCacheableScope.peek().set(true);
+		final AtomicBoolean containsUserFilter = this.nonCacheableScope.pop();
+		if (!this.nonCacheableScope.isEmpty() && (formula instanceof NonCacheableFormula || containsUserFilter.get())) {
+			this.nonCacheableScope.peek().set(true);
 		}
 	}
 

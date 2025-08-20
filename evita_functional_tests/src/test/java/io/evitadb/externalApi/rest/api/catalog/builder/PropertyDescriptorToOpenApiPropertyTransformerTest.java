@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
 import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
@@ -58,42 +57,42 @@ class PropertyDescriptorToOpenApiPropertyTransformerTest {
 
 	@BeforeEach
 	void setUp() {
-		context = mock(CatalogRestBuildingContext.class);
-		transformer = new PropertyDescriptorToOpenApiPropertyTransformer(
-			new PropertyDataTypeDescriptorToOpenApiTypeTransformer(context)
+		this.context = mock(CatalogRestBuildingContext.class);
+		this.transformer = new PropertyDescriptorToOpenApiPropertyTransformer(
+			new PropertyDataTypeDescriptorToOpenApiTypeTransformer(this.context)
 		);
 	}
 
 	@Test
 	void shouldTransformPropertyWithScalar() {
-		final OpenApiProperty property = transformer.apply(EntityDescriptor.PRIMARY_KEY).build();
+		final OpenApiProperty property = this.transformer.apply(EntityDescriptor.PRIMARY_KEY).build();
 		assertEquals(EntityDescriptor.PRIMARY_KEY.name(), property.getName());
 		assertEquals(EntityDescriptor.PRIMARY_KEY.description(), property.getDescription());
 
 		final OpenApiSimpleType type = property.getType();
 		assertEquals(nonNull(scalarFrom(Integer.class)), type);
-		verify(context, never()).registerType(any());
+		verify(this.context, never()).registerType(any());
 	}
 
 	@Test
 	void shouldTransformPropertyWithReference() {
-		final OpenApiProperty property = transformer.apply(RestEntityDescriptor.PRICE_FOR_SALE).build();
-		assertEquals(RestEntityDescriptor.PRICE_FOR_SALE.name(), property.getName());
-		assertEquals(RestEntityDescriptor.PRICE_FOR_SALE.description(), property.getDescription());
+		final OpenApiProperty property = this.transformer.apply(EntityDescriptor.PRICE_FOR_SALE).build();
+		assertEquals(EntityDescriptor.PRICE_FOR_SALE.name(), property.getName());
+		assertEquals(EntityDescriptor.PRICE_FOR_SALE.description(), property.getDescription());
 
 		final OpenApiSimpleType type = property.getType();
 		assertEquals(typeRefTo(PriceDescriptor.THIS.name()), type);
-		verify(context, never()).registerType(any());
+		verify(this.context, never()).registerType(any());
 	}
 
 	@Test
 	void shouldTransformPropertyWithEnum() {
-		final OpenApiProperty property = transformer.apply(ReferenceSchemaDescriptor.CARDINALITY).build();
+		final OpenApiProperty property = this.transformer.apply(ReferenceSchemaDescriptor.CARDINALITY).build();
 		assertEquals(ReferenceSchemaDescriptor.CARDINALITY.name(), property.getName());
 		assertEquals(ReferenceSchemaDescriptor.CARDINALITY.description(), property.getDescription());
 
 		final OpenApiSimpleType type = property.getType();
 		assertEquals(nonNull(typeRefTo(Cardinality.class.getSimpleName())), type);
-		verify(context).registerCustomEnumIfAbsent(eq(enumFrom(Cardinality.class)));
+		verify(this.context).registerCustomEnumIfAbsent(eq(enumFrom(Cardinality.class)));
 	}
 }

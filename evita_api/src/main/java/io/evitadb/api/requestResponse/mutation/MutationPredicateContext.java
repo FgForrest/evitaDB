@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.OptionalInt;
 
 import static java.util.OptionalInt.of;
@@ -44,9 +46,8 @@ public class MutationPredicateContext {
 	@Getter private final StreamDirection direction;
 	@Getter private long version = 0L;
 	@Getter private int index = 0;
-	@Getter private String entityType;
-	private boolean primaryKeyIdentified;
-	private int primaryKey = Integer.MIN_VALUE;
+	@Nullable @Getter private String entityType;
+	@Nullable private Integer entityPrimaryKey;
 	private int mutationCount = 0;
 
 	/**
@@ -55,35 +56,33 @@ public class MutationPredicateContext {
 	 * @return the primary key of the entity
 	 */
 	@Nonnull
-	public OptionalInt getPrimaryKey() {
-		return primaryKeyIdentified ? of(primaryKey) : OptionalInt.empty();
+	public OptionalInt getEntityPrimaryKey() {
+		return this.entityPrimaryKey == null ? OptionalInt.empty() : of(this.entityPrimaryKey);
 	}
 
 	/**
 	 * Sets the primary key of the entity from entity mutation
 	 * @param entityPrimaryKey the primary key of the entity
 	 */
-	public void setPrimaryKey(int entityPrimaryKey) {
-		this.primaryKeyIdentified = true;
-		this.primaryKey = entityPrimaryKey;
+	public void setEntityPrimaryKey(@Nullable Integer entityPrimaryKey) {
+		this.entityPrimaryKey = entityPrimaryKey;
 	}
 
 	/**
 	 * Resets the primary key of the entity - i.e. when we leave the entity mutation context.
 	 */
 	public void resetPrimaryKey() {
-		this.primaryKeyIdentified = false;
-		this.primaryKey = Integer.MIN_VALUE;
+		this.entityPrimaryKey = null;
 	}
 
 	/**
-	 * Returns true if passed primary key equals to {@link #getPrimaryKey()} and the entity primary key is known in
+	 * Returns true if passed primary key equals to {@link #getEntityPrimaryKey()} and the entity primary key is known in
 	 * the context.
 	 * @param primaryKey the primary key to be matched
 	 * @return true if the primary key matches
 	 */
 	public boolean matchPrimaryKey(int primaryKey) {
-		return this.primaryKeyIdentified && this.primaryKey == primaryKey;
+		return Objects.equals(this.entityPrimaryKey, primaryKey);
 	}
 
 	/**
@@ -93,7 +92,7 @@ public class MutationPredicateContext {
 	 */
 	public void setEntityType(@Nonnull String entityType) {
 		this.entityType = entityType;
-		this.primaryKeyIdentified = false;
+		this.entityPrimaryKey = null;
 	}
 
 	/**
@@ -119,7 +118,7 @@ public class MutationPredicateContext {
 	 */
 	public void setVersion(long version, int mutationCount) {
 		this.version = version;
-		this.primaryKeyIdentified = false;
+		this.entityPrimaryKey = null;
 		this.entityType = null;
 		this.mutationCount = mutationCount;
 		this.index = 0;
@@ -129,7 +128,7 @@ public class MutationPredicateContext {
 	 * Increments the last known index of the mutation. Used to track the position of the mutation in the transaction.
 	 */
 	public void advance() {
-		if (direction == StreamDirection.FORWARD) {
+		if (this.direction == StreamDirection.FORWARD) {
 			this.index++;
 		} else if (this.index == 0) {
 			this.index = this.mutationCount;

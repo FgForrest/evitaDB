@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
 		if (existingMutation instanceof ModifySortableAttributeCompoundSchemaNameMutation theExistingMutation &&
-			name.equals(theExistingMutation.getName())) {
+			this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -102,9 +102,9 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(name)
+		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The sortable attribute compound `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The sortable attribute compound `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 
 		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
@@ -117,7 +117,7 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = getReferenceSortableAttributeCompoundSchemaOrThrow(entitySchema, referenceSchema, name);
+		final SortableAttributeCompoundSchemaContract existingCompoundSchema = getReferenceSortableAttributeCompoundSchemaOrThrow(entitySchema, referenceSchema, this.name);
 		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
 		return replaceSortableAttributeCompoundIfDifferent(
 			referenceSchema, existingCompoundSchema, updatedAttributeSchema
@@ -132,7 +132,7 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 
 	@Override
 	public String toString() {
-		return "Modify sortable attribute compound `" + name + "` schema: " +
-			"newName='" + newName + '\'';
+		return "Modify sortable attribute compound `" + this.name + "` schema: " +
+			"newName='" + this.newName + '\'';
 	}
 }

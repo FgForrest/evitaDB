@@ -26,7 +26,7 @@ package io.evitadb.core.file;
 import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.test.EvitaTestSupport;
@@ -87,7 +87,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() throws IOException {
 		cleanTestSubDirectory(SUBDIR_NAME);
-		this.exportFileService = new ExportFileService(storageOptions, Mockito.mock(Scheduler.class));
+		this.exportFileService = new ExportFileService(this.storageOptions, Mockito.mock(Scheduler.class));
 	}
 
 	@AfterEach
@@ -111,7 +111,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertArrayEquals(new String[]{"A", "B"}, fileForFetch.origin());
 
 		// verify the file content
-		assertEquals("testFileContent", Files.readString(fileForFetch.path(storageOptions.exportDirectory()), StandardCharsets.UTF_8));
+		assertEquals("testFileContent", Files.readString(fileForFetch.path(this.storageOptions.exportDirectory()), StandardCharsets.UTF_8));
 	}
 
 	@Test
@@ -168,7 +168,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		}
 
 		assertEquals(
-			11, numberOfFiles(storageOptions.exportDirectory())
+			11, numberOfFiles(this.storageOptions.exportDirectory())
 		);
 
 		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportFileService.listFilesToFetch(1, 20, Set.of());
@@ -180,7 +180,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 		assertEquals(3, this.exportFileService.listFilesToFetch(1, 20, Set.of()).getTotalRecordCount());
 
 		assertEquals(
-			7, numberOfFiles(storageOptions.exportDirectory())
+			7, numberOfFiles(this.storageOptions.exportDirectory())
 		);
 	}
 
@@ -231,7 +231,7 @@ class ExportFileServiceTest implements EvitaTestSupport {
 
 	@Nullable
 	private FileForFetch writeFile(@Nonnull String fileName, @Nonnull String withOrigin) throws IOException {
-		final ExportFileHandle exportFileHandle = exportFileService.storeFile(
+		final ExportFileHandle exportFileHandle = this.exportFileService.storeFile(
 			fileName,
 			"With description ...",
 			"text/plain",

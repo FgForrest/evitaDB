@@ -82,7 +82,7 @@ public class LabProvider implements ProxyingEndpointProvider<LabOptions> {
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
 		return new HttpServiceDefinition[]{
-			new HttpServiceDefinition(apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING, true)
+			new HttpServiceDefinition(this.apiHandler, PathHandlingMode.DYNAMIC_PATH_HANDLING, true)
 		};
 	}
 

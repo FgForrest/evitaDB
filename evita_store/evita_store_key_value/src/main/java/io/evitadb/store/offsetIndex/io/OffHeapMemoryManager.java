@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+
 import io.evitadb.core.metric.event.transaction.OffHeapMemoryAllocationChangeEvent;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -40,32 +40,28 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * OffHeapMemoryManager class is responsible for managing off-heap memory regions and providing
  * free regions to acquire OutputStreams for writing data.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
 public class OffHeapMemoryManager implements Closeable {
+	/**
+	 * The size of single region of {@link #memoryBlock} in Bytes.
+	 */
+	protected final int regionSize;
+	/**
+	 * The size of the memory block in Bytes.
+	 */
+	protected final long sizeInBytes;
+	/**
+	 * Represents a concurrent fixed-size array of OffHeapMemoryOutputStream objects, used as regions. Each non-null
+	 * output stream has single region block reserved in {@link #memoryBlock}.
+	 */
+	protected final AtomicReferenceArray<OffHeapMemoryOutputStream> usedRegions;
 	/**
 	 * Private final variable to store a reference to a ByteBuffer object.
 	 * The AtomicReference class is used to provide thread-safe access to the memoryBlock.
 	 */
 	final AtomicReference<ByteBuffer> memoryBlock;
-	/**
-	 * Represents a concurrent fixed-size array of OffHeapMemoryOutputStream objects, used as regions. Each non-null
-	 * output stream has single region block reserved in {@link #memoryBlock}.
-	 */
-	private final AtomicReferenceArray<OffHeapMemoryOutputStream> usedRegions;
-	/**
-	 * The size of single region of {@link #memoryBlock} in Bytes.
-	 */
-	private final int regionSize;
-	/**
-	 * The size of the memory block in Bytes.
-	 */
-	private final long sizeInBytes;
-	/**
-	 * The name of the catalog that this memory manager is associated with.
-	 */
-	@Getter private final String catalogName;
 	/**
 	 * The last index of the usedRegions array that was used to acquire a region. This is used to identify the first
 	 * attempted index to acquire a region. We tested a randomization function to select it, but it's miss count varied
@@ -73,8 +69,7 @@ public class OffHeapMemoryManager implements Closeable {
 	 */
 	private int lastIndex = 0;
 
-	public OffHeapMemoryManager(@Nonnull String catalogName, long sizeInBytes, int regions) {
-		this.catalogName = catalogName;
+	public OffHeapMemoryManager(long sizeInBytes, int regions) {
 		this.sizeInBytes = sizeInBytes;
 		if (regions == 0 || sizeInBytes == 0) {
 			this.regionSize = 0;
@@ -91,9 +86,8 @@ public class OffHeapMemoryManager implements Closeable {
 			// allocate off heap memory
 			this.memoryBlock = new AtomicReference<>(ByteBuffer.allocateDirect(Math.toIntExact(sizeInBytes)));
 
-			new OffHeapMemoryAllocationChangeEvent(catalogName, sizeInBytes, 0).commit();
+			emitAllocationEvent(sizeInBytes, 0L);
 		}
-
 	}
 
 	/**
@@ -104,7 +98,7 @@ public class OffHeapMemoryManager implements Closeable {
 	 */
 	@Nonnull
 	public Optional<OffHeapMemoryOutputStream> acquireRegionOutputStream() {
-		final ByteBuffer byteBuffer = memoryBlock.get();
+		final ByteBuffer byteBuffer = this.memoryBlock.get();
 		if (byteBuffer == null) {
 			return Optional.empty();
 		}
@@ -115,24 +109,18 @@ public class OffHeapMemoryManager implements Closeable {
 		if (occupiedIndex == -1) {
 			return Optional.empty();
 		} else {
-			final ByteBuffer region = byteBuffer.slice(occupiedIndex * regionSize, regionSize);
+			final ByteBuffer region = byteBuffer.slice(occupiedIndex * this.regionSize, this.regionSize);
 			newOutputStream.init(
 				occupiedIndex, region,
 				(index, clearedReference) -> {
 					this.usedRegions.compareAndSet(index, clearedReference, null);
 					// emit the event
-					new OffHeapMemoryAllocationChangeEvent(
-						this.catalogName, this.sizeInBytes,
-						(long) (regionCount - getFreeRegions()) * this.regionSize
-					).commit();
+					emitAllocationEvent(this.sizeInBytes, (long) (regionCount - getFreeRegions()) * this.regionSize);
 				}
 			);
 
 			// emit the event
-			new OffHeapMemoryAllocationChangeEvent(
-				this.catalogName, this.sizeInBytes,
-				(long) (regionCount - getFreeRegions()) * this.regionSize
-			).commit();
+			emitAllocationEvent(this.sizeInBytes, (long) (regionCount - getFreeRegions()) * this.regionSize);
 			return Optional.of(newOutputStream);
 		}
 	}
@@ -148,10 +136,10 @@ public class OffHeapMemoryManager implements Closeable {
 		stream.close();
 
 		// emit the event
-		new OffHeapMemoryAllocationChangeEvent(
-			this.catalogName, this.sizeInBytes,
+		emitAllocationEvent(
+			this.sizeInBytes,
 			(long) (this.usedRegions.length() - getFreeRegions()) * this.regionSize
-		).commit();
+		);
 	}
 
 	@Override
@@ -166,8 +154,7 @@ public class OffHeapMemoryManager implements Closeable {
 			}
 		}
 		// emit the event
-		// emit the event
-		new OffHeapMemoryAllocationChangeEvent(this.catalogName, 0L, 0L).commit();
+		emitAllocationEvent(0L, 0L);
 	}
 
 	/**
@@ -178,12 +165,22 @@ public class OffHeapMemoryManager implements Closeable {
 	public int getFreeRegions() {
 		// iterate over the used regions and count the null values
 		int freeRegions = 0;
-		for (int i = 0; i < usedRegions.length(); i++) {
-			if (usedRegions.get(i) == null) {
+		for (int i = 0; i < this.usedRegions.length(); i++) {
+			if (this.usedRegions.get(i) == null) {
 				freeRegions++;
 			}
 		}
 		return freeRegions;
+	}
+
+	/**
+	 * Emits an event indicating a change in off-heap memory allocation.
+	 *
+	 * @param allocatedMemoryBytes the amount of memory allocated for off-heap storage in bytes
+	 * @param usedMemoryBytes the amount of memory currently used for off-heap storage in bytes
+	 */
+	protected void emitAllocationEvent(long allocatedMemoryBytes, long usedMemoryBytes) {
+		new OffHeapMemoryAllocationChangeEvent(allocatedMemoryBytes, usedMemoryBytes).commit();
 	}
 
 	/**
@@ -198,11 +195,10 @@ public class OffHeapMemoryManager implements Closeable {
 	private int findClearIndexAndSet(int regionCount, int randomIndex, @Nonnull OffHeapMemoryOutputStream newOutputStream) {
 		for (int i = 0; i < regionCount; i++) {
 			final int index = Math.abs(randomIndex + i) % regionCount;
-			if (usedRegions.compareAndSet(index, null, newOutputStream)) {
+			if (this.usedRegions.compareAndSet(index, null, newOutputStream)) {
 				return index;
 			}
 		}
 		return -1;
 	}
-
 }

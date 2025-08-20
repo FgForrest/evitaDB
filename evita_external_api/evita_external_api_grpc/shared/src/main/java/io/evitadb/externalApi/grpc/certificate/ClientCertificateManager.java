@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -237,20 +237,20 @@ public class ClientCertificateManager {
 		@Nonnull ClientFactoryBuilder clientFactoryBuilder
 	) {
 		try {
-			if (mtlsEnabled) {
-				if (clientPrivateKeyFilePath == null || clientCertificateFilePath == null) {
+			if (this.mtlsEnabled) {
+				if (this.clientPrivateKeyFilePath == null || this.clientCertificateFilePath == null) {
 					throw new EvitaInvalidUsageException("Client certificate and private key must be provided for mTLS connection.");
 				}
 				return clientFactoryBuilder.tlsProvider(
 					TlsProvider.builder()
 						.trustedCertificates(
-							loadCertificate(String.valueOf(Path.of("evita-server-certificates").resolve(rootCaCertificateFilePath)))
+							loadCertificate(String.valueOf(Path.of("evita-server-certificates").resolve(this.rootCaCertificateFilePath)))
 						)
 						.keyPair(
 							TlsKeyPair.of(
-								new File(clientPrivateKeyFilePath.toString()),
-								clientPrivateKeyPassword,
-								new File(clientCertificateFilePath.toString())
+								new File(this.clientPrivateKeyFilePath.toString()),
+								this.clientPrivateKeyPassword,
+								new File(this.clientCertificateFilePath.toString())
 							)
 						)
 						.build(),
@@ -268,7 +268,7 @@ public class ClientCertificateManager {
 							SelectedListenerFailureBehavior.ACCEPT,
 							ApplicationProtocolNames.HTTP_2)
 					);
-					if (!usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
+					if (!this.usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
 						sslContextBuilder.trustManager(trustManagerTrustingProvidedRootCertificate);
 					} else if (usedCertificatePath != null && usedCertificatePath.toFile().exists()) {
 						sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
@@ -318,9 +318,9 @@ public class ClientCertificateManager {
 	 * @return The path to the certificate that should be used.
 	 */
 	public Path getUsedRootCaCertificatePath() {
-		return !useGeneratedCertificate ?
-			rootCaCertificateFilePath :
-			certificateClientFolderPath.resolve(CertificateUtils.getGeneratedServerCertificateFileName());
+		return !this.useGeneratedCertificate ?
+			this.rootCaCertificateFilePath :
+			this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedServerCertificateFileName());
 	}
 
 	/**
@@ -347,9 +347,9 @@ public class ClientCertificateManager {
 			} else {
 				trustManagerTrustingProvidedRootCertificate = null;
 			}
-			if (mtlsEnabled) {
+			if (this.mtlsEnabled) {
 				final Certificate clientCert;
-				try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
+				try (InputStream in = new FileInputStream(this.clientCertificateFilePath.toFile())) {
 					clientCert = cf.generateCertificate(in);
 				}
 				optionalCallback.ifPresent(it -> it.accept(CertificateType.CLIENT, clientCert));
@@ -369,11 +369,11 @@ public class ClientCertificateManager {
 	 */
 	private KeyStore getKeyStore(@Nonnull Path rootCaCertificatePath, @Nonnull String certificateAlias) throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
 		// Create or get a KeyStore instance with the specified type and store it in a file
-		final File trustStoreFile = new File(certificateClientFolderPath.resolve(TRUST_STORE_FILE_NAME).toUri());
+		final File trustStoreFile = new File(this.certificateClientFolderPath.resolve(TRUST_STORE_FILE_NAME).toUri());
 		final KeyStore trustStore = KeyStore.getInstance("JKS");
 		final char[] trustStorePasswordCharArray = this.trustStorePassword.toCharArray();
-		if (!certificateClientFolderPath.toFile().exists()) {
-			Assert.isTrue(certificateClientFolderPath.toFile().mkdirs(), () -> "Cannot create folder `" + certificateClientFolderPath + "`!");
+		if (!this.certificateClientFolderPath.toFile().exists()) {
+			Assert.isTrue(this.certificateClientFolderPath.toFile().mkdirs(), () -> "Cannot create folder `" + this.certificateClientFolderPath + "`!");
 		}
 		if (!trustStoreFile.exists()) {
 			trustStore.load(null, null);
@@ -490,22 +490,22 @@ public class ClientCertificateManager {
 
 		public ClientCertificateManager build() {
 			return new ClientCertificateManager(
-				trustStorePassword,
-				certificateClientFolderPath,
-				serverCertificatePath,
-				ofNullable(clientCertificateFilePath)
-					.map(it -> certificateClientFolderPath.resolve(it))
+				this.trustStorePassword,
+				this.certificateClientFolderPath,
+				this.serverCertificatePath,
+				ofNullable(this.clientCertificateFilePath)
+					.map(it -> this.certificateClientFolderPath.resolve(it))
 					.orElse(null),
-				ofNullable(clientPrivateKeyFilePath)
-					.map(it -> certificateClientFolderPath.resolve(it))
+				ofNullable(this.clientPrivateKeyFilePath)
+					.map(it -> this.certificateClientFolderPath.resolve(it))
 					.orElse(null),
-				clientPrivateKeyPassword,
-				isMtlsEnabled,
-				useGeneratedCertificate,
-				serverName,
-				host,
-				port,
-				usingTrustedRootCaCertificate
+				this.clientPrivateKeyPassword,
+				this.isMtlsEnabled,
+				this.useGeneratedCertificate,
+				this.serverName,
+				this.host,
+				this.port,
+				this.usingTrustedRootCaCertificate
 			);
 		}
 	}

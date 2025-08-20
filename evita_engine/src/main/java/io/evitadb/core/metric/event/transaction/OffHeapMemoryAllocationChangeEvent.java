@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,10 +58,16 @@ public class OffHeapMemoryAllocationChangeEvent extends AbstractTransactionEvent
 	@Description("Amount of memory used for off-heap storage in Bytes.")
 	private final long usedMemoryBytes;
 
+	public OffHeapMemoryAllocationChangeEvent(long allocatedMemoryBytes, long usedMemoryBytes) {
+		super(null);
+		this.allocatedMemoryBytes = allocatedMemoryBytes;
+		this.usedMemoryBytes = usedMemoryBytes;
+	}
 
 	public OffHeapMemoryAllocationChangeEvent(@Nonnull String catalogName, long allocatedMemoryBytes, long usedMemoryBytes) {
 		super(catalogName);
 		this.allocatedMemoryBytes = allocatedMemoryBytes;
 		this.usedMemoryBytes = usedMemoryBytes;
 	}
+
 }

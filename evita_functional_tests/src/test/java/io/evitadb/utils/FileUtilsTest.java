@@ -73,7 +73,7 @@ class FileUtilsTest {
 		assertEquals(3, paths.length);
 
 		assertArrayEquals(
-			new String[] {"A", "B", "C"},
+			new String[]{"A", "B", "C"},
 			Arrays.stream(paths).map(Path::toFile).map(File::getName).sorted().toArray(String[]::new)
 		);
 
@@ -215,7 +215,8 @@ class FileUtilsTest {
 		Files.createDirectory(sourceDir);
 		Files.createDirectory(sourceDir.resolve("nested1"));
 		Files.createDirectory(sourceDir.resolve("nested1").resolve("nested2"));
-		Files.write(sourceDir.resolve("nested1").resolve("nested2").resolve("file.txt"), "Nested file content".getBytes());
+		Files.write(
+			sourceDir.resolve("nested1").resolve("nested2").resolve("file.txt"), "Nested file content".getBytes());
 
 		// Verify source directory exists
 		assertTrue(Files.exists(sourceDir));
@@ -228,6 +229,50 @@ class FileUtilsTest {
 		assertTrue(Files.exists(targetDir));
 		assertTrue(Files.exists(targetDir.resolve("nested1").resolve("nested2").resolve("file.txt")));
 	}
+
+	@Test
+	void shouldRenameFileSuccessfullyWhenTargetDoesNotExist() throws IOException {
+		// Arrange
+		Path sourceFile = this.directoryTest.resolve("sourceFile.txt");
+		Path targetFile = this.directoryTest.resolve("targetFile.txt");
+		Files.write(sourceFile, "Source content".getBytes(), StandardOpenOption.CREATE);
+
+		// Act
+		FileUtils.renameOrReplaceFile(sourceFile, targetFile);
+
+		// Assert
+		assertFalse(Files.exists(sourceFile));
+		assertTrue(Files.exists(targetFile));
+		assertEquals("Source content", Files.readString(targetFile));
+	}
+
+	@Test
+	void shouldReplaceExistingTargetFile() throws IOException {
+		// Arrange
+		Path sourceFile = this.directoryTest.resolve("sourceFile.txt");
+		Path targetFile = this.directoryTest.resolve("targetFile.txt");
+		Files.write(sourceFile, "Source content".getBytes(), StandardOpenOption.CREATE);
+		Files.write(targetFile, "Target content".getBytes(), StandardOpenOption.CREATE);
+
+		// Act
+		FileUtils.renameOrReplaceFile(sourceFile, targetFile);
+
+		// Assert
+		assertFalse(Files.exists(sourceFile));
+		assertTrue(Files.exists(targetFile));
+		assertEquals("Source content", Files.readString(targetFile));
+	}
+
+	@Test
+	void shouldHandleSourceFileNotExisting() {
+		// Arrange
+		Path sourceFile = this.directoryTest.resolve("nonExistentSourceFile.txt");
+		Path targetFile = this.directoryTest.resolve("targetFile.txt");
+
+		// Act & Assert
+		assertThrows(UnexpectedIOException.class, () -> FileUtils.renameOrReplaceFile(sourceFile, targetFile));
+	}
+
 	@Test
 	void shouldGetLastModifiedTimeWhenFileExists() {
 		Path testFile = this.directoryTest.resolve("testFile.txt");
@@ -310,7 +355,8 @@ class FileUtilsTest {
 
 		// Act & Assert
 		try (OutputStream outputStream = Files.newOutputStream(zipFile)) {
-			assertThrows(UnexpectedIOException.class, () -> FileUtils.compressDirectory(nonExistentDirectory, outputStream));
+			assertThrows(
+				UnexpectedIOException.class, () -> FileUtils.compressDirectory(nonExistentDirectory, outputStream));
 		} catch (IOException e) {
 			fail("Unexpected error occurred: " + e.getMessage());
 		}

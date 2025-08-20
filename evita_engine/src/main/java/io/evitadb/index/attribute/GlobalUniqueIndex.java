@@ -318,7 +318,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	 * Returns number of unique keys in this index.
 	 */
 	public int size() {
-		return uniqueValueToEntityTuple.size();
+		return this.uniqueValueToEntityTuple.size();
 	}
 
 	/**
@@ -398,7 +398,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	 */
 	@Nonnull
 	EntityReference[] getEntityReferences() {
-		return uniqueValueToEntityTuple
+		return this.uniqueValueToEntityTuple
 			.values()
 			.stream()
 			.map(it -> new EntityReference(toClassifier(it.entityType()), it.entityPrimaryKey()))
@@ -428,7 +428,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 	}
 
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, @Nonnull EntityWithTypeTuple record) {
-		final EntityWithTypeTuple existingRecordId = uniqueValueToEntityTuple.get(key);
+		final EntityWithTypeTuple existingRecordId = this.uniqueValueToEntityTuple.get(key);
 		assertUniqueKeyIsFree(key, record, existingRecordId);
 		this.uniqueValueToEntityTuple.put(key, record);
 		this.entitiesPerType
@@ -473,9 +473,9 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, EntityWithTypeTuple record, @Nullable EntityWithTypeTuple existingRecord) {
 		if (!(existingRecord == null || existingRecord.equals(record))) {
-			if (!attributeKey.localized() || existingRecord.locale() == record.locale()) {
+			if (!this.attributeKey.localized() || existingRecord.locale() == record.locale()) {
 				throw new UniqueValueViolationException(
-					attributeKey.attributeName(), attributeKey.locale(), key,
+					this.attributeKey.attributeName(), this.attributeKey.locale(), key,
 					toClassifier(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
 					toClassifier(record.entityType()), record.entityPrimaryKey()
 				);
@@ -485,19 +485,19 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 
 	@Nonnull
 	private String toClassifier(int entityType) {
-		return primaryKeyToEntityType.computeIfAbsent(
+		return this.primaryKeyToEntityType.computeIfAbsent(
 			entityType,
 			epk -> {
-				final EntityCollection entityCollection = catalog.getCollectionForEntityPrimaryKeyOrThrowException(epk);
+				final EntityCollection entityCollection = this.catalog.getCollectionForEntityPrimaryKeyOrThrowException(epk);
 				return entityCollection.getEntityType();
 			}
 		);
 	}
 
 	private int fromClassifier(@Nonnull String entityType) {
-		return entityTypeToPk.computeIfAbsent(
+		return this.entityTypeToPk.computeIfAbsent(
 			entityType,
-			et -> catalog.getCollectionForEntityOrThrowException(et).getEntityTypePrimaryKey()
+			et -> this.catalog.getCollectionForEntityOrThrowException(et).getEntityTypePrimaryKey()
 		);
 	}
 
@@ -510,7 +510,7 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		return locale == null ? NO_LOCALE : this.localeToIdIndex.computeIfAbsent(
 			locale,
 			theLocale -> {
-				final int assignedId = localePkSequence.incrementAndGet();
+				final int assignedId = this.localePkSequence.incrementAndGet();
 				this.idToLocaleIndex.put(assignedId, theLocale);
 				return assignedId;
 			}
@@ -532,8 +532,8 @@ public class GlobalUniqueIndex implements VoidTransactionMemoryProducer<GlobalUn
 		isTrue(
 			Objects.equals(existingRecordId, expectedRecordId),
 			() -> existingRecordId == null ?
-				"No unique key exists for `" + attributeKey.attributeName() + "` key: `" + key + "`!" :
-				"Unique key exists for `" + attributeKey.attributeName() + "` key: `" + key + "` belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
+				"No unique key exists for `" + this.attributeKey.attributeName() + "` key: `" + key + "`!" :
+				"Unique key exists for `" + this.attributeKey.attributeName() + "` key: `" + key + "` belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
 		);
 	}
 

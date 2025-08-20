@@ -104,104 +104,102 @@ public final class GrpcTrafficRecording {
       "\n\032GrpcTrafficRecording.proto\022%io.evitadb" +
       ".externalApi.grpc.generated\032\036google/prot" +
       "obuf/wrappers.proto\032\030GrpcEvitaDataTypes." +
-      "proto\032\024GrpcQueryParam.proto\032\030GrpcEntityM" +
-      "utation.proto\032\036GrpcEntitySchemaMutation." +
-      "proto\"\223\005\n#GrpcTrafficRecordingCaptureCri" +
-      "teria\022S\n\007content\030\001 \001(\0162B.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcTrafficRecord" +
-      "ingContent\022H\n\005since\030\002 \001(\01329.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcOffsetDate" +
-      "Time\022;\n\026sinceSessionSequenceId\030\003 \001(\0132\033.g" +
-      "oogle.protobuf.Int64Value\022=\n\030sinceRecord" +
-      "SessionOffset\030\004 \001(\0132\033.google.protobuf.In" +
-      "t32Value\022M\n\004type\030\005 \003(\0162?.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcTrafficRecord" +
-      "ingType\022B\n\tsessionId\030\006 \003(\0132/.io.evitadb." +
-      "externalApi.grpc.generated.GrpcUuid\022;\n\026l" +
-      "ongerThanMilliseconds\030\007 \001(\0132\033.google.pro" +
-      "tobuf.Int32Value\022:\n\025fetchingMoreBytesTha" +
-      "n\030\010 \001(\0132\033.google.protobuf.Int32Value\022E\n\006" +
-      "labels\030\t \003(\01325.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcQueryLabel\"\331\t\n\021GrpcTraf" +
-      "ficRecord\022\034\n\024sessionSequenceOrder\030\001 \001(\003\022" +
-      "B\n\tsessionId\030\002 \001(\0132/.io.evitadb.external" +
-      "Api.grpc.generated.GrpcUuid\022\033\n\023recordSes" +
-      "sionOffset\030\003 \001(\005\022\033\n\023sessionRecordsCount\030" +
-      "\004 \001(\005\022M\n\004type\030\005 \001(\0162?.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcTrafficRecording" +
-      "Type\022J\n\007created\030\006 \001(\01329.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcOffsetDateTime" +
-      "\022\036\n\026durationInMilliseconds\030\007 \001(\005\022\032\n\022ioFe" +
-      "tchedSizeBytes\030\010 \001(\005\022\024\n\014ioFetchCount\030\t \001" +
-      "(\005\0227\n\021finishedWithError\030\n \001(\0132\034.google.p" +
-      "rotobuf.StringValue\022W\n\010mutation\030e \001(\0132C." +
+      "proto\032\030GrpcEntityMutation.proto\032\036GrpcEnt" +
+      "itySchemaMutation.proto\"\223\005\n#GrpcTrafficR" +
+      "ecordingCaptureCriteria\022S\n\007content\030\001 \001(\016" +
+      "2B.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcTrafficRecordingContent\022H\n\005since\030\002 " +
+      "\001(\01329.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcOffsetDateTime\022;\n\026sinceSessionSe" +
+      "quenceId\030\003 \001(\0132\033.google.protobuf.Int64Va" +
+      "lue\022=\n\030sinceRecordSessionOffset\030\004 \001(\0132\033." +
+      "google.protobuf.Int32Value\022M\n\004type\030\005 \003(\016" +
+      "2?.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcTrafficRecordingType\022B\n\tsessionId\030\006" +
+      " \003(\0132/.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcUuid\022;\n\026longerThanMilliseconds\030" +
+      "\007 \001(\0132\033.google.protobuf.Int32Value\022:\n\025fe" +
+      "tchingMoreBytesThan\030\010 \001(\0132\033.google.proto" +
+      "buf.Int32Value\022E\n\006labels\030\t \003(\01325.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcQuery" +
+      "Label\"\331\t\n\021GrpcTrafficRecord\022\034\n\024sessionSe" +
+      "quenceOrder\030\001 \001(\003\022B\n\tsessionId\030\002 \001(\0132/.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cUuid\022\033\n\023recordSessionOffset\030\003 \001(\005\022\033\n\023se" +
+      "ssionRecordsCount\030\004 \001(\005\022M\n\004type\030\005 \001(\0162?." +
       "io.evitadb.externalApi.grpc.generated.Gr" +
-      "pcTrafficMutationContainerH\000\022Q\n\005query\030f " +
-      "\001(\0132@.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcTrafficQueryContainerH\000\022a\n\nenric" +
-      "hment\030g \001(\0132K.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcTrafficEntityEnrichmentC" +
-      "ontainerH\000\022W\n\005fetch\030h \001(\0132F.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcTrafficEnt" +
-      "ityFetchContainerH\000\022_\n\014sessionClose\030i \001(" +
-      "\0132G.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcTrafficSessionCloseContainerH\000\022_\n\014" +
-      "sessionStart\030j \001(\0132G.io.evitadb.external" +
-      "Api.grpc.generated.GrpcTrafficSessionSta" +
-      "rtContainerH\000\022]\n\013sourceQuery\030k \001(\0132F.io." +
-      "evitadb.externalApi.grpc.generated.GrpcT" +
-      "rafficSourceQueryContainerH\000\022q\n\025sourceQu" +
-      "eryStatistics\030l \001(\0132P.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcTrafficSourceQue" +
-      "ryStatisticsContainerH\000B\006\n\004body\"\332\001\n\034Grpc" +
-      "TrafficMutationContainer\022S\n\016entityMutati" +
-      "on\030\001 \001(\01329.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcEntityMutationH\000\022Y\n\016schemaM" +
-      "utation\030\002 \001(\0132?.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcEntitySchemaMutationH\000" +
-      "B\n\n\010mutation\"\272\001\n\031GrpcTrafficQueryContain" +
-      "er\022\030\n\020queryDescription\030\001 \001(\t\022\r\n\005query\030\002 " +
-      "\001(\t\022\030\n\020totalRecordCount\030\003 \001(\005\022\023\n\013primary" +
-      "Keys\030\004 \003(\005\022E\n\006labels\030\005 \003(\01325.io.evitadb." +
-      "externalApi.grpc.generated.GrpcQueryLabe" +
-      "l\"I\n$GrpcTrafficEntityEnrichmentContaine" +
-      "r\022\r\n\005query\030\001 \001(\t\022\022\n\nprimaryKey\030\002 \001(\005\"D\n\037" +
-      "GrpcTrafficEntityFetchContainer\022\r\n\005query" +
-      "\030\001 \001(\t\022\022\n\nprimaryKey\030\002 \001(\005\":\n GrpcTraffi" +
-      "cSessionStartContainer\022\026\n\016catalogVersion" +
-      "\030\001 \001(\003\"\233\001\n GrpcTrafficSessionCloseContai" +
-      "ner\022\026\n\016catalogVersion\030\001 \001(\003\022\032\n\022trafficRe" +
-      "cordCount\030\002 \001(\005\022\022\n\nqueryCount\030\003 \001(\005\022\030\n\020e" +
-      "ntityFetchCount\030\004 \001(\005\022\025\n\rmutationCount\030\005" +
-      " \001(\005\"\305\001\n\037GrpcTrafficSourceQueryContainer" +
-      "\022F\n\rsourceQueryId\030\001 \001(\0132/.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcUuid\022\023\n\013sour" +
-      "ceQuery\030\002 \001(\t\022E\n\006labels\030\003 \003(\01325.io.evita" +
-      "db.externalApi.grpc.generated.GrpcQueryL" +
-      "abel\"\252\001\n)GrpcTrafficSourceQueryStatistic" +
-      "sContainer\022F\n\rsourceQueryId\030\001 \001(\0132/.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcUu" +
-      "id\022\033\n\023returnedRecordCount\030\002 \001(\005\022\030\n\020total" +
-      "RecordCount\030\003 \001(\005\"-\n\016GrpcQueryLabel\022\014\n\004n" +
-      "ame\030\001 \001(\t\022\r\n\005value\030\002 \001(\t*W\n\033GrpcTrafficR" +
-      "ecordingContent\022\034\n\030TRAFFIC_RECORDING_HEA" +
-      "DER\020\000\022\032\n\026TRAFFIC_RECORDING_BODY\020\001*\264\002\n\030Gr" +
-      "pcTrafficRecordingType\022#\n\037TRAFFIC_RECORD" +
-      "ING_SESSION_START\020\000\022$\n TRAFFIC_RECORDING" +
-      "_SESSION_FINISH\020\001\022\"\n\036TRAFFIC_RECORDING_S" +
-      "OURCE_QUERY\020\002\022-\n)TRAFFIC_RECORDING_SOURC" +
-      "E_QUERY_STATISTICS\020\003\022\033\n\027TRAFFIC_RECORDIN" +
-      "G_QUERY\020\004\022\033\n\027TRAFFIC_RECORDING_FETCH\020\005\022 " +
-      "\n\034TRAFFIC_RECORDING_ENRICHMENT\020\006\022\036\n\032TRAF" +
-      "FIC_RECORDING_MUTATION\020\007B\014P\001\252\002\007EvitaDBb\006" +
-      "proto3"
+      "pcTrafficRecordingType\022J\n\007created\030\006 \001(\0132" +
+      "9.io.evitadb.externalApi.grpc.generated." +
+      "GrpcOffsetDateTime\022\036\n\026durationInMillisec" +
+      "onds\030\007 \001(\005\022\032\n\022ioFetchedSizeBytes\030\010 \001(\005\022\024" +
+      "\n\014ioFetchCount\030\t \001(\005\0227\n\021finishedWithErro" +
+      "r\030\n \001(\0132\034.google.protobuf.StringValue\022W\n" +
+      "\010mutation\030e \001(\0132C.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcTrafficMutationConta" +
+      "inerH\000\022Q\n\005query\030f \001(\0132@.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcTrafficQueryCo" +
+      "ntainerH\000\022a\n\nenrichment\030g \001(\0132K.io.evita" +
+      "db.externalApi.grpc.generated.GrpcTraffi" +
+      "cEntityEnrichmentContainerH\000\022W\n\005fetch\030h " +
+      "\001(\0132F.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcTrafficEntityFetchContainerH\000\022_\n" +
+      "\014sessionClose\030i \001(\0132G.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcTrafficSessionCl" +
+      "oseContainerH\000\022_\n\014sessionStart\030j \001(\0132G.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cTrafficSessionStartContainerH\000\022]\n\013sourc" +
+      "eQuery\030k \001(\0132F.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcTrafficSourceQueryConta" +
+      "inerH\000\022q\n\025sourceQueryStatistics\030l \001(\0132P." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcTrafficSourceQueryStatisticsContainerH" +
+      "\000B\006\n\004body\"\332\001\n\034GrpcTrafficMutationContain" +
+      "er\022S\n\016entityMutation\030\001 \001(\01329.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEntityMut" +
+      "ationH\000\022Y\n\016schemaMutation\030\002 \001(\0132?.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcEnti" +
+      "tySchemaMutationH\000B\n\n\010mutation\"\272\001\n\031GrpcT" +
+      "rafficQueryContainer\022\030\n\020queryDescription" +
+      "\030\001 \001(\t\022\r\n\005query\030\002 \001(\t\022\030\n\020totalRecordCoun" +
+      "t\030\003 \001(\005\022\023\n\013primaryKeys\030\004 \003(\005\022E\n\006labels\030\005" +
+      " \003(\01325.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcQueryLabel\"I\n$GrpcTrafficEntity" +
+      "EnrichmentContainer\022\r\n\005query\030\001 \001(\t\022\022\n\npr" +
+      "imaryKey\030\002 \001(\005\"D\n\037GrpcTrafficEntityFetch" +
+      "Container\022\r\n\005query\030\001 \001(\t\022\022\n\nprimaryKey\030\002" +
+      " \001(\005\":\n GrpcTrafficSessionStartContainer" +
+      "\022\026\n\016catalogVersion\030\001 \001(\003\"\233\001\n GrpcTraffic" +
+      "SessionCloseContainer\022\026\n\016catalogVersion\030" +
+      "\001 \001(\003\022\032\n\022trafficRecordCount\030\002 \001(\005\022\022\n\nque" +
+      "ryCount\030\003 \001(\005\022\030\n\020entityFetchCount\030\004 \001(\005\022" +
+      "\025\n\rmutationCount\030\005 \001(\005\"\305\001\n\037GrpcTrafficSo" +
+      "urceQueryContainer\022F\n\rsourceQueryId\030\001 \001(" +
+      "\0132/.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcUuid\022\023\n\013sourceQuery\030\002 \001(\t\022E\n\006label" +
+      "s\030\003 \003(\01325.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcQueryLabel\"\252\001\n)GrpcTrafficSo" +
+      "urceQueryStatisticsContainer\022F\n\rsourceQu" +
+      "eryId\030\001 \001(\0132/.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcUuid\022\033\n\023returnedRecordCo" +
+      "unt\030\002 \001(\005\022\030\n\020totalRecordCount\030\003 \001(\005\"-\n\016G" +
+      "rpcQueryLabel\022\014\n\004name\030\001 \001(\t\022\r\n\005value\030\002 \001" +
+      "(\t*W\n\033GrpcTrafficRecordingContent\022\034\n\030TRA" +
+      "FFIC_RECORDING_HEADER\020\000\022\032\n\026TRAFFIC_RECOR" +
+      "DING_BODY\020\001*\264\002\n\030GrpcTrafficRecordingType" +
+      "\022#\n\037TRAFFIC_RECORDING_SESSION_START\020\000\022$\n" +
+      " TRAFFIC_RECORDING_SESSION_FINISH\020\001\022\"\n\036T" +
+      "RAFFIC_RECORDING_SOURCE_QUERY\020\002\022-\n)TRAFF" +
+      "IC_RECORDING_SOURCE_QUERY_STATISTICS\020\003\022\033" +
+      "\n\027TRAFFIC_RECORDING_QUERY\020\004\022\033\n\027TRAFFIC_R" +
+      "ECORDING_FETCH\020\005\022 \n\034TRAFFIC_RECORDING_EN" +
+      "RICHMENT\020\006\022\036\n\032TRAFFIC_RECORDING_MUTATION" +
+      "\020\007B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
           com.google.protobuf.WrappersProto.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor(),
-          io.evitadb.externalApi.grpc.generated.GrpcQueryParamOuterClass.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOuterClass.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOuterClass.getDescriptor(),
         });
@@ -273,7 +271,6 @@ public final class GrpcTrafficRecording {
         new java.lang.String[] { "Name", "Value", });
     com.google.protobuf.WrappersProto.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEvitaDataTypes.getDescriptor();
-    io.evitadb.externalApi.grpc.generated.GrpcQueryParamOuterClass.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntityMutationOuterClass.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOuterClass.getDescriptor();
   }

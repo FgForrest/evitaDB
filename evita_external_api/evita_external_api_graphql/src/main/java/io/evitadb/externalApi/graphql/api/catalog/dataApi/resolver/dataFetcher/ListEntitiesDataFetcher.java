@@ -48,7 +48,11 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.FilterByAwareFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HeadAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OrderByAwareFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RequireAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.HeadConstraintResolver;
@@ -62,7 +66,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
@@ -106,7 +109,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             catalogSchema,
             new AtomicReference<>(this.filterConstraintResolver)
         );
-        this.requireConstraintResolver = new RequireConstraintResolver(
+	    this.requireConstraintResolver = new RequireConstraintResolver(
             catalogSchema,
             new AtomicReference<>(this.filterConstraintResolver)
         );
@@ -165,8 +168,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
         final Head userHeadConstraints = (Head) this.headConstraintResolver.resolve(
 	        this.entitySchema.getName(),
-            ListEntitiesHeaderDescriptor.HEAD.name(),
-            arguments.head()
+	        HeadAwareFieldHeaderDescriptor.HEAD.name(),
+	        arguments.head()
         );
         if (userHeadConstraints != null) {
             headConstraints.addAll(Arrays.asList(userHeadConstraints.getChildren()));
@@ -176,14 +179,14 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     }
 
     @Nullable
-    private <A extends Serializable & Comparable<A>> FilterBy buildFilterBy(@Nonnull Arguments arguments) {
+    private FilterBy buildFilterBy(@Nonnull Arguments arguments) {
         if (arguments.filterBy() == null) {
             return null;
         }
         return (FilterBy) this.filterConstraintResolver.resolve(
 	        this.entitySchema.getName(),
-            ListEntitiesHeaderDescriptor.FILTER_BY.name(),
-            arguments.filterBy()
+	        FilterByAwareFieldHeaderDescriptor.FILTER_BY.name(),
+	        arguments.filterBy()
         );
     }
 
@@ -194,8 +197,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         }
         return (OrderBy) this.orderConstraintResolver.resolve(
 	        this.entitySchema.getName(),
-            ListEntitiesHeaderDescriptor.ORDER_BY.name(),
-            arguments.orderBy()
+	        OrderByAwareFieldHeaderDescriptor.ORDER_BY.name(),
+	        arguments.orderBy()
         );
     }
 
@@ -209,9 +212,9 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         // build explicit require container
         if (arguments.require() != null) {
             final Require explicitRequire = (Require) this.requireConstraintResolver.resolve(
-                this.entitySchema.getName(),
-                ListEntitiesHeaderDescriptor.REQUIRE.name(),
-                arguments.require()
+	            this.entitySchema.getName(),
+	            RequireAwareFieldHeaderDescriptor.REQUIRE.name(),
+	            arguments.require()
             );
             if (explicitRequire != null) {
                 requireConstraints.addAll(Arrays.asList(explicitRequire.getChildren()));
@@ -286,10 +289,10 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
                              @Nullable Integer limit) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
-            final Object head = environment.getArgument(ListEntitiesHeaderDescriptor.HEAD.name());
-            final Object filterBy = environment.getArgument(ListEntitiesHeaderDescriptor.FILTER_BY.name());
-            final Object orderBy = environment.getArgument(ListEntitiesHeaderDescriptor.ORDER_BY.name());
-            final Object require = environment.getArgument(ListEntitiesHeaderDescriptor.REQUIRE.name());
+            final Object head = environment.getArgument(HeadAwareFieldHeaderDescriptor.HEAD.name());
+            final Object filterBy = environment.getArgument(FilterByAwareFieldHeaderDescriptor.FILTER_BY.name());
+            final Object orderBy = environment.getArgument(OrderByAwareFieldHeaderDescriptor.ORDER_BY.name());
+            final Object require = environment.getArgument(RequireAwareFieldHeaderDescriptor.REQUIRE.name());
             final Integer offset = environment.getArgument(ListEntitiesHeaderDescriptor.OFFSET.name());
             final Integer limit = environment.getArgument(ListEntitiesHeaderDescriptor.LIMIT.name());
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,26 +67,26 @@ abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStati
 	@Override
 	protected List<Accumulator> createStatistics(
 		@Nonnull QueryExecutionContext executionContext,
-		@Nullable HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final OptionalInt parentNode = getParentNodeId(context);
-		final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
+		final OptionalInt parentNode = getParentNodeId(this.context);
+		final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			executionContext,
-			context.removeEmptyResults(),
+			this.context.removeEmptyResults(),
 			getDistanceCompensation(),
 			hierarchyNodes::contains,
 			scopePredicate,
 			filterPredicate,
-			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
-			entityFetcher,
-			statisticsType
+			value -> this.context.directlyQueriedEntitiesFormulaProducer().apply(value, this.statisticsBase),
+			this.entityFetcher,
+			this.statisticsType
 		);
 		parentNode.ifPresentOrElse(
 			parentNodeId -> {
 				// if root node is set, use different traversal method
-				context.entityIndex().traverseHierarchyFromNode(
+				this.context.entityIndex().traverseHierarchyFromNode(
 					visitor,
 					parentNodeId,
 					true,
@@ -95,7 +95,7 @@ abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStati
 			},
 			() -> {
 				// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
-				context.entityIndex().traverseHierarchy(
+				this.context.entityIndex().traverseHierarchy(
 					visitor,
 					filterPredicate
 				);

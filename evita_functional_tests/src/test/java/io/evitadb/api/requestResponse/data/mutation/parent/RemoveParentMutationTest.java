@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ class RemoveParentMutationTest extends AbstractMutationTest {
 	void shouldRemoveExistingParent() {
 		final RemoveParentMutation mutation = new RemoveParentMutation();
 		final OptionalInt hierarchyPlacement = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			OptionalInt.of(10)
 		);
 		assertNotNull(hierarchyPlacement);
@@ -54,7 +54,7 @@ class RemoveParentMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldFailToRemoveNonexistingHierarchicalPlacement() {
 		final RemoveParentMutation mutation = new RemoveParentMutation();
-		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
+		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(this.productSchema, null));
 	}
 
 	@Test
@@ -63,7 +63,7 @@ class RemoveParentMutationTest extends AbstractMutationTest {
 		assertThrows(
 			InvalidMutationException.class,
 			() -> mutation.mutateLocal(
-				productSchema,
+				this.productSchema,
 				OptionalInt.empty()
 			)
 		);

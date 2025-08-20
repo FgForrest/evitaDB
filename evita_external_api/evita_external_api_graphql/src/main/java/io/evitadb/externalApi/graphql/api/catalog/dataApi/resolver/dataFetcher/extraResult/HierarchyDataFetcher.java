@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -64,8 +65,8 @@ public class HierarchyDataFetcher implements DataFetcher<Map<String,Map<String, 
 
 	@Nullable
 	@Override
-	public Map<String, Map<String, List<LevelInfo>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = environment.getSource();
+	public Map<String, Map<String, List<LevelInfo>>> get(DataFetchingEnvironment environment) throws Exception {
+		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
 		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
 		if (hierarchy == null) {
 			return null;
@@ -77,7 +78,7 @@ public class HierarchyDataFetcher implements DataFetcher<Map<String,Map<String, 
 			hierarchy.getSelfHierarchy()
 		);
 		hierarchy.getReferenceHierarchies().forEach((key, value) -> hierarchyDto.put(
-			referenceNameToFieldName.get(key),
+			this.referenceNameToFieldName.get(key),
 			value
 		));
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,7 +50,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -58,7 +59,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 			"code",
 			"desc"
 		);
-		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = converter.convert(
+		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -72,7 +73,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 			"code",
 			null
 		);
-		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = converter.convert(
+		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -82,7 +83,26 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifySortableAttributeCompoundSchemaDescriptionMutation inputMutation = new ModifySortableAttributeCompoundSchemaDescriptionMutation(
+			"code",
+			"desc"
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
+					.e(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
+					.build()
+			);
 	}
 }

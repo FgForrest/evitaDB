@@ -89,13 +89,13 @@ public class GraphQLProvider implements ExternalApiProvider<GraphQLOptions> {
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
 		return new HttpServiceDefinition[] {
-			new HttpServiceDefinition(graphQLManager.getGraphQLRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
+			new HttpServiceDefinition(this.graphQLManager.getGraphQLRouter(), PathHandlingMode.DYNAMIC_PATH_HANDLING)
 		};
 	}
 
 	@Override
 	public void afterAllInitialized() {
-		graphQLManager.emitObservabilityEvents();
+		this.graphQLManager.emitObservabilityEvents();
 	}
 
 	@Override

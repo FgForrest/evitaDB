@@ -125,7 +125,7 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			""")
 		.type(nullable(Scope[].class))
 		.build();
-	PropertyDescriptor ATTRIBUTE_INHERITANCE_BEHAVIOR = PropertyDescriptor.builder()
+	PropertyDescriptor ATTRIBUTES_INHERITANCE_BEHAVIOR = PropertyDescriptor.builder()
 		.name("attributeInheritanceBehavior")
 		.description("""
 			Specifies the inheritance behavior for attributes in the reflected schema. There are two options:

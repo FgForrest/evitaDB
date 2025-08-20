@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,22 +67,22 @@ public class LocalMutationAggregateObjectBuilder {
 	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 
 	public void buildCommonTypes() {
-		buildingContext.registerType(SetEntityScopeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(SetParentMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(SetEntityScopeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(SetParentMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 	}
 
 	@Nullable
@@ -94,47 +94,47 @@ public class LocalMutationAggregateObjectBuilder {
 		boolean hasAnyMutations = false;
 
 		localMutationAggregateObjectBuilder
-			.field(LocalMutationAggregateDescriptor.SET_ENTITY_SCOPE_MUTATION.to(inputFieldBuilderTransformer));
+			.field(LocalMutationAggregateDescriptor.SET_ENTITY_SCOPE_MUTATION.to(this.inputFieldBuilderTransformer));
 
 		if (!entitySchema.getAssociatedData().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ASSOCIATED_DATA)) {
 			hasAnyMutations = true;
 			localMutationAggregateObjectBuilder
-				.field(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.to(inputFieldBuilderTransformer));
+				.field(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.to(this.inputFieldBuilderTransformer));
 		}
 
 		if (!entitySchema.getAttributes().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ATTRIBUTES)) {
 			hasAnyMutations = true;
 			localMutationAggregateObjectBuilder
-				.field(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.to(inputFieldBuilderTransformer));
+				.field(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.to(this.inputFieldBuilderTransformer));
 		}
 
 		if (entitySchema.isWithHierarchy() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_HIERARCHY)) {
 			hasAnyMutations = true;
 			localMutationAggregateObjectBuilder
-				.field(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.to(inputFieldBuilderTransformer)
+				.field(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.to(this.inputFieldBuilderTransformer)
 					.type(BOOLEAN))
-				.field(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.to(inputFieldBuilderTransformer));
+				.field(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.to(this.inputFieldBuilderTransformer));
 		}
 
 		if (entitySchema.isWithPrice() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_PRICES)) {
 			hasAnyMutations = true;
 			localMutationAggregateObjectBuilder
-				.field(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.to(inputFieldBuilderTransformer));
+				.field(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.to(this.inputFieldBuilderTransformer));
 		}
 
 		if (!entitySchema.getReferences().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_REFERENCES)) {
 			hasAnyMutations = true;
 			localMutationAggregateObjectBuilder
-				.field(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.to(inputFieldBuilderTransformer))
-				.field(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.to(inputFieldBuilderTransformer));
+				.field(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.to(this.inputFieldBuilderTransformer))
+				.field(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.to(this.inputFieldBuilderTransformer));
 		}
 
 		if (!hasAnyMutations) {

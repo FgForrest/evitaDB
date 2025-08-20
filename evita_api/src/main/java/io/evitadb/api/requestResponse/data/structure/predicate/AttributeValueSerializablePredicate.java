@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,10 +96,10 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	public AttributeValueSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
-		this.locale = ofNullable(implicitLocale)
+		this.locale = ofNullable(this.implicitLocale)
 			.orElseGet(
 				() -> ofNullable(evitaRequest.getLocale())
-					.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null)
+					.orElseGet(() -> this.locales != null && this.locales.size() == 1 ? this.locales.iterator().next() : null)
 			);
 		this.attributeSet = evitaRequest.getEntityAttributeSet();
 		this.requiresEntityAttributes = evitaRequest.isRequiresEntityAttributes();
@@ -118,10 +118,10 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 		);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
-		this.locale = ofNullable(implicitLocale)
+		this.locale = ofNullable(this.implicitLocale)
 			.orElseGet(
 				() -> ofNullable(evitaRequest.getLocale())
-					.orElseGet(() -> locales != null && locales.size() == 1 ? locales.iterator().next() : null)
+					.orElseGet(() -> this.locales != null && this.locales.size() == 1 ? this.locales.iterator().next() : null)
 			);
 		this.attributeSet = evitaRequest.getEntityAttributeSet();
 		this.requiresEntityAttributes = evitaRequest.isRequiresEntityAttributes();
@@ -147,7 +147,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 * Returns true if the attributes were fetched along with the entity.
 	 */
 	public boolean wasFetched() {
-		return requiresEntityAttributes;
+		return this.requiresEntityAttributes;
 	}
 
 	/**
@@ -161,14 +161,14 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 * Returns true if the attribute of particular name was fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull String attributeName) {
-		return requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeName));
+		return this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeName));
 	}
 
 	/**
 	 * Returns true if the attribute of particular name was in specified locale were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return (requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeName))) &&
+		return (this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeName))) &&
 			(this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale)));
 	}
 
@@ -176,7 +176,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 * Method verifies that attributes were fetched with the entity.
 	 */
 	public void checkFetched() throws ContextMissingException {
-		if (!requiresEntityAttributes) {
+		if (!this.requiresEntityAttributes) {
 			throw ContextMissingException.attributeContextMissing();
 		}
 	}
@@ -185,13 +185,14 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 * Method verifies that the requested attribute was fetched with the entity.
 	 */
 	public void checkFetched(@Nonnull AttributeKey attributeKey) throws ContextMissingException {
-		if (!(requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeKey.attributeName())))) {
+		if (!(this.requiresEntityAttributes && (this.attributeSet.isEmpty() || this.attributeSet.contains(attributeKey.attributeName())))) {
 			throw ContextMissingException.attributeContextMissing(attributeKey.attributeName());
 		}
-		if (attributeKey.localized() && !(Objects.equals(locale, attributeKey.locale()) || this.locales != null && (this.locales.isEmpty() || this.locales.contains(attributeKey.locale())))) {
+		final Locale akLocale = attributeKey.locale();
+		if (akLocale != null && !(Objects.equals(this.locale, akLocale) || this.locales != null && (this.locales.isEmpty() || this.locales.contains(akLocale)))) {
 			throw ContextMissingException.attributeLocalizationContextMissing(
 				attributeKey.attributeName(),
-				attributeKey.locale(),
+				akLocale,
 				Stream.concat(
 					this.locale == null ? Stream.empty() : Stream.of(this.locale),
 					this.locales == null ? Stream.empty() : this.locales.stream()
@@ -206,7 +207,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 
 	@Override
 	public boolean test(AttributeValue attributeValue) {
-		if (requiresEntityAttributes) {
+		if (this.requiresEntityAttributes) {
 			final AttributeKey key = attributeValue.key();
 			final Locale attributeLocale = attributeValue.key().locale();
 			return attributeValue.exists() &&
@@ -215,7 +216,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 						(this.locales != null && (this.locales.isEmpty() || this.locales.contains(attributeLocale))) ||
 						(this.implicitLocale != null && Objects.equals(this.implicitLocale, attributeLocale))
 				) &&
-				(attributeSet.isEmpty() || attributeSet.contains(key.attributeName()));
+				(this.attributeSet.isEmpty() || this.attributeSet.contains(key.attributeName()));
 		} else {
 			return false;
 		}
@@ -237,13 +238,13 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 			(Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()) || evitaRequest.getImplicitLocale() == null)) {
 			return this;
 		} else {
-			final Locale resultImplicitLocale = implicitLocale == null ? evitaRequest.getImplicitLocale() : implicitLocale;
-			final Locale resultLocale = locale == null ?
+			final Locale resultImplicitLocale = this.implicitLocale == null ? evitaRequest.getImplicitLocale() : this.implicitLocale;
+			final Locale resultLocale = this.locale == null ?
 				ofNullable(evitaRequest.getImplicitLocale())
 					.orElseGet(
 						() -> ofNullable(evitaRequest.getLocale())
 							.orElseGet(() -> evitaRequest.getRequiredLocales() != null && evitaRequest.getRequiredLocales().size() == 1 ? evitaRequest.getRequiredLocales().iterator().next() : null)
-					) : locale;
+					) : this.locale;
 			return new AttributeValueSerializablePredicate(
 				resultImplicitLocale,
 				resultLocale,
@@ -260,8 +261,8 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 			return Set.of(this.implicitLocale);
 		} else if (this.implicitLocale != null) {
 			return Stream.concat(
-				Stream.of(implicitLocale),
-				locales.stream()
+				Stream.of(this.implicitLocale),
+				this.locales.stream()
 			).collect(Collectors.toSet());
 		} else {
 			return this.locales;
@@ -278,7 +279,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 				requiredAttributeSet = newlyRequiredAttributeSet;
 			} else {
 				requiredAttributeSet = new HashSet<>(this.attributeSet.size(), newlyRequiredAttributeSet.size());
-				requiredAttributeSet.addAll(attributeSet);
+				requiredAttributeSet.addAll(this.attributeSet);
 				requiredAttributeSet.addAll(newlyRequiredAttributeSet);
 			}
 		} else if (this.requiresEntityAttributes) {
@@ -300,7 +301,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 			requiredLanguages.addAll(this.locales);
 			requiredLanguages.addAll(newlyRequiredLanguages);
 		} else {
-			requiredLanguages = locales;
+			requiredLanguages = this.locales;
 		}
 		return requiredLanguages;
 	}

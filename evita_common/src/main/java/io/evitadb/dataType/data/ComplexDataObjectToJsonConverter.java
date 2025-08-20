@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,24 +79,24 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 
 	@Override
 	public void visit(@Nonnull DataItemArray arrayItem) {
-		final ArrayNode newArrayNode = objectMapper.getNodeFactory().arrayNode(arrayItem.children().length);
+		final ArrayNode newArrayNode = this.objectMapper.getNodeFactory().arrayNode(arrayItem.children().length);
 
-		if (rootNode == null) {
+		if (this.rootNode == null) {
 			// if we have no root create it
-			rootNode = newArrayNode;
-			stack.push(rootNode);
+			this.rootNode = newArrayNode;
+			this.stack.push(this.rootNode);
 		} else {
-			final JsonNode stackNode = stack.peek();
+			final JsonNode stackNode = this.stack.peek();
 			// if its "map" node
 			// create appropriate node type as a children in it
 			if (stackNode instanceof ObjectNode objectNode) {
-				objectNode.putIfAbsent(propertyNameStack.peek(), newArrayNode);
-				stack.push(newArrayNode);
+				objectNode.putIfAbsent(this.propertyNameStack.peek(), newArrayNode);
+				this.stack.push(newArrayNode);
 			} else if (stackNode instanceof ArrayNode arrayNode) {
 				// if it's "array" node
 				// create appropriate node type as a children in it
 				arrayNode.add(newArrayNode);
-				stack.push(newArrayNode);
+				this.stack.push(newArrayNode);
 			} else {
 				// otherwise throw exception (this should never occur)
 				throw new IllegalStateException("Unexpected node on stack: " + stackNode);
@@ -115,26 +115,26 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 		);
 
 		// pop current node from the stack on leave
-		stack.pop();
+		this.stack.pop();
 	}
 
 	@Override
 	public void visit(@Nonnull DataItemMap mapItem) {
-		if (rootNode == null) {
+		if (this.rootNode == null) {
 			// if we have no root create it
-			rootNode = objectMapper.createObjectNode();
-			stack.push(rootNode);
+			this.rootNode = this.objectMapper.createObjectNode();
+			this.stack.push(this.rootNode);
 		} else {
 			// otherwise pick up relative parent in the stack
-			final JsonNode stackNode = stack.peek();
+			final JsonNode stackNode = this.stack.peek();
 			if (stackNode instanceof ObjectNode objectNode) {
 				// if its "map" node
 				// create appropriate node type as a children in it
-				stack.push(objectNode.putObject(propertyNameStack.peek()));
+				this.stack.push(objectNode.putObject(this.propertyNameStack.peek()));
 			} else if (stackNode instanceof ArrayNode arrayNode) {
 				// if it's "array" node
 				// create appropriate node type as a children in it
-				stack.push(arrayNode.addObject());
+				this.stack.push(arrayNode.addObject());
 			} else {
 				// otherwise throw exception (this should never occur)
 				throw new IllegalStateException("Unexpected node on stack: " + stackNode);
@@ -144,7 +144,7 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 		// now iterate all properties in the map
 		mapItem.forEach((propertyName, dataItem, hasNext) -> {
 			// push property name to the stack to be used by children
-			propertyNameStack.push(propertyName);
+			this.propertyNameStack.push(propertyName);
 			// visit the children node
 			if (dataItem == null) {
 				writeNull();
@@ -152,23 +152,23 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 				dataItem.accept(this);
 			}
 			// pop the property name from the stack
-			propertyNameStack.pop();
+			this.propertyNameStack.pop();
 		});
 
 		// pop current node from the stack on leave
-		stack.pop();
+		this.stack.pop();
 	}
 
 	@Override
 	public void visit(@Nonnull DataItemValue valueItem) {
-		if (rootNode == null) {
+		if (this.rootNode == null) {
 			throw new IllegalStateException("Value item is not allowed as the root item!");
 		}
-		final JsonNode theNode = stack.peek();
+		final JsonNode theNode = this.stack.peek();
 		if (theNode instanceof ObjectNode objectNode) {
 			// if its "map" node
 			// create appropriate node type as a children in it
-			final String propertyName = propertyNameStack.peek();
+			final String propertyName = this.propertyNameStack.peek();
 			final Serializable object = valueItem.value();
 			if (object instanceof Short s) {
 				objectNode.put(propertyName, s);
@@ -231,20 +231,20 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 	 * Method is expected to be used in tests only.
 	 */
 	public String getJsonAsString() throws JsonProcessingException {
-		return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootNode);
+		return this.objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(this.rootNode);
 	}
 
 	private void writeNull() {
-		if (rootNode == null) {
+		if (this.rootNode == null) {
 			// if we have no root create it
-			rootNode = objectMapper.createObjectNode();
-			stack.push(rootNode);
+			this.rootNode = this.objectMapper.createObjectNode();
+			this.stack.push(this.rootNode);
 		}
-		final JsonNode theNode = stack.peek();
+		final JsonNode theNode = this.stack.peek();
 		if (theNode instanceof ObjectNode objectNode) {
 			// if its "map" node
 			// create appropriate node type as a children in it
-			final String propertyName = propertyNameStack.peek();
+			final String propertyName = this.propertyNameStack.peek();
 			objectNode.putNull(propertyName);
 		} else if (theNode instanceof ArrayNode arrayNode) {
 			// if it's "array" node

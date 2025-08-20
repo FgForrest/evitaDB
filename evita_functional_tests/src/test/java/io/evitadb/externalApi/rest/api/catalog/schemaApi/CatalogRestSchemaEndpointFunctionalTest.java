@@ -38,9 +38,9 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
-import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -58,8 +58,8 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
+import static io.evitadb.utils.MapBuilder.map;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -224,14 +224,14 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice())
 			.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
 				.map(scope -> map()
-					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType(scope).name())
 					.build())
 				.toList());
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			dtoBuilder.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), Arrays.stream(Scope.values())
 				.map(scope -> map()
-					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType(scope).name())
 					.build())
 				.toList());
@@ -412,7 +412,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.map(scope -> {
 				final AttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : AttributeUniquenessType.NOT_UNIQUE;
 				return map()
-					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
 					.build();
 			})
@@ -434,7 +434,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.map(scope -> {
 				final GlobalAttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : GlobalAttributeUniquenessType.NOT_UNIQUE;
 				return map()
-					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
 					.build();
 			})

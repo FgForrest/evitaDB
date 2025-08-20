@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,13 +50,13 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			"brand", 5,
 			"europe", 2
 		);
-		final EntitySchemaBuilder productSchemaBuilder = new EntitySchemaDecorator(() -> catalogSchema, productSchema).openForWrite();
-		mutation.verifyOrEvolveSchema(catalogSchema.openForWrite(), productSchemaBuilder);
+		final EntitySchemaBuilder productSchemaBuilder = new EntitySchemaDecorator(() -> this.catalogSchema, this.productSchema).openForWrite();
+		mutation.verifyOrEvolveSchema(this.catalogSchema.openForWrite(), productSchemaBuilder);
 		assertEquals("europe", productSchemaBuilder.getReference("brand").orElseThrow().getReferencedGroupType());
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
+				this.productSchema,
 				"brand",
 				5,
 				"brand", Cardinality.ZERO_OR_ONE,
@@ -85,9 +85,9 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			"europe", 2
 		);
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
+				this.productSchema,
 				"brand",
 				5,
 				"brand", Cardinality.ZERO_OR_ONE,
@@ -115,11 +115,11 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			new SetReferenceGroupMutation(
 				"brand", 5,
 				"europe", 2
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new SetReferenceGroupMutation(
 				"brand", 10,
 				"europe", 8
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 
@@ -129,11 +129,11 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			new SetReferenceGroupMutation(
 				"brand", 5,
 				"europe", 2
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new SetReferenceGroupMutation(
 				"brand", 10,
 				"asia", 2
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

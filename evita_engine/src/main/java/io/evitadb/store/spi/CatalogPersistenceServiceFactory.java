@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
@@ -61,8 +61,16 @@ import java.util.UUID;
 public interface CatalogPersistenceServiceFactory {
 
 	/**
-	 * Creates new instance of {@link CatalogPersistenceService}. For reasons this interface exists please see JavaDoc
-	 * of the class.
+	 * Creates new instance of {@link CatalogPersistenceService} for a brand new catalog that doesn't exist yet.
+	 * For reasons this interface exists please see JavaDoc of the class.
+	 *
+	 * @param catalogInstance the catalog contract instance
+	 * @param catalogName name of the catalog to create
+	 * @param storageOptions storage configuration options
+	 * @param transactionOptions transaction configuration options
+	 * @param scheduler scheduler for background tasks
+	 * @param exportFileService service for handling file exports
+	 * @return new catalog persistence service instance
 	 */
 	@Nonnull
 	CatalogPersistenceService createNew(
@@ -75,8 +83,16 @@ public interface CatalogPersistenceServiceFactory {
 	);
 
 	/**
-	 * Creates new instance of {@link CatalogPersistenceService}. For reasons this interface exists please see JavaDoc
-	 * of the class.
+	 * Creates new instance of {@link CatalogPersistenceService} for loading an existing catalog from storage.
+	 * For reasons this interface exists please see JavaDoc of the class.
+	 *
+	 * @param catalogInstance the existing catalog contract instance to load
+	 * @param catalogName name of the catalog to load
+	 * @param storageOptions storage configuration options
+	 * @param transactionOptions transaction configuration options
+	 * @param scheduler scheduler for background tasks
+	 * @param exportFileService service for handling file exports
+	 * @return catalog persistence service instance for the loaded catalog
 	 */
 	@Nonnull
 	CatalogPersistenceService load(
@@ -89,17 +105,17 @@ public interface CatalogPersistenceServiceFactory {
 	);
 
 	/**
-	 * Checks whether it's possible to create catalog of particular name in the storage directory.
+	 * Restores a catalog from a backup file to the storage directory.
 	 *
-	 * @param catalogName name of the catalog
-	 * @param storageOptions storage options
-	 * @param fileId			   The ID of the file to be restored.
-	 * @param pathToFile path to the file to be restored
-	 * @param totalBytesExpected total bytes expected to be read from the input stream
-	 * @param deleteAfterRestore whether to delete the ZIP file after restore
-	 * @return normalized name of the catalog to be created in storage directory
+	 * @param catalogName name of the catalog to restore
+	 * @param storageOptions storage configuration options
+	 * @param fileId the ID of the file to be restored
+	 * @param pathToFile path to the backup file to be restored
+	 * @param totalBytesExpected total bytes expected to be read from the backup file
+	 * @param deleteAfterRestore whether to delete the backup file after successful restore
+	 * @return server task that handles the catalog restoration process
 	 *
-	 * @throws DirectoryNotEmptyException if the directory is not empty
+	 * @throws DirectoryNotEmptyException if the target directory is not empty
 	 * @throws InvalidStoragePathException if the storage path is invalid
 	 */
 	@Nonnull
@@ -120,7 +136,7 @@ public interface CatalogPersistenceServiceFactory {
 		/**
 		 * Retrieves the unique identifier for the file associated with this task settings.
 		 *
-		 * @return A non-null UUID representing the unique identifier of the file.
+		 * @return a non-null UUID representing the unique identifier of the file
 		 */
 		@Nonnull
 		UUID fileId();

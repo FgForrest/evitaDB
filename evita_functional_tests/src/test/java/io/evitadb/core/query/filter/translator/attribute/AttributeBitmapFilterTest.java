@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ class AttributeBitmapFilterTest {
 		);
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
-		entities = dataGenerator.generateEntities(
+		this.entities = dataGenerator.generateEntities(
 				dataGenerator.getSampleProductSchema(
 					mockSession,
 					EntitySchemaBuilder::toInstance,
@@ -115,8 +115,8 @@ class AttributeBitmapFilterTest {
 					EntityBuilder::toInstance
 				)
 			);
-		this.entitySchema = entities.values().iterator().next().getSchema();
-		this.attributeSchemaAccessor = new AttributeSchemaAccessor(catalogSchema, entitySchema);
+		this.entitySchema = this.entities.values().iterator().next().getSchema();
+		this.attributeSchemaAccessor = new AttributeSchemaAccessor(catalogSchema, this.entitySchema);
 	}
 
 	@Test
@@ -126,7 +126,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(o -> (java.io.Serializable) o, Comparator.naturalOrder(), from, to)
 		);
@@ -142,7 +142,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final Long priority = entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_PRIORITY);
+			final Long priority = this.entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_PRIORITY);
 			assertNotNull(priority);
 			assertTrue(priority >= from && priority <= to);
 		}
@@ -153,7 +153,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			NUMBER_RANGE,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getNumberRangePredicate(40, 50)
 		);
@@ -168,7 +168,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final IntegerNumberRange range = entities.get(ePK).getAttribute(NUMBER_RANGE);
+			final IntegerNumberRange range = this.entities.get(ePK).getAttribute(NUMBER_RANGE);
 			assertNotNull(range);
 			assertTrue(range.overlaps(IntegerNumberRange.between(40, 50)));
 		}
@@ -181,7 +181,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getDateTimePredicate(from, to)
 		);
@@ -196,7 +196,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final DateTimeRange range = entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_VALIDITY);
+			final DateTimeRange range = this.entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_VALIDITY);
 			assertNotNull(range);
 			assertTrue(range.overlaps(DateTimeRange.between(from, to)));
 		}
@@ -207,7 +207,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			NUMBER_RANGE,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeInRangeTranslator.getNumberRangePredicate(45)
 		);
@@ -219,7 +219,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final IntegerNumberRange range = entities.get(ePK).getAttribute(NUMBER_RANGE);
+			final IntegerNumberRange range = this.entities.get(ePK).getAttribute(NUMBER_RANGE);
 			assertNotNull(range);
 			assertTrue(range.isWithin(45));
 		}
@@ -231,7 +231,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, attributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeInRangeTranslator.getDateTimeRangePredicate(theMoment)
 		);
@@ -244,7 +244,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final DateTimeRange range = entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_VALIDITY);
+			final DateTimeRange range = this.entities.get(ePK).getAttribute(DataGenerator.ATTRIBUTE_VALIDITY);
 			assertNotNull(range);
 			assertTrue(range.isWithin(theMoment));
 		}
@@ -257,7 +257,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> transformPredicate(theValue -> AttributeContainsTranslator.createPredicate().test(theValue, textToSearch))
 		);
@@ -270,7 +270,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final String attribute = entities.get(ePK).getAttribute(attributeName);
+			final String attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.contains(textToSearch));
 		}
@@ -283,7 +283,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> transformPredicate(theValue -> AttributeEndsWithTranslator.createPredicate().test(theValue, textToSearch))
 		);
@@ -296,7 +296,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final String attribute = entities.get(ePK).getAttribute(attributeName);
+			final String attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.endsWith(textToSearch));
 		}
@@ -309,7 +309,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> transformPredicate(theValue -> AttributeStartsWithTranslator.createPredicate().test(theValue, textToSearch))
 		);
@@ -322,7 +322,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final String attribute = entities.get(ePK).getAttribute(attributeName);
+			final String attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.startsWith(textToSearch));
 		}
@@ -335,10 +335,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
+				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result >= 0
 			)
 		);
@@ -351,7 +351,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
+			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.compareTo(theNumber) >= 0);
 		}
@@ -364,10 +364,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
+				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result > 0
 			)
 		);
@@ -380,7 +380,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
+			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.compareTo(theNumber) > 0);
 		}
@@ -393,10 +393,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
+				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result < 0
 			)
 		);
@@ -409,7 +409,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
+			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.compareTo(theNumber) < 0);
 		}
@@ -422,10 +422,10 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
-				attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
+				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
 				new AttributeKey(attributeName), theNumber, result -> result <= 0
 			)
 		);
@@ -438,7 +438,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
+			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 			assertTrue(attribute.compareTo(theNumber) <= 0);
 		}
@@ -450,7 +450,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent)
 		);
@@ -463,7 +463,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
+			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNull(attribute);
 		}
 	}
@@ -474,7 +474,7 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
+			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent)
 		);
@@ -487,7 +487,7 @@ class AttributeBitmapFilterTest {
 
 		assertFalse(result.isEmpty());
 		for (int ePK : result.getArray()) {
-			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
+			final BigDecimal attribute = this.entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 		}
 	}
@@ -495,7 +495,7 @@ class AttributeBitmapFilterTest {
 	@Nonnull
 	private TestQueryExecutionContext createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
 		return new TestQueryExecutionContext(
-			entitySchema,
+			this.entitySchema,
 			Query.query(
 				collection(Entities.PRODUCT),
 				filterBy,
@@ -503,7 +503,7 @@ class AttributeBitmapFilterTest {
 					filter.getEntityRequire()
 				)
 			),
-			entities
+			this.entities
 		);
 	}
 

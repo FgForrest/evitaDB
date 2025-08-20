@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ public class ConstraintBuildContext implements ConstraintTraverseContext<Constra
 	 * Whether building context is currently at the root of constraint and thus doesn't have any parent constraints.
 	 */
 	public boolean isAtRoot() {
-		return parentDataLocator == null;
+		return this.parentDataLocator == null;
 	}
 
 	/**
@@ -74,7 +74,7 @@ public class ConstraintBuildContext implements ConstraintTraverseContext<Constra
 	 */
 	@Nullable
 	public DataLocator parentDataLocator() {
-		return parentDataLocator;
+		return this.parentDataLocator;
 	}
 
 	/**
@@ -82,6 +82,6 @@ public class ConstraintBuildContext implements ConstraintTraverseContext<Constra
 	 */
 	@Nonnull
 	public DataLocator dataLocator() {
-		return dataLocator;
+		return this.dataLocator;
 	}
 }

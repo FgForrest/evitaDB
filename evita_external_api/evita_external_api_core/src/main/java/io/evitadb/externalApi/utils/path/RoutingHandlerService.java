@@ -74,7 +74,7 @@ public class RoutingHandlerService implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		PathTemplateMatcher<HttpService> matcher = matches.get(req.method());
+		PathTemplateMatcher<HttpService> matcher = this.matches.get(req.method());
 		if (matcher == null) {
 			return handleNoMatch(ctx, req);
 		}
@@ -85,7 +85,7 @@ public class RoutingHandlerService implements HttpService {
 
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder();
 
-		if (rewriteQueryParameters) {
+		if (this.rewriteQueryParameters) {
 			QueryParams.fromQueryString(ctx.query()).forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
 			match.getParameters().forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
 		}
@@ -94,7 +94,7 @@ public class RoutingHandlerService implements HttpService {
 		if (match.getValue() != null) {
 			return match.getValue().serve(ctx, newRequest);
 		} else {
-			return fallbackHandler.serve(ctx, newRequest);
+			return this.fallbackHandler.serve(ctx, newRequest);
 		}
 	}
 
@@ -108,10 +108,10 @@ public class RoutingHandlerService implements HttpService {
 	 */
 	private HttpResponse handleNoMatch(final @Nonnull ServiceRequestContext ctx, final @Nonnull HttpRequest req) throws Exception {
 		// if invalidMethodHandler is null we fail fast without matching with allMethodsMatcher
-		if (invalidMethodHandler != null && allMethodsMatcher.match(req.method().toString()) != null) {
-			return invalidMethodHandler.serve(ctx, req);
+		if (this.invalidMethodHandler != null && this.allMethodsMatcher.match(req.method().toString()) != null) {
+			return this.invalidMethodHandler.serve(ctx, req);
 		}
-		return fallbackHandler.serve(ctx, req);
+		return this.fallbackHandler.serve(ctx, req);
 	}
 
 	public synchronized RoutingHandlerService add(final String method, final String template, HttpService handler) {
@@ -119,16 +119,16 @@ public class RoutingHandlerService implements HttpService {
 	}
 
 	public synchronized RoutingHandlerService add(HttpMethod method, String template, HttpService handler) {
-		PathTemplateMatcher<HttpService> matcher = matches.get(method);
+		PathTemplateMatcher<HttpService> matcher = this.matches.get(method);
 		if (matcher == null) {
-			matches.put(method, matcher = new PathTemplateMatcher<>());
+			this.matches.put(method, matcher = new PathTemplateMatcher<>());
 		}
 		HttpService res = matcher.get(template);
 		if (res == null) {
 			matcher.add(template, handler);
 		}
-		if (allMethodsMatcher.match(template) == null) {
-			allMethodsMatcher.add(template, handler);
+		if (this.allMethodsMatcher.match(template) == null) {
+			this.allMethodsMatcher.add(template, handler);
 		}
 		return this;
 	}
@@ -152,16 +152,16 @@ public class RoutingHandlerService implements HttpService {
 	public synchronized RoutingHandlerService addAll(RoutingHandlerService routingHandler) {
 		for (Entry<HttpMethod, PathTemplateMatcher<HttpService>> entry : routingHandler.getMatches().entrySet()) {
 			HttpMethod method = entry.getKey();
-			PathTemplateMatcher<HttpService> matcher = matches.get(method);
+			PathTemplateMatcher<HttpService> matcher = this.matches.get(method);
 			if (matcher == null) {
-				matches.put(method, matcher = new PathTemplateMatcher<>());
+				this.matches.put(method, matcher = new PathTemplateMatcher<>());
 			}
 			matcher.addAll(entry.getValue());
 			// If we use allMethodsMatcher.addAll() we can have duplicate
 			// PathTemplates which we want to ignore here so it does not crash.
 			for (PathTemplate template : entry.getValue().getPathTemplates()) {
-				if (allMethodsMatcher.match(template.getTemplateString()) == null) {
-					allMethodsMatcher.add(template, null);
+				if (this.allMethodsMatcher.match(template.getTemplateString()) == null) {
+					this.allMethodsMatcher.add(template, null);
 				}
 			}
 		}
@@ -177,7 +177,7 @@ public class RoutingHandlerService implements HttpService {
 	 * @return this handler
 	 */
 	public RoutingHandlerService remove(HttpMethod method, String path) {
-		PathTemplateMatcher<HttpService> handler = matches.get(method);
+		PathTemplateMatcher<HttpService> handler = this.matches.get(method);
 		if(handler != null) {
 			handler.remove(path);
 		}
@@ -193,19 +193,19 @@ public class RoutingHandlerService implements HttpService {
 	 * @return this handler
 	 */
 	public RoutingHandlerService remove(String path) {
-		allMethodsMatcher.remove(path);
+		this.allMethodsMatcher.remove(path);
 		return this;
 	}
 
 	Map<HttpMethod, PathTemplateMatcher<HttpService>> getMatches() {
-		return matches;
+		return this.matches;
 	}
 
 	/**
 	 * @return Handler called when no match was found and invalid method handler can't be invoked.
 	 */
 	public HttpService getFallbackHandler() {
-		return fallbackHandler;
+		return this.fallbackHandler;
 	}
 
 	/**
@@ -222,7 +222,7 @@ public class RoutingHandlerService implements HttpService {
 	 * @return Handler called when this instance can not match the http method but can match another http method.
 	 */
 	public HttpService getInvalidMethodHandler() {
-		return invalidMethodHandler;
+		return this.invalidMethodHandler;
 	}
 
 	/**

@@ -47,7 +47,17 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BigDecimalFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.StripListFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AccompanyingPriceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 import io.evitadb.utils.ArrayUtils;
@@ -82,7 +92,7 @@ public class EntityFetchConverter extends RequireConverter {
 	                    @Nullable String entityType,
 	                    @Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
-		final Optional<EntitySchemaContract> entitySchema = Optional.ofNullable(entityType).flatMap(catalogSchema::getEntitySchema);
+		final Optional<EntitySchemaContract> entitySchema = Optional.ofNullable(entityType).flatMap(this.catalogSchema::getEntitySchema);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
 
@@ -320,8 +330,8 @@ public class EntityFetchConverter extends RequireConverter {
 			if (fetchMode == PriceContentMode.NONE) {
 				return;
 			} else if (fetchMode == PriceContentMode.RESPECTING_FILTER) {
-				final PriceInPriceLists priceInPriceLists = QueryUtils.findFilter(query, PriceInPriceLists.class);
-				final PriceInCurrency priceInCurrency = QueryUtils.findFilter(query, PriceInCurrency.class);
+				final PriceInPriceLists priceInPriceLists = QueryUtils.findFilter(this.query, PriceInPriceLists.class);
+				final PriceInCurrency priceInCurrency = QueryUtils.findFilter(this.query, PriceInCurrency.class);
 				final String[] additionalPriceLists = priceContent.getAdditionalPriceListsToFetch();
 
 				final boolean isEligibleForPriceForSale = priceInPriceLists != null && priceInCurrency != null;
@@ -520,11 +530,11 @@ public class EntityFetchConverter extends RequireConverter {
 
 		final String fieldName;
 		if (referenceContent.getPage().isPresent()) {
-			fieldName = GraphQLEntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
+			fieldName = EntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
 		} else if (referenceContent.getStrip().isPresent()) {
-			fieldName = GraphQLEntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
+			fieldName = EntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
 		} else {
-			fieldName = GraphQLEntityDescriptor.REFERENCE.name(referenceSchema);
+			fieldName = EntityDescriptor.REFERENCE.name(referenceSchema);
 		}
 
 		// convert requirements into output fields
@@ -636,7 +646,7 @@ public class EntityFetchConverter extends RequireConverter {
 			final Page page = referenceContent.getPage().get();
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					ReferencePageFieldHeaderDescriptor.NUMBER,
+					PaginatedListFieldHeaderDescriptor.NUMBER,
 					offset,
 					multipleArguments,
 					page.getPageNumber()
@@ -644,7 +654,7 @@ public class EntityFetchConverter extends RequireConverter {
 			);
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					ReferencePageFieldHeaderDescriptor.SIZE,
+					PaginatedListFieldHeaderDescriptor.SIZE,
 					offset,
 					multipleArguments,
 					page.getPageSize()
@@ -654,7 +664,7 @@ public class EntityFetchConverter extends RequireConverter {
 			final Strip strip = referenceContent.getStrip().get();
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					ReferenceStripFieldHeaderDescriptor.LIMIT,
+					StripListFieldHeaderDescriptor.LIMIT,
 					offset,
 					multipleArguments,
 					strip.getLimit()
@@ -662,7 +672,7 @@ public class EntityFetchConverter extends RequireConverter {
 			);
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					ReferenceStripFieldHeaderDescriptor.OFFSET,
+					StripListFieldHeaderDescriptor.OFFSET,
 					offset,
 					multipleArguments,
 					strip.getOffset()

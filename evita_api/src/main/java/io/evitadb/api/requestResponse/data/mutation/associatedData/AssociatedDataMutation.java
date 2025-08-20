@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 	@Nonnull
 	@Override
 	public String containerName() {
-		return associatedDataKey.associatedDataName();
+		return this.associatedDataKey.associatedDataName();
 	}
 
 	@Nonnull
@@ -88,7 +88,7 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 
 	@Override
 	public AssociatedDataKey getComparableKey() {
-		return associatedDataKey;
+		return this.associatedDataKey;
 	}
 
 	protected void verifyOrEvolveSchema(
@@ -96,7 +96,7 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 		@Nonnull Serializable associatedDataValue,
 		@Nonnull Consumer<EntitySchemaBuilder> schemaEvolutionApplicator
 	) throws InvalidMutationException {
-		final Optional<AssociatedDataSchemaContract> associatedDataOpt = entitySchemaBuilder.getAssociatedData(associatedDataKey.associatedDataName());
+		final Optional<AssociatedDataSchemaContract> associatedDataOpt = entitySchemaBuilder.getAssociatedData(this.associatedDataKey.associatedDataName());
 		associatedDataOpt
 			.ifPresent(associatedDataSchema -> {
 				// when associated data definition is known execute first encounter formal verification
@@ -104,25 +104,25 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 					associatedDataSchema.getType().isInstance(associatedDataValue),
 					() -> new InvalidMutationException(
 						"Invalid type: `" + associatedDataValue.getClass() + "`! " +
-							"Associated data `" + associatedDataKey.associatedDataName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as type `" + associatedDataSchema.getType() + "`. " +
-							"All values of associated data `" + associatedDataKey.associatedDataName() + "` must respect this data type!"
+							"Associated data `" + this.associatedDataKey.associatedDataName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as type `" + associatedDataSchema.getType() + "`. " +
+							"All values of associated data `" + this.associatedDataKey.associatedDataName() + "` must respect this data type!"
 					)
 				);
 				if (associatedDataSchema.isLocalized()) {
 					Assert.isTrue(
-						associatedDataKey.localized(),
+						this.associatedDataKey.localized(),
 						() -> new InvalidMutationException(
-							"Associated data `" + associatedDataKey.associatedDataName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as localized value. " +
-								"All values of associated data `" + associatedDataKey.associatedDataName() + "` must be localized now " +
+							"Associated data `" + this.associatedDataKey.associatedDataName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as localized value. " +
+								"All values of associated data `" + this.associatedDataKey.associatedDataName() + "` must be localized now " +
 								"- use different associated data name for locale independent variant of associated data!!"
 						)
 					);
 				} else {
 					Assert.isTrue(
-						!associatedDataKey.localized(),
+						!this.associatedDataKey.localized(),
 						() -> new InvalidMutationException(
-							"Associated data `" + associatedDataKey.associatedDataName() + "` in schema `" + entitySchemaBuilder.getName() + "` was not stored as localized value. " +
-								"No values of associated data `" + associatedDataKey.associatedDataName() + "` can be localized now " +
+							"Associated data `" + this.associatedDataKey.associatedDataName() + "` in schema `" + entitySchemaBuilder.getName() + "` was not stored as localized value. " +
+								"No values of associated data `" + this.associatedDataKey.associatedDataName() + "` can be localized now " +
 								"- use different associated data name for localized variant of associated data!"
 						)
 					);
@@ -136,7 +136,7 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 				schemaEvolutionApplicator.accept(entitySchemaBuilder);
 			} else {
 				throw new InvalidMutationException(
-					"Unknown associated data `" + associatedDataKey.associatedDataName() + "` in entity `" + entitySchemaBuilder.getName() + "`!" +
+					"Unknown associated data `" + this.associatedDataKey.associatedDataName() + "` in entity `" + entitySchemaBuilder.getName() + "`!" +
 						" You must first alter entity schema to be able to add this associated data to the entity!"
 				);
 			}

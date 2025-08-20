@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ package io.evitadb.core.cache;
 
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.EvitaSession;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -71,7 +71,7 @@ class FormulaCacheVisitorTest {
 		this.cacheEden = new CacheEden(1_000_000, MINIMAL_USAGE_THRESHOLD, 100L, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			10_000, 30L,
-			cacheEden,
+			this.cacheEden,
 			scheduler
 		);
 	}
@@ -84,12 +84,12 @@ class FormulaCacheVisitorTest {
 			Mockito.mock(EvitaSession.class),
 			SOME_ENTITY,
 			inputFormula,
-			cacheAnteroom
+			this.cacheAnteroom
 		);
 		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertSame(inputFormula, possiblyUpdatedFormula);
 
-		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
+		final CacheRecordAdept cacheAdept = this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
 		assertNull(cacheAdept);
 	}
 
@@ -107,7 +107,7 @@ class FormulaCacheVisitorTest {
 			evitaSession,
 			SOME_ENTITY,
 			inputFormula,
-			cacheAnteroom
+			this.cacheAnteroom
 		);
 		assertEquals(inputFormula.getHash(), inputFormula.getHash());
 		assertNotSame(inputFormula, possiblyUpdatedFormula);
@@ -115,7 +115,7 @@ class FormulaCacheVisitorTest {
 		// compute the instrumented formula
 		possiblyUpdatedFormula.compute();
 
-		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
+		final CacheRecordAdept cacheAdept = this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
 		assertNotNull(cacheAdept);
 		assertTrue(cacheAdept.getSizeInBytes() > 120);
 		assertEquals(0, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));
@@ -150,17 +150,17 @@ class FormulaCacheVisitorTest {
 			evitaSession,
 			SOME_ENTITY,
 			inputFormula,
-			cacheAnteroom
+			this.cacheAnteroom
 		);
 
 		// compute the instrumented formula
 		possiblyUpdatedFormula.compute();
 
-		assertNotNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula));
-		assertNotNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0]));
-		assertNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[1]));
-		assertNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[0]));
-		assertNotNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[1]));
+		assertNotNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula));
+		assertNotNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0]));
+		assertNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[1]));
+		assertNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[0]));
+		assertNotNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[1]));
 	}
 
 	@Test
@@ -190,17 +190,17 @@ class FormulaCacheVisitorTest {
 			evitaSession,
 			SOME_ENTITY,
 			inputFormula,
-			cacheAnteroom
+			this.cacheAnteroom
 		);
 
 		// compute the instrumented formula
 		possiblyUpdatedFormula.compute();
 
-		assertNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula));
-		assertNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0]));
-		assertNotNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[1]));
-		assertNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[0]));
-		assertNull(cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[1]));
+		assertNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula));
+		assertNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0]));
+		assertNotNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[1]));
+		assertNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[0]));
+		assertNull(this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula.getInnerFormulas()[0].getInnerFormulas()[1]));
 	}
 
 	@Test
@@ -214,21 +214,21 @@ class FormulaCacheVisitorTest {
 		final EvitaSession evitaSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(evitaSession.getCatalogName()).thenReturn(TEST_CATALOG);
 
-		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
+		final Formula possiblyUpdatedFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, this.cacheAnteroom);
 
 		// compute the instrumented formula
 		possiblyUpdatedFormula.compute();
 
 		for (int i = 0; i < MINIMAL_USAGE_THRESHOLD + 10; i++) {
-			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
+			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, this.cacheAnteroom);
 		}
 
-		final CacheRecordAdept cacheAdept = cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
+		final CacheRecordAdept cacheAdept = this.cacheAnteroom.getCacheAdept(TEST_CATALOG, SOME_ENTITY, inputFormula);
 		assertNotNull(cacheAdept);
 		assertEquals(3, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));
 
 		for (int i = 0; i < 100; i++) {
-			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
+			FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, this.cacheAnteroom);
 		}
 
 		assertEquals(32, cacheAdept.getSpaceToPerformanceRatio(MINIMAL_USAGE_THRESHOLD));

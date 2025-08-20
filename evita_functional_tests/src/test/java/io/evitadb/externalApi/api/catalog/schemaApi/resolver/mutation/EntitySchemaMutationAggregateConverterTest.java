@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,7 +41,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.array;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -56,7 +59,7 @@ class EntitySchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new EntitySchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new EntitySchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -66,7 +69,7 @@ class EntitySchemaMutationAggregateConverterTest {
 			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
 		);
 
-		final List<LocalEntitySchemaMutation> convertedMutations1 = converter.convert(
+		final List<LocalEntitySchemaMutation> convertedMutations1 = this.converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(Locale.ENGLISH))
@@ -78,7 +81,7 @@ class EntitySchemaMutationAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations1);
 
-		final List<LocalEntitySchemaMutation> convertedMutations2 = converter.convert(
+		final List<LocalEntitySchemaMutation> convertedMutations2 = this.converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en"))
@@ -92,12 +95,37 @@ class EntitySchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<LocalEntitySchemaMutation> convertedMutations = converter.convert(Map.of());
+		final List<LocalEntitySchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final List<LocalEntitySchemaMutation> inputMutation = List.of(
+			new AllowLocaleInEntitySchemaMutation(Locale.ENGLISH),
+			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
+		);
+
+		//noinspection unchecked
+		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				list()
+					.i(map()
+						.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
+							.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), array()
+								.i(Locale.ENGLISH.toLanguageTag()))))
+					.i(map()
+						.e(EntitySchemaMutationAggregateDescriptor.DISALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION.name(), map()
+							.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), list()
+								.i("EUR"))))
+					.build()
+			);
 	}
 }

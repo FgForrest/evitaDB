@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		//noinspection unchecked
-		return (S) catalogSchema.getAttribute(name).orElse(null);
+		return (S) catalogSchema.getAttribute(this.name).orElse(null);
 	}
 
 	@Nonnull
@@ -75,14 +75,14 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 		Assert.notNull(
 			newAttributeSchema,
 			() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			)
 		);
-		final AttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name).orElse(null);
+		final AttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name).orElse(null);
 		if (existingAttributeSchema != null && !(existingAttributeSchema instanceof GlobalAttributeSchema)) {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
-				"The attribute `" + name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
+				"The attribute `" + this.name + "` already exists in entity `" + entitySchema.getName() + "` schema and" +
 					" has different definition. To alter existing attribute schema you need to use different mutations."
 			);
 		} else if (existingAttributeSchema == null || !existingAttributeSchema.equals(newAttributeSchema)) {
@@ -101,7 +101,7 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 				entitySchema.getLocales(),
 				entitySchema.getCurrencies(),
 				Stream.concat(
-						entitySchema.getAttributes().values().stream().filter(it -> !it.getName().equals(name)),
+						entitySchema.getAttributes().values().stream().filter(it -> !it.getName().equals(this.name)),
 						Stream.of(newAttributeSchema)
 					)
 					.collect(
@@ -130,6 +130,6 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 	@Override
 	public String toString() {
 		return "Use global attribute schema: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -168,7 +168,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	 */
 	public boolean isLocalized(@Nonnull Function<String, ? extends AttributeSchemaContract> attributeSchemaProvider) {
 		if (this.memoizedLocalized == null) {
-			this.memoizedLocalized = attributeElements
+			this.memoizedLocalized = this.attributeElements
 				.stream()
 				.anyMatch(it -> {
 					final AttributeSchemaContract attributeSchema = attributeSchemaProvider.apply(it.attributeName());
@@ -182,7 +182,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	@Nonnull
 	@Override
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
-		return nameVariants.get(namingConvention);
+		return this.nameVariants.get(namingConvention);
 	}
 
 	@Override
@@ -192,27 +192,27 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 
 		SortableAttributeCompoundSchema that = (SortableAttributeCompoundSchema) o;
 
-		if (!name.equals(that.name)) return false;
-		if (!Objects.equals(description, that.description)) return false;
-		if (!Objects.equals(deprecationNotice, that.deprecationNotice))
+		if (!this.name.equals(that.name)) return false;
+		if (!Objects.equals(this.description, that.description)) return false;
+		if (!Objects.equals(this.deprecationNotice, that.deprecationNotice))
 			return false;
-		return attributeElements.equals(that.attributeElements) && indexedInScopes.equals(that.indexedInScopes);
+		return this.attributeElements.equals(that.attributeElements) && this.indexedInScopes.equals(that.indexedInScopes);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = name.hashCode();
-		result = 31 * result + (description != null ? description.hashCode() : 0);
-		result = 31 * result + (deprecationNotice != null ? deprecationNotice.hashCode() : 0);
-		result = 31 * result + attributeElements.hashCode();
-		result = 31 * result + indexedInScopes.hashCode();
+		int result = this.name.hashCode();
+		result = 31 * result + (this.description != null ? this.description.hashCode() : 0);
+		result = 31 * result + (this.deprecationNotice != null ? this.deprecationNotice.hashCode() : 0);
+		result = 31 * result + this.attributeElements.hashCode();
+		result = 31 * result + this.indexedInScopes.hashCode();
 		return result;
 	}
 
 	@Override
 	public String toString() {
-		return '@' + name + ": " +
-			attributeElements
+		return '@' + this.name + ": " +
+			this.attributeElements
 				.stream()
 				.map(AttributeElement::toString)
 				.collect(Collectors.joining(", ")) +

@@ -29,7 +29,6 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 
 /**

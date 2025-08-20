@@ -102,7 +102,7 @@ class CompoundAttributeComparator implements EntityComparator, Serializable {
 			.toArray(ComparatorSource[]::new);
 
 		// initialize normalizers
-		this.normalizer = createNormalizerFor(comparatorSource);
+		this.normalizer = createNormalizerFor(this.comparatorSource);
 		//noinspection rawtypes
 		final Comparator baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		//noinspection unchecked
@@ -124,7 +124,7 @@ class CompoundAttributeComparator implements EntityComparator, Serializable {
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
 		final ComparableArray valueToCompare2 = getAndMemoizeValue(o2);
-		return comparator.compare(valueToCompare1, valueToCompare2);
+		return this.comparator.compare(valueToCompare1, valueToCompare2);
 	}
 
 	/**

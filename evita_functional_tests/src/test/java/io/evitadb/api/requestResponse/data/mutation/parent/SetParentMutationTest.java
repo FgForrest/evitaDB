@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class SetParentMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldCreateNewHierarchicalPlacement() {
 		final SetParentMutation mutation = new SetParentMutation(2);
-		final OptionalInt newParent = mutation.mutateLocal(productSchema, OptionalInt.empty());
+		final OptionalInt newParent = mutation.mutateLocal(this.productSchema, OptionalInt.empty());
 
 		assertNotNull(newParent);
 		assertTrue(newParent.isPresent());
@@ -53,7 +53,7 @@ class SetParentMutationTest extends AbstractMutationTest {
 	void shouldUpdateExistingHierarchicalPlacement() {
 		final SetParentMutation mutation = new SetParentMutation(6);
 		final OptionalInt newParent = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			OptionalInt.of(2)
 		);
 
@@ -65,8 +65,8 @@ class SetParentMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldReturnSameSkipToken() {
 		assertEquals(
-			new SetParentMutation(7).getSkipToken(catalogSchema, productSchema),
-			new SetParentMutation(4).getSkipToken(catalogSchema, productSchema)
+			new SetParentMutation(7).getSkipToken(this.catalogSchema, this.productSchema),
+			new SetParentMutation(4).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

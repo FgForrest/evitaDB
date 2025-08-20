@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -38,25 +35,20 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter extends SortableAttributeCompoundSchemaMutationConverter<ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation> {
+public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter extends
+	SortableAttributeCompoundSchemaMutationConverter<ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation> {
 
-	public ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                                               @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.name();
+	protected Class<ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation> getMutationClass() {
+		return ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation convert(@Nonnull Input input) {
-		return new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(
-			input.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
-			input.getOptionalField(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
-		);
-	}
 }

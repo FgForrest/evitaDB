@@ -113,7 +113,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public Class<?> constraintClass() {
-		return constraintClass;
+		return this.constraintClass;
 	}
 
 	/**
@@ -121,7 +121,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public ConstraintType type() {
-		return type;
+		return this.type;
 	}
 
 	/**
@@ -129,7 +129,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public ConstraintPropertyType propertyType() {
-		return propertyType;
+		return this.propertyType;
 	}
 
 	/**
@@ -138,12 +138,12 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public String fullName() {
-		return fullName;
+		return this.fullName;
 	}
 
 	@Nonnull
 	public String shortDescription() {
-		return shortDescription;
+		return this.shortDescription;
 	}
 
 	/**
@@ -151,7 +151,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public String userDocsLink() {
-		return userDocsLink;
+		return this.userDocsLink;
 	}
 
 	/**
@@ -159,7 +159,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public Set<ConstraintDomain> supportedIn() {
-		return supportedIn;
+		return this.supportedIn;
 	}
 
 	/**
@@ -167,7 +167,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nullable
 	public SupportedValues supportedValues() {
-		return supportedValues;
+		return this.supportedValues;
 	}
 
 	/**
@@ -175,7 +175,7 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 	 */
 	@Nonnull
 	public ConstraintCreator creator() {
-		return creator;
+		return this.creator;
 	}
 
 	@Override
@@ -184,31 +184,31 @@ public class ConstraintDescriptor implements Comparable<ConstraintDescriptor> {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		ConstraintDescriptor that = (ConstraintDescriptor) o;
-		return type == that.type &&
-			propertyType == that.propertyType &&
-			fullName.equals(that.fullName) &&
-			creator.hasClassifierParameter() == that.creator.hasClassifierParameter() &&
-			creator.hasImplicitClassifier() == that.creator.hasImplicitClassifier();
+		return this.type == that.type &&
+			this.propertyType == that.propertyType &&
+			this.fullName.equals(that.fullName) &&
+			this.creator.hasClassifierParameter() == that.creator.hasClassifierParameter() &&
+			this.creator.hasImplicitClassifier() == that.creator.hasImplicitClassifier();
 	}
 
 	@Override
 	public int hashCode() {
 		// lombok cannot generate equals and hash code for records
-		return Objects.hash(type, propertyType, fullName, creator.hasClassifierParameter(), creator.hasImplicitClassifier());
+		return Objects.hash(this.type, this.propertyType, this.fullName, this.creator.hasClassifierParameter(), this.creator.hasImplicitClassifier());
 	}
 
 	@Override
 	public String toString() {
 		return "ConstraintDescriptor{" +
-			"constraintClass=" + constraintClass +
-			", type=" + type +
-			", propertyType=" + propertyType +
-			", fullName='" + fullName + '\'' +
-			", shortDescription='" + shortDescription + '\'' +
-			", userDocsLink='" + userDocsLink + '\'' +
-			", supportedIn=" + supportedIn +
-			", supportedValues=" + supportedValues +
-			", creator=" + creator +
+			"constraintClass=" + this.constraintClass +
+			", type=" + this.type +
+			", propertyType=" + this.propertyType +
+			", fullName='" + this.fullName + '\'' +
+			", shortDescription='" + this.shortDescription + '\'' +
+			", userDocsLink='" + this.userDocsLink + '\'' +
+			", supportedIn=" + this.supportedIn +
+			", supportedValues=" + this.supportedValues +
+			", creator=" + this.creator +
 			'}';
 	}
 

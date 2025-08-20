@@ -25,14 +25,14 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaFacetedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -42,39 +42,41 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetReferenceSchemaIndexedMutationConverter extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
+public class SetReferenceSchemaIndexedMutationConverter
+	extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
 
-	public SetReferenceSchemaIndexedMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetReferenceSchemaIndexedMutationConverter(
+		@Nonnull MutationObjectParser objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetReferenceSchemaFacetedMutationDescriptor.THIS.name();
+	protected Class<SetReferenceSchemaIndexedMutation> getMutationClass() {
+		return SetReferenceSchemaIndexedMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected SetReferenceSchemaIndexedMutation convert(@Nonnull Input input) {
-		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalField(
-			CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
-			new FieldObjectListMapper<>(
+	protected SetReferenceSchemaIndexedMutation convertFromInput(@Nonnull Input input) {
+		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalProperty(
+			SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
-				CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES,
+				SetReferenceSchemaIndexedMutationDescriptor.INDEXED_IN_SCOPES,
 				ScopedReferenceIndexType.class,
 				nestedInput -> new ScopedReferenceIndexType(
-					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
 				)
 			)
 		);
 
 		return new SetReferenceSchemaIndexedMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			indexedInScopes
 		);
 	}
+
 }

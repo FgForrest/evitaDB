@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -110,33 +110,33 @@ public sealed abstract class PricePredicate implements PricePredicateContract
 			queryPriceMode, from, to, indexedPricePlaces,
 			amount ->  {
 				final int amountAsInt = NumberUtils.convertExternalNumberToInt(amount, indexedPricePlaces);
-				return amountAsInt >= fromAsInt && amountAsInt <= toAsInt;
+				return amountAsInt >= this.fromAsInt && amountAsInt <= this.toAsInt;
 			}
 		);
-		this.intAmountPredicate = amount -> amount >= fromAsInt && amount <= toAsInt;
+		this.intAmountPredicate = amount -> amount >= this.fromAsInt && amount <= this.toAsInt;
 	}
 
 	@Override
 	@Nonnull
 	public PriceAmountPredicate getRequestedPredicate() {
-		return amountPredicate;
+		return this.amountPredicate;
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashInts(
 			new int[] {
-				queryPriceMode == null ? 0 : queryPriceMode.ordinal(),
-				indexedPricePlaces,
-				fromAsInt,
-				toAsInt
+				this.queryPriceMode == null ? 0 : this.queryPriceMode.ordinal(),
+				this.indexedPricePlaces,
+				this.fromAsInt,
+				this.toAsInt
 			}
 		);
 	}
 
 	@Override
 	public String toString() {
-		return description;
+		return this.description;
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@BeforeEach
 	void setUp() {
-		initialReference = new InitialReferenceBuilder(
+		this.initialReference = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
 			"brand",
 			5,
@@ -64,7 +64,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldModifyAttributes() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
 			.setAttribute("brandPriority", 155L)
 			.removeAttribute("country", Locale.ENGLISH)
 			.setAttribute("newAttribute", "Hi");
@@ -87,7 +87,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Changed name")
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -98,7 +98,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldModifyReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
 			.setGroup("newGroup", 77);
 
 		assertEquals(
@@ -116,7 +116,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemoveReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
 			.removeGroup();
 
 		assertTrue(builder.getGroup().isEmpty());
@@ -128,13 +128,13 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalReferenceInstanceWhenNothingHasChanged() {
-		final ReferenceContract reference = new ExistingReferenceBuilder(initialReference, PRODUCT_SCHEMA)
+		final ReferenceContract reference = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
 			.setAttribute("country", Locale.CANADA, "Canada")
 			.setGroup("group", 78)
 			.build();
 
-		assertSame(initialReference, reference);
+		assertSame(this.initialReference, reference);
 	}
 }

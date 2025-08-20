@@ -70,9 +70,9 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws MalformedURLException {
-		mainDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve(DIRECTORY);
-		if (!mainDirectory.toFile().exists()) {
-			mainDirectory.toFile().mkdirs();
+		this.mainDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve(DIRECTORY);
+		if (!this.mainDirectory.toFile().exists()) {
+			this.mainDirectory.toFile().mkdirs();
 		}
 	}
 
@@ -139,7 +139,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 			final SystemStatus status = evita.management().getSystemStatus();
 			assertEquals(0, status.catalogsCorrupted());
-			assertEquals(1, status.catalogsOk());
+			assertEquals(1, status.catalogsActive());
 
 			// check the catalog has its own id
 			final UUID catalogId = evita.queryCatalog(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public class EntityIdsState {
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
-		entityIds = generateBitmap(ENTITY_COUNT, PRICE_COUNT);
+		this.entityIds = generateBitmap(ENTITY_COUNT, PRICE_COUNT);
 	}
 
 	private Bitmap generateBitmap(int entityCount, int priceCount) {
@@ -68,7 +68,7 @@ public class EntityIdsState {
 			final PriceRecord price = new PriceRecord(
 				++PRICE_ID_SEQ, entityId, entityCount + random.nextInt(entityCount), (int) (randomPrice * 1.21), randomPrice
 			);
-			priceIndex.recordPrice(price);
+			this.priceIndex.recordPrice(price);
 			if (getRandomNumber(priceToEntitySize) == 0) {
 				bitmap.add(price.entityPrimaryKey());
 			}

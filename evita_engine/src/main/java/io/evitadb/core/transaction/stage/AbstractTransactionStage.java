@@ -88,7 +88,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	@Override
 	public void onSubscribe(Subscription subscription) {
 		this.subscription = subscription;
-		subscription.request(1);
+		this.subscription.request(1);
 	}
 
 	@Override

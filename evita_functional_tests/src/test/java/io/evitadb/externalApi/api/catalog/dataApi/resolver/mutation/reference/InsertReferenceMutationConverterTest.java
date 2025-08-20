@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -52,27 +54,27 @@ class InsertReferenceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new InsertReferenceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new InsertReferenceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final InsertReferenceMutation expectedMutation = new InsertReferenceMutation(new ReferenceKey(REFERENCE_TAGS, 1), Cardinality.ONE_OR_MORE, "Tag");
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE)
 				.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
-				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
 				.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
 				.build()
@@ -82,10 +84,10 @@ class InsertReferenceMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
-				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+				.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(
@@ -98,21 +100,39 @@ class InsertReferenceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final InsertReferenceMutation inputMutation = new InsertReferenceMutation(new ReferenceKey(REFERENCE_TAGS, 1), Cardinality.ONE_OR_MORE, "Tag");
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE.name())
+					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
+					.build()
+			);
 	}
 }

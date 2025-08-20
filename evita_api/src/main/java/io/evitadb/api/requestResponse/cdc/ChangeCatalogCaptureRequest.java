@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,11 +33,13 @@ import javax.annotation.Nullable;
  *
  *
  * @param sinceVersion specifies the initial capture point (catalog version) for the CDC stream, if not specified
- *                     it is assumed to begin at most recent / oldest available version
- * @param sinceIndex   specifies the initial capture point for the CDC stream, is is optional and can be used
- *                     to specify continuation point within enclosing block of events
- * @param criteria     the criteria of the capture, if not specified all changes are captured
- * @param content      the requested content of the capture, by default only the header information is sent
+ *                     it is assumed to begin at the most recent / oldest available version
+ * @param sinceIndex   specifies the initial capture point for the CDC stream, it is optional and can be used
+ *                     to specify continuation point within an enclosing block of events
+ * @param criteria     the criteria of the capture, if not specified - all changes are captured, if multiple are specified
+ *                     matching any of them is sufficient (OR)
+ * @param content      the requested content of the capture, by default, only the header information is sent
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeCatalogCaptureRequest(
@@ -115,7 +117,12 @@ public record ChangeCatalogCaptureRequest(
 		 */
 		@Nonnull
 		public ChangeCatalogCaptureRequest build() {
-			return new ChangeCatalogCaptureRequest(sinceVersion, sinceIndex, criteria, content);
+			return new ChangeCatalogCaptureRequest(
+				this.sinceVersion,
+				this.sinceIndex,
+				this.criteria,
+				this.content
+			);
 		}
 	}
 

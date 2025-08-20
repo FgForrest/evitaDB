@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,10 +72,10 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
         final Operation operation = executionContext.getOperationDefinition().getOperation();
 
         final EvitaSessionContract evitaSession;
-        if (operation == OperationDefinition.Operation.QUERY) {
-            evitaSession = evita.createReadOnlySession(catalogName);
+        if (operation == OperationDefinition.Operation.QUERY || operation == OperationDefinition.Operation.SUBSCRIPTION) {
+            evitaSession = this.evita.createReadOnlySession(this.catalogName);
         } else if (operation == OperationDefinition.Operation.MUTATION) {
-            evitaSession = evita.createReadWriteSession(catalogName);
+            evitaSession = this.evita.createReadWriteSession(this.catalogName);
         } else {
             throw new GraphQLInternalError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
         }

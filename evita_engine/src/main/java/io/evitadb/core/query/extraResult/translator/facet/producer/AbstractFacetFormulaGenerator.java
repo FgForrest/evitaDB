@@ -695,7 +695,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	protected void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
-		if (levelStack.isEmpty()) {
+		if (this.levelStack.isEmpty()) {
 			this.result = formula;
 		} else {
 			this.levelStack.peek().add(formula);

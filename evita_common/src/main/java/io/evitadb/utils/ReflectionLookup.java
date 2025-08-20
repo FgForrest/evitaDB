@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -330,7 +330,7 @@ public class ReflectionLookup {
 			for (RecordComponent recordComponent : recordComponents) {
 				final String propertyName = recordComponent.getName();
 				final Field propertyField = mapField(onClass, propertyName);
-				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, false, propertyField);
+				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, true, propertyField);
 			}
 		} else {
 			final Method[] methods = onClass.getMethods();
@@ -523,7 +523,13 @@ public class ReflectionLookup {
 	 * @param isGetter      flag indicating if the method is a getter
 	 * @param propertyField the field associated with the property descriptor, may be null
 	 */
-	private static void registerPropertyDescriptor(@Nonnull Map<String, PropertyDescriptor> result, @Nonnull Method method, @Nonnull String propertyName, boolean isGetter, @Nullable Field propertyField) {
+	private static void registerPropertyDescriptor(
+		@Nonnull Map<String, PropertyDescriptor> result,
+		@Nonnull Method method,
+		@Nonnull String propertyName,
+		boolean isGetter,
+		@Nullable Field propertyField
+	) {
 		final PropertyDescriptor existingTuple = result.get(propertyName);
 		if (existingTuple == null) {
 			result.put(
@@ -599,7 +605,7 @@ public class ReflectionLookup {
 	 */
 	@Nullable
 	public Field findPropertyField(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -621,7 +627,7 @@ public class ReflectionLookup {
 	 */
 	@Nullable
 	public Method findSetter(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -635,7 +641,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Collection<Method> findAllGetters(@Nonnull Class<?> onClass) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -653,7 +659,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Collection<Method> findAllGettersHavingCorrespondingSetter(@Nonnull Class<?> onClass) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -674,11 +680,11 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Collection<Method> findAllGettersHavingCorrespondingSetterOrConstructorArgument(@Nonnull Class<?> onClass) {
-		final List<Method> cachedGetters = gettersWithCorrespondingSetterOrConstructor.get(onClass);
+		final List<Method> cachedGetters = this.gettersWithCorrespondingSetterOrConstructor.get(onClass);
 		if (cachedGetters == null) {
 			final List<Method> resolvedGetters = resolveGettersCorrespondingToSettersOrConstructorArgument(onClass);
-			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-				gettersWithCorrespondingSetterOrConstructor.put(onClass, resolvedGetters);
+			if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+				this.gettersWithCorrespondingSetterOrConstructor.put(onClass, resolvedGetters);
 			}
 			return resolvedGetters;
 		} else {
@@ -733,7 +739,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Collection<Method> findAllSetters(@Nonnull Class<?> onClass) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -751,7 +757,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Collection<Method> findAllSettersHavingCorrespondingSetter(@Nonnull Class<?> onClass) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -776,7 +782,7 @@ public class ReflectionLookup {
 	 */
 	@Nullable
 	public Method findGetter(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
-		Map<String, PropertyDescriptor> index = propertiesCache.get(onClass);
+		Map<String, PropertyDescriptor> index = this.propertiesCache.get(onClass);
 		if (index == null) {
 			index = mapAndCacheGettersAndSetters(onClass);
 		}
@@ -790,7 +796,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public List<Annotation> getClassAnnotations(@Nonnull Class<?> type) {
-		List<Annotation> cachedInformations = classCache.get(type);
+		List<Annotation> cachedInformations = this.classCache.get(type);
 		if (cachedInformations == null) {
 			final Set<Annotation> informations = new LinkedHashSet<>(16);
 			final Set<Class<?>> alreadyDetectedAnnotations = new HashSet<>();
@@ -798,8 +804,8 @@ public class ReflectionLookup {
 				getClassAnnotationsThroughSuperClasses(informations, type, alreadyDetectedAnnotations);
 			}
 			cachedInformations = new ArrayList<>(informations);
-			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-				classCache.put(type, cachedInformations);
+			if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+				this.classCache.put(type, cachedInformations);
 			}
 		}
 
@@ -873,7 +879,7 @@ public class ReflectionLookup {
 	 * Returns true if method has at least one annotation in the same package as the passed annotation.
 	 */
 	public boolean hasAnnotationInSamePackage(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
-		return methodSamePackageAnnotation.computeIfAbsent(
+		return this.methodSamePackageAnnotation.computeIfAbsent(
 			new MethodAndPackage(method, annotation.getPackage()),
 			tuple -> Arrays.stream(tuple.method().getAnnotations())
 				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
@@ -884,7 +890,7 @@ public class ReflectionLookup {
 	 * Returns true if field has at least one annotation in the same package as the passed annotation.
 	 */
 	public boolean hasAnnotationInSamePackage(@Nonnull Field field, @Nonnull Class<? extends Annotation> annotation) {
-		return fieldSamePackageAnnotation.computeIfAbsent(
+		return this.fieldSamePackageAnnotation.computeIfAbsent(
 			new FieldAndPackage(field, annotation.getPackage()),
 			tuple -> Arrays.stream(tuple.field().getAnnotations())
 				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
@@ -959,7 +965,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Map<Field, List<Annotation>> getFields(@Nonnull Class<?> type) {
-		Map<Field, List<Annotation>> cachedInformations = fieldCache.get(type);
+		Map<Field, List<Annotation>> cachedInformations = this.fieldCache.get(type);
 
 		if (cachedInformations == null) {
 			cachedInformations = new LinkedHashMap<>(16);
@@ -967,8 +973,8 @@ public class ReflectionLookup {
 			if (!Objects.equals(Object.class, type)) {
 				getFieldAnnotationsThroughSuperClasses(cachedInformations, foundFields, type);
 			}
-			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-				fieldCache.put(type, cachedInformations);
+			if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+				this.fieldCache.put(type, cachedInformations);
 			}
 		}
 
@@ -1003,7 +1009,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Map<Method, List<Annotation>> getMethods(@Nonnull Class<?> type) {
-		Map<Method, List<Annotation>> cachedInformations = methodCache.get(type);
+		Map<Method, List<Annotation>> cachedInformations = this.methodCache.get(type);
 
 		if (cachedInformations == null) {
 			cachedInformations = new LinkedHashMap<>(16);
@@ -1021,8 +1027,8 @@ public class ReflectionLookup {
 				registerMethods(cachedInformations, foundMethodAnnotations, anInterface);
 			}
 
-			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-				methodCache.put(type, cachedInformations);
+			if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+				this.methodCache.put(type, cachedInformations);
 			}
 		}
 
@@ -1169,13 +1175,13 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	public Set<Class<?>> getAllImplementedInterfaces(@Nonnull Class<?> aClass) {
-		final Set<Class<?>> ifaces = interfacesCache.get(aClass);
+		final Set<Class<?>> ifaces = this.interfacesCache.get(aClass);
 		if (ifaces == null) {
 			final Set<Class<?>> mainInterfaces = getAllInterfacesForClassAsSet(aClass);
 			final Set<Class<?>> resolvedIfaces = new HashSet<>(mainInterfaces);
 			mainInterfaces.forEach(it -> resolvedIfaces.addAll(getAllDeclaredInterfaces(it)));
-			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-				interfacesCache.put(aClass, resolvedIfaces);
+			if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+				this.interfacesCache.put(aClass, resolvedIfaces);
 			}
 			return resolvedIfaces;
 		}
@@ -1188,9 +1194,9 @@ public class ReflectionLookup {
 	 */
 	@Nullable
 	public <S, T> T extractFromClass(@Nonnull Class<S> modelClass, @Nonnull Object cacheKey, @Nonnull Function<Class<S>, T> extractor) {
-		if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+		if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
 			//noinspection unchecked
-			return (T) extractorCache.computeIfAbsent(
+			return (T) this.extractorCache.computeIfAbsent(
 				modelClass, aClass -> new ConcurrentHashMap<>()
 			).computeIfAbsent(
 				cacheKey, key -> extractor.apply(modelClass)
@@ -1229,8 +1235,8 @@ public class ReflectionLookup {
 	@Nonnull
 	private Map<String, PropertyDescriptor> mapAndCacheGettersAndSetters(@Nonnull Class<?> onClass) {
 		final @Nonnull Map<String, PropertyDescriptor> index = mapGettersAndSetters(onClass);
-		if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-			propertiesCache.put(onClass, index);
+		if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+			this.propertiesCache.put(onClass, index);
 		}
 		return index;
 	}
@@ -1243,11 +1249,11 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	private Map<ConstructorKey, Constructor<?>> mapAndCacheConstructors(@Nonnull Class<?> onClass) {
-		final Map<ConstructorKey, Constructor<?>> cachedResult = constructorCache.get(onClass);
+		final Map<ConstructorKey, Constructor<?>> cachedResult = this.constructorCache.get(onClass);
 		if (cachedResult == null) {
 			final Map<ConstructorKey, Constructor<?>> index = mapConstructors(onClass);
-			if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
-				constructorCache.put(onClass, index);
+			if (this.cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
+				this.constructorCache.put(onClass, index);
 			}
 			return index;
 		} else {
@@ -1261,7 +1267,7 @@ public class ReflectionLookup {
 	 */
 	@Nonnull
 	private List<Method> resolveGettersCorrespondingToSettersOrConstructorArgument(@Nonnull Class<?> onClass) {
-		final Map<String, PropertyDescriptor> index = ofNullable(propertiesCache.get(onClass))
+		final Map<String, PropertyDescriptor> index = ofNullable(this.propertiesCache.get(onClass))
 			.orElseGet(() -> mapAndCacheGettersAndSetters(onClass));
 
 		final Stream<Method> simplePropertiesWithSetter = index.values()
@@ -1402,8 +1408,8 @@ public class ReflectionLookup {
 		@Nonnull
 		@Override
 		public String toString() {
-			return type.getSimpleName() + "(" +
-				arguments.stream()
+			return this.type.getSimpleName() + "(" +
+				this.arguments.stream()
 					.map(it -> it.getType().getSimpleName() + " " + it.getName())
 					.collect(Collectors.joining(", "))
 				+ ")";
@@ -1418,7 +1424,7 @@ public class ReflectionLookup {
 		@Nonnull
 		@Override
 		public String toString() {
-			return constructorKey.toString();
+			return this.constructorKey.toString();
 		}
 	}
 

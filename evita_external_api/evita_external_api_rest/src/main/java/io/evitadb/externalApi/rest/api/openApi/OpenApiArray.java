@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,14 +66,14 @@ public class OpenApiArray implements OpenApiWrappingType {
 	@Nonnull
 	@Override
 	public OpenApiSimpleType getWrappedType() {
-		return itemType;
+		return this.itemType;
 	}
 
 	@Nonnull
 	@Override
 	public Schema<?> toSchema() {
 		final Schema<Object> schema = new ArraySchema();
-		schema.setItems(itemType.toSchema());
+		schema.setItems(this.itemType.toSchema());
 		schema.minItems(this.minItems);
 		schema.maxItems(this.maxItems);
 		return schema;

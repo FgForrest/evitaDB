@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.Entities;
@@ -42,9 +43,9 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,7 +93,8 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 		final var expectedBody = entitiesToDelete.stream()
 			.map(entity -> map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-				.e(EntityDescriptor.ATTRIBUTES.name(), map()
+				.e(
+					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
 					.build())
 				.build())

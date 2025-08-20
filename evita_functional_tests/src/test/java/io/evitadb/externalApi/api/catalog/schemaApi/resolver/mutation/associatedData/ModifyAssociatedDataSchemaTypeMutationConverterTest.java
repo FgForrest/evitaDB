@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,13 +28,15 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,7 +51,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyAssociatedDataSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAssociatedDataSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -59,17 +61,17 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 			ComplexDataObject.class
 		);
 
-		final ModifyAssociatedDataSchemaTypeMutation convertedMutation1 = converter.convert(
+		final ModifyAssociatedDataSchemaTypeMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), ComplexDataObject.class)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyAssociatedDataSchemaTypeMutation convertedMutation2 = converter.convert(
+		final ModifyAssociatedDataSchemaTypeMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), "ComplexDataObject")
 				.build()
 		);
@@ -80,21 +82,40 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), ComplexDataObject.class)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyAssociatedDataSchemaTypeMutation inputMutation = new ModifyAssociatedDataSchemaTypeMutation(
+			"labels",
+			ComplexDataObject.class
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), "ComplexDataObject")
+					.build()
+			);
 	}
 }

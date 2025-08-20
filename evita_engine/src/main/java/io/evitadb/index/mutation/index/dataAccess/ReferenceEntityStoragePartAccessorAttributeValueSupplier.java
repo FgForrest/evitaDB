@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,25 +64,25 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	@Nonnull
 	@Override
 	public Set<Locale> getEntityExistingAttributeLocales() {
-		if (memoizedLocales == null) {
-			this.memoizedLocales = containerAccessor.getEntityStoragePart(
-				entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
+		if (this.memoizedLocales == null) {
+			this.memoizedLocales = this.containerAccessor.getEntityStoragePart(
+				this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
 			).getAttributeLocales();
 		}
-		return memoizedLocales;
+		return this.memoizedLocales;
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		if (!Objects.equals(memoizedKey, attributeKey)) {
+		if (!Objects.equals(this.memoizedKey, attributeKey)) {
 			this.memoizedKey = attributeKey;
 			this.memoizedValue = getMemoizedReference()
 				.filter(Droppable::exists)
 				.flatMap(it -> it.getAttributeValue(attributeKey))
 				.filter(Droppable::exists);
 		}
-		return memoizedValue;
+		return this.memoizedValue;
 	}
 
 	@Nonnull
@@ -120,7 +120,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	 */
 	@Nonnull
 	private Optional<ReferenceContract> getMemoizedReference() {
-		final ReferencesStoragePart referencesStorageContainer = containerAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
+		final ReferencesStoragePart referencesStorageContainer = this.containerAccessor.getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		final ReferenceContract[] references = referencesStorageContainer.getReferences();
 		// we need to check the memoized instance is still the same, when the reference or its contents are modified
 		// the entire reference is replaced, so we need to retrieve it again
@@ -128,7 +128,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 			this.memoizedReferenceIndex = -1;
 			for (int i = 0; i < references.length; i++) {
 				final ReferenceContract reference = references[i];
-				if (Objects.equals(reference.getReferenceKey(), referenceKey)) {
+				if (Objects.equals(reference.getReferenceKey(), this.referenceKey)) {
 					this.memoizedReference = Optional.of(reference);
 					this.memoizedReferenceIndex = i;
 					break;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,22 +43,24 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter extends MutationAggregateConverter<ReferenceSortableAttributeCompoundSchemaMutation, SortableAttributeCompoundSchemaMutationConverter<? extends ReferenceSortableAttributeCompoundSchemaMutation>> {
+public class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter extends MutationAggregateConverter<ReferenceSortableAttributeCompoundSchemaMutation, SortableAttributeCompoundSchemaMutationConverter<ReferenceSortableAttributeCompoundSchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, SortableAttributeCompoundSchemaMutationConverter<? extends ReferenceSortableAttributeCompoundSchemaMutation>> resolvers = createHashMap(15);
+	private final Map<String, SortableAttributeCompoundSchemaMutationConverter<ReferenceSortableAttributeCompoundSchemaMutation>> converters = createHashMap(15);
 
-	public ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
-	                                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 
-		this.resolvers.put(CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new CreateSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION.name(), new ModifySortableAttributeCompoundSchemaNameMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_INDEXED_MUTATION.name(), new SetSortableAttributeCompoundIndexedMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new RemoveSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new CreateSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DEPRECATION_NOTICE_MUTATION.name(), new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION.name(), new ModifySortableAttributeCompoundSchemaNameMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_INDEXED_MUTATION.name(), new SetSortableAttributeCompoundIndexedMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION.name(), new RemoveSortableAttributeCompoundSchemaMutationConverter(objectParser, exceptionFactory));
 	}
 
 	@Nonnull

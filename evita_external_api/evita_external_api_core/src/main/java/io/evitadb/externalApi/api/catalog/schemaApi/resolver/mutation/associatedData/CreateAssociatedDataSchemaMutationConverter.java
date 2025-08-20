@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,23 +48,23 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateAssociatedDataSchemaMutationDescriptor.THIS.name();
+	protected Class<CreateAssociatedDataSchemaMutation> getMutationClass() {
+		return CreateAssociatedDataSchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected CreateAssociatedDataSchemaMutation convert(@Nonnull Input input) {
+	protected CreateAssociatedDataSchemaMutation convertFromInput(@Nonnull Input input) {
 		return new CreateAssociatedDataSchemaMutation(
-			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION),
-			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getRequiredField(
+			input.getProperty(AssociatedDataSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getRequiredProperty(
 				CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(),
 				new ValueTypeMapper(getExceptionFactory(), CreateAssociatedDataSchemaMutationDescriptor.TYPE)
 			),
-			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
-			input.getOptionalField(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
 		);
 	}
 }

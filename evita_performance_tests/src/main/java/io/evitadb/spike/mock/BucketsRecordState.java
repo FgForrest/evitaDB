@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,8 +66,8 @@ public class BucketsRecordState {
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
-		entityIds = generateBitmap(VALUE_COUNT, 1);
-		request = new AttributeHistogramRequest(
+		this.entityIds = generateBitmap(VALUE_COUNT, 1);
+		this.request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
 			Comparator.naturalOrder(),
 			Arrays.asList(
@@ -80,7 +80,7 @@ public class BucketsRecordState {
 			Collections.emptySet()
 		);
 		this.buckets = generateBuckets(BUCKET_COUNT, VALUE_COUNT);
-		this.formula = new ConstantFormula(entityIds);
+		this.formula = new ConstantFormula(this.entityIds);
 	}
 
 	private static ValueToRecordBitmap[] generateBuckets(int bucketCount, int valueCount) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ class IncludeConstruct extends AbstractConstruct {
 			return null;
 		}
 
-		final Path includedFile = mainConfigDirectoryLocation.resolve(includedFilename);
+		final Path includedFile = this.mainConfigDirectoryLocation.resolve(includedFilename);
 		try (
 			final Reader reader = new StringSubstitutorReader(
 				new InputStreamReader(
@@ -96,10 +96,10 @@ class IncludeConstruct extends AbstractConstruct {
 						)
 					), StandardCharsets.UTF_8
 				),
-				stringSubstitutor
+				this.stringSubstitutor
 			)
 		) {
-			return yamlParser.get().load(reader);
+			return this.yamlParser.get().load(reader);
 		} catch (IOException e) {
 			throw new ConfigurationParseException(
 				"Failed to parse included configuration file `" + includedFilename + "` due to: " + e.getMessage() + ".",

@@ -55,6 +55,23 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 		return INSTANCE;
 	}
 
+	@Nonnull
+	private static String resolvePriceName(@Nonnull DataFetchingEnvironment environment) {
+		return environment.getField().getAlias() != null ? environment.getField().getAlias() : environment.getField().getName();
+	}
+
+	@Nonnull
+	private static Optional<PriceContract> getPrefetchedPrice(
+		@Nonnull PrefetchedPriceForSale prefetchedPrices,
+		@Nonnull String priceName
+	) {
+		final Optional<PriceContract> prefetchedPrice = prefetchedPrices.getAccompanyingPrices().get(priceName);
+		if (prefetchedPrice == null) {
+			throw new GraphQLInternalError("Missing prefetched price `" + priceName + "` for entity `" + prefetchedPrices.getParentEntity().getType() + ":" + prefetchedPrices.getParentEntity().getPrimaryKey() + "`.");
+		}
+		return prefetchedPrice;
+	}
+
 	@Override
 	@Nonnull
 	public DataFetcherResult<PriceContract> get(DataFetchingEnvironment environment) throws Exception {
@@ -65,25 +82,11 @@ public class AccompanyingPriceDataFetcher implements DataFetcher<DataFetcherResu
 
 		final String priceName = resolvePriceName(environment);
 		final Optional<PriceContract> priceForName = getPrefetchedPrice(prefetchedPrices, priceName);
-		final PriceContract	pickedPrice = priceForName.orElse(null);
+		final PriceContract pickedPrice = priceForName.orElse(null);
 
 		return DataFetcherResult.<PriceContract>newResult()
 			.data(pickedPrice)
 			.build();
 	}
 
-	@Nonnull
-	private static String resolvePriceName(@Nonnull DataFetchingEnvironment environment) {
-		return environment.getField().getAlias() != null ? environment.getField().getAlias() : environment.getField().getName();
-	}
-
-	@Nonnull
-	private static Optional<PriceContract> getPrefetchedPrice(@Nonnull PrefetchedPriceForSale prefetchedPrices,
-	                                                          @Nonnull String priceName) {
-		final Optional<PriceContract> prefetchedPrice = prefetchedPrices.getAccompanyingPrices().get(priceName);
-		if (prefetchedPrice == null) {
-			throw new GraphQLInternalError("Missing prefetched price `" + priceName + "` for entity `" + prefetchedPrices.getParentEntity().getType() + ":" + prefetchedPrices.getParentEntity().getPrimaryKey() + "`.");
-		}
-		return prefetchedPrice;
-	}
 }

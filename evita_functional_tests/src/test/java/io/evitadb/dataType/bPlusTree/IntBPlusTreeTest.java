@@ -766,13 +766,13 @@ class IntBPlusTreeTest implements TimeBoundedTestSupport {
 	) {
 
 		public int totalElements() {
-			return plainArray.length;
+			return this.plainArray.length;
 		}
 
 		public String[] asStringArray() {
-			final String[] plainArrayAsString = new String[plainArray.length];
-			for (int i = 0; i < plainArray.length; i++) {
-				plainArrayAsString[i] = "Value" + plainArray[i];
+			final String[] plainArrayAsString = new String[this.plainArray.length];
+			for (int i = 0; i < this.plainArray.length; i++) {
+				plainArrayAsString[i] = "Value" + this.plainArray[i];
 			}
 			return plainArrayAsString;
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.index.reference;
 
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -38,19 +39,21 @@ public class ReferenceChanges<T> {
 	 */
 	private final AtomicReference<T> theValue;
 
-	public ReferenceChanges(T theValue) {
+	public ReferenceChanges(@Nullable T theValue) {
 		this.theValue = new AtomicReference<>(theValue);
 	}
 
-	public void set(T value) {
-		theValue.set(value);;
+	public void set(@Nullable T value) {
+		this.theValue.set(value);;
 	}
 
+	@Nullable
 	public T get() {
-		return theValue.get();
+		return this.theValue.get();
 	}
 
-	public T compareAndExchange(T currentValue, T newValue) {
-		return theValue.compareAndExchange(currentValue, newValue);
+	@Nullable
+	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
+		return this.theValue.compareAndExchange(currentValue, newValue);
 	}
 }

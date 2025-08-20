@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ public class CustomJsonVisibilityChecker implements VisibilityChecker<CustomJson
 	@Override
 	public boolean isIsGetterVisible(Method m) {
 		if (Visibility.PUBLIC_ONLY.isVisible(m)) {
-			for (AllowedVisibility allowedVisibility : allowedVisibilities) {
+			for (AllowedVisibility allowedVisibility : this.allowedVisibilities) {
 				if (isDeclaredOn(allowedVisibility.contractClass(), m) &&
 					Arrays.stream(allowedVisibility.exceptMethods()).noneMatch(it -> m.getName().equals(it))) {
 					return true;

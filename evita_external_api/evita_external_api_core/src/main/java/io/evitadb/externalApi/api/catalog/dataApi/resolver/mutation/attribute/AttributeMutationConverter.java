@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -48,8 +49,17 @@ public abstract class AttributeMutationConverter<M extends AttributeMutation> ex
 	@Nonnull
 	protected AttributeKey resolveAttributeKey(@Nonnull Input input) {
 		return new AttributeKey(
-			input.getRequiredField(AttributeMutationDescriptor.NAME),
-			input.getOptionalField(AttributeMutationDescriptor.LOCALE)
+			input.getProperty(AttributeMutationDescriptor.NAME),
+			input.getProperty(AttributeMutationDescriptor.LOCALE)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		output.setProperty(AttributeMutationDescriptor.NAME, mutation.getAttributeKey().attributeName());
+		if (mutation.getAttributeKey().localized()) {
+			//noinspection DataFlowIssue
+			output.setProperty(AttributeMutationDescriptor.LOCALE, mutation.getAttributeKey().locale().toString());
+		}
 	}
 }

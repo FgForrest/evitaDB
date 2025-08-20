@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 		@Override
 		public boolean isCancelled() {
-			return serverCall.isCancelled();
+			return this.serverCall.isCancelled();
 		}
 
 		@Override
@@ -169,14 +169,14 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			try {
 				super.onHalfClose();
 			} catch (RuntimeException ex) {
-				event.setGrpcResponseStatus(ResponseState.ERROR);
+				this.event.setGrpcResponseStatus(ResponseState.ERROR);
 				throw ex;
 			}
 		}
 
 		@Override
 		public void onCancel() {
-			event.setGrpcResponseStatus(ResponseState.CANCELED);
+			this.event.setGrpcResponseStatus(ResponseState.CANCELED);
 			super.onCancel();
 		}
 
@@ -187,8 +187,8 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 
 		@Override
 		public void onMessage(R request) {
-			if (event.streamsRequests() || event.unaryCall()) {
-				event.setInitiator(InitiatorType.CLIENT);
+			if (this.event.streamsRequests() || this.event.unaryCall()) {
+				this.event.setInitiator(InitiatorType.CLIENT);
 			}
 			super.onMessage(request);
 		}

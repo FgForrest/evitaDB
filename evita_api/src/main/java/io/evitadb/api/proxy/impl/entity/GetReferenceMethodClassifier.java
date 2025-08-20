@@ -948,7 +948,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
 				final EntityContract entity = theState.entity();
-				final Integer referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
+				final Integer referencedId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
 				return referenceExtractor.apply(entity, referenceName, referencedId)
 					.map(referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract))
 					.orElse(null);
@@ -1280,7 +1280,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getEntityId(
 		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
-		@Nullable Class<?> itemType,
+		@Nonnull Class<?> itemType,
 		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull ResultWrapper resultWrapper
 	) {
@@ -1302,7 +1302,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	private static ExceptionRethrowingFunction<EntityContract, Object> getEntityId(
 		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
-		@Nullable Class<? extends Serializable> itemType
+		@Nonnull Class<? extends Serializable> itemType
 	) {
 		if (collectionType == null) {
 			return singleEntityIdResult(referenceName);

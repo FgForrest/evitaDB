@@ -53,7 +53,9 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.data.structure.predicate;
 	exports io.evitadb.api.requestResponse.extraResult;
 	exports io.evitadb.api.requestResponse.chunk;
+	exports io.evitadb.api.requestResponse.progress;
 	exports io.evitadb.api.requestResponse.schema;
+	exports io.evitadb.api.requestResponse.schema.annotation;
 	exports io.evitadb.api.requestResponse.schema.mutation;
 	exports io.evitadb.api.requestResponse.schema.builder;
 	exports io.evitadb.api.requestResponse.schema.mutation.associatedData;
@@ -64,6 +66,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.dto;
 	exports io.evitadb.api.requestResponse.system;
 	exports io.evitadb.api.requestResponse.mutation;
+	exports io.evitadb.api.requestResponse.mutation.conflict;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
 	exports io.evitadb.api.requestResponse.data.annotation;
 	exports io.evitadb.api.requestResponse.trafficRecording;
@@ -71,6 +74,7 @@ module evita.api {
 	exports io.evitadb.api.observability;
 	exports io.evitadb.api.observability.trace;
 	exports io.evitadb.api.observability.annotation;
+	exports io.evitadb.api.requestResponse.schema.mutation.engine;
 
 	requires static lombok;
 	requires static jsr305;
@@ -80,6 +84,5 @@ module evita.api {
 	requires evita.common;
 	requires evita.query;
 	requires static proxycian.bytebuddy;
-	requires java.smartcardio;
 
 }

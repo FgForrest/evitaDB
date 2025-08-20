@@ -25,16 +25,16 @@ package io.evitadb.externalApi.graphql.api.catalog.builder;
 
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
@@ -53,7 +53,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Getter @Nonnull private final CatalogContract catalog;
 	@Getter @Nonnull private final Set<Locale> supportedLocales;
 	@Getter @Nonnull private final Set<Currency> supportedCurrencies;
-	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
+	@Getter @Nonnull private final Collection<EntitySchemaContract> entitySchemas;
 	@Getter @Nonnull private final Map<String, GraphQLObjectType> entityTypeToEntityObject;
 
 	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLOptions config,
@@ -64,28 +64,24 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 		this.supportedLocales = createHashSet(10);
 		this.supportedCurrencies = createHashSet(10);
 
-		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
-			final Set<String> collections = session.getAllEntityTypes();
-			final Set<EntitySchemaContract> schemas = createHashSet(collections.size());
-			collections.forEach(c -> {
-				final SealedEntitySchema entitySchema = session.getEntitySchema(c)
-					.orElseThrow(() -> new GenericEvitaInternalError("Entity `" + c + "` schema unexpectedly not found!"));
-				supportedLocales.addAll(entitySchema.getLocales());
-				supportedCurrencies.addAll(entitySchema.getCurrencies());
-				schemas.add(entitySchema);
-			});
-			return schemas;
-		});
+		final CatalogContract catalogContract = evita
+			.getCatalogInstance(catalog.getName())
+			.orElseThrow(() -> new CatalogNotFoundException(catalog.getName()));
+		this.entitySchemas = catalogContract.getSchema().getEntitySchemas();
+		for (EntitySchemaContract entitySchema : this.entitySchemas) {
+			this.supportedLocales.addAll(entitySchema.getLocales());
+			this.supportedCurrencies.addAll(entitySchema.getCurrencies());
+		}
 		this.entityTypeToEntityObject = createHashMap(this.entitySchemas.size());
 	}
 
 	@Nonnull
 	public CatalogSchemaContract getSchema() {
-		return catalog.getSchema();
+		return this.catalog.getSchema();
 	}
 
 	public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
 		registerType(entityObject);
-		entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
+		this.entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
 	}
 }

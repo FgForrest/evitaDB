@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,8 +77,8 @@ public abstract class ClientPriceAndHierarchyFilteringState extends ClientDataFu
 	@Setup(Level.Invocation)
 	public void prepareCall() {
 		this.query = generateRandomHierarchyQuery(
-			generateRandomPriceQuery(random, productSchema, priceStatistics),
-			random, categoryIds, CATEGORY_ENTITY_TYPE
+			generateRandomPriceQuery(this.random, this.productSchema, this.priceStatistics),
+			this.random, this.categoryIds, CATEGORY_ENTITY_TYPE
 		);
 	}
 
@@ -92,9 +92,9 @@ public abstract class ClientPriceAndHierarchyFilteringState extends ClientDataFu
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(PRODUCT_ENTITY_TYPE)) {
-			updatePriceStatistics(entity, random, priceStatistics);
+			updatePriceStatistics(entity, this.random, this.priceStatistics);
 		} else if (entity.getType().equals(CATEGORY_ENTITY_TYPE)) {
-			categoryIds.add(entity.getPrimaryKey());
+			this.categoryIds.add(entity.getPrimaryKey());
 		}
 	}
 

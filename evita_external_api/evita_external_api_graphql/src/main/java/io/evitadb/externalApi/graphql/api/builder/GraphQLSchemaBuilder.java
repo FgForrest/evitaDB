@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
@@ -88,14 +89,14 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 	protected GraphQLSchemaBuilder(@Nonnull C buildingContext) {
 		this.buildingContext = buildingContext;
 		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(buildingContext);
-		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
-		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(propertyDataTypeBuilderTransformer);
-		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
-		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(propertyDataTypeBuilderTransformer);
-		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(fieldBuilderTransformer);
-		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(fieldBuilderTransformer);
+		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer);
+		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(this.propertyDataTypeBuilderTransformer);
+		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer);
+		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(this.propertyDataTypeBuilderTransformer);
+		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(this.fieldBuilderTransformer);
+		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(this.fieldBuilderTransformer);
 		this.unionBuilderTransformer = new ObjectDescriptorToGraphQLUnionTransformer();
-		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(inputFieldBuilderTransformer);
+		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(this.inputFieldBuilderTransformer);
 	}
 
 
@@ -168,13 +169,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 
 	private static void registerScalarValue(@Nonnull GraphQLEnumType.Builder scalarBuilder,
 	                                        @Nonnull Class<? extends Serializable> javaType) {
-		final String apiName;
-		if (javaType.isArray()) {
-			apiName = javaType.componentType().getSimpleName() + "Array";
-		} else {
-			apiName = javaType.getSimpleName();
-		}
-
+		final String apiName = DataTypeSerializer.serialize(javaType);
 		scalarBuilder.value(apiName, javaType);
 	}
 }

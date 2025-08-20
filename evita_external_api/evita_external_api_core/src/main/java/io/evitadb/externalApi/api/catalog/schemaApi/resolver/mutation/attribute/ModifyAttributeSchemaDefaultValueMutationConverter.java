@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,25 +39,29 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyAttributeSchemaDefaultValueMutationConverter extends AttributeSchemaMutationConverter<ModifyAttributeSchemaDefaultValueMutation> {
+public class ModifyAttributeSchemaDefaultValueMutationConverter
+	extends AttributeSchemaMutationConverter<ModifyAttributeSchemaDefaultValueMutation> {
 
-	public ModifyAttributeSchemaDefaultValueMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public ModifyAttributeSchemaDefaultValueMutationConverter(
+		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.name();
+	protected Class<ModifyAttributeSchemaDefaultValueMutation> getMutationClass() {
+		return ModifyAttributeSchemaDefaultValueMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected ModifyAttributeSchemaDefaultValueMutation convert(@Nonnull Input input) {
+	protected ModifyAttributeSchemaDefaultValueMutation convertFromInput(@Nonnull Input input) {
 		return new ModifyAttributeSchemaDefaultValueMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getOptionalField(ModifyAttributeSchemaDefaultValueMutationDescriptor.DEFAULT_VALUE.name(), Serializable.class)
+			input.getProperty(AttributeSchemaMutationDescriptor.NAME),
+			input.getOptionalProperty(
+				ModifyAttributeSchemaDefaultValueMutationDescriptor.DEFAULT_VALUE.name(), Serializable.class)
 		);
 	}
 }

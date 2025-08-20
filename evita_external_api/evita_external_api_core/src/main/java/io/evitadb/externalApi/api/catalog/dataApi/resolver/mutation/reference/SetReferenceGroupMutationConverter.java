@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -46,17 +47,24 @@ public class SetReferenceGroupMutationConverter extends ReferenceMutationConvert
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetReferenceGroupMutationDescriptor.THIS.name();
+	protected Class<SetReferenceGroupMutation> getMutationClass() {
+		return SetReferenceGroupMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected SetReferenceGroupMutation convert(@Nonnull Input input) {
+	protected SetReferenceGroupMutation convertFromInput(@Nonnull Input input) {
 		return new SetReferenceGroupMutation(
 			resolveReferenceKey(input),
-			input.getOptionalField(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
-			input.getRequiredField(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
+			input.getProperty(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
+			input.getProperty(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull SetReferenceGroupMutation mutation, @Nonnull Output output) {
+		output.setProperty(SetReferenceGroupMutationDescriptor.GROUP_TYPE, mutation.getGroupType());
+		output.setProperty(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY, mutation.getGroupPrimaryKey());
+		super.convertToOutput(mutation, output);
 	}
 }

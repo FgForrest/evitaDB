@@ -36,7 +36,7 @@ storage:
   lockTimeoutSeconds: ${storage.lockTimeoutSeconds:60}
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
   outputBufferSize: ${storage.outputBufferSize:4MB}
-  maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
+  maxOpenedReadHandles: ${storage.maxOpenedReadHandles:null}
   syncWrites: ${storage.syncWrites:true}
   computeCRC32C: ${storage.computeCRC32C:true}
   compress: ${storage.compress:false}

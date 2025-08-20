@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,8 +32,6 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.HeadContainerConstraint
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.LabelConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
-import javax.annotation.Nonnull;
-
 /**
  * Implementation of {@link EvitaQLVisitor} for parsing all head type constraints
  * ({@link HeadConstraint}).
@@ -48,17 +46,17 @@ public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<H
     protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 
     @Override
-    public HeadConstraint visitCollectionConstraint(@Nonnull EvitaQLParser.CollectionConstraintContext ctx) {
+    public HeadConstraint visitCollectionConstraint(EvitaQLParser.CollectionConstraintContext ctx) {
         return parse(
             ctx,
             () -> new Collection(
-                ctx.args.classifier.accept(stringValueTokenVisitor).asString()
+                ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
             )
         );
     }
 
     @Override
-    public HeadConstraint visitHeadContainerConstraint(@Nonnull HeadContainerConstraintContext ctx) {
+    public HeadConstraint visitHeadContainerConstraint(HeadContainerConstraintContext ctx) {
         return parse(
             ctx,
             () -> {
@@ -76,13 +74,13 @@ public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<H
     }
 
     @Override
-    public HeadConstraint visitLabelConstraint(@Nonnull LabelConstraintContext ctx) {
+    public HeadConstraint visitLabelConstraint(LabelConstraintContext ctx) {
         return parse(
             ctx,
             () -> new Label(
-                ctx.args.classifier.accept(stringValueTokenVisitor).asString(),
+                ctx.args.classifier.accept(this.stringValueTokenVisitor).asString(),
                 ctx.args.value
-                    .accept(comparableValueTokenVisitor)
+                    .accept(this.comparableValueTokenVisitor)
                     .asSerializable()
             )
         );

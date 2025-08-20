@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -36,11 +36,12 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.IntFunction;
 
 /**
  * This class is used to supply Mutation objects from a Write-Ahead Log (WAL) file in forward order.
  */
-public final class MutationSupplier extends AbstractMutationSupplier {
+public final class MutationSupplier<T extends Mutation> extends AbstractMutationSupplier<T> {
 	/**
 	 * Contains catalog version that was requested for reading.
 	 */
@@ -49,7 +50,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 	public MutationSupplier(
 		long catalogVersion,
 		long requestedCatalogVersion,
-		@Nonnull String catalogName,
+		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions,
 		int walFileIndex,
@@ -59,7 +60,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 		@Nullable Runnable onClose
 	) {
 		super(
-			catalogVersion, catalogName, catalogStoragePath, storageOptions,
+			catalogVersion, walFileNameProvider, catalogStoragePath, storageOptions,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
 			avoidPartiallyFilledBuffer, onClose
 		);
@@ -68,23 +69,25 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 
 	@Nullable
 	@Override
-	public Mutation get() {
+	public T get() {
 		if (this.transactionMutation == null) {
 			return null;
 		} else if (this.transactionMutationRead == 0) {
 			this.transactionMutationRead++;
-			return this.transactionMutation;
+			//noinspection unchecked
+			return (T) this.transactionMutation;
 		} else {
 			if (this.transactionMutationRead <= this.transactionMutation.getMutationCount()) {
 				this.transactionMutationRead++;
-				return readMutation();
+				//noinspection unchecked
+				return (T) readMutation();
 			} else {
 				// advance position to the end of the last transaction
 				this.filePosition += this.transactionMutation.getTransactionSpan().recordLength();
 				try {
 					// check the entire transaction was written
 					final long currentFileLength = this.walFile.length();
-					if (currentFileLength <= this.filePosition + CatalogWriteAheadLog.WAL_TAIL_LENGTH) {
+					if (currentFileLength <= this.filePosition + AbstractMutationLog.WAL_TAIL_LENGTH) {
 						// we've reached EOF
 						if (!moveToNextWalFile(1)) {
 							// we've reached EOF and there is no next WAL file
@@ -92,7 +95,7 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 						}
 					}
 					// read content length and next leading transaction mutation
-					this.transactionMutation = readAndRecordTransactionMutation();
+					this.transactionMutation = readAndRecordTransactionMutation(0, currentFileLength).orElse(null);
 
 					// check the entire transaction was written and there are another data that would fully fill the buffer of the observable input
 					// Note: there must be some bug in our observable input implementation that is revealed by filling the buffer incompletely with
@@ -103,20 +106,26 @@ public final class MutationSupplier extends AbstractMutationSupplier {
 					// nevertheless, the condition is here to prevent the observable input from reading the next transaction mutation
 					// if there is not enough data already written is actually ok for real-world scenarios - we want to fast play transactions
 					// in the WAL only when there is a lot of them to be read and processed
-					final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
-					if (
-						this.avoidPartiallyFilledBuffer ?
-							// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
-							this.transactionMutation.getCatalogVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
-							// otherwise we require just the entire transaction to be written
-							currentFileLength >= requiredLength
-					) {
-						this.transactionMutationRead = 1;
-						// return the transaction mutation
-						return this.transactionMutation;
-					} else {
+					if (this.transactionMutation == null) {
 						// we've reached EOF or the tx mutation hasn't been yet completely written
 						return null;
+					} else {
+						final long requiredLength = this.filePosition + this.transactionMutation.getTransactionSpan().recordLength();
+						if (
+							this.avoidPartiallyFilledBuffer ?
+								// for partially filled buffer we stop reading the transaction mutation when the requested catalog version is reached
+								this.transactionMutation.getVersion() <= this.requestedCatalogVersion && currentFileLength >= requiredLength :
+								// otherwise we require just the entire transaction to be written
+								currentFileLength >= requiredLength
+						) {
+							this.transactionMutationRead = 1;
+							// return the transaction mutation
+							//noinspection unchecked
+							return (T) this.transactionMutation;
+						} else {
+							// we've reached EOF or the tx mutation hasn't been yet completely written
+							return null;
+						}
 					}
 				} catch (Exception ex) {
 					// we've reached EOF or the tx mutation hasn't been yet completely written

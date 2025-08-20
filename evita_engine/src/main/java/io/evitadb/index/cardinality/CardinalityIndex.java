@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 */
 	@Nonnull
 	public Map<CardinalityKey, Integer> getCardinalities() {
-		return cardinalities;
+		return this.cardinalities;
 	}
 
 	/**
@@ -103,7 +103,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 */
 	public boolean addRecord(@Nonnull Serializable key, int recordId) {
 		this.dirty.setToTrue();
-		return cardinalities.compute(
+		return this.cardinalities.compute(
 			new CardinalityKey(recordId, key),
 			(k, v) -> v == null ? 1 : v + 1
 		) == 1;
@@ -138,7 +138,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 * @return TRUE if this contains no data
 	 */
 	public boolean isEmpty() {
-		return cardinalities.isEmpty();
+		return this.cardinalities.isEmpty();
 	}
 
 	/**
@@ -182,7 +182,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new CardinalityIndex(
-				valueType,
+				this.valueType,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
 			);
 		} else {
@@ -201,9 +201,10 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 		@Nonnull Serializable value
 	) {
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return String.valueOf(recordId) + ':' + value;
+			return String.valueOf(this.recordId) + ':' + this.value;
 		}
 	}
 

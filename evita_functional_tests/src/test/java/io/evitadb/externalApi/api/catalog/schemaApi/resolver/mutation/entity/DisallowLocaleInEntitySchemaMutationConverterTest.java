@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,7 +51,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new DisallowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new DisallowLocaleInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +61,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 			Locale.GERMAN
 		);
 
-		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
 					Locale.ENGLISH,
@@ -70,7 +71,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final DisallowLocaleInEntitySchemaMutation convertedMutation2 = converter.convert(
+		final DisallowLocaleInEntitySchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en", "de"))
 				.build()
@@ -81,7 +82,7 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final DisallowLocaleInEntitySchemaMutation expectedMutation = new DisallowLocaleInEntitySchemaMutation();
 
-		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final DisallowLocaleInEntitySchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of())
 				.build()
@@ -91,7 +92,28 @@ class DisallowLocaleInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final DisallowLocaleInEntitySchemaMutation inputMutation = new DisallowLocaleInEntitySchemaMutation(
+			Locale.GERMAN,
+			Locale.ENGLISH
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
+						Locale.GERMAN.toLanguageTag(),
+						Locale.ENGLISH.toLanguageTag()
+					))
+					.build()
+			);
 	}
 }

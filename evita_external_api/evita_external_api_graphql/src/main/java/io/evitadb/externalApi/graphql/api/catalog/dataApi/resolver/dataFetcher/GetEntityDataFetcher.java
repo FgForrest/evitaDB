@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,9 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.QueryLabelDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.MetadataAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryLabelDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ScopeAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -122,7 +124,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	@Nonnull
 	@Override
 	public DataFetcherResult<EntityClassifier> get(DataFetchingEnvironment environment) {
-		final Arguments arguments = Arguments.from(environment, entitySchema);
+		final Arguments arguments = Arguments.from(environment, this.entitySchema);
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
@@ -135,7 +137,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 				require
 			);
 		});
-		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", this.entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 
@@ -152,7 +154,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	@Nullable
 	private <LV extends Serializable & Comparable<LV>> Head buildHead(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
 		final List<HeadConstraint> headConstraints = new LinkedList<>();
-		headConstraints.add(collection(entitySchema.getName()));
+		headConstraints.add(collection(this.entitySchema.getName()));
 		headConstraints.add(label(Label.LABEL_SOURCE_TYPE, GraphQLQueryLabels.GRAPHQL_SOURCE_TYPE_VALUE));
 		headConstraints.add(label(GraphQLQueryLabels.OPERATION_NAME, environment.getOperationDefinition().getName()));
 
@@ -206,10 +208,10 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
     private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
 		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
-	    entityFetchRequireResolver.resolveEntityFetch(
+	    this.entityFetchRequireResolver.resolveEntityFetch(
 		    SelectionSetAggregator.from(environment.getSelectionSet()),
 		    arguments.locale(),
-		    entitySchema
+			    this.entitySchema
 	    )
 		    .ifPresent(requireConstraints::add);
 
@@ -261,12 +263,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 				.orElse(QueryPriceMode.WITH_TAX);
 
 			//noinspection unchecked
-			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(GetEntityHeaderDescriptor.SCOPE.name()))
+			final Scope[] scopes = Optional.ofNullable((List<Scope>) arguments.remove(
+				                               ScopeAwareFieldHeaderDescriptor.SCOPE.name()))
 				.map(it -> it.toArray(Scope[]::new))
 				.orElse(Scope.DEFAULT_SCOPES);
 
 			//noinspection unchecked
-			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(GetEntityHeaderDescriptor.LABELS.name()))
+			final List<QueryLabelDto> labels = Optional.ofNullable((List<Map<String, Object>>) arguments.remove(
+				                                           MetadataAwareFieldHeaderDescriptor.LABELS.name()))
 				.map(rawLabels -> rawLabels
 					.stream()
 					.map(rawLabel -> new QueryLabelDto(

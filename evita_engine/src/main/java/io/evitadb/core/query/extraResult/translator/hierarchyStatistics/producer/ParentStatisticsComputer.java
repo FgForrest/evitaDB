@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -86,20 +86,20 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		if (context.hierarchyFilter() instanceof HierarchyWithin) {
-			final EntityIndex entityIndex = context.entityIndex();
-			final Bitmap hierarchyNodes = context.rootHierarchyNodesSupplier().get();
+		if (this.context.hierarchyFilter() instanceof HierarchyWithin) {
+			final EntityIndex entityIndex = this.context.entityIndex();
+			final Bitmap hierarchyNodes = this.context.rootHierarchyNodesSupplier().get();
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
 				executionContext,
-				context.removeEmptyResults(),
+				this.context.removeEmptyResults(),
 				0,
 				hierarchyNodes::contains,
 				(hierarchyNodeId, level, distance) -> distance == 0,
 				filterPredicate,
-				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
-				entityFetcher,
-				statisticsType
+				value -> this.context.directlyQueriedEntitiesFormulaProducer().apply(value, this.statisticsBase),
+				this.entityFetcher,
+				this.statisticsType
 			);
 
 			Assert.isTrue(
@@ -125,18 +125,18 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			final Accumulator startNode = children.get(0);
 
 			final SiblingsStatisticsTravelingComputer siblingsComputerToUse;
-			if (siblingsStatisticsComputer != null) {
-				siblingsComputerToUse = siblingsStatisticsComputer;
-			} else if (statisticsType.isEmpty()) {
+			if (this.siblingsStatisticsComputer != null) {
+				siblingsComputerToUse = this.siblingsStatisticsComputer;
+			} else if (this.statisticsType.isEmpty()) {
 				siblingsComputerToUse = null;
 			} else {
 				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
-					context,
-					(theContext, entityPk) -> new EntityReference(context.entitySchema().getName(), entityPk),
-					context.hierarchyFilterPredicateProducer(),
-					havingPredicate,
+					this.context,
+					(theContext, entityPk) -> new EntityReference(this.context.entitySchema().getName(), entityPk),
+					this.context.hierarchyFilterPredicateProducer(),
+					this.havingPredicate,
 					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
-					statisticsBase, statisticsType
+					this.statisticsBase, this.statisticsType
 				);
 			}
 
@@ -148,10 +148,10 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				hierarchyNodes::contains,
 				scopePredicate,
 				filterPredicate.and(exceptStartNode),
-				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
-				entityFetcher,
+				value -> this.context.directlyQueriedEntitiesFormulaProducer().apply(value, this.statisticsBase),
+				this.entityFetcher,
 				siblingsComputerToUse,
-				siblingsStatisticsComputer == null
+				this.siblingsStatisticsComputer == null
 			);
 			entityIndex.traverseHierarchyToRoot(
 				parentVisitor,

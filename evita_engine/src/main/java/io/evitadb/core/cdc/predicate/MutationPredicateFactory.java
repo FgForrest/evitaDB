@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,16 +49,23 @@ public interface MutationPredicateFactory {
 
 	/**
 	 * Method creates a predicate chain that filters out mutations that match the given {@link ChangeCatalogCaptureRequest}
-	 * criteria. The predicate chain is created in such a way that it captures only mutations that are older than
+	 * request. The predicate chain is created in such a way that it captures only mutations that are older than
 	 * the given version and index. Thus the method is named "reversed" as it is used to capture changes in the reversed
 	 * order.
 	 *
-	 * @param criteria criteria to be used for creating the predicate chain
-	 * @return predicate chain that filters out mutations that match the given criteria
+	 * @param request request to be used for creating the predicate chain
+	 * @return predicate chain that filters out mutations that match the given request
 	 */
 	@Nonnull
-	static MutationPredicate createChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest criteria) {
-		return createPredicateUsingComparator(criteria, Comparator.naturalOrder(), Comparator.naturalOrder(), StreamDirection.FORWARD);
+	static MutationPredicate createChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest request) {
+		return createPredicateUsingComparator(
+			request.sinceVersion(),
+			request.sinceIndex(),
+			request.criteria(),
+			Comparator.naturalOrder(),
+			Comparator.naturalOrder(),
+			StreamDirection.FORWARD
+		);
 	}
 
 	/**
@@ -72,7 +79,14 @@ public interface MutationPredicateFactory {
 	 */
 	@Nonnull
 	static MutationPredicate createReversedChangeCatalogCapturePredicate(@Nonnull ChangeCatalogCaptureRequest criteria) {
-		return createPredicateUsingComparator(criteria, Comparator.reverseOrder(), Comparator.reverseOrder(), StreamDirection.REVERSE);
+		return createPredicateUsingComparator(
+			criteria.sinceVersion(),
+			criteria.sinceIndex(),
+			criteria.criteria(),
+			Comparator.reverseOrder(),
+			Comparator.reverseOrder(),
+			StreamDirection.REVERSE
+		);
 	}
 
 	/**
@@ -111,28 +125,28 @@ public interface MutationPredicateFactory {
 	 * Method creates a predicate chain that filters out mutations that match the given {@link ChangeCatalogCaptureRequest}
 	 * request using the given version / index comparator.
 	 *
-	 * @param request           request to be used for creating the predicate chain
 	 * @param versionComparator comparator to be used for comparing versions
 	 * @param indexComparator   comparator to be used for comparing indexes
 	 * @param direction         direction of the stream
 	 * @return predicate chain that filters out mutations that match the given request
 	 */
 	@Nonnull
-	private static MutationPredicate createPredicateUsingComparator(
-		@Nonnull ChangeCatalogCaptureRequest request,
+	static MutationPredicate createPredicateUsingComparator(
+		@Nullable Long sinceCatalogVersion,
+		@Nullable Integer sinceIndex,
+		@Nullable ChangeCatalogCaptureCriteria[] criteria,
 		@Nonnull Comparator<Long> versionComparator,
 		@Nonnull Comparator<Integer> indexComparator,
 		@Nonnull StreamDirection direction
 	) {
 		MutationPredicateContext context = new MutationPredicateContext(direction);
 		MutationPredicate mutationPredicate = null;
-		if (request.sinceVersion() != null) {
-			mutationPredicate = ofNullable(request.sinceIndex())
-				.map(index -> (MutationPredicate) new VersionAndIndexPredicate(context, request.sinceVersion(), index, versionComparator, indexComparator))
-				.orElseGet(() -> new VersionPredicate(context, request.sinceVersion(), versionComparator));
+		if (sinceCatalogVersion != null) {
+			mutationPredicate = ofNullable(sinceIndex)
+				.map(index -> (MutationPredicate) new VersionAndIndexPredicate(context, sinceCatalogVersion, index, versionComparator, indexComparator))
+				.orElseGet(() -> new VersionPredicate(context, sinceCatalogVersion, versionComparator));
 		}
 
-		final ChangeCatalogCaptureCriteria[] criteria = request.criteria();
 		if (criteria != null) {
 			final MutationPredicate[] mutationPredicates = Arrays.stream(criteria)
 				.map(c -> createCriteriaPredicate(c, context))

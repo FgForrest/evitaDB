@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
@@ -92,6 +93,7 @@ public class SetReferenceSchemaIndexedMutation
 				.toArray(ScopedReferenceIndexType[]::new);
 	}
 
+	@SerializableCreator
 	public SetReferenceSchemaIndexedMutation(
 		@Nonnull String name,
 		@Nullable ScopedReferenceIndexType[] indexedInScopes

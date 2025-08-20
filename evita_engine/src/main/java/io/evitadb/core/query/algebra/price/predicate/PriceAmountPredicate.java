@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public record PriceAmountPredicate(
 
 	@Override
 	public boolean test(BigDecimal bigDecimal) {
-		return predicate.test(bigDecimal);
+		return this.predicate.test(bigDecimal);
 	}
 
 	@Override
@@ -68,18 +68,18 @@ public record PriceAmountPredicate(
 
 		PriceAmountPredicate that = (PriceAmountPredicate) o;
 
-		if (indexedPricePlaces != that.indexedPricePlaces) return false;
-		if (queryPriceMode != that.queryPriceMode) return false;
-		if (!Objects.equals(from, that.from)) return false;
-		return Objects.equals(to, that.to);
+		if (this.indexedPricePlaces != that.indexedPricePlaces) return false;
+		if (this.queryPriceMode != that.queryPriceMode) return false;
+		if (!Objects.equals(this.from, that.from)) return false;
+		return Objects.equals(this.to, that.to);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = queryPriceMode != null ? queryPriceMode.hashCode() : 0;
-		result = 31 * result + (from != null ? from.hashCode() : 0);
-		result = 31 * result + (to != null ? to.hashCode() : 0);
-		result = 31 * result + indexedPricePlaces;
+		int result = this.queryPriceMode != null ? this.queryPriceMode.hashCode() : 0;
+		result = 31 * result + (this.from != null ? this.from.hashCode() : 0);
+		result = 31 * result + (this.to != null ? this.to.hashCode() : 0);
+		result = 31 * result + this.indexedPricePlaces;
 		return result;
 	}
 }

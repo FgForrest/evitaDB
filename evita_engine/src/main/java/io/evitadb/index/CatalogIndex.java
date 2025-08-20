@@ -122,7 +122,7 @@ public class CatalogIndex implements
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		Assert.isPremiseValid(this.catalog == null, "Catalog was already attached to this index!");
 		this.catalog = catalog;
-		for (GlobalUniqueIndex globalUniqueIndex : uniqueIndex.values()) {
+		for (GlobalUniqueIndex globalUniqueIndex : this.uniqueIndex.values()) {
 			globalUniqueIndex.attachToCatalog(null, catalog);
 		}
 	}
@@ -242,7 +242,7 @@ public class CatalogIndex implements
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
-		for (GlobalUniqueIndex theUniqueIndex : uniqueIndex.values()) {
+		for (GlobalUniqueIndex theUniqueIndex : this.uniqueIndex.values()) {
 			theUniqueIndex.resetDirty();
 		}
 	}
@@ -282,7 +282,7 @@ public class CatalogIndex implements
 		private final TransactionalContainerChanges<Void, GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
-			uniqueIndexChanges.addCreatedItem(uniqueIndex);
+			this.uniqueIndexChanges.addCreatedItem(uniqueIndex);
 		}
 
 		public void addRemovedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {

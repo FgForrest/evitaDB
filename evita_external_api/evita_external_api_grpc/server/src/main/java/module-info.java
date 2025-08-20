@@ -65,4 +65,5 @@ module evita.external.api.grpc {
 	requires com.linecorp.armeria.grpc.protocol;
 	requires jdk.jfr;
 	requires net.bytebuddy;
+	requires org.reactivestreams;
 }

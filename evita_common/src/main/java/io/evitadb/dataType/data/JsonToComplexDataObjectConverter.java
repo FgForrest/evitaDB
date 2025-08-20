@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public class JsonToComplexDataObjectConverter {
 	 */
 	@Nonnull
 	public ComplexDataObject fromJson(@Nonnull String jsonString) throws JsonProcessingException {
-		final JsonNode jsonNode = objectMapper.readTree(jsonString);
+		final JsonNode jsonNode = this.objectMapper.readTree(jsonString);
 		return new ComplexDataObject(
 			Objects.requireNonNull(convertToDataItem(jsonNode))
 		);
@@ -131,7 +131,7 @@ public class JsonToComplexDataObjectConverter {
 	 */
 	@Nonnull
 	public ComplexDataObject fromMap(@Nonnull Map<String, Object> map) throws JsonProcessingException {
-		final JsonNode jsonNode = objectMapper.valueToTree(map);
+		final JsonNode jsonNode = this.objectMapper.valueToTree(map);
 		return new ComplexDataObject(
 			Objects.requireNonNull(convertToDataItem(jsonNode))
 		);

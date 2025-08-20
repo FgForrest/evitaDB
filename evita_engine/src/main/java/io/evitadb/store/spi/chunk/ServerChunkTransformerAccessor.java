@@ -46,7 +46,7 @@ public class ServerChunkTransformerAccessor implements ChunkTransformerAccessor 
 	@Nonnull
 	@Override
 	public ChunkTransformer apply(@Nonnull String referenceName) {
-		final ChunkTransformer transformer = evitaRequest.getReferenceChunkTransformer(referenceName);
+		final ChunkTransformer transformer = this.evitaRequest.getReferenceChunkTransformer(referenceName);
 		return convertIfNecessary(transformer);
 	}
 

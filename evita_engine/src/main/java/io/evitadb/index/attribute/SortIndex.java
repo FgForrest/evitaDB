@@ -413,7 +413,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * @throws IllegalArgumentException if value is not linked to passed record id
 	 */
 	public void removeRecord(@Nonnull Serializable value, int recordId) {
-		final Serializable normalizedValue = normalizer.apply(value);
+		final Serializable normalizedValue = this.normalizer.apply(value);
 		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
 		final int index = this.sortedRecordsValues.indexOf(normalizedValue);
 		isTrue(
@@ -473,14 +473,14 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Returns true if {@link SortIndex} contains no data.
 	 */
 	public boolean isEmpty() {
-		return sortedRecords.isEmpty();
+		return this.sortedRecords.isEmpty();
 	}
 
 	/**
 	 * Returns number of record ids in this {@link SortIndex}.
 	 */
 	public int size() {
-		return sortedRecords.getLength();
+		return this.sortedRecords.getLength();
 	}
 
 	@Nonnull
@@ -666,7 +666,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 		@SuppressWarnings({"rawtypes", "unchecked"}) final int theValueIndex = ArrayUtils.binarySearch(
 			valueIndex, normalizedValue,
-			(valueStartIndex, theValue) -> ((Comparator) comparator).compare(valueStartIndex.getValue(), theValue)
+			(valueStartIndex, theValue) -> ((Comparator) this.comparator).compare(valueStartIndex.getValue(), theValue)
 		);
 
 		// had the value cardinality >= 2?
@@ -749,17 +749,18 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			ComparableArray that = (ComparableArray) o;
-			return Arrays.equals(array, that.array);
+			return Arrays.equals(this.array, that.array);
 		}
 
 		@Override
 		public int hashCode() {
-			return Arrays.hashCode(array);
+			return Arrays.hashCode(this.array);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return Arrays.toString(array);
+			return Arrays.toString(this.array);
 		}
 
 	}

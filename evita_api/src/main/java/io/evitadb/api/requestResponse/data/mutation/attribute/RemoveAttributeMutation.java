@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class RemoveAttributeMutation extends AttributeMutation {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException(
-				"Cannot remove " + attributeKey.attributeName() + " attribute - it doesn't exist!"
+				"Cannot remove " + this.attributeKey.attributeName() + " attribute - it doesn't exist!"
 			)
 		);
 		return new AttributeValue(
@@ -90,7 +90,7 @@ public class RemoveAttributeMutation extends AttributeMutation {
 
 	@Override
 	public String toString() {
-		return "remove attribute `" + attributeKey + "`";
+		return "remove attribute `" + this.attributeKey + "`";
 	}
 
 }

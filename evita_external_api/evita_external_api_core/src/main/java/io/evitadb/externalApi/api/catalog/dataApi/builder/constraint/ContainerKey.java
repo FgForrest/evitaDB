@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ public class ContainerKey extends CacheableElementKey {
 		final long keyHash = hashFunction.hashLongs(new long[] {
 			hashContainerType(hashFunction),
 			hashDataLocator(hashFunction),
-			hashAllowedConstraintPredicate(hashFunction, allowedConstraintPredicate)
+			hashAllowedConstraintPredicate(hashFunction, this.allowedConstraintPredicate)
 		});
 		return Long.toHexString(keyHash);
 	}

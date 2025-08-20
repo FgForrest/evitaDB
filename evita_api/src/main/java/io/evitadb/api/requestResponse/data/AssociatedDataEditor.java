@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -122,11 +123,12 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 		 * Method creates implicit associatedData type for the associatedData value that doesn't map to any existing
 		 * (known) associatedData type of the {@link EntitySchemaContract} schema.
 		 */
+		@Nonnull
 		static AssociatedDataSchemaContract createImplicitSchema(@Nonnull AssociatedDataValue associatedDataValue) {
 			return AssociatedDataSchema._internalBuild(
 				associatedDataValue.key().associatedDataName(),
 				null, null,
-				associatedDataValue.value().getClass(),
+				Objects.requireNonNull(associatedDataValue.value(), "Value is required for creating implicit associated data schema.").getClass(),
 				associatedDataValue.key().localized(),
 				true
 			);

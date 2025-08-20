@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,7 +50,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyReferenceSchemaRelatedEntityMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceSchemaRelatedEntityMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -60,7 +61,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 			true
 		);
 
-		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation1 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
@@ -69,7 +70,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation2 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
@@ -83,7 +84,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
@@ -92,23 +93,44 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.NAME.name(), "tags")
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
 					.build()
 			)
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.NAME.name(), "tags")
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReferenceSchemaRelatedEntityMutation inputMutation = new ModifyReferenceSchemaRelatedEntityMutation(
+			"tags",
+			"tag",
+			true
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
+					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
+					.build()
+			);
 	}
 }

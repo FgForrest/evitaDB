@@ -408,7 +408,7 @@ public class QueryPlan {
 		if (this.queryContext.isRequiresBinaryForm()) {
 			result.append(" (in binary form)");
 		}
-		for (ExtraResultProducer extraResultProducer : extraResultProducers) {
+		for (ExtraResultProducer extraResultProducer : this.extraResultProducers) {
 			result.append(" + ").append(extraResultProducer.getDescription());
 		}
 		return result.toString();
@@ -423,7 +423,7 @@ public class QueryPlan {
 	public SpanAttribute[] getSpanAttributes() {
 		final EvitaRequest evitaRequest = this.getEvitaRequest();
 		final Query query = evitaRequest.getQuery();
-		final FinishedEvent queryFinishedEvent = queryContext.getQueryFinishedEvent();
+		final FinishedEvent queryFinishedEvent = this.queryContext.getQueryFinishedEvent();
 		if (queryFinishedEvent == null) {
 			return SpanAttribute.EMPTY_ARRAY;
 		} else {
@@ -504,7 +504,7 @@ public class QueryPlan {
 	 * @param executionContext the execution context to use
 	 */
 	private void initSorter(@Nonnull QueryExecutionContext executionContext) {
-		for (Sorter theSorter : sorters) {
+		for (Sorter theSorter : this.sorters) {
 			if (theSorter instanceof TransactionalDataRelatedStructure tdrs) {
 				tdrs.initialize(executionContext);
 			}

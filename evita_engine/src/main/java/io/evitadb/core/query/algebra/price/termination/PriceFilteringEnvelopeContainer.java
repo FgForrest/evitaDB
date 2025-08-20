@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 		if (innerFormulas.length == 0) {
 			return EmptyFormula.INSTANCE;
 		} else {
-			return new PriceFilteringEnvelopeContainer(priceLists, currency, validIn, innerFormulas);
+			return new PriceFilteringEnvelopeContainer(this.priceLists, this.currency, this.validIn, innerFormulas);
 		}
 	}
 
@@ -114,9 +114,9 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		return new PriceFilteringEnvelopeContainer(
 			selfOperator,
-			priceLists,
-			currency,
-			validIn,
+			this.priceLists,
+			this.currency,
+			this.validIn,
 			innerFormulas
 		);
 	}
@@ -124,7 +124,7 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return Arrays.stream(innerFormulas)
+		return Arrays.stream(this.innerFormulas)
 			.flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
 			.toArray();
 	}
@@ -158,9 +158,9 @@ public class PriceFilteringEnvelopeContainer extends AbstractCacheableFormula {
 	public String toString() {
 		return "PRICE FILTER CONTAINER - OR (" +
 			Stream.of(
-					(priceLists == null ? "" : Arrays.toString(priceLists)) +
-						(currency == null ? "" : currency.getCurrencyCode()) +
-						(validIn == null ? "" : validIn)
+					(this.priceLists == null ? "" : Arrays.toString(this.priceLists)) +
+						(this.currency == null ? "" : this.currency.getCurrencyCode()) +
+						(this.validIn == null ? "" : this.validIn)
 				)
 				.filter(it -> !it.isEmpty())
 				.collect(Collectors.joining(", "))

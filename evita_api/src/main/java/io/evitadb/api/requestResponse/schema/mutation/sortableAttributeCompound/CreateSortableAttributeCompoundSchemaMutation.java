@@ -125,7 +125,9 @@ public class CreateSortableAttributeCompoundSchemaMutation
 				this.attributeElements
 			)
 		) {
-			final SortableAttributeCompoundSchemaContract createdVersion = mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null);
+			final SortableAttributeCompoundSchemaContract createdVersion = Objects.requireNonNull(
+				mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null)
+			);
 			final SortableAttributeCompoundSchemaContract existingVersion = currentEntitySchema.getSortableAttributeCompound(this.name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,

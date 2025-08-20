@@ -33,8 +33,6 @@ import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.GoLiveProgress;
-import io.evitadb.api.GoLiveProgressRecord;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
@@ -57,6 +55,7 @@ import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
@@ -71,8 +70,11 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -85,10 +87,11 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
+import io.evitadb.driver.cdc.ClientChangeCatalogCaptureProcessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientServerCallException;
 import io.evitadb.driver.exception.EvitaClientTimedOutException;
@@ -133,6 +136,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -180,6 +184,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * Evita instance this session is connected to.
 	 */
 	@Getter private final EvitaClient evita;
+	/**
+	 * Executor service used for asynchronous operations.
+	 */
+	private final ExecutorService executor;
 	/**
 	 * Service class used for tracking tasks on the server side.
 	 */
@@ -323,6 +331,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	public EvitaClientSession(
 		@Nonnull EvitaClient evita,
+		@Nonnull ExecutorService executor,
 		@Nonnull EvitaClientManagement management,
 		@Nonnull EvitaEntitySchemaCache schemaCache,
 		@Nonnull GrpcClientBuilder grpcClientBuilder,
@@ -336,6 +345,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull Timeout timeout
 	) {
 		this.evita = evita;
+		this.executor = executor;
 		this.management = management;
 		this.reflectionLookup = evita.getReflectionLookup();
 		this.proxyFactory = schemaCache.getProxyFactory();
@@ -399,10 +409,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
+	public Progress<CommitVersions> goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
 		assertActive();
 
-		final GoLiveProgressRecord goLiveProgress = new GoLiveProgressRecord(progressObserver);
+		final ProgressRecord<CommitVersions> goLiveProgress = new ProgressRecord<>(
+			"Making catalog `" + this.catalogName + "` alive",
+			progressObserver
+		);
 		executeWithAsyncEvitaSessionService(
 			evitaSessionService -> {
 				final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {
@@ -499,6 +512,31 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
+		//noinspection unchecked
+		return (ChangeCapturePublisher<ChangeCatalogCapture>) this.evita.activePublishers.compute(
+			request,
+			(theRequest, existingInstance) ->
+				existingInstance == null || existingInstance.isClosed() ?
+					new ClientChangeCatalogCaptureProcessor(
+						this.evita.getConfiguration().changeCaptureQueueSize(),
+						this.executor,
+						subscriber -> executeWithAsyncEvitaSessionService(
+							evitaService -> {
+								evitaService.registerChangeCatalogCapture(
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest((ChangeCatalogCaptureRequest)theRequest),
+									subscriber
+								);
+								return null;
+							}
+						),
+						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
+					) : existingInstance
+		);
+	}
+
+	@Nonnull
+	@Override
 	public CommitProgress closeNowWithProgress() {
 		if (isActive()) {
 			final CompletableFuture<CommitVersions> result = closeInternally();
@@ -547,6 +585,82 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 		}
 		return this.commitProgress;
+	}
+
+	@Override
+	public int updateCatalogSchema(@Nonnull CatalogSchemaBuilder catalogSchemaBuilder) throws SchemaAlteringException {
+		assertActive();
+		return catalogSchemaBuilder
+			.toMutation()
+			.map(
+				modifyMutation ->
+					executeInTransactionIfPossible(
+						session -> {
+							final LocalCatalogSchemaMutation[] schemaMutations = modifyMutation.getSchemaMutations();
+							final GrpcUpdateCatalogSchemaRequest.Builder builder = GrpcUpdateCatalogSchemaRequest.newBuilder();
+							final GrpcUpdateCatalogSchemaRequest request = builder
+								.addAllSchemaMutations(
+									Arrays.stream(schemaMutations)
+									      .map(
+										      DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
+									      .collect(Collectors.toList())
+								)
+								.build();
+							final GrpcUpdateCatalogSchemaResponse response = executeWithBlockingEvitaSessionService(
+								evitaSessionService -> evitaSessionService.updateCatalogSchema(request)
+							);
+							this.schemaCache.analyzeMutations(schemaMutations);
+							return response.getVersion();
+						}
+					)
+			)
+			.orElseGet(
+				() -> this.schemaCache.getLatestCatalogSchema(
+					this::fetchCatalogSchema,
+					this.clientEntitySchemaAccessor
+				).version()
+			);
+	}
+
+	@Nonnull
+	@Override
+	public SealedCatalogSchema updateAndFetchCatalogSchema(
+		@Nonnull CatalogSchemaBuilder catalogSchemaBuilder
+	) throws SchemaAlteringException {
+		assertActive();
+		return catalogSchemaBuilder
+			.toMutation()
+			.map(
+				modifyMutation ->
+					executeInTransactionIfPossible(
+						session -> {
+							final LocalCatalogSchemaMutation[] schemaMutations = modifyMutation.getSchemaMutations();
+							final GrpcUpdateCatalogSchemaRequest.Builder builder = GrpcUpdateCatalogSchemaRequest.newBuilder();
+							final GrpcUpdateCatalogSchemaRequest request = builder
+								.addAllSchemaMutations(
+									Arrays.stream(schemaMutations)
+									      .map(
+										      DelegatingLocalCatalogSchemaMutationConverter.INSTANCE::convert)
+									      .collect(Collectors.toList())
+								)
+								.build();
+							final GrpcUpdateAndFetchCatalogSchemaResponse response = executeWithBlockingEvitaSessionService(
+								evitaSessionService -> evitaSessionService.updateAndFetchCatalogSchema(request)
+							);
+							this.schemaCache.analyzeMutations(schemaMutations);
+							return (SealedCatalogSchema) new ClientCatalogSchemaDecorator(
+								CatalogSchemaConverter.convert(response.getCatalogSchema(), this.clientEntitySchemaAccessor),
+								this.clientEntitySchemaAccessor
+							);
+						}
+					)
+			)
+			.orElseGet(
+				() -> this.schemaCache.getLatestCatalogSchema(
+					this::fetchCatalogSchema,
+					this.clientEntitySchemaAccessor
+				)
+			);
 	}
 
 	@Nonnull
@@ -1511,7 +1625,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
 		assertActive();
 		final GrpcCatalogVersionAtResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			session -> {
@@ -1524,7 +1638,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			}
 		);
-		return new CatalogVersion(
+		return new StoredVersion(
 			grpcResponse.getVersion(),
 			toOffsetDateTime(grpcResponse.getIntroducedAt())
 		);

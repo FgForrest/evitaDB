@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) throws CompressionKeyUnknownException {
 		// Iterate over all compressors
-		for (KeyCompressor compressor : compressors) {
+		for (KeyCompressor compressor : this.compressors) {
 			// Try to get the ID of the key from the current compressor
 			final OptionalInt id = compressor.getIdIfExists(key);
 
@@ -75,7 +75,7 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
 		// Iterate over all compressors
-		for (KeyCompressor compressor : compressors) {
+		for (KeyCompressor compressor : this.compressors) {
 			// Try to get the ID of the key from the current compressor
 			final OptionalInt id = compressor.getIdIfExists(key);
 
@@ -93,7 +93,7 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> T getKeyForId(int id) {
 		// Iterate over all compressors
-		for (KeyCompressor compressor : compressors) {
+		for (KeyCompressor compressor : this.compressors) {
 			// Try to get the key for the ID from the current compressor
 			T key = compressor.getKeyForIdIfExists(id);
 
@@ -114,7 +114,7 @@ public class AggregatedKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
 		// Iterate over all compressors
-		for (KeyCompressor compressor : compressors) {
+		for (KeyCompressor compressor : this.compressors) {
 			// Try to get the key for the ID from the current compressor
 			T key = compressor.getKeyForIdIfExists(id);
 

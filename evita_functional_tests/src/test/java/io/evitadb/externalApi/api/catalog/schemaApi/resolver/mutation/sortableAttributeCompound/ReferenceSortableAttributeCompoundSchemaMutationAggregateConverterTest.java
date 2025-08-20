@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,7 +54,7 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ReferenceSortableAttributeCompoundSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
@@ -64,7 +64,7 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 			new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")
 		);
 
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = converter.convert(
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
@@ -78,14 +78,41 @@ class ReferenceSortableAttributeCompoundSchemaMutationAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations);
 	}
+
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = converter.convert(Map.of());
+		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldConvertMutationToOutput() {
+		final List<Map<String, Object>> expectedMutations = List.of(
+			map()
+				.e(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
+					.build())
+				.build(),
+			map()
+				.e(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION.name(), map()
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "betterCode")
+					.build())
+				.build()
+		);
+
+		final Object convertedMutations = this.converter.convertToOutput(
+			List.of(
+				new ModifySortableAttributeCompoundSchemaDescriptionMutation("code", "desc"),
+				new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")
+			)
+		);
+		assertEquals(expectedMutations, convertedMutations);
 	}
 }

@@ -101,7 +101,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -736,7 +736,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityCollectionHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
 	) {
@@ -810,7 +810,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityTypeHeader.entityTypeFileIndex(),
 			entityTypeHeader.fileLocation()
 		);
-		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = previous.observableOutputKeeper;
@@ -1114,6 +1114,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull EntitySchema entitySchema) {
 		final EntityIndexStoragePart entityIndexCnt = this.storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
@@ -1122,11 +1123,27 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
 		);
 
-		final Map<AttributeKey, UniqueIndex> uniqueIndexes = new HashMap<>();
-		final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
-		final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
-		final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
-		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
+		int uniqueIndexCount = 0;
+		int filterIndexCount = 0;
+		int sortIndexCount = 0;
+		int chainIndexCount = 0;
+		int cardinalityIndexCount = 0;
+		for (AttributeIndexStorageKey attributeIndex : entityIndexCnt.getAttributeIndexes()) {
+			switch (attributeIndex.indexType()) {
+				case UNIQUE -> uniqueIndexCount++;
+				case FILTER -> filterIndexCount++;
+				case SORT -> sortIndexCount++;
+				case CHAIN -> chainIndexCount++;
+				case CARDINALITY -> cardinalityIndexCount++;
+				default -> throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndex.indexType());
+			}
+		}
+
+		final Map<AttributeKey, UniqueIndex> uniqueIndexes = CollectionUtils.createHashMap(uniqueIndexCount);
+		final Map<AttributeKey, FilterIndex> filterIndexes = CollectionUtils.createHashMap(filterIndexCount);
+		final Map<AttributeKey, SortIndex> sortIndexes = CollectionUtils.createHashMap(sortIndexCount);
+		final Map<AttributeKey, ChainIndex> chainIndexes = CollectionUtils.createHashMap(chainIndexCount);
+		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = CollectionUtils.createHashMap(cardinalityIndexCount);
 
 		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
 		//noinspection rawtypes
@@ -1160,28 +1177,28 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 			switch (attributeIndexKey.indexType()) {
 				case UNIQUE ->
-					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
+					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), this.storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
 				case FILTER ->
-					fetchFilterIndex(catalogVersion, entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
+					fetchFilterIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
 				case SORT ->
-					fetchSortIndex(catalogVersion, entityIndexId, storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
+					fetchSortIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
 				case CHAIN ->
-					fetchChainIndex(catalogVersion, entityIndexId, storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
+					fetchChainIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
 				case CARDINALITY ->
-					fetchCardinalityIndex(catalogVersion, entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
+					fetchCardinalityIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
 				default ->
 					throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 			}
 		}
 
-		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
-		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
+		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
+		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
 
 		final EntityIndexType entityIndexType = entityIndexKey.type();
 		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
 		if (entityIndexType == EntityIndexType.GLOBAL) {
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
 			);
 			return new GlobalEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1217,7 +1234,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		} else {
 			final Scope scope = entityIndexKey.scope();
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1624,30 +1641,30 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		@Override
 		public int getLastAssignedPrimaryKey() {
-			return currentHeader.lastPrimaryKey();
+			return this.currentHeader.lastPrimaryKey();
 		}
 
 		@Override
 		public int getLastAssignedIndexKey() {
-			return currentHeader.lastEntityIndexPrimaryKey();
+			return this.currentHeader.lastEntityIndexPrimaryKey();
 		}
 
 		@Override
 		public int getLastAssignedInternalPriceId() {
-			return currentHeader.lastInternalPriceId();
+			return this.currentHeader.lastInternalPriceId();
 		}
 
 		@Nonnull
 		@Override
 		public OptionalInt getGlobalIndexKey() {
-			return currentHeader.globalEntityIndexId() == null ?
-				OptionalInt.empty() : OptionalInt.of(currentHeader.globalEntityIndexId());
+			return this.currentHeader.globalEntityIndexId() == null ?
+				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexId());
 		}
 
 		@Nonnull
 		@Override
 		public List<Integer> getIndexKeys() {
-			return currentHeader.usedEntityIndexIds();
+			return this.currentHeader.usedEntityIndexIds();
 		}
 	}
 }

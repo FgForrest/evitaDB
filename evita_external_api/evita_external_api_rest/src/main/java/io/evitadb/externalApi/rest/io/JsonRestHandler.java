@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpResponseWriter;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.utils.Assert;
 import io.netty.channel.EventLoop;
@@ -72,7 +71,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 		);
 
 		try {
-			return restHandlingContext.getObjectMapper().readValue(rawRequestBody, dataClass);
+			return this.restHandlingContext.getObjectMapper().readValue(rawRequestBody, dataClass);
 		} catch (JsonProcessingException e) {
 			throw new RestInvalidArgumentException("Invalid request body: " + e.getLocation().toString(), e);
 		}
@@ -81,7 +80,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	@Override
 	protected void writeResponse(@Nonnull RestEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutors) {
 		try {
-			responseWriter.write(HttpData.copyOf(restHandlingContext.getObjectMapper().writeValueAsBytes(result)));
+			responseWriter.write(HttpData.copyOf(this.restHandlingContext.getObjectMapper().writeValueAsBytes(result)));
 		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),

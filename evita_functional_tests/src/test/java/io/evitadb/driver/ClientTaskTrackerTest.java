@@ -51,15 +51,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ClientTaskTrackerTest implements TestConstants {
 	final EvitaManagementContract evitaClientMock = Mockito.mock(EvitaManagementContract.class);
-	private final ClientTaskTracker tested = new ClientTaskTracker(evitaClientMock, 100, 1);
+	private final ClientTaskTracker tested = new ClientTaskTracker(this.evitaClientMock, 100, 1);
 
 	@Test
 	void shouldTrackTaskUntilFinished() throws ExecutionException, InterruptedException, TimeoutException {
 		Mockito.doAnswer(
 			invocation -> List.of()
-		).when(evitaClientMock).getTaskStatuses(Mockito.any());
+		).when(this.evitaClientMock).getTaskStatuses(Mockito.any());
 
-		final ClientTask<Void, Boolean> task = tested.createTask(
+		final ClientTask<Void, Boolean> task = this.tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
 				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
@@ -78,7 +78,7 @@ class ClientTaskTrackerTest implements TestConstants {
 					EnumSet.noneOf(TaskTrait.class)
 				)
 			)
-		).when(evitaClientMock).getTaskStatuses(Mockito.any());
+		).when(this.evitaClientMock).getTaskStatuses(Mockito.any());
 
 		assertTrue(task.getFutureResult().get(10, TimeUnit.SECONDS));
 	}
@@ -87,9 +87,9 @@ class ClientTaskTrackerTest implements TestConstants {
 	void shouldCancelTask() {
 		Mockito.doAnswer(
 			invocation -> List.of()
-		).when(evitaClientMock).getTaskStatuses(Mockito.any());
+		).when(this.evitaClientMock).getTaskStatuses(Mockito.any());
 
-		final ClientTask<Void, Boolean> task = tested.createTask(
+		final ClientTask<Void, Boolean> task = this.tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,
 				OffsetDateTime.now(), OffsetDateTime.now(), null, null, 0,
@@ -101,7 +101,7 @@ class ClientTaskTrackerTest implements TestConstants {
 		task.cancel();
 
 		// cancelling on the client should trigger cancelling the task on the server
-		Mockito.verify(evitaClientMock).cancelTask(task.getStatus().taskId());
+		Mockito.verify(this.evitaClientMock).cancelTask(task.getStatus().taskId());
 
 		assertThrows(
 			CancellationException.class,

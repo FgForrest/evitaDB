@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ class QueryConverterTest {
 		final GrpcQueryParam enabledQueryParam = GrpcQueryParam.newBuilder().setBooleanValue(enabled).build();
 		final GrpcQueryParam nameQueryParam = GrpcQueryParam.newBuilder().setStringValue(name).build();
 		//noinspection ConstantConditions
-		final GrpcQueryParam rangeQueryParam = GrpcQueryParam.newBuilder().setIntegerNumberRangeValue(GrpcIntegerNumberRange.newBuilder().setFrom(Int32Value.newBuilder().setValue(range.getPreciseFrom()).build()).build()).build();
+		final GrpcQueryParam rangeQueryParam = GrpcQueryParam.newBuilder().setIntegerNumberRangeValue(GrpcIntegerNumberRange.newBuilder().setFrom(Int32Value.newBuilder().setValue(this.range.getPreciseFrom()).build()).build()).build();
 
 		final List<GrpcQueryParam> positionalQueryParams = List.of(
 			enabledQueryParam,
@@ -82,7 +82,7 @@ class QueryConverterTest {
 
 		assertEquals(enabled, positionalParams.get(0));
 		assertEquals(name, positionalParams.get(1));
-		assertEquals(range, positionalParams.get(2));
+		assertEquals(this.range, positionalParams.get(2));
 
 		final Map<String, GrpcQueryParam> namedQueryParams = Map.of(
 			enabledName, enabledQueryParam,
@@ -93,7 +93,7 @@ class QueryConverterTest {
 		final Map<String, Object> namedParams = QueryConverter.convertQueryParamsMap(namedQueryParams);
 		assertEquals(enabled, namedParams.get(enabledName));
 		assertEquals(name, namedParams.get(nameName));
-		assertEquals(range, namedParams.get(rangeName));
+		assertEquals(this.range, namedParams.get(rangeName));
 
 		final String stringValue = "a";
 		assertEquals(stringValue, convertQueryParam(stringValue));

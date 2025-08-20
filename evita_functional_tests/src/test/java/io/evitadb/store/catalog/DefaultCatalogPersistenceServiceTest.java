@@ -48,15 +48,15 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.traffic.TrafficRecordingEngine;
@@ -67,19 +67,20 @@ import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -104,6 +105,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -144,7 +146,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 	private final UUID catalogId = UUID.randomUUID();
 	private final UUID transactionId = UUID.randomUUID();
-	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
+	private final Path walFile = getTestDirectory().resolve(this.transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
@@ -152,10 +154,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		Mockito.mock(Scheduler.class)
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-		getTestDirectory().resolve(transactionId.toString()),
+		getTestDirectory().resolve(this.transactionId.toString()),
 		getStorageOptions(),
-		observableOutputKeeper,
-		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
+		this.observableOutputKeeper,
+		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
 		this.transactionId,
@@ -186,8 +188,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	) {
 		ioService.trimBootstrapFile(sinceCatalogVersion);
 
-		final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-		final CatalogVersion firstRecord = catalogVersions.getData().get(0);
+		final PaginatedList<StoredVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+		final StoredVersion firstRecord = catalogVersions.getData().get(0);
 		assertEquals(sinceCatalogVersion, firstRecord.version());
 		assertEquals(expectedVersion, firstRecord.version());
 		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
@@ -224,7 +226,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void tearDown() throws IOException {
 		this.walService.close();
 		this.observableOutputKeeper.close();
-		final File file = walFile.toFile();
+		final File file = this.walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");
 		}
@@ -248,13 +250,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
 
 		final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+			ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 1
 		);
 		final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+			ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 2
 		);
 		final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-			ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+			ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 3
 		);
 
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(3);
@@ -467,7 +469,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		this.walService.write(1L, DATA_MUTATION_EXAMPLE);
 		this.walService.write(1L, SCHEMA_MUTATION_EXAMPLE);
 
-		final OffHeapWithFileBackupReference walReference = walService.getWalReference();
+		final OffHeapWithFileBackupReference walReference = this.walService.getWalReference();
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 
 		// first switch to the transactional mode
@@ -483,7 +485,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			cps.getStoragePartPersistenceService(0L)
 				.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 			cps.storeHeader(
-				catalogId,
+				this.catalogId,
 				CatalogState.ALIVE,
 				2L,
 				0,
@@ -494,7 +496,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		}
 
 		final TransactionMutation writtenTransactionMutation = new TransactionMutation(
-			transactionId, 1L, 2, walReference.getContentLength(), OffsetDateTime.MIN
+			this.transactionId, 1L, 2, walReference.getContentLength(), OffsetDateTime.MIN
 		);
 
 		// and then write to the WAL
@@ -526,12 +528,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					final int transactionSize = input.readInt();
 					// the 2 bytes are required to record the classId
 					final int offsetDateTimeDelta = 11;
-					assertEquals(walReference.getContentLength() + CatalogWriteAheadLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
-					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					assertEquals(walReference.getContentLength() + AbstractMutationLog.TRANSACTION_MUTATION_SIZE - offsetDateTimeDelta + 2, transactionSize);
+					final Mutation loadedTransactionMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(writtenTransactionMutation, loadedTransactionMutation);
-					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
-					final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+					final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 					assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
 					return null;
 				}
@@ -562,19 +564,19 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
 			}
 
-			final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
+			final PaginatedList<StoredVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
 			assertEquals(5, catalogVersions.getData().size());
 			assertEquals(13, catalogVersions.getTotalRecordCount());
 			for (int i = 0; i <= 4; i++) {
-				final CatalogVersion record = catalogVersions.getData().get(i);
+				final StoredVersion record = catalogVersions.getData().get(i);
 				assertEquals(i, record.version());
 				assertNotNull(record.introducedAt());
 			}
 
-			final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
+			final PaginatedList<StoredVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
 			assertEquals(3, catalogVersionsLastPage.getData().size());
 			for (int i = 0; i < 3; i++) {
-				final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+				final StoredVersion record = catalogVersionsLastPage.getData().get(i);
 				assertEquals(10 + i, record.version());
 				assertNotNull(record.introducedAt());
 			}
@@ -626,19 +628,19 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				ioService.recordBootstrap(i + 1, catalogName, 0, null);
 			}
 
-			final PaginatedList<CatalogVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
+			final PaginatedList<StoredVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
 			assertEquals(5, catalogVersions.getData().size());
 			assertEquals(13, catalogVersions.getTotalRecordCount());
 			for (int i = 0; i < 5; i++) {
-				final CatalogVersion record = catalogVersions.getData().get(i);
+				final StoredVersion record = catalogVersions.getData().get(i);
 				assertEquals(13 - (i + 1), record.version());
 				assertNotNull(record.introducedAt());
 			}
 
-			final PaginatedList<CatalogVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
+			final PaginatedList<StoredVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
 			assertEquals(3, catalogVersionsLastPage.getData().size());
 			for (int i = 0; i < 3; i++) {
-				final CatalogVersion record = catalogVersionsLastPage.getData().get(i);
+				final StoredVersion record = catalogVersionsLastPage.getData().get(i);
 				assertEquals(3 - (i + 1), record.version());
 				assertNotNull(record.introducedAt());
 			}
@@ -667,7 +669,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				);
 			}
 
-			final PaginatedList<CatalogVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+			final PaginatedList<StoredVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
 			assertEquals(0, catalogVersions0.getData().get(0).version());
 			assertEquals(13, catalogVersions0.getTotalRecordCount());
 
@@ -699,18 +701,18 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
 
 			final EntityCollection productCollection = constructEntityCollectionWithSomeEntities(
-				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
+				ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleProductSchema(mockSession, EntitySchemaBuilder::toInstance), 1
 			);
 			final EntityCollection brandCollection = constructEntityCollectionWithSomeEntities(
-				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
+				ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleBrandSchema(mockSession, EntitySchemaBuilder::toInstance), 2
 			);
 			final EntityCollection storeCollection = constructEntityCollectionWithSomeEntities(
-				ioService, SEALED_CATALOG_SCHEMA, dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
+				ioService, SEALED_CATALOG_SCHEMA, this.dataGenerator.getSampleStoreSchema(mockSession, EntitySchemaBuilder::toInstance), 3
 			);
 
 			// try to serialize
 			ioService.storeHeader(
-				catalogId,
+				this.catalogId,
 				CatalogState.WARMING_UP,
 				0L, 0, null,
 				Arrays.asList(
@@ -768,12 +770,19 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private EntityCollection constructEntityCollectionWithSomeEntities(@Nonnull CatalogPersistenceService ioService, @Nonnull SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema entitySchema, int entityTypePrimaryKey) {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
+		final String entityType = entitySchema.getName();
+		final EntityCollectionPersistenceService entityCollectionPersistenceService = ioService.getOrCreateEntityCollectionPersistenceService(
+			0L, entityType, entityTypePrimaryKey
+		);
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
-			CatalogState.WARMING_UP, entityTypePrimaryKey,
-			entitySchema.getName(),
+			CatalogState.WARMING_UP,
+			entityTypePrimaryKey,
+			entityType,
+			new HashMap<>(64),
 			ioService,
+			entityCollectionPersistenceService,
 			NoCacheSupervisor.INSTANCE,
 			this.sequenceService,
 			createTrafficRecordingEngine(catalogSchema)
@@ -791,7 +800,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			}
 		}).when(mockCatalog).applyMutation(mutationCaptor.capture());
 
-		dataGenerator.generateEntities(
+		this.dataGenerator.generateEntities(
 				entitySchema,
 				(serializable, faker) -> null,
 				40
@@ -816,12 +825,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 
 		final SealedEntitySchema schema = entityCollection.getSchema();
+		final String entityType = schema.getName();
+		final int entityTypePrimaryKey = entityCollection.getEntityTypePrimaryKey();
+		final EntityCollectionPersistenceService entityCollectionPersistenceService = ioService.getOrCreateEntityCollectionPersistenceService(
+			0L, entityType, entityTypePrimaryKey
+		);
+
 		final EntityCollection collection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
-			CatalogState.WARMING_UP, entityCollection.getEntityTypePrimaryKey(),
-			schema.getName(),
+			CatalogState.WARMING_UP,
+			entityTypePrimaryKey,
+			entityType,
+			new HashMap<>(64),
 			ioService,
+			entityCollectionPersistenceService,
 			NoCacheSupervisor.INSTANCE,
 			this.sequenceService,
 			createTrafficRecordingEngine(catalogSchema)

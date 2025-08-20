@@ -26,14 +26,16 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Catalog;
@@ -45,6 +47,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.function.BiIntConsumer;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
@@ -74,7 +77,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface CatalogPersistenceService extends PersistenceService {
+public non-sealed interface CatalogPersistenceService extends RichPersistenceService {
 	/**
 	 * This constant represents the current version of the storage protocol. The version is changed everytime
 	 * the storage protocol on disk changes and the data with the old protocol version cannot be read by the new
@@ -82,11 +85,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 3;
-	String BOOT_FILE_SUFFIX = ".boot";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
-	String WAL_FILE_SUFFIX = ".wal";
 	String RESTORE_FLAG = ".restored";
 	Pattern GENERIC_ENTITY_COLLECTION_PATTERN = Pattern.compile(".*-(\\d+)_(\\d+)" + ENTITY_COLLECTION_FILE_SUFFIX);
 
@@ -120,21 +120,25 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 
 	/**
 	 * Returns the index extracted from the given catalog data store file name.
+	 * This method uses character-by-character parsing similar to the WAL file name index extraction.
 	 *
 	 * @param fileName the name of the catalog data store file
 	 * @return the index extracted from the catalog data store file name
 	 */
 	static int getIndexFromCatalogFileName(@Nonnull String fileName) {
-		final Pattern genericCatalogPattern = Pattern.compile(".*_(\\d+)" + CATALOG_FILE_SUFFIX);
-		final Matcher matcher = genericCatalogPattern.matcher(fileName);
-		if (matcher.matches()) {
-			return Integer.parseInt(matcher.group(1));
-		} else {
+		int endIndex = fileName.length() - CATALOG_FILE_SUFFIX.length();
+		int startIndex = endIndex;
+		while (startIndex > 0 && Character.isDigit(fileName.charAt(startIndex - 1))) {
+			startIndex--;
+		}
+
+		if (startIndex >= endIndex) {
 			throw new GenericEvitaInternalError(
-				"Catalog file name does not match the expected pattern.",
-				"Catalog file name does not match the expected pattern: " + fileName
+				"Invalid catalog file name `" + fileName + "`! Cannot extract index from it!"
 			);
 		}
+
+		return Integer.parseInt(fileName, startIndex, endIndex, 10);
 	}
 
 	/**
@@ -192,28 +196,10 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
-	 * Returns the index extracted from the given Write-Ahead-Log file name.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @param walFileName the name of the WAL file
-	 * @return the index extracted from the WAL file name
-	 */
-	static int getIndexFromWalFileName(@Nonnull String catalogName, @Nonnull String walFileName) {
-		return Integer.parseInt(
-			walFileName.substring(catalogName.length() + 1, walFileName.length() - WAL_FILE_SUFFIX.length())
-		);
-	}
-
-	/**
 	 * Method for internal use - allows emitting start events when observability facilities are already initialized.
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
 	void emitObservabilityEvents();
-
-	/**
-	 * Method for internal use. Allows to emit events clearing the information about deleted catalog.
-	 */
-	void emitDeleteObservabilityEvents();
 
 	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
@@ -325,6 +311,13 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	);
 
 	/**
+	 * Transitions the catalog to LIVE state.
+	 *
+	 * @param catalogVersion the version of the catalog to transition to LIVE state
+	 */
+	void goLive(long catalogVersion);
+
+	/**
 	 * Method updates {@link CatalogHeader} with the given entity collection headers. All other information in the catalog
 	 * header remains unchanged.
 	 *
@@ -380,6 +373,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param catalogNameToBeReplaced           name of the catalog to be replaced by this catalog
 	 * @param catalogNameVariationsToBeReplaced variations of the catalog name to be replaced by this catalog
 	 * @param catalogSchema                     the schema of the catalog
+	 * @param progressObserver                  observer function accepting two integers - steps done and total steps
 	 */
 	@Nonnull
 	CatalogPersistenceService replaceWith(
@@ -387,7 +381,8 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
 		@Nonnull CatalogSchema catalogSchema,
-		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
+		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer,
+		@Nonnull BiIntConsumer progressObserver
 	);
 
 	/**
@@ -424,7 +419,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+	Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -436,7 +431,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
+	Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -448,7 +443,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
+	Stream<CatalogBoundMutation> getCommittedLiveMutationStream(long startCatalogVersion, long requestedCatalogVersion);
 
 	/**
 	 * Retrieves the last catalog version written in the WAL stream.
@@ -474,10 +469,10 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @param timeFlow the time flow used to filter the catalog versions
 	 * @param page     the page number of the paginated list
 	 * @param pageSize the number of versions per page
-	 * @return a paginated list of {@link CatalogVersion} instances
+	 * @return a paginated list of {@link StoredVersion} instances
 	 */
 	@Nonnull
-	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+	PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
@@ -489,19 +484,19 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
-	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
 	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
 	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
 	 * gradually as the stream provides the data.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
-	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 * @return a stream of {@link WriteAheadLogVersionDescriptor} instances
 	 */
 	@Nonnull
-	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+	Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Method deletes all files in catalog folder which are not mentioned in the catalog header of currently used
@@ -544,6 +539,22 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	);
+
+	/**
+	 * Duplicates an existing catalog to create a new catalog with a different name.
+	 *
+	 * @param targetCatalogName name of the target catalog to be created
+	 * @param storageOptions storage configuration options
+	 * @return progressing future that tracks the duplication process
+	 *
+	 * @throws DirectoryNotEmptyException if the target directory is not empty
+	 * @throws InvalidStoragePathException if the storage path is invalid
+	 */
+	@Nonnull
+	ProgressingFuture<Void> duplicateCatalog(
+		@Nonnull String targetCatalogName,
+		@Nonnull StorageOptions storageOptions
+	) throws DirectoryNotEmptyException, InvalidStoragePathException;
 
 	/**
 	 * Verifies the integrity of a system, component, or data structure.

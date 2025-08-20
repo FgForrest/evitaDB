@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class DisjunctionOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull PredicateEvaluationContext context) {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(op -> op.compute(context, Boolean.class))
 			.reduce(false, (a, b) -> a || b);
 	}
@@ -66,16 +66,16 @@ public class DisjunctionOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		BigDecimalNumberRange resultRange = operator[0].determinePossibleRange();
-		for (int i = 1; i < operator.length; i++) {
-			resultRange = BigDecimalNumberRange.union(resultRange, operator[i].determinePossibleRange());
+		BigDecimalNumberRange resultRange = this.operator[0].determinePossibleRange();
+		for (int i = 1; i < this.operator.length; i++) {
+			resultRange = BigDecimalNumberRange.union(resultRange, this.operator[i].determinePossibleRange());
 		}
 		return resultRange;
 	}
 
 	@Override
 	public String toString() {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(ExpressionNode::toString)
 			.reduce((a, b) -> a + " || " + b)
 			.orElseThrow();

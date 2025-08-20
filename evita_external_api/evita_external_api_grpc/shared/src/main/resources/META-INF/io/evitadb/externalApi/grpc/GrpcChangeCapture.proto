@@ -5,6 +5,7 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/wrappers.proto";
+import "GrpcEngineMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
@@ -47,7 +48,7 @@ message GrpcChangeCaptureDataSite {
   repeated string containerName = 5;
 }
 
-// Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
+// Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
 message GrpcChangeCatalogCapture {
   // the version of the catalog where the operation was performed
   int64 version = 1;
@@ -58,14 +59,29 @@ message GrpcChangeCatalogCapture {
   // the name of the entity type or its schema that was affected by the operation
   // (if the operation is executed on catalog schema this field is null)
   google.protobuf.StringValue entityType = 4;
+  // the primary key of the entity that was affected by the operation
+  // (null for schema operations)
+  google.protobuf.Int32Value entityPrimaryKey = 5;
   // the operation that was performed
-  GrpcChangeCaptureOperation operation = 5;
+  GrpcChangeCaptureOperation operation = 6;
   // optional body of the operation when it is requested by the GrpcContent
   oneof body {
-    GrpcEntitySchemaMutation schemaMutation = 6;
-    GrpcEntityMutation entityMutation = 7;
-    GrpcLocalMutation localMutation = 8;
+    GrpcEntitySchemaMutation schemaMutation = 7;
+    GrpcEntityMutation entityMutation = 8;
+    GrpcLocalMutation localMutation = 9;
   }
+}
+
+// Record represents a system CDC event that is sent to the subscriber if it matches to the request he made.
+message GrpcChangeSystemCapture {
+  // the version of the engine where the operation was performed
+  int64 version = 1;
+  // the index of the event within the enclosed transaction, index 0 is the transaction lead event
+  int32 index = 2;
+  // the operation that was performed
+  GrpcChangeCaptureOperation operation = 3;
+  // optional body of the operation when it is requested by the GrpcContent
+  GrpcEngineMutation systemMutation = 4;
 }
 
 // The enum defines what catalog area is covered by the capture.
@@ -112,4 +128,12 @@ enum GrpcChangeCaptureContent {
   // update), the size of the event can be significant. Consider whether you need the entire mutation or just the
   // header.
   CHANGE_BODY = 1;
+}
+
+// Enum specifying the type of response that is sent to the subscriber.
+enum GrpcCaptureResponseType {
+  // The response contains only the acknowledgement of the subscription.
+  ACKNOWLEDGEMENT = 0;
+  // The response contains the change event that was captured.
+  CHANGE = 1;
 }

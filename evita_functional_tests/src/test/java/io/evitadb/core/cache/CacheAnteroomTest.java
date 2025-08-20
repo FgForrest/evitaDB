@@ -24,8 +24,8 @@
 package io.evitadb.core.cache;
 
 import io.evitadb.core.EvitaSession;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.payload.FlattenedFormula;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -83,7 +83,7 @@ class CacheAnteroomTest {
 		this.cacheEden = new CacheEden(1_000_000, 1, MINIMAL_COMPLEXITY_THRESHOLD, scheduler);
 		this.cacheAnteroom = new CacheAnteroom(
 			MAX_RECORD_COUNT, MINIMAL_COMPLEXITY_THRESHOLD,
-			cacheEden,
+			this.cacheEden,
 			scheduler
 		);
 		this.inputFormulas = new CacheableFormula[MAX_RECORD_COUNT + 2];
@@ -104,43 +104,43 @@ class CacheAnteroomTest {
 
 		final Map<Integer, Integer> cacheHits = new HashMap<>();
 		for (int i = 0; i < 1000; i++) {
-			final int formulaIndex = RANDOM.nextInt(inputFormulas.length);
-			final CacheableFormula inputFormula = inputFormulas[formulaIndex];
-			final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
+			final int formulaIndex = RANDOM.nextInt(this.inputFormulas.length);
+			final CacheableFormula inputFormula = this.inputFormulas[formulaIndex];
+			final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, this.cacheAnteroom);
 			assertEquals(inputFormula.compute(), theFormula.compute());
 			if (theFormula instanceof FlattenedFormula) {
 				cacheHits.merge(formulaIndex, 1, Integer::sum);
 			}
 		}
 
-		cacheAnteroom.evaluateAssociatesSynchronously();
-		assertEquals(12, cacheEden.getCacheRecordCount());
-		final long firstFullCacheSize = cacheEden.getByteSizeUsedByCache();
+		this.cacheAnteroom.evaluateAssociatesSynchronously();
+		assertEquals(12, this.cacheEden.getCacheRecordCount());
+		final long firstFullCacheSize = this.cacheEden.getByteSizeUsedByCache();
 		assertTrue(firstFullCacheSize > 2200);
 		assertFalse(cacheHits.isEmpty());
 		cacheHits.clear();
 
 		for (int j = 0; j < COOL_ENOUGH; j++) {
 			for (int i = 0; i < 1000; i++) {
-				final int formulaIndex = RANDOM.nextInt(inputFormulas.length / 2);
-				final CacheableFormula inputFormula = inputFormulas[formulaIndex];
-				final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, cacheAnteroom);
+				final int formulaIndex = RANDOM.nextInt(this.inputFormulas.length / 2);
+				final CacheableFormula inputFormula = this.inputFormulas[formulaIndex];
+				final Formula theFormula = FormulaCacheVisitor.analyse(evitaSession, SOME_ENTITY, inputFormula, this.cacheAnteroom);
 				assertEquals(inputFormula.compute(), theFormula.compute());
 				if (theFormula instanceof FlattenedFormula) {
 					cacheHits.merge(formulaIndex, 1, Integer::sum);
 				}
 			}
 
-			cacheAnteroom.evaluateAssociatesSynchronously();
+			this.cacheAnteroom.evaluateAssociatesSynchronously();
 
-			assertEquals(12, cacheEden.getCacheRecordCount());
+			assertEquals(12, this.cacheEden.getCacheRecordCount());
 			assertFalse(cacheHits.isEmpty());
 			cacheHits.clear();
 		}
 
-		cacheAnteroom.evaluateAssociatesSynchronously();
-		assertEquals(6, cacheEden.getCacheRecordCount());
-		assertTrue(cacheEden.getByteSizeUsedByCache() > 1200);
-		assertTrue(cacheEden.getByteSizeUsedByCache() < firstFullCacheSize);
+		this.cacheAnteroom.evaluateAssociatesSynchronously();
+		assertEquals(6, this.cacheEden.getCacheRecordCount());
+		assertTrue(this.cacheEden.getByteSizeUsedByCache() > 1200);
+		assertTrue(this.cacheEden.getByteSizeUsedByCache() < firstFullCacheSize);
 	}
 }

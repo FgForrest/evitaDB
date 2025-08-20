@@ -104,35 +104,35 @@ public class GrpcProvider implements ExternalApiProvider<GrpcOptions> {
 	@Nonnull
 	@Override
 	public HttpServiceDefinition[] getHttpServiceDefinitions() {
-		if (configuration.isExposeDocsService()) {
+		if (this.configuration.isExposeDocsService()) {
 			final DocService docService = DocService.builder()
 				.exclude(DocServiceFilter.ofServiceName("grpc.reflection.v1alpha.ServerReflection"))
 				.build();
 
 			return new HttpServiceDefinition[]{
-				new HttpServiceDefinition(apiHandler, PathHandlingMode.FIXED_PATH_HANDLING),
+				new HttpServiceDefinition(this.apiHandler, PathHandlingMode.FIXED_PATH_HANDLING),
 				new HttpServiceDefinition("grpc/doc", docService, PathHandlingMode.FIXED_PATH_HANDLING)
 			};
 		} else {
 			return new HttpServiceDefinition[]{
-				new HttpServiceDefinition(apiHandler, PathHandlingMode.FIXED_PATH_HANDLING)
+				new HttpServiceDefinition(this.apiHandler, PathHandlingMode.FIXED_PATH_HANDLING)
 			};
 		}
 	}
 
 	@Override
 	public boolean isReady() {
-		if (reachableUrl != null) {
-			if (checkReachable(reachableUrl)) {
+		if (this.reachableUrl != null) {
+			if (checkReachable(this.reachableUrl)) {
 				return true;
 			}
 		}
 
 		for (HostDefinition hostDefinition : this.configuration.getHost()) {
-			final String uriScheme = configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
+			final String uriScheme = this.configuration.getTlsMode() != TlsMode.FORCE_NO_TLS ? "https" : "http";
 
 			final String uri = uriScheme + "://" + hostDefinition.hostAddressWithPort() + "/";
-			if (!uri.equals(reachableUrl) && checkReachable(uri)) {
+			if (!uri.equals(this.reachableUrl) && checkReachable(uri)) {
 				return true;
 			}
 		}

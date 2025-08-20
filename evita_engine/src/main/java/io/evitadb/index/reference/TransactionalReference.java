@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,14 +56,14 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final AtomicReference<T> value;
 
-	public TransactionalReference(T value) {
+	public TransactionalReference(@Nullable T value) {
 		this.value = new AtomicReference<>(value);
 	}
 
 	/**
 	 * Sets the value to `value` in a transactional safe way (if transaction is available).
 	 */
-	public void set(T value) {
+	public void set(@Nullable T value) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.value.set(value);
@@ -78,7 +78,8 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	 *
 	 * @return the witness value, which will be the same as the expected value if successful
 	 */
-	public T compareAndExchange(T currentValue, T newValue) {
+	@Nullable
+	public T compareAndExchange(@Nullable T currentValue, @Nullable T newValue) {
 		final ReferenceChanges<T> layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.value.compareAndExchange(currentValue, newValue);
@@ -90,6 +91,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 	/**
 	 * returns the current value in a transactional safe way (if transaction is available).
 	 */
+	@Nullable
 	public T get() {
 		final ReferenceChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
@@ -105,13 +107,13 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 
 	@Override
 	public ReferenceChanges<T> createLayer() {
-		return new ReferenceChanges<>(value.get());
+		return new ReferenceChanges<>(this.value.get());
 	}
 
 	@Nonnull
 	@Override
 	public Optional<T> createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return layer == null ? Optional.ofNullable(value.get()) : Optional.ofNullable(layer.get());
+		return layer == null ? Optional.ofNullable(this.value.get()) : Optional.ofNullable(layer.get());
 	}
 
 	@Override

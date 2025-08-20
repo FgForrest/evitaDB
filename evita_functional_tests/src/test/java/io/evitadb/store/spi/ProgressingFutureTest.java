@@ -23,7 +23,7 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.core.async.ProgressingFuture;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -41,8 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.IntConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -92,12 +91,11 @@ class ProgressingFutureTest {
 	@Test
 	@DisplayName("Should create and complete simple ProgressingFuture without progress consumer")
 	void shouldCreateSimpleProgressingFutureWithoutProgressConsumer() throws ExecutionException, InterruptedException, TimeoutException {
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			10,
-			null,
-			() -> "test result",
-			this.executor
+			theFuture -> "test result"
 		);
+		future.execute(this.executor);
 
 		assertEquals(11, future.getTotalSteps());
 		assertEquals("test result", future.get(1, TimeUnit.SECONDS));
@@ -111,12 +109,13 @@ class ProgressingFutureTest {
 	@DisplayName("Should create and complete simple ProgressingFuture with progress consumer")
 	void shouldCreateSimpleProgressingFutureWithProgressConsumer() throws ExecutionException, InterruptedException, TimeoutException {
 		final List<String> progressUpdates = new ArrayList<>();
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			10,
-			(stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps),
-			() -> "test result",
-			this.executor
+			theFuture -> "test result"
 		);
+
+		future.setProgressConsumer((stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps));
+		future.execute(this.executor);
 
 		assertEquals(11, future.getTotalSteps());
 		assertEquals("test result", future.get(1, TimeUnit.SECONDS));
@@ -137,12 +136,11 @@ class ProgressingFutureTest {
 		final List<String> progressUpdates = new ArrayList<>();
 		final CountDownLatch taskStartedLatch = new CountDownLatch(1);
 		final CountDownLatch progressUpdatesLatch = new CountDownLatch(1);
-		final AtomicReference<ProgressingFuture<String, Void>> futureRef = new AtomicReference<>();
+		final AtomicReference<ProgressingFuture<String>> futureRef = new AtomicReference<>();
 
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			5,
-			(stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps),
-			() -> {
+			theFuture -> {
 				// Signal that the task has started
 				taskStartedLatch.countDown();
 				try {
@@ -151,16 +149,20 @@ class ProgressingFutureTest {
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
 				}
-				final ProgressingFuture<String, Void> currentFuture = futureRef.get();
+				final ProgressingFuture<String> currentFuture = futureRef.get();
 				if (currentFuture != null) {
 					currentFuture.updateProgress(1);
 					currentFuture.updateProgress(3);
 					currentFuture.updateProgress(5);
 				}
 				return "completed";
-			},
-			this.executor
+			}
 		);
+
+		future.setProgressConsumer(
+			(stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps)
+		);
+		future.execute(this.executor);
 
 		// Wait for task to start, then set the reference and signal to proceed
 		assertTrue(taskStartedLatch.await(1, TimeUnit.SECONDS), "Task should start within 1 second");
@@ -184,31 +186,26 @@ class ProgressingFutureTest {
 	@Test
 	@DisplayName("Should create and compose nested ProgressingFutures")
 	void shouldCreateNestedProgressingFuture() throws ExecutionException, InterruptedException, TimeoutException {
-		final Collection<Function<IntConsumer, ProgressingFuture<String, ?>>> nestedFactories = Arrays.asList(
-			progressConsumer -> new ProgressingFuture<>(
+		final Collection<ProgressingFuture<String>> nestedFutures = Arrays.asList(
+			new ProgressingFuture<>(
 				5,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> "result1",
-				this.executor
+				theFuture -> "result1"
 			),
-			progressConsumer -> new ProgressingFuture<>(
+			new ProgressingFuture<>(
 				3,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> "result2",
-				this.executor
+				theFuture -> "result2"
 			)
 		);
 
-		final BiFunction<ProgressingFuture<List<String>, String>, Collection<String>, List<String>> resultMapper =
+		final BiFunction<ProgressingFuture<List<String>>, Collection<String>, List<String>> resultMapper =
 			(progress, results) -> new ArrayList<>(results);
 
-		final ProgressingFuture<List<String>, String> future = new ProgressingFuture<>(
+		final ProgressingFuture<List<String>> future = new ProgressingFuture<>(
 			2, // additional steps for this level
-			null, // No progress consumer to avoid timing issues
-			nestedFactories,
-			resultMapper,
-			this.executor
+			nestedFutures,
+			resultMapper
 		);
+		future.execute(this.executor);
 
 		assertEquals(13, future.getTotalSteps()); // 2 + 1 + 5 + 1 + 3 + 1
 		final List<String> result = future.get(2, TimeUnit.SECONDS);
@@ -229,28 +226,26 @@ class ProgressingFutureTest {
 	@Test
 	@DisplayName("Should aggregate progress from multiple nested ProgressingFutures")
 	void shouldAggregateProgressFromNestedFutures() throws ExecutionException, InterruptedException, TimeoutException {
-		final Collection<Function<IntConsumer, ProgressingFuture<String, ?>>> nestedFactories = Arrays.asList(
-			progressConsumer -> new ProgressingFuture<>(
+		final Collection<ProgressingFuture<String>> nestedFactories = Arrays.asList(
+			new ProgressingFuture<>(
 				4,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> "nested1",
-				this.executor
+				theFuture -> "nested1"
 			),
-			progressConsumer -> new ProgressingFuture<>(
+			new ProgressingFuture<>(
 				6,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> "nested2",
-				this.executor
+				theFuture -> "nested2"
 			)
 		);
 
-		final ProgressingFuture<List<String>, String> future = new ProgressingFuture<>(
+		final BiFunction<ProgressingFuture<List<String>>, Collection<String>, List<String>> resultMapper =
+			(progress, results) -> new ArrayList<>(results);
+
+		final ProgressingFuture<List<String>> future = new ProgressingFuture<>(
 			0, // no additional steps
-			null, // No progress consumer to avoid timing issues
 			nestedFactories,
-			(progress, results) -> new ArrayList<>(results),
-			this.executor
+			resultMapper
 		);
+		future.execute(this.executor);
 
 		assertEquals(13, future.getTotalSteps()); // 0 + 1 + 4 + 1 + 6 + 1
 		final List<String> result = future.get(2, TimeUnit.SECONDS);
@@ -272,14 +267,13 @@ class ProgressingFutureTest {
 	@DisplayName("Should handle exceptions in simple ProgressingFuture execution")
 	void shouldHandleExceptionInSimpleFuture() {
 		final RuntimeException testException = new RuntimeException("Test exception");
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			5,
-			null,
-			() -> {
+			theFuture -> {
 				throw testException;
-			},
-			this.executor
+			}
 		);
+		future.execute(this.executor);
 
 		final ExecutionException exception = assertThrows(
 			ExecutionException.class,
@@ -298,24 +292,22 @@ class ProgressingFutureTest {
 	void shouldHandleExceptionInNestedFuture() {
 		final RuntimeException testException = new RuntimeException("Nested exception");
 
-		final Collection<Function<IntConsumer, ProgressingFuture<String, ?>>> nestedFactories = Arrays.asList(
-			progressConsumer -> new ProgressingFuture<>(
+		final Collection<ProgressingFuture<String>> nestedFutures = List.of(
+			new ProgressingFuture<>(
 				3,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> {
+				theFuture -> {
 					throw testException;
-				},
-				this.executor
+				}
 			)
 		);
 
-		final ProgressingFuture<List<String>, String> future = new ProgressingFuture<>(
+		final ProgressingFuture<List<String>> future = new ProgressingFuture<>(
 			2,
-			null,
-			nestedFactories,
-			(progress, results) -> new ArrayList<>(results),
-			this.executor
+			nestedFutures,
+			(progress, results) -> new ArrayList<>(results)
 		);
+
+		future.execute(this.executor);
 
 		final ExecutionException exception = assertThrows(
 			ExecutionException.class,
@@ -335,17 +327,17 @@ class ProgressingFutureTest {
 		final List<String> progressUpdates = new ArrayList<>();
 		final RuntimeException testException = new RuntimeException("Test exception");
 
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			5,
-			(stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps),
-			() -> {
+			theFuture -> {
 				throw testException;
-			},
-			this.executor
+			}
 		);
+		future.setProgressConsumer((stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps));
+		future.execute(this.executor);
 
 		try {
-			future.get(1, TimeUnit.SECONDS);
+			future.get(100, TimeUnit.SECONDS);
 		} catch (ExecutionException | TimeoutException e) {
 			// Expected
 		}
@@ -361,16 +353,15 @@ class ProgressingFutureTest {
 	@Test
 	@DisplayName("Should handle empty nested futures collection gracefully")
 	void shouldHandleEmptyNestedFuturesCollection() throws ExecutionException, InterruptedException, TimeoutException {
-		final ProgressingFuture<List<String>, String> future = new ProgressingFuture<>(
+		final ProgressingFuture<Collection<Object>> future = new ProgressingFuture<>(
 			5,
-			null,
-			new ArrayList<>(), // empty collection
-			(progress, results) -> new ArrayList<>(results),
-			this.executor
+			Collections.emptyList(), // empty collection
+			(progress, results) -> results
 		);
+		future.execute(this.executor);
 
 		assertEquals(6, future.getTotalSteps());
-		final List<String> result = future.get(1, TimeUnit.SECONDS);
+		final Collection<Object> result = future.get(1, TimeUnit.SECONDS);
 		assertTrue(result.isEmpty());
 	}
 
@@ -381,12 +372,11 @@ class ProgressingFutureTest {
 	@Test
 	@DisplayName("Should handle null progress consumer without errors")
 	void shouldHandleNullProgressConsumer() throws ExecutionException, InterruptedException, TimeoutException {
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			10,
-			null, // null progress consumer
-			() -> "result",
-			this.executor
+			theFuture -> "result"
 		);
+		future.execute(this.executor);
 
 		// Should not throw exception and should complete normally
 		assertEquals("result", future.get(1, TimeUnit.SECONDS));
@@ -402,34 +392,27 @@ class ProgressingFutureTest {
 	@Test
 	@DisplayName("Should update progress correctly with multiple nested futures")
 	void shouldUpdateProgressCorrectlyWithMultipleNestedFutures() throws ExecutionException, InterruptedException, TimeoutException {
-		final Collection<Function<IntConsumer, ProgressingFuture<Integer, ?>>> nestedFactories = Arrays.asList(
-			progressConsumer -> new ProgressingFuture<>(
+		final Collection<ProgressingFuture<Integer>> nestedFutures = Arrays.asList(
+			new ProgressingFuture<>(
 				10,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> 1,
-				this.executor
+				theFuture -> 1
 			),
-			progressConsumer -> new ProgressingFuture<>(
+			new ProgressingFuture<>(
 				20,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> 2,
-				this.executor
+				theFuture -> 2
 			),
-			progressConsumer -> new ProgressingFuture<>(
+			new ProgressingFuture<>(
 				30,
-				(stepsDone, totalSteps) -> progressConsumer.accept(stepsDone),
-				() -> 3,
-				this.executor
+				theFuture -> 3
 			)
 		);
 
-		final ProgressingFuture<Integer, Integer> future = new ProgressingFuture<>(
+		final ProgressingFuture<Integer> future = new ProgressingFuture<>(
 			5, // additional steps
-			null, // No progress consumer to avoid timing issues
-			nestedFactories,
-			(progress, results) -> results.stream().mapToInt(Integer::intValue).sum(),
-			this.executor
+			nestedFutures,
+			(progress, results) -> results.stream().mapToInt(Integer::intValue).sum()
 		);
+		future.execute(this.executor);
 
 		assertEquals(69, future.getTotalSteps()); // 5 + 1 + 10 + 1 + 20 + 1 + 30 + 1
 		assertEquals(6, future.get(3, TimeUnit.SECONDS)); // 1 + 2 + 3
@@ -450,10 +433,9 @@ class ProgressingFutureTest {
 		final CountDownLatch taskStartedLatch = new CountDownLatch(1);
 		final CountDownLatch completionLatch = new CountDownLatch(1);
 
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			10,
-			(stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps),
-			() -> {
+			theFuture -> {
 				// Signal that the task has started
 				taskStartedLatch.countDown();
 				try {
@@ -463,9 +445,11 @@ class ProgressingFutureTest {
 					Thread.currentThread().interrupt();
 				}
 				return "never";
-			},
-			this.executor
+			}
 		);
+
+		future.setProgressConsumer((stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps));
+		future.execute(this.executor);
 
 		// Wait for the task to start before manually completing
 		assertTrue(taskStartedLatch.await(1, TimeUnit.SECONDS), "Task should start within 1 second");
@@ -489,10 +473,9 @@ class ProgressingFutureTest {
 		final CountDownLatch taskStartedLatch = new CountDownLatch(1);
 		final CountDownLatch completionLatch = new CountDownLatch(1);
 
-		final ProgressingFuture<String, Void> future = new ProgressingFuture<>(
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
 			10,
-			(stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps),
-			() -> {
+			theFuture -> {
 				// Signal that the task has started
 				taskStartedLatch.countDown();
 				try {
@@ -502,9 +485,11 @@ class ProgressingFutureTest {
 					Thread.currentThread().interrupt();
 				}
 				return "never";
-			},
-			this.executor
+			}
 		);
+
+		future.setProgressConsumer((stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps));
+		future.execute(this.executor);
 
 		// Wait for the task to start before manually completing exceptionally
 		assertTrue(taskStartedLatch.await(1, TimeUnit.SECONDS), "Task should start within 1 second");
@@ -519,5 +504,322 @@ class ProgressingFutureTest {
 
 		assertEquals(testException, exception.getCause());
 		assertTrue(progressUpdates.contains("11/11"));
+	}
+
+	/**
+	 * Verifies that the new constructor with initializer works correctly in the success path
+	 * and that the onFailure handler is not called when everything succeeds.
+	 */
+	@Test
+	@DisplayName("Should execute successfully with initializer constructor")
+	void shouldExecuteSuccessfullyWithInitializerConstructor() throws ExecutionException, InterruptedException, TimeoutException {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final List<String> progressUpdates = new ArrayList<>();
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> "initial data", // initializer
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> "nested1"),
+				new ProgressingFuture<>(4, f -> "nested2")
+			),
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				initResult + ":" + nestedResults.stream().map(Object::toString).reduce((a, b) -> a + "," + b).orElse(""),
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.setProgressConsumer((stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps));
+		future.execute(this.executor);
+
+		final String result = future.get(2, TimeUnit.SECONDS);
+		assertEquals("initial data:nested1,nested2", result);
+		assertTrue(onFailureCalls.isEmpty(), "onFailure should not be called on success");
+		assertTrue(progressUpdates.contains("12/12")); // 2 + 1 + 3 + 1 + 4 + 1 = 12
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called when the initializer throws an exception.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler when initializer throws exception")
+	void shouldCallOnFailureWhenInitializerThrowsException() {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final RuntimeException testException = new RuntimeException("Initializer failed");
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> { // initializer that throws
+				throw testException;
+			},
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> "nested1")
+			),
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				"should not reach here",
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.execute(this.executor);
+
+		final ExecutionException exception = assertThrows(
+			ExecutionException.class,
+			() -> future.get(1, TimeUnit.SECONDS)
+		);
+
+		assertEquals(testException, exception.getCause());
+		assertEquals(1, onFailureCalls.size());
+		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.get(0));
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called when the nestedFutureFactory throws an exception.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler when nestedFutureFactory throws exception")
+	void shouldCallOnFailureWhenNestedFutureFactoryThrowsException() {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final RuntimeException testException = new RuntimeException("NestedFutureFactory failed");
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> "initial data", // initializer
+			initResult -> { // nestedFutureFactory that throws
+				throw testException;
+			},
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				"should not reach here",
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.execute(this.executor);
+
+		final ExecutionException exception = assertThrows(
+			ExecutionException.class,
+			() -> future.get(1, TimeUnit.SECONDS)
+		);
+
+		assertEquals(testException, exception.getCause());
+		assertEquals(1, onFailureCalls.size());
+		assertEquals("Failed with init: null, error: NestedFutureFactory failed", onFailureCalls.get(0));
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called when one of the nested futures fails.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler when nested future fails")
+	void shouldCallOnFailureWhenNestedFutureFails() {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final RuntimeException testException = new RuntimeException("Nested future failed");
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> "initial data", // initializer
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> "nested1"),
+				new ProgressingFuture<>(4, f -> {
+					throw testException;
+				})
+			),
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				"should not reach here",
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.execute(this.executor);
+
+		final ExecutionException exception = assertThrows(
+			ExecutionException.class,
+			() -> future.get(2, TimeUnit.SECONDS)
+		);
+
+		assertEquals(testException, exception.getCause());
+		assertEquals(1, onFailureCalls.size());
+		assertEquals("Failed with init: initial data, error: java.lang.RuntimeException: Nested future failed", onFailureCalls.get(0));
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called when the resultMapper throws an exception.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler when resultMapper throws exception")
+	void shouldCallOnFailureWhenResultMapperThrowsException() {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final RuntimeException testException = new RuntimeException("ResultMapper failed");
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> "initial data", // initializer
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> "nested1"),
+				new ProgressingFuture<>(4, f -> "nested2")
+			),
+			(progressFuture, initResult, nestedResults) -> { // resultMapper that throws
+				throw testException;
+			},
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.execute(this.executor);
+
+		final ExecutionException exception = assertThrows(
+			ExecutionException.class,
+			() -> future.get(2, TimeUnit.SECONDS)
+		);
+
+		assertEquals(testException, exception.getCause());
+		assertEquals(1, onFailureCalls.size());
+		assertEquals("Failed with init: initial data, error: java.lang.RuntimeException: ResultMapper failed", onFailureCalls.get(0));
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called when the future is manually completed exceptionally.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler when manually completed exceptionally")
+	void shouldCallOnFailureWhenManuallyCompletedExceptionally() throws InterruptedException {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final RuntimeException testException = new RuntimeException("Manual exception");
+		final CountDownLatch taskStartedLatch = new CountDownLatch(1);
+		final CountDownLatch completionLatch = new CountDownLatch(1);
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> "initial data", // initializer
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> {
+					taskStartedLatch.countDown();
+					try {
+						completionLatch.await();
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+					return "nested1";
+				})
+			),
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				"should not reach here",
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.execute(this.executor);
+
+		// Wait for nested future to start
+		assertTrue(taskStartedLatch.await(1, TimeUnit.SECONDS), "Nested task should start within 1 second");
+
+		// Manually complete exceptionally
+		future.completeExceptionally(testException);
+
+		final ExecutionException exception = assertThrows(
+			ExecutionException.class,
+			() -> future.get(100, TimeUnit.MILLISECONDS)
+		);
+
+		// When manually completing exceptionally while nested futures are running,
+		// the nested futures get cancelled, which can result in CancellationException
+		assertTrue(
+			exception.getCause() instanceof java.util.concurrent.CancellationException ||
+			exception.getCause() == testException,
+			"Exception cause should be CancellationException or the original exception"
+		);
+		// onFailure might be called multiple times when manually completing exceptionally
+		// while nested futures are running (once for manual completion, once for nested future cancellation)
+		assertTrue(onFailureCalls.size() >= 1, "onFailure should be called at least once");
+		assertTrue(
+			onFailureCalls.stream().anyMatch(call -> call.contains("Manual exception")),
+			"At least one onFailure call should contain the manual exception"
+		);
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called with correct parameters when multiple nested futures fail.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler when multiple nested futures fail")
+	void shouldCallOnFailureWhenMultipleNestedFuturesFail() {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final RuntimeException testException1 = new RuntimeException("First nested future failed");
+		final RuntimeException testException2 = new RuntimeException("Second nested future failed");
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			2, // actionSteps
+			() -> "initial data", // initializer
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> {
+					throw testException1;
+				}),
+				new ProgressingFuture<>(4, f -> {
+					throw testException2;
+				})
+			),
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				"should not reach here",
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.execute(this.executor);
+
+		final ExecutionException exception = assertThrows(
+			ExecutionException.class,
+			() -> future.get(2, TimeUnit.SECONDS)
+		);
+
+		// One of the exceptions should be the cause (CompletableFuture.allOf behavior)
+		assertTrue(
+			exception.getCause() == testException1 || exception.getCause() == testException2,
+			"Exception cause should be one of the nested future exceptions"
+		);
+		assertEquals(1, onFailureCalls.size());
+		assertTrue(
+			onFailureCalls.get(0).contains("initial data"),
+			"onFailure should be called with correct init result"
+		);
+	}
+
+	/**
+	 * Verifies that the onFailure handler is called with null initResult when initializer fails
+	 * and that progress is still updated to 100% on failure.
+	 */
+	@Test
+	@DisplayName("Should call onFailure handler with null initResult when initializer fails and update progress")
+	void shouldCallOnFailureWithNullInitResultWhenInitializerFailsAndUpdateProgress() throws InterruptedException {
+		final List<String> onFailureCalls = new ArrayList<>();
+		final List<String> progressUpdates = new ArrayList<>();
+		final RuntimeException testException = new RuntimeException("Initializer failed");
+
+		final ProgressingFuture<String> future = new ProgressingFuture<>(
+			5, // actionSteps
+			() -> { // initializer that throws
+				throw testException;
+			},
+			initResult -> List.of( // nestedFutureFactory
+				new ProgressingFuture<>(3, f -> "nested1")
+			),
+			(progressFuture, initResult, nestedResults) -> // resultMapper
+				"should not reach here",
+			(initResult, throwable) -> // onFailure
+				onFailureCalls.add("Failed with init: " + initResult + ", error: " + throwable.getMessage())
+		);
+
+		future.setProgressConsumer((stepsDone, totalSteps) -> progressUpdates.add(stepsDone + "/" + totalSteps));
+		future.execute(this.executor);
+
+		try {
+			future.get(1, TimeUnit.SECONDS);
+		} catch (ExecutionException | TimeoutException e) {
+			// Expected
+		}
+
+		assertEquals(1, onFailureCalls.size());
+		assertEquals("Failed with init: null, error: Initializer failed", onFailureCalls.get(0));
+		// Progress should be updated to completion even on failure
+		assertTrue(progressUpdates.contains("6/6")); // 5 + 1 = 6
 	}
 }

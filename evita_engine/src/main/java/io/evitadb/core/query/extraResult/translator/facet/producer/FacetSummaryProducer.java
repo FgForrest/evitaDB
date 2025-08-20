@@ -857,7 +857,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 */
 	@Data
 	private static class FacetAccumulator {
-		private static final Formula[] EMPTY_INT_FORMULA = new Formula[0];
+		private static final Formula[] EMPTY_INT_FORMULA = Formula.EMPTY_FORMULA_ARRAY;
 		private static final Bitmap[] EMPTY_BITMAP = new Bitmap[0];
 		/**
 		 * Contains {@link ReferenceSchema}.

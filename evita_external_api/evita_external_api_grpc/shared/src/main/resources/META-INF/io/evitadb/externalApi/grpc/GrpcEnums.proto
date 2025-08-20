@@ -23,6 +23,25 @@ enum GrpcCatalogState {
   ALIVE = 1;
   // State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
   CORRUPTED = 3;
+  // State signalizing that evitaDB engine didn't load this catalog from the file system, but is present in
+  // the persistence storage. Catalog might be loaded into memory later on demand and start to process requests.
+  INACTIVE = 4;
+  // State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
+  // Until the transition is fully completed, the catalog is not able to serve any requests.
+  GOING_ALIVE = 5;
+  // State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
+  // initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
+  // completed.
+  BEING_ACTIVATED = 6;
+  // State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
+  // is moved to {@link #INACTIVE} state.
+  BEING_DEACTIVATED = 7;
+  // State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
+  // until the creation is fully completed.
+  BEING_CREATED = 8;
+  // State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
+  // is removed from the file system and is no longer available.
+  BEING_DELETED = 9;
   // Unknown state of the catalog. Used when catalog is corrupted.
   UNKNOWN_CATALOG_STATE = 2;
 }
@@ -247,11 +266,11 @@ enum GrpcCatalogEvolutionMode {
 // Defines the type of the attribute schema
 enum GrpcAttributeSchemaType {
   // attribute schema is GlobalAttributeSchemaContract
-  GLOBAL = 0;
+  GLOBAL_SCHEMA = 0;
   // attribute schema is EntityAttributeSchemaContract
-  ENTITY = 1;
+  ENTITY_SCHEMA = 1;
   // attribute schema is AttributeSchemaContract
-  REFERENCE = 2;
+  REFERENCE_SCHEMA = 2;
 }
 
 // This enum contains all supported types in evitaDB query context.
