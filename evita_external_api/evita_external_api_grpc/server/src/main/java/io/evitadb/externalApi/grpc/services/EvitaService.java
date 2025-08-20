@@ -1171,7 +1171,6 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 
 		public ApplyMutationProgressConsumer(StreamObserver<GrpcApplyMutationWithProgressResponse> responseObserver) {
 			this.responseObserver = responseObserver;
-			this.lastUpdate = System.currentTimeMillis();
 		}
 
 		@Override
