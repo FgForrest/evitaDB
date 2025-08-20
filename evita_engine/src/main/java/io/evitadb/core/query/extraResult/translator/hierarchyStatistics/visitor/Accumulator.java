@@ -143,6 +143,8 @@ public class Accumulator {
 			this.children.add(childNode);
 		}
 		this.queriedEntitiesFormula = null;
+		// we can init hasQueriedEntity if registered children have queried entities
+		this.hasQueriedEntity = this.hasQueriedEntity || childNode.hasQueriedEntity;
 	}
 
 	/**
@@ -270,15 +272,19 @@ public class Accumulator {
 			if (!getDirectlyQueriedEntitiesFormula().compute().isEmpty()) {
 				this.hasQueriedEntity = true;
 			}
-			for (Accumulator child : this.children) {
-				if (child.hasQueriedEntity()) {
-					this.hasQueriedEntity = true;
+			if (!this.hasQueriedEntity) {
+				for (Accumulator child : this.children) {
+					if (child.hasQueriedEntity()) {
+						this.hasQueriedEntity = true;
+						break;
+					}
 				}
 			}
-			if (this.omittedQueuedEntities != null) {
+			if (!this.hasQueriedEntity && this.omittedQueuedEntities != null) {
 				for (Formula omittedQueuedEntity : this.omittedQueuedEntities) {
 					if (!omittedQueuedEntity.compute().isEmpty()) {
 						this.hasQueriedEntity = true;
+						break;
 					}
 				}
 			}

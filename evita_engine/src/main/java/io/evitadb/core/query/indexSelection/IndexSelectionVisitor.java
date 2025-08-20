@@ -47,6 +47,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.CatalogIndex;
@@ -66,9 +67,12 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This visitor examines {@link Query#getFilterBy()} query and tries to construct multiple {@link TargetIndexes}
@@ -84,6 +88,7 @@ import java.util.stream.Collectors;
 public class IndexSelectionVisitor implements ConstraintVisitor {
 	private final QueryPlanningContext queryContext;
 	@Getter private final List<TargetIndexes<? extends Index<?>>> targetIndexes = new LinkedList<>();
+	private final int mainIndexCardinality;
 	private FilterByVisitor filterByVisitor;
 
 	public IndexSelectionVisitor(@Nonnull QueryPlanningContext queryContext) {
@@ -104,6 +109,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					indexes
 				)
 			);
+			this.mainIndexCardinality = indexes
+				.stream()
+				.map(GlobalEntityIndex::getAllPrimaryKeys)
+				.mapToInt(Bitmap::size)
+				.sum();
 		} else {
 			final List<CatalogIndex> indexes = Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
@@ -121,6 +131,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					)
 				);
 			}
+			this.mainIndexCardinality = Integer.MIN_VALUE;
 		}
 	}
 
@@ -198,6 +209,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					// locate all hierarchy indexes
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
 					final List<ReducedEntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
+					final AtomicInteger cardinalityCounter = new AtomicInteger(0);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {
 							this.queryContext.getIndex(
@@ -208,7 +220,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 									)
 								)
 								.map(ReducedEntityIndex.class::cast)
-								.ifPresent(theTargetIndexes::add);
+								.ifPresent(ix -> {
+									theTargetIndexes.add(ix);
+									cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
+								});
 						}
 					}
 					// add indexes as potential target indexes
@@ -219,9 +234,12 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							constraint,
 							ReducedEntityIndex.class,
 							theTargetIndexes,
-							// this is true only if all indexes are for filtering and partitioning
-							scopes.stream()
-								.allMatch(scope -> referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+							Stream.of(
+									allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
+									cardinalityCounter.get() <= this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
+								)
+								.filter(Objects::nonNull)
+								.toArray(EligibilityObstacle[]::new)
 						)
 					);
 				}
@@ -254,12 +272,29 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					constraint,
 					ReducedEntityIndex.class,
 					theTargetIndexes,
-					// this is true only if all indexes are for filtering and partitioning
-					scopes.stream()
-						.allMatch(scope -> referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
+					Stream.of(
+							allIndexesArePartitioned(scopes, referenceSchema) ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
+							theTargetIndexes.stream().map(ReducedEntityIndex::getAllPrimaryKeys).mapToInt(Bitmap::size).sum() <= this.mainIndexCardinality / 2 ? null : EligibilityObstacle.HIGH_CARDINALITY
+						)
+						.filter(Objects::nonNull)
+						.toArray(EligibilityObstacle[]::new)
 				)
 			);
 		}
+	}
+
+	/**
+	 * Checks if all indexes defined by the provided scopes are partitioned according to a specific reference index type
+	 * in the given reference schema.
+	 *
+	 * @param scopes a set of {@link Scope} objects representing the indexes to be checked
+	 * @param referenceSchema the {@link ReferenceSchemaContract} containing the reference index type information
+	 * @return {@code true} if all indexes within the given scopes are partitioned for filtering and partitioning,
+	 *         {@code false} otherwise
+	 */
+	private static boolean allIndexesArePartitioned(@Nonnull Set<Scope> scopes, @Nonnull ReferenceSchemaContract referenceSchema) {
+		return scopes.stream()
+			.allMatch(scope -> referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
 	}
 
 	/**

@@ -24,18 +24,17 @@
 package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
-import io.evitadb.index.ReducedEntityIndex;
 import lombok.Data;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -65,18 +64,16 @@ public class TargetIndexes<T extends Index<?>> {
 	 */
 	private final List<T> indexes;
 	/**
-	 * Flag indicating that the target index set contains all data necesary for consistent filtering and sorting
-	 * for currently processed query. This is true for global indexes and {@link ReducedEntityIndex} that relate
-	 * to reference schemas with {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 * The set of obstacles that prevent the index from being eligible for separate query plan.
 	 */
-	@Getter private final boolean eligibleForSeparateQueryPlan;
+	private final EnumSet<EligibilityObstacle> eligibilityObstacles;
 
 	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = null;
 		this.indexType = indexType;
 		this.indexes = indexes;
-		this.eligibleForSeparateQueryPlan = true;
+		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 	}
 
 	public TargetIndexes(
@@ -84,13 +81,14 @@ public class TargetIndexes<T extends Index<?>> {
 		@Nonnull FilterConstraint representedConstraint,
 		@Nonnull Class<T> indexType,
 		@Nonnull List<T> indexes,
-		boolean eligibleForSeparateQueryPlan
+		@Nonnull EligibilityObstacle... eligibilityObstacle
 	) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = representedConstraint;
 		this.indexType = indexType;
 		this.indexes = indexes;
-		this.eligibleForSeparateQueryPlan = eligibleForSeparateQueryPlan;
+		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
+		Collections.addAll(this.eligibilityObstacles, eligibilityObstacle);
 	}
 
 	/**
@@ -100,16 +98,43 @@ public class TargetIndexes<T extends Index<?>> {
 		return this.indexes.isEmpty();
 	}
 
+	/**
+	 * Returns whether this index set is eligible to be executed via a separate query plan.
+	 * Eligibility is determined solely by the absence of {@link EligibilityObstacle} records
+	 * for this instance (i.e., when {@code eligibilityObstacles} is empty).
+	 *
+	 * @return true if there are no eligibility obstacles; false otherwise
+	 */
+	public boolean isEligibleForSeparateQueryPlan() {
+		return this.eligibilityObstacles.isEmpty();
+	}
+
+	/**
+	 * Combines the names of all eligibility obstacles into a single, comma-separated string.
+	 *
+	 * @return a string representation of all eligibility obstacles, separated by commas
+	 */
+	@Nonnull
+	public String getEligibilityObstacleString() {
+		return this.eligibilityObstacles.stream().map(Enum::name).collect(Collectors.joining(", "));
+	}
+
 	@Override
 	public String toString() {
-		return "Index type: " + this.indexDescription + (this.eligibleForSeparateQueryPlan ? "" : " (not eligible for separate query plan)");
+		return "Index type: " + this.indexDescription +
+			(this.eligibilityObstacles.isEmpty() ? "" :
+				" (not eligible for separate query plan due to: " + getEligibilityObstacleString() + ")"
+			);
 	}
 
 	/**
 	 * Prints {@link #toString()} including estimated costs (that are computed and passed from outside).
 	 */
 	public String toStringWithCosts(long estimatedCost) {
-		return this + ", estimated costs " + estimatedCost + (this.eligibleForSeparateQueryPlan ? "" : " (not eligible for separate query plan)");
+		return this + ", estimated costs " + estimatedCost +
+			(this.eligibilityObstacles.isEmpty() ? "" :
+				" (not eligible for separate query plan due to: " + getEligibilityObstacleString() + ")"
+			);
 	}
 
 	/**
@@ -141,4 +166,28 @@ public class TargetIndexes<T extends Index<?>> {
 			.filter(requestedType::isInstance)
 			.map(requestedType::cast);
 	}
+
+	/**
+	 * The {@code EligibilityObstacle} enumeration represents specific obstacles that may determine
+	 * the ineligibility of a set of indexes to be utilized in certain queries or operations.
+	 *
+	 * This enumeration is generally used to denote conditions or factors that prevent
+	 * the execution of a query via a separate query plan or impact the performance
+	 * and feasibility of utilizing specific indexes in a database operation.
+	 */
+	public enum EligibilityObstacle {
+
+		/**
+		 * Indicates that the index is not partitioned by the reference schema definition. Such index doesn't contain
+		 * all necessary data to execute correct filtering / sorting operations.
+		 */
+		NOT_PARTITIONED_INDEX,
+		/**
+		 * Indicates that the index cardinality is too high to be worth considering. Because we need to collect all
+		 * the data from the indexes, we require that the sum of the index cardinalities is lesser than 50%.
+		 */
+		HIGH_CARDINALITY
+
+	}
+
 }

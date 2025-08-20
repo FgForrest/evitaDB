@@ -254,8 +254,8 @@ public class QueryPlanner {
 		queryContext.pushStep(QueryPhase.PLANNING_FILTER);
 		try {
 			for (TargetIndexes<T> targetIndex : targetIndexes) {
+				queryContext.pushStep(QueryPhase.PLANNING_FILTER_ALTERNATIVE);
 				if (targetIndex.isEligibleForSeparateQueryPlan()) {
-					queryContext.pushStep(QueryPhase.PLANNING_FILTER_ALTERNATIVE);
 					Formula adeptFormula = null;
 					try {
 						final FilterByVisitor filterByVisitor = new FilterByVisitor(
@@ -276,11 +276,13 @@ public class QueryPlanner {
 						}
 					} finally {
 						if (adeptFormula == null) {
-							queryContext.popStep();
+							queryContext.popStep(targetIndex.toString());
 						} else {
 							queryContext.popStep(targetIndex.toStringWithCosts(adeptFormula.getEstimatedCost()));
 						}
 					}
+				} else {
+					queryContext.popStep(targetIndex.toString());
 				}
 			}
 
