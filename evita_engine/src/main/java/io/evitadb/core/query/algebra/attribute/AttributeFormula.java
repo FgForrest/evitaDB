@@ -95,6 +95,8 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		if (innerFormulas.length == 0) {
+			// if there is no inner formula, we still need to maintain this formula, but fill it with empty formula
+			// child, so that it produces empty bitmap result when computed
 			return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, EmptyFormula.INSTANCE, this.requestedPredicate);
 		} else {
 			Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
