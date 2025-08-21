@@ -193,11 +193,13 @@ public class FormulaCloner implements FormulaVisitor {
 		return stack.pop();
 	}
 
-	/*
-		PRIVATE METHODS
+	/**
+	 * Stores the given formula in the resultClone field if the treeStack is empty,
+	 * otherwise adds the formula to the top element of the treeStack.
+	 *
+	 * @param formula the formula to be stored or added into the current tree structure, must not be null
 	 */
-
-	private void storeFormula(@Nonnull Formula formula) {
+	protected void storeFormula(@Nonnull Formula formula) {
 		// store updated formula
 		if (this.treeStack.isEmpty()) {
 			this.resultClone = formula;
