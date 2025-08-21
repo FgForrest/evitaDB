@@ -39,7 +39,7 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
-import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.EnginePersistenceService;
@@ -131,11 +131,6 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	private final OffHeapMemoryManager offHeapMemoryManager;
 
 	/**
-	 * Handle for writing WAL data to off-heap memory.
-	 */
-	private final WriteOnlyOffHeapHandle logWriteHandle;
-
-	/**
 	 * Path to the bootstrap file that contains the engine state.
 	 */
 	private final Path bootstrapFilePath;
@@ -191,13 +186,6 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		this.observableOutputKeeper = new ObservableOutputKeeper(
 			storageOptions,
 			scheduler
-		);
-
-		// Initialize handle for writing WAL data to off-heap memory
-		this.logWriteHandle = new WriteOnlyOffHeapHandle(
-			storageOptions,
-			this.observableOutputKeeper,
-			this.offHeapMemoryManager
 		);
 
 		// Try to acquire lock over storage directory to ensure exclusive access
@@ -350,12 +338,18 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			);
 		}
 
-		// Allocate off-heap memory for the mutation, it will be released automatically on buffer release
-		this.logWriteHandle.allocateOffHeapMemory();
+		// Initialize handle for writing WAL data to off-heap memory
+		try (
+			final WriteOnlyOffHeapWithFileBackupHandle logWriteHandle = new WriteOnlyOffHeapWithFileBackupHandle(
+				this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".tmp"),
+				this.storageOptions,
+				this.observableOutputKeeper,
+				this.offHeapMemoryManager
+			)
+		) {
 
-		try {
 			// Write the mutation to the WAL and get its size in bytes
-			final int mutationSizeInBytes = this.logWriteHandle.checkAndExecute(
+			final int mutationSizeInBytes = logWriteHandle.checkAndExecute(
 				"write mutation",
 				() -> {
 				},
@@ -390,14 +384,10 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				this.mutationLog.append(
 					transactionMutation,
 					// when reading is done, the off-heap memory will be released automatically
-					this.logWriteHandle.toReadOffHeapReference()
+					logWriteHandle.toReadOffHeapWithFileBackupReference()
 				),
 				transactionMutation
 			);
-		} catch (RuntimeException ex) {
-			this.logWriteHandle.releaseOffHeapMemory();
-			// propagate the exception to the caller
-			throw ex;
 		}
 	}
 
@@ -477,7 +467,6 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			this.closed = true;
 			// Close all resources quietly (without throwing exceptions)
 			IOUtils.closeQuietly(
-				this.logWriteHandle::close,
 				this.offHeapMemoryManager::close,
 				this.folderLock::close
 			);

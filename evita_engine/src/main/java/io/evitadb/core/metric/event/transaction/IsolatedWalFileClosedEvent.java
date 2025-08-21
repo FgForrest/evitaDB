@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,10 @@ import javax.annotation.Nonnull;
 @Label("Isolated WAL file closed")
 @ExportInvocationMetric(label = "Closed files for isolated WAL storage.")
 public class IsolatedWalFileClosedEvent extends AbstractTransactionEvent {
+
+	public IsolatedWalFileClosedEvent() {
+		super(null);
+	}
 
 	public IsolatedWalFileClosedEvent(@Nonnull String catalogName) {
 		super(catalogName);

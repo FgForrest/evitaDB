@@ -87,7 +87,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * CatalogOffHeapMemoryManager class is responsible for managing off-heap memory regions and providing
 	 * free regions to acquire OutputStreams for writing data.
 	 */
-	private final CatalogOffHeapMemoryManager offHeapMemoryManager;
+	private final OffHeapMemoryManager offHeapMemoryManager;
 	/**
 	 * OutputStream that is used to write data to the off-heap memory.
 	 */
@@ -127,7 +127,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		@Nonnull Path targetFile,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager
 	) {
 		this.targetFile = targetFile;
 		this.storageOptions = storageOptions;
@@ -263,8 +263,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			Assert.isPremiseValid(getTargetFile(this.targetFile).delete(), "Failed to delete temporary file `" + this.targetFile + "`!");
 
 			// emit the event
-			new IsolatedWalFileClosedEvent(
-				this.offHeapMemoryManager.getCatalogName()
+			(
+				this.offHeapMemoryManager instanceof  CatalogOffHeapMemoryManager cohmm ?
+					new IsolatedWalFileClosedEvent(cohmm.getCatalogName()) :
+					new IsolatedWalFileClosedEvent()
 			).commit();
 		}
 		this.fileOutput = null;
@@ -312,8 +314,10 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			// when we reach the end of the memory region
 			if (observableOutput.getOutputStream() instanceof OffHeapMemoryOutputStream offHeapMemoryOutputStream) {
 				// emit the event
-				new IsolatedWalFileOpenedEvent(
-					this.offHeapMemoryManager.getCatalogName()
+				(
+					this.offHeapMemoryManager instanceof  CatalogOffHeapMemoryManager cohmm ?
+					new IsolatedWalFileOpenedEvent(cohmm.getCatalogName()) :
+					new IsolatedWalFileOpenedEvent()
 				).commit();
 				// we need to offload current data to the disk
 				offloadMemoryToDisk(operation, offHeapMemoryOutputStream);
