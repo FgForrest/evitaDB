@@ -41,6 +41,7 @@ import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FormulaOptimizer;
 import io.evitadb.core.query.indexSelection.IndexSelectionResult;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -264,7 +265,12 @@ public class QueryPlanner {
 
 						final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
 						ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
-						adeptFormula = queryContext.analyse(filterByVisitor.getFormula(prefetchFormulaVisitor));
+						adeptFormula = queryContext.analyse(
+							filterByVisitor.getFormula(
+								new FormulaOptimizer(),
+								prefetchFormulaVisitor
+							)
+						);
 
 						final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
 							queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor

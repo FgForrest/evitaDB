@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
@@ -93,8 +94,12 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate);
+		if (innerFormulas.length == 0) {
+			return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, EmptyFormula.INSTANCE, this.requestedPredicate);
+		} else {
+			Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
+			return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate);
+		}
 	}
 
 	/**
