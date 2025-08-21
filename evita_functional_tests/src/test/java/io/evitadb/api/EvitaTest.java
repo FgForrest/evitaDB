@@ -1080,6 +1080,34 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that a catalog can be replaced while in warm-up mode.
 	 *
 	 * The test verifies that:
+	 * - An attempt to replace non-existing catalog with existing one passes
+	 * - The replacement catalog's data becomes available under the original catalog name
+	 * - The replaced catalog persists after Evita restart
+	 */
+	@Test
+	@DisplayName("Replace catalog in warm-up mode")
+	void shouldReplaceNonExistingCatalogInWarmUpMode() {
+		doReplaceNonExistingCatalog(CatalogState.WARMING_UP);
+	}
+
+	/**
+	 * Tests that a catalog can be replaced while in alive mode.
+	 *
+	 * The test verifies that:
+	 * - An attempt to replace non-existing catalog with existing one passes
+	 * - The replacement catalog's data becomes available under the original catalog name
+	 * - The replaced catalog persists after Evita restart
+	 */
+	@Test
+	@DisplayName("Replace catalog in warm-up mode")
+	void shouldReplaceNonExistingCatalogInTransactionalMode() {
+		doReplaceNonExistingCatalog(CatalogState.ALIVE);
+	}
+
+	/**
+	 * Tests that a catalog can be replaced while in warm-up mode.
+	 *
+	 * The test verifies that:
 	 * - A catalog in warm-up mode can be replaced with another catalog
 	 * - The replacement catalog's data becomes available under the original catalog name
 	 * - The temporary catalog name is no longer available
@@ -4596,6 +4624,103 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(4, session.getEntityCollectionSize(Entities.PRODUCT));
 
 				for (int i = 1; i <= 4; i++) {
+					assertNotNull(session.getEntity(Entities.PRODUCT, i));
+				}
+
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Helper method to test catalog replacement functionality.
+	 *
+	 * This method:
+	 * 1. Creates a test catalog with brand entities
+	 * 2. Creates a temporary catalog with product entities
+	 * 3. Replaces the original catalog with the temporary one
+	 * 4. Verifies the replacement was successful
+	 * 5. Restarts Evita to ensure persistence
+	 * 6. Verifies the replaced catalog is still accessible with correct data
+	 *
+	 * @param catalogState whether the catalog should be in ALIVE state or not before replacement
+	 */
+	private void doReplaceNonExistingCatalog(@Nonnull CatalogState catalogState) {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 1));
+			}
+		);
+
+		final String temporaryCatalogName = TEST_CATALOG + "_tmp";
+		final AtomicInteger versionBeforeRename = new AtomicInteger();
+		if (catalogState == CatalogState.ALIVE) {
+			this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					versionBeforeRename.set(session.getCatalogSchema().version());
+					session.goLiveAndClose();
+				}
+			);
+		} else {
+			this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					versionBeforeRename.set(session.getCatalogSchema().version());
+				}
+			);
+		}
+
+		this.evita.replaceCatalog(TEST_CATALOG, temporaryCatalogName);
+
+		assertTrue(this.evita.getCatalogNames().contains(temporaryCatalogName));
+		assertFalse(this.evita.getCatalogNames().contains(TEST_CATALOG));
+
+		this.evita.updateCatalog(
+			temporaryCatalogName,
+			session -> {
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 2));
+			}
+		);
+
+		this.evita.queryCatalog(
+			temporaryCatalogName,
+			session -> {
+				assertEquals(temporaryCatalogName, session.getCatalogSchema().getName());
+				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.BRAND));
+				assertEquals(2, session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().version());
+
+				for (int i = 1; i <= 2; i++) {
+					assertNotNull(session.getEntity(Entities.PRODUCT, i));
+				}
+
+				return null;
+			}
+		);
+
+		this.evita.close();
+
+		this.evita = new Evita(
+			getEvitaConfiguration()
+		);
+		this.evita.waitUntilFullyInitialized();
+
+		this.evita.updateCatalog(
+			temporaryCatalogName,
+			session -> {
+				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 3));
+			}
+		);
+
+		this.evita.queryCatalog(
+			temporaryCatalogName,
+			session -> {
+				assertEquals(temporaryCatalogName, session.getCatalogSchema().getName());
+				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.BRAND));
+				assertEquals(3, session.getEntityCollectionSize(Entities.PRODUCT));
+
+				for (int i = 1; i <= 3; i++) {
 					assertNotNull(session.getEntity(Entities.PRODUCT, i));
 				}
 

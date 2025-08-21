@@ -97,6 +97,11 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 	public static final ProgressingFuture<?>[] EMPTY_ARRAY = new ProgressingFuture[0];
 
 	/**
+	 * Field with internal future delegate.
+	 */
+	private CompletableFuture<T> futureDelegate;
+
+	/**
 	 * The total number of steps required to complete this future and all its nested futures.
 	 * This value is calculated as the sum of actionSteps and the total steps of all nested futures.
 	 */
@@ -245,7 +250,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 				nestedFuture.execute(executor);
 			}
 			//noinspection unchecked
-			CompletableFuture
+			this.futureDelegate = CompletableFuture
 				.allOf(this.nestedFutures)
 				.thenApply(
 					unused -> resultMapper.apply(
@@ -316,7 +321,7 @@ public class ProgressingFuture<T> extends CompletableFuture<T> {
 				nestedFuture.execute(executor);
 			}
 			//noinspection unchecked
-			CompletableFuture
+			this.futureDelegate = CompletableFuture
 				.allOf(this.nestedFutures)
 				.thenApply(
 					unused -> resultMapper.apply(

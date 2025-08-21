@@ -185,7 +185,7 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public ProgressingFuture<CatalogContract> replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
+	public ProgressingFuture<CatalogContract> replace(@Nonnull CatalogSchemaContract updatedSchema, @Nullable CatalogContract catalogToBeReplaced) {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 

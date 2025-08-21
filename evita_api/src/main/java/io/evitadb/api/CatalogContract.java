@@ -248,7 +248,7 @@ public interface CatalogContract {
 	@Nonnull
 	ProgressingFuture<CatalogContract> replace(
 		@Nonnull CatalogSchemaContract updatedSchema,
-		@Nonnull CatalogContract catalogToBeReplaced
+		@Nullable CatalogContract catalogToBeReplaced
 	);
 
 	/**

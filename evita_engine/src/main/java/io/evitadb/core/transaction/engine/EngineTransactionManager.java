@@ -222,6 +222,10 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver
 	) {
+		// on completion remove the mutation conflicting keys from the processed mutations
+		final Runnable onFinalize = () -> engineMutation.getConflictKeys()
+		                                                .forEach(this.processedEngineMutations::remove);
+
 		try {
 			if (this.engineStateLock.tryLock(this.engineMutationWaitIntervalInMillis, TimeUnit.MILLISECONDS)) {
 				final UUID transactionId = UUIDUtil.randomUUID();
@@ -232,7 +236,8 @@ public class EngineTransactionManager implements Closeable {
 					// verify that we can perform the mutation
 					engineMutation.verifyApplicability(this.evita);
 					// append the mutation to the WAL
-					engineMutation.getConflictKeys().forEach(key -> this.processedEngineMutations.put(key, transactionId));
+					engineMutation.getConflictKeys().forEach(
+						key -> this.processedEngineMutations.put(key, transactionId));
 				} finally {
 					this.engineStateLock.unlock();
 				}
@@ -241,8 +246,7 @@ public class EngineTransactionManager implements Closeable {
 					transactionId,
 					engineMutation,
 					progressObserver,
-					// on completion remove the mutation conflicting keys from the processed mutations
-					() -> engineMutation.getConflictKeys().forEach(this.processedEngineMutations::remove)
+					onFinalize
 				);
 
 			} else {
@@ -251,6 +255,10 @@ public class EngineTransactionManager implements Closeable {
 						"Please increase `evitaDB.server.transactionTimeoutInMilliseconds` setting."
 				);
 			}
+		} catch (RuntimeException e) {
+			// when exception is thrown, cleanup the processed mutations
+			onFinalize.run();
+			throw e;
 		} catch (InterruptedException e) {
 			// do nothing
 			Thread.currentThread().interrupt();

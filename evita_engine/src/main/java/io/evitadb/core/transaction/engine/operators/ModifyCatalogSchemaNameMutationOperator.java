@@ -41,6 +41,7 @@ import io.evitadb.core.transaction.engine.EngineStateUpdater;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,7 +78,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 		if (mutation.isOverwriteTarget()) {
 			final String catalogNameToBeReplacedWith = mutation.getCatalogName();
 			final String catalogNameToBeReplaced = mutation.getNewCatalogName();
-			final CatalogContract catalogToBeReplaced = evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
+			final CatalogContract catalogToBeReplaced = evita.getCatalogInstance(catalogNameToBeReplaced).orElse(null);
 			final CatalogContract catalogToBeReplacedWith = evita.getCatalogInstanceOrThrowException(catalogNameToBeReplacedWith);
 			return doReplaceCatalogInternal(
 				catalogNameToBeReplaced, catalogNameToBeReplacedWith,
@@ -104,7 +105,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 	protected ProgressingFuture<CommitVersions> doReplaceCatalogInternal(
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull String catalogNameToBeReplacedWith,
-		@Nonnull CatalogContract catalogToBeReplaced,
+		@Nullable CatalogContract catalogToBeReplaced,
 		@Nonnull CatalogContract catalogToBeReplacedWith,
 		@Nonnull UUID transactionId,
 		@Nonnull ModifyCatalogSchemaNameMutation mutation,
@@ -198,7 +199,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 					}
 
 					// terminate the catalog that was replaced
-					if (replaceOperation) {
+					if (replaceOperation && catalogToBeReplaced != null) {
 						catalogToBeReplaced.terminate();
 					}
 

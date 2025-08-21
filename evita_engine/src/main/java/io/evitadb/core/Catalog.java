@@ -1000,7 +1000,10 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 	@Nonnull
 	@Override
-	public ProgressingFuture<CatalogContract> replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
+	public ProgressingFuture<CatalogContract> replace(
+		@Nonnull CatalogSchemaContract updatedSchema,
+		@Nullable CatalogContract catalogToBeReplaced
+	) {
 		return new ProgressingFuture<>(
 			// use "virtual" percentage to indicate progress
 			100,
