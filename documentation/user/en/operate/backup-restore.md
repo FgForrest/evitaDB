@@ -7,7 +7,7 @@ author: 'Ing. Jan Novotný'
 
 evitaDB offers multiple ways to back up your data. Ultimately, all such administrative operations will be accessible via all client APIs, but currently only the gRPC/Java API supports them (see [issue #627](https://github.com/FgForrest/evitaDB/issues/627)). There are three main ways to back up your data - the PIT (point-in-time) backup is available only when the *time-travel* option is enabled in the [configuration](configure.md#storage-configuration):
 
-![Backup options](assets/backup-options.png "Backup options")
+![Backup options in evitaLab](assets/backup-options.png "Backup options in evitaLab")
 
 None of these backup options interferes with normal database operations; you can continue to read and write data while the backup is being created. Because of the append-only storage architecture, the backup process can run safely without blocking any operations. However, keep in mind that creating a backup may have some performance impact.
 
