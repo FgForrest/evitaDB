@@ -150,8 +150,7 @@ api:                                              # [see API configuration](#api
       keepAlive: null
       gui:
         enabled: true
-        readOnly: false
-      preconfiguredConnections: null
+        readOnly: false    
       mTLS:
         enabled: null
         allowedClientCertificatePaths: null
@@ -1158,33 +1157,6 @@ This configuration controls how the actual evitaLab web client will be served th
         <p>Whether the evitaLab web client should be served in read-only mode. This means that it's runtime data and
         configuration cannot be changed. It doesn't mean that it will not allow you to change the data
         of an accessed evitaDB instance. This must be configured at the [scope of the evitaDB instance](#server-configuration).</p>
-    </dd>
-    <dt>preconfiguredConnections</dt>
-    <dd>
-        <p>**Default**: `null`</p>
-        <p>It allows passing a list of evitaDB connections to the web client. These connections will be ready to use
-        by a user of the web client. By default (when `null` is passed), evitaDB will pass itself as a preconfigured
-        connection for quick access. This can be disabled by passing empty list, or it can be completely overridden by 
-        passing a custom list of connections.</p>
-
-        <p>
-        It accepts either a path to YAML file prefixed with `!include` with a list of connections, or a list of connections
-        directly in the configuration. A single connection can be defined as follows:
-
-        ```yaml
-        - id: "evitadb-local" # optional connection ID, if missing, the name is used to generate unique ID 
-          name: "evitaDB local" # name displayed in evitaLab in connection manager
-          serverUrl: "http://your-server:5555" # root server URL where the evitaLab API is exposed
-        ```
-        </p>
-
-        <p>
-        In most cases, evitaDB should be able generate correct configuration by it self. More so, if the `api.endpointDefaults.exposeOn`
-        property is configured correctly, then it should generate correct configuration even for evitaDB server being
-        behind a proxy.
-        In special cases, this can be overriden by this configuration property, allowing completelly custom connections
-        to multiple different evitaDB server (not just this one).
-        </p>
     </dd>
 </dl>
 
