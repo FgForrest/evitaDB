@@ -343,8 +343,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public String toString() {
-		/* TODO JNO - remove size printing */
-		return "write handle: " + this.targetFile + " (current size on disk: " + this.targetFile.toFile().length() + " bytes)";
+		return "write handle: " + this.targetFile;
 	}
 
 	/**

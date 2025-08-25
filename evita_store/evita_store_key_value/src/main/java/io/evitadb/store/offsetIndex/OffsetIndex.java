@@ -303,7 +303,7 @@ public class OffsetIndex {
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.readKryoPool = new FileOffsetIndexKryoPool(
-			storageOptions.maxOpenedReadHandles(),
+			storageOptions.maxOpenedReadHandlesOrDefault(),
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
@@ -400,7 +400,7 @@ public class OffsetIndex {
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
 			this.keyCatalogVersion = catalogVersion;
 			this.readKryoPool = new FileOffsetIndexKryoPool(
-				storageOptions.maxOpenedReadHandles(),
+				storageOptions.maxOpenedReadHandlesOrDefault(),
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 			);
 			this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
@@ -456,7 +456,7 @@ public class OffsetIndex {
 		this.fileOffsetDescriptor = fileOffsetIndexDescriptor;
 		this.keyCatalogVersion = catalogVersion;
 		this.readKryoPool = new FileOffsetIndexKryoPool(
-			storageOptions.maxOpenedReadHandles(),
+			storageOptions.maxOpenedReadHandlesOrDefault(),
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
 		this.writeKryo = this.fileOffsetDescriptor.getWriteKryo();
@@ -1177,8 +1177,7 @@ public class OffsetIndex {
 							catalogVersion,
 							valuesToPromote,
 							this.getFileOffsetIndexLocation(),
-							this.getStorageOptions(),
-							"File: " + this.writeHandle + ", last written position: " + this.writeHandle.getLastWrittenPosition()
+							this.getStorageOptions()
 						)
 					);
 				},
@@ -1237,8 +1236,7 @@ public class OffsetIndex {
 						this.fileOffsetDescriptor = new OffsetIndexDescriptor(
 							new FileLocationAndWrittenBytes(
 								this.fileOffsetDescriptor.fileLocation(),
-								0,
-								"Soft flush of non-flushed values"
+								0
 							),
 							this.fileOffsetDescriptor,
 							getActiveRecordShare(this.lastSyncedPosition),
@@ -2423,7 +2421,7 @@ public class OffsetIndex {
 			try {
 				return logic.apply(readOnlyFileHandle);
 			} finally {
-				if (this.getFree() < OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
+				if (this.getFree() < OffsetIndex.this.storageOptions.maxOpenedReadHandlesOrDefault()) {
 					this.free(readOnlyFileHandle);
 				} else {
 					readOnlyFileHandle.close();
@@ -2437,8 +2435,8 @@ public class OffsetIndex {
 				if (this.readFilesLock.tryLock(OffsetIndex.this.storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
 					try {
 						final ReadOnlyHandle readOnlyFileHandle = OffsetIndex.this.writeHandle.toReadOnlyHandle();
-						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandles()) {
-							throw new PoolExhaustedException(OffsetIndex.this.storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
+						if (OffsetIndex.this.readOnlyOpenedHandles.size() >= OffsetIndex.this.storageOptions.maxOpenedReadHandlesOrDefault()) {
+							throw new PoolExhaustedException(OffsetIndex.this.storageOptions.maxOpenedReadHandlesOrDefault(), readOnlyFileHandle.toString());
 						}
 						OffsetIndex.this.readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;

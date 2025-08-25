@@ -203,6 +203,16 @@ public record StorageOptions(
 	}
 
 	/**
+	 * Returns the maximum number of opened read handles if it is explicitly specified,
+	 * or the default value if it is not set.
+	 *
+	 * @return the maximum number of opened read handles or the default value.
+	 */
+	public int maxOpenedReadHandlesOrDefault() {
+		return this.maxOpenedReadHandles != null ? this.maxOpenedReadHandles : DEFAULT_MAX_OPENED_READ_HANDLES;
+	}
+
+	/**
 	 * Standard builder pattern implementation.
 	 */
 	@ToString

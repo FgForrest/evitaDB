@@ -152,11 +152,8 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		final FileLocation fileLocation = fileLocationAndWrittenBytes.fileLocation();
 		Assert.isPremiseValid(
 			fileLocation.endPosition() <= fileSize,
-			() -> {
-				return "File location end position must be less than or equal to file size: " + fileLocation.endPosition() + " <= " + fileSize + "! " +
-					"Current file location: " + fileLocation + ", written bytes: " + fileLocationAndWrittenBytes.writtenBytes() + ". " +
-					"Debug info: " + fileLocationAndWrittenBytes.debugInfo();
-			}
+			() -> "File location end position must be less than or equal to file size: " + fileLocation.endPosition() + " <= " + fileSize + "! " +
+				"Current file location: " + fileLocation + ", written bytes: " + fileLocationAndWrittenBytes.writtenBytes() + "."
 		);
 		this.version = fileOffsetIndexDescriptor.version() + 1;
 		this.fileLocation = fileLocation;
