@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccomp
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.*;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
@@ -55,6 +56,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializ
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.DataChunk;
@@ -300,17 +302,24 @@ public class EntityConverter {
 		} else {
 			group = null;
 		}
+		final String referenceName = grpcReference.getReferenceName();
+		final String referencedEntityType = grpcReference.hasReferencedEntityReference() ?
+			grpcReference.getReferencedEntityReference().getEntityType() :
+			grpcReference.getReferencedEntity().getEntityType();
+		final Cardinality cardinality = EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality())
+		                                                  .orElse(Cardinality.ZERO_OR_MORE);
 		return new Reference(
 			entitySchema,
+			entitySchema.getReference(referenceName)
+			            .orElseGet(() -> Reference.createImplicitSchema(referenceName, referencedEntityType, cardinality, group)),
 			grpcReference.getVersion(),
-			grpcReference.getReferenceName(),
-			grpcReference.hasReferencedEntityReference() ?
-				grpcReference.getReferencedEntityReference().getPrimaryKey() :
-				grpcReference.getReferencedEntity().getPrimaryKey(),
-			grpcReference.hasReferencedEntityReference() ?
-				grpcReference.getReferencedEntityReference().getEntityType() :
-				grpcReference.getReferencedEntity().getEntityType(),
-			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()).orElse(null),
+			new ReferenceKey(
+				referenceName,
+				grpcReference.hasReferencedEntityReference() ?
+					grpcReference.getReferencedEntityReference().getPrimaryKey() :
+					grpcReference.getReferencedEntity().getPrimaryKey(),
+				grpcReference.getInternalPrimaryKey()
+			),
 			group,
 			toAttributeValues(
 				grpcReference.getGlobalAttributesMap(),
@@ -411,6 +420,7 @@ public class EntityConverter {
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
 					.setVersion(reference.version())
 					.setReferenceName(reference.getReferenceName())
+					.setInternalPrimaryKey(reference.getReferenceKey().internalPrimaryKey())
 					.setReferenceCardinality(EvitaEnumConverter.toGrpcCardinality(reference.getReferenceCardinality()))
 					.setVersion(reference.version());
 

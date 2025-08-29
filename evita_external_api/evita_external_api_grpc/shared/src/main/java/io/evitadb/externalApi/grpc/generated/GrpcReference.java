@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -175,6 +175,11 @@ private static final long serialVersionUID = 0L;
             referenceCardinality_ = rawValue;
             break;
           }
+          case 80: {
+
+            internalPrimaryKey_ = input.readInt32();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -278,7 +283,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       referenceName_ = s;
@@ -298,7 +303,7 @@ private static final long serialVersionUID = 0L;
       getReferenceNameBytes() {
     java.lang.Object ref = referenceName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       referenceName_ = b;
@@ -492,7 +497,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_GlobalAttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_GlobalAttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -589,7 +594,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_LocalizedAttributesEntry_descriptor, 
+                io.evitadb.externalApi.grpc.generated.GrpcEntity.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReference_LocalizedAttributesEntry_descriptor,
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -707,6 +712,32 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
   }
 
+  public static final int INTERNALPRIMARYKEY_FIELD_NUMBER = 10;
+  private int internalPrimaryKey_;
+  /**
+   * <pre>
+   * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+   * reference among other references. It is used when multiple references share same
+   * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+   * When a reference is created for the first time, internal id is set to a unique
+   * negative number that is not used by the server side, which assigns positive unique
+   * numbers to the references on first reference persistence. This allows distinguishing
+   * references that are not yet persisted from those that are already persistent.
+   * When standalone key is used:
+   * - negative number: means that the reference is new and hasn't been yet persisted
+   * - zero: means we don't know the internal PK
+   * - positive number: means that the reference is persistent and has been already stored
+   *   in the database
+   * </pre>
+   *
+   * <code>int32 internalPrimaryKey = 10;</code>
+   * @return The internalPrimaryKey.
+   */
+  @java.lang.Override
+  public int getInternalPrimaryKey() {
+    return internalPrimaryKey_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -753,6 +784,9 @@ private static final long serialVersionUID = 0L;
         8);
     if (referenceCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCardinality.NOT_SPECIFIED.getNumber()) {
       output.writeEnum(9, referenceCardinality_);
+    }
+    if (internalPrimaryKey_ != 0) {
+      output.writeInt32(10, internalPrimaryKey_);
     }
     unknownFields.writeTo(output);
   }
@@ -810,6 +844,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(9, referenceCardinality_);
     }
+    if (internalPrimaryKey_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(10, internalPrimaryKey_);
+    }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
     return size;
@@ -844,6 +882,8 @@ private static final long serialVersionUID = 0L;
     if (!internalGetLocalizedAttributes().equals(
         other.internalGetLocalizedAttributes())) return false;
     if (referenceCardinality_ != other.referenceCardinality_) return false;
+    if (getInternalPrimaryKey()
+        != other.getInternalPrimaryKey()) return false;
     if (!getGroupReferenceTypeCase().equals(other.getGroupReferenceTypeCase())) return false;
     switch (groupReferenceTypeCase_) {
       case 5:
@@ -890,6 +930,8 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + REFERENCECARDINALITY_FIELD_NUMBER;
     hash = (53 * hash) + referenceCardinality_;
+    hash = (37 * hash) + INTERNALPRIMARYKEY_FIELD_NUMBER;
+    hash = (53 * hash) + getInternalPrimaryKey();
     switch (groupReferenceTypeCase_) {
       case 5:
         hash = (37 * hash) + GROUPREFERENCEDENTITYREFERENCE_FIELD_NUMBER;
@@ -1085,6 +1127,8 @@ private static final long serialVersionUID = 0L;
       internalGetMutableLocalizedAttributes().clear();
       referenceCardinality_ = 0;
 
+      internalPrimaryKey_ = 0;
+
       groupReferenceTypeCase_ = 0;
       groupReferenceType_ = null;
       return this;
@@ -1145,6 +1189,7 @@ private static final long serialVersionUID = 0L;
       result.localizedAttributes_ = internalGetLocalizedAttributes();
       result.localizedAttributes_.makeImmutable();
       result.referenceCardinality_ = referenceCardinality_;
+      result.internalPrimaryKey_ = internalPrimaryKey_;
       result.groupReferenceTypeCase_ = groupReferenceTypeCase_;
       onBuilt();
       return result;
@@ -1213,6 +1258,9 @@ private static final long serialVersionUID = 0L;
           other.internalGetLocalizedAttributes());
       if (other.referenceCardinality_ != 0) {
         setReferenceCardinalityValue(other.getReferenceCardinalityValue());
+      }
+      if (other.getInternalPrimaryKey() != 0) {
+        setInternalPrimaryKey(other.getInternalPrimaryKey());
       }
       switch (other.getGroupReferenceTypeCase()) {
         case GROUPREFERENCEDENTITYREFERENCE: {
@@ -1305,7 +1353,7 @@ private static final long serialVersionUID = 0L;
         getReferenceNameBytes() {
       java.lang.Object ref = referenceName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         referenceName_ = b;
@@ -1328,7 +1376,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       referenceName_ = value;
       onChanged();
       return this;
@@ -1342,7 +1390,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferenceName() {
-      
+
       referenceName_ = getDefaultInstance().getReferenceName();
       onChanged();
       return this;
@@ -1362,7 +1410,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       referenceName_ = value;
       onChanged();
       return this;
@@ -1393,7 +1441,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setVersion(int value) {
-      
+
       version_ = value;
       onChanged();
       return this;
@@ -1408,7 +1456,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearVersion() {
-      
+
       version_ = 0;
       onChanged();
       return this;
@@ -1529,7 +1577,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference referencedEntityReference = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getReferencedEntityReferenceBuilder() {
-      
+
       onChanged();
       return getReferencedEntityReferenceFieldBuilder().getBuilder();
     }
@@ -1556,7 +1604,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference referencedEntityReference = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getReferencedEntityReferenceFieldBuilder() {
       if (referencedEntityReferenceBuilder_ == null) {
         referencedEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1684,7 +1732,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity referencedEntity = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getReferencedEntityBuilder() {
-      
+
       onChanged();
       return getReferencedEntityFieldBuilder().getBuilder();
     }
@@ -1711,7 +1759,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity referencedEntity = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getReferencedEntityFieldBuilder() {
       if (referencedEntityBuilder_ == null) {
         referencedEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1883,7 +1931,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference groupReferencedEntityReference = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getGroupReferencedEntityReferenceFieldBuilder() {
       if (groupReferencedEntityReferenceBuilder_ == null) {
         if (!(groupReferenceTypeCase_ == 5)) {
@@ -2060,7 +2108,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity groupReferencedEntity = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getGroupReferencedEntityFieldBuilder() {
       if (groupReferencedEntityBuilder_ == null) {
         if (!(groupReferenceTypeCase_ == 6)) {
@@ -2418,7 +2466,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setReferenceCardinalityValue(int value) {
-      
+
       referenceCardinality_ = value;
       onChanged();
       return this;
@@ -2450,7 +2498,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
         throw new NullPointerException();
       }
-      
+
       referenceCardinality_ = value.getNumber();
       onChanged();
       return this;
@@ -2464,8 +2512,84 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearReferenceCardinality() {
-      
+
       referenceCardinality_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int internalPrimaryKey_ ;
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     * When standalone key is used:
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 10;</code>
+     * @return The internalPrimaryKey.
+     */
+    @java.lang.Override
+    public int getInternalPrimaryKey() {
+      return internalPrimaryKey_;
+    }
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     * When standalone key is used:
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 10;</code>
+     * @param value The internalPrimaryKey to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInternalPrimaryKey(int value) {
+
+      internalPrimaryKey_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     * When standalone key is used:
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInternalPrimaryKey() {
+
+      internalPrimaryKey_ = 0;
       onChanged();
       return this;
     }

@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -42,6 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -179,11 +181,27 @@ public interface EntityContract extends EntityClassifierWithParent,
 	 * @param referenceKey reference key combining both reference name and referenced entity id information
 	 *
 	 * @return reference to the entity or empty if the entity is not referenced
-	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
 	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
+	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
+	 * @throws ReferenceAllowsDuplicatesException when reference schema allows duplicates, in such case you need to use
+	 * {@link #getReferences(ReferenceKey)} method
 	 */
 	@Nonnull
 	Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey)
+		throws ContextMissingException, ReferenceNotFoundException, ReferenceAllowsDuplicatesException;
+
+	/**
+	 * Returns one or more {@link Reference} instances that is referencing passed entity type with certain primary key.
+	 * The references represent relations to other evitaDB entities or external entities in different systems.
+	 *
+	 * @param referenceKey reference key combining both reference name and referenced entity id information
+	 *
+	 * @return reference to the entity or empty if the entity is not referenced
+	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
+	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
+	 */
+	@Nonnull
+	List<ReferenceContract> getReferences(@Nonnull ReferenceKey referenceKey)
 		throws ContextMissingException, ReferenceNotFoundException;
 
 	/**
@@ -290,9 +308,10 @@ public interface EntityContract extends EntityClassifierWithParent,
 		if (thisReferences.size() != otherReferences.size()) return true;
 		for (ReferenceContract thisReference : thisReferences) {
 			final ReferenceKey thisKey = thisReference.getReferenceKey();
-			if (otherEntity.getReference(thisKey.referenceName(), thisKey.primaryKey())
+			if (otherEntity.getReference(thisKey)
 				.map(thisReference::differsFrom)
-				.orElse(true)) {
+				.orElse(true)
+			) {
 				return true;
 			}
 		}

@@ -50,10 +50,10 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 	void setUp() {
 		this.initialReference = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
+			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			Cardinality.ZERO_OR_ONE,
-			"brand"
+			-4
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")

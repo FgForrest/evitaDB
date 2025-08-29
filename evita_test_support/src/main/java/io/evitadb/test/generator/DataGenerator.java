@@ -475,14 +475,14 @@ public class DataGenerator {
 					.stream()
 					.filter(it -> !(it instanceof ReflectedReferenceSchemaContract))
 					.filter(it -> it.isReferencedEntityTypeManaged())
-					.filter(it -> it.getCardinality() == Cardinality.ONE_OR_MORE || it.getCardinality() == Cardinality.EXACTLY_ONE)
+					.filter(it -> it.getCardinality().getMin() == 1)
 					.map(it -> it.getName())
 			)
 			.distinct()
 			.toList();
 		for (String referenceName : referenceNames) {
 			final ReferenceSchemaContract referenceSchema = schema.getReference(referenceName).orElseThrow();
-			final boolean multiple = referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE || referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE;
+			final boolean multiple = referenceSchema.getCardinality().getMax() > 1;
 			final String referencedType = referenceSchema.getReferencedEntityType();
 			final int initialCount;
 			if (Entities.CATEGORY.equals(referencedType) && multiple) {
@@ -507,8 +507,8 @@ public class DataGenerator {
 			switch (referenceSchema.getCardinality()) {
 				case ZERO_OR_ONE -> count = Math.min(initialCount, 1 - existingCount);
 				case EXACTLY_ONE -> count = 1 - existingCount;
-				case ZERO_OR_MORE -> count = Math.min(initialCount, 30 - existingCount);
-				case ONE_OR_MORE -> count = Math.min(Math.max(initialCount, 1), 30 - existingCount);
+				case ZERO_OR_MORE, ZERO_OR_MORE_WITH_DUPLICATES -> count = Math.min(initialCount, 30 - existingCount);
+				case ONE_OR_MORE, ONE_OR_MORE_WITH_DUPLICATES -> count = Math.min(Math.max(initialCount, 1), 30 - existingCount);
 				default -> throw new IllegalStateException("Unknown cardinality!");
 			}
 

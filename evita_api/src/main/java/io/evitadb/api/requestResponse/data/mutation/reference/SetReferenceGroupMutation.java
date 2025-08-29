@@ -66,7 +66,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	 * Internal temporary information about the group type either copied from {@link #groupType} or retrieved from
 	 * the current {@link EntitySchemaContract} definition.
 	 */
-	private String resolvedGroupType;
+	@Nullable private String resolvedGroupType;
 
 	public SetReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, int groupPrimaryKey) {
 		super(referenceKey);
@@ -174,9 +174,9 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		} else {
 			return new Reference(
 				entitySchema,
+				existingValue.getReferenceSchemaOrThrow(),
 				existingValue.version() + 1,
-				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+				existingValue.getReferenceKey(),
 				existingReferenceGroup
 					.map(it ->
 						new GroupEntityReference(
@@ -208,7 +208,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 				Assert.isTrue(
 					this.resolvedGroupType != null,
 					() -> new InvalidMutationException(
-						"Cannot update reference group - no group type defined in schema and also not provided in the mutation!"
+						"Cannot update the reference group - no group type defined in schema and also not provided in the mutation!"
 					)
 				);
 			} else {
@@ -236,7 +236,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	@Override
 	public String toString() {
-		return "Set reference group to `" + this.referenceKey + "`: " + this.groupPrimaryKey +
+		return "Set the reference group to `" + this.referenceKey + "`: " + this.groupPrimaryKey +
 			(this.groupType == null ? "" : " of type `" + this.groupType + "`");
 	}
 }

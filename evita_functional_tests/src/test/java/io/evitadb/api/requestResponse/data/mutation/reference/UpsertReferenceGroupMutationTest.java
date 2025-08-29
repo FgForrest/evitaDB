@@ -57,9 +57,8 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				"brand",
-				5,
-				"brand", Cardinality.ZERO_OR_ONE,
+				Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+				new ReferenceKey("brand", 5),
 				null
 			)
 		);
@@ -84,14 +83,14 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			"brand", 5,
 			"europe", 2
 		);
+		final GroupEntityReference group = new GroupEntityReference("brand", 78, 1, false);
 		final ReferenceContract reference = mutation.mutateLocal(
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				"brand",
-				5,
-				"brand", Cardinality.ZERO_OR_ONE,
-				new GroupEntityReference("brand", 78, 1, false)
+				Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				new ReferenceKey("brand", 5),
+				group
 			)
 		);
 

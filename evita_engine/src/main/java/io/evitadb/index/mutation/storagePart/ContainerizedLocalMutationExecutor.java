@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.storagePart;
 
 import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.exception.EntityMissingException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException.MissingReferenceAttribute;
@@ -57,6 +58,7 @@ import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
@@ -805,6 +807,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			// in order to correctly propagate reflected references removal
 			this.initialReferencesStorageContainer = new ReferencesStoragePart(
 				referencesStorageContainer.getEntityPrimaryKey(),
+				referencesStorageContainer.getLastUsedPrimaryKey(),
 				Arrays.copyOf(referencesStorageContainer.getReferences(), referencesStorageContainer.getReferences().length),
 				referencesStorageContainer.sizeInBytes().orElse(-1)
 			);
@@ -1610,6 +1613,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	private void verifyReferenceCardinalities(@Nullable ReferencesStoragePart referencesStorageContainer) throws ReferenceCardinalityViolatedException {
 		final EntitySchemaContract entitySchema = this.schemaAccessor.get();
+		/* TODO JNO - handle duplicate cardinality */
 		final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
 		if (references.isEmpty()) {
 			return;
@@ -1622,18 +1626,14 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					.map(ref -> ref.getReferencedIds(it.getName()).length)
 					.orElse(0);
 				if (!(it instanceof ReflectedReferenceSchemaContract rrsc) || rrsc.isReflectedReferenceAvailable()) {
-					return switch (it.getCardinality()) {
-						case ZERO_OR_MORE -> Stream.empty();
-						case ZERO_OR_ONE -> referenceCount <= 1 ?
-							Stream.empty() :
-							Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
-						case ONE_OR_MORE -> referenceCount >= 1 ?
-							Stream.empty() :
-							Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
-						case EXACTLY_ONE -> referenceCount == 1 ?
-							Stream.empty() :
-							Stream.of(new CardinalityViolation(it.getName(), it.getCardinality(), referenceCount));
-					};
+					final Cardinality cardinality = it.getCardinality();
+					if (referenceCount < cardinality.getMin()) {
+						return Stream.of(new CardinalityViolation(it.getName(), cardinality, referenceCount));
+					} else if (referenceCount > cardinality.getMax()) {
+						return Stream.of(new CardinalityViolation(it.getName(), cardinality, referenceCount));
+					} else {
+						return Stream.empty();
+					}
 				} else {
 					return Stream.empty();
 				}
@@ -1748,10 +1748,27 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		// get or create references container
 		final ReferencesStoragePart referencesStorageCnt = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		// replace or add the mutated reference in the container
-		final ReferenceContract updatedReference = referencesStorageCnt.replaceOrAddReference(
-			localMutation.getReferenceKey(),
-			referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract)
-		);
+		final ReferenceKey referenceKey = localMutation.getReferenceKey();
+		final ReferenceContract updatedReference;
+		if (referenceKey.isKnownInternalPrimaryKey() || referenceKey.isNewReference()) {
+			updatedReference = referencesStorageCnt.replaceOrAddReference(
+				referenceKey,
+				referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract)
+			);
+		} else if (
+			entitySchema.getReferenceOrThrowException(referenceKey.referenceName())
+			            .getCardinality()
+			            .allowsDuplicates()
+		) {
+			throw new InvalidMutationException(
+				"Reference `" + referenceKey.referenceName() + "` in entity `" + entitySchema.getName() + "` allows duplicates. " +
+					"It's not possible to modify it without providing identification using reference key with internal id!"
+			);
+		} else {
+			updatedReference = referencesStorageCnt.replaceOrAddReference(
+				referenceKey, referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract)
+			);
+		}
 		// change in entity parts also change the entity itself (we need to update the version)
 		if (referencesStorageCnt.isDirty()) {
 			getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST).setDirty(true);

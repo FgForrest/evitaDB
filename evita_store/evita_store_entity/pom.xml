@@ -41,5 +41,9 @@
 			<artifactId>evita_store_common</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>com.carrotsearch</groupId>
+			<artifactId>hppc</artifactId>
+		</dependency>
 	</dependencies>
 </project>

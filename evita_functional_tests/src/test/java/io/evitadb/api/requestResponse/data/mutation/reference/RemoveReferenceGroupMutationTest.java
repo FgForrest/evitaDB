@@ -45,14 +45,14 @@ class RemoveReferenceGroupMutationTest extends AbstractMutationTest {
 		final RemoveReferenceGroupMutation mutation = new RemoveReferenceGroupMutation(
 			new ReferenceKey("brand", 5)
 		);
+		final GroupEntityReference group = new GroupEntityReference("europe", 2, 1, false);
 		final ReferenceContract reference = mutation.mutateLocal(
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				"brand",
-				5,
-				"brand", Cardinality.ZERO_OR_ONE,
-				new GroupEntityReference("europe", 2, 1, false)
+				Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				new ReferenceKey("brand", 5),
+				group
 			)
 		);
 
@@ -85,18 +85,20 @@ class RemoveReferenceGroupMutationTest extends AbstractMutationTest {
 		);
 		assertThrows(
 			InvalidMutationException.class,
-			() -> mutation.mutateLocal(
-				this.productSchema,
-				new Reference(
+			() -> {
+				final GroupEntityReference group = new GroupEntityReference("europe", 2, 2, true);
+				mutation.mutateLocal(
 					this.productSchema,
-					2,
-					"brand",
-					5,
-					"brand", Cardinality.ZERO_OR_ONE,
-					new GroupEntityReference("europe", 2, 2, true),
-					false
-				)
-			)
+					new Reference(
+						this.productSchema,
+						Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+						2,
+						new ReferenceKey("brand", 5),
+						group,
+						false
+					)
+				);
+			}
 		);
 	}
 

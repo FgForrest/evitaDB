@@ -19,9 +19,9 @@ module evita.common {
 
 	requires org.slf4j;
 	requires jsr305;
-	requires static lombok;
 	requires com.fasterxml.jackson.databind;
 	requires zero.allocation.hashing;
-	requires okhttp3;
+	requires static lombok;
+	requires static okhttp3;
 
 }

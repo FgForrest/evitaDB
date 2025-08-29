@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This type represents a reference to any Evita entity and that ne returned by default for all
+ * This type represents a reference to any Evita entity and that is returned by default for all
  * queries that don't require loading additional data.
  * </pre>
  *
@@ -156,7 +156,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       entityType_ = s;
@@ -178,7 +178,7 @@ private static final long serialVersionUID = 0L;
       getEntityTypeBytes() {
     java.lang.Object ref = entityType_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       entityType_ = b;
@@ -457,7 +457,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * This type represents a reference to any Evita entity and that ne returned by default for all
+   * This type represents a reference to any Evita entity and that is returned by default for all
    * queries that don't require loading additional data.
    * </pre>
    *
@@ -671,7 +671,7 @@ private static final long serialVersionUID = 0L;
         getEntityTypeBytes() {
       java.lang.Object ref = entityType_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         entityType_ = b;
@@ -696,7 +696,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       entityType_ = value;
       onChanged();
       return this;
@@ -712,7 +712,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearEntityType() {
-      
+
       entityType_ = getDefaultInstance().getEntityType();
       onChanged();
       return this;
@@ -734,7 +734,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       entityType_ = value;
       onChanged();
       return this;
@@ -765,7 +765,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-      
+
       primaryKey_ = value;
       onChanged();
       return this;
@@ -780,7 +780,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-      
+
       primaryKey_ = 0;
       onChanged();
       return this;
@@ -815,7 +815,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder setVersion(int value) {
-      
+
       version_ = value;
       onChanged();
       return this;
@@ -832,7 +832,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearVersion() {
-      
+
       version_ = 0;
       onChanged();
       return this;
@@ -960,7 +960,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
      */
     public com.google.protobuf.Int32Value.Builder getReferenceVersionBuilder() {
-      
+
       onChanged();
       return getReferenceVersionFieldBuilder().getBuilder();
     }
@@ -989,7 +989,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value referenceVersion = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getReferenceVersionFieldBuilder() {
       if (referenceVersionBuilder_ == null) {
         referenceVersionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

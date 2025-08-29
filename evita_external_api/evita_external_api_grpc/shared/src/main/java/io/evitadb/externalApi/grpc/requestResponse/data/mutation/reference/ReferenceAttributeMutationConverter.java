@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,8 @@ public class ReferenceAttributeMutationConverter implements LocalMutationConvert
 		return new ReferenceAttributeMutation(
 			new ReferenceKey(
 				mutation.getReferenceName(),
-				mutation.getReferencePrimaryKey()
+				mutation.getReferencePrimaryKey(),
+				mutation.getInternalPrimaryKey()
 			),
 			DelegatingAttributeMutationConverter.INSTANCE.convert(mutation.getAttributeMutation())
 		);
@@ -58,9 +59,11 @@ public class ReferenceAttributeMutationConverter implements LocalMutationConvert
 	@Nonnull
 	@Override
 	public GrpcReferenceAttributeMutation convert(@Nonnull ReferenceAttributeMutation mutation) {
-		return GrpcReferenceAttributeMutation.newBuilder()
+		return GrpcReferenceAttributeMutation
+			.newBuilder()
 			.setReferenceName(mutation.getReferenceKey().referenceName())
 			.setReferencePrimaryKey(mutation.getReferenceKey().primaryKey())
+			.setInternalPrimaryKey(mutation.getReferenceKey().internalPrimaryKey())
 			.setAttributeMutation(DelegatingAttributeMutationConverter.INSTANCE.convert(mutation.getAttributeMutation()))
 			.build();
 	}

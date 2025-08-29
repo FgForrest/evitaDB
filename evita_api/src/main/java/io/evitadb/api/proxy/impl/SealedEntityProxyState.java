@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
+import io.evitadb.api.requestResponse.data.structure.InternalEntityBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -72,7 +73,7 @@ public class SealedEntityProxyState
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
 	 * from internally wrapped entity {@link #entity()}.
 	 */
-	@Nullable protected EntityBuilder entityBuilder;
+	@Nullable protected InternalEntityBuilder entityBuilder;
 	/**
 	 * Optional information about the last {@link EntityReference} returned from {@link EvitaSessionContract#upsertEntity(EntityMutation)},
 	 * it may contain newly assigned {@link EntityContract#getPrimaryKey()} that is not available in the wrapped entity.
@@ -119,33 +120,29 @@ public class SealedEntityProxyState
 	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback() {
 		propagateReferenceMutations();
 		return Optional.ofNullable(this.entityBuilder)
-			.map(
-				it -> new EntityBuilderWithCallback(
-					it,
-					entityReference -> {
-						this.entityReference = entityReference;
-						this.entityBuilder = new ExistingEntityBuilder(
-							// we can cast it here, since we know that both InitialEntityBuilder and ExistingEntityBuilder
-							// fabricate Entity instances
-							(Entity) this.entityBuilder.toInstance()
-						);
-						// we need to mark all references as upserted, since they were persisted along with the entity
-						this.generatedProxyObjects
-							.entrySet()
-							.stream()
-							.filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
-							.flatMap(goEntry -> goEntry.getValue().proxies().stream())
-							.forEach(refProxy -> ((SealedEntityReferenceProxyState)((ProxyStateAccessor)refProxy).getProxyState())
-								.notifyBuilderUpserted()
-							);
-					}
-				)
-			);
-	}
-
-	@Nonnull
-	public Optional<EntityBuilder> entityBuilderIfPresent() {
-		return ofNullable(this.entityBuilder);
+		               .map(
+			               it -> new EntityBuilderWithCallback(
+				               it,
+				               entityReference -> {
+					               this.entityReference = entityReference;
+					               this.entityBuilder = new ExistingEntityBuilder(
+						               // we can cast it here, since we know that both InitialEntityBuilder and ExistingEntityBuilder
+						               // fabricate Entity instances
+						               (Entity) this.entityBuilder.toInstance()
+					               );
+					               // we need to mark all references as upserted, since they were persisted along with the entity
+					               this.generatedProxyObjects
+						               .entrySet()
+						               .stream()
+						               .filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
+						               .flatMap(goEntry -> goEntry.getValue().proxies().stream())
+						               .forEach(
+							               refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
+								               .notifyBuilderUpserted()
+						               );
+				               }
+			               )
+		               );
 	}
 
 	@Nonnull
@@ -164,19 +161,24 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
-	public EntityBuilder entityBuilder() {
+	public InternalEntityBuilder entityBuilder() {
 		if (this.entityBuilder == null) {
 			if (this.entity instanceof EntityDecorator entityDecorator) {
 				this.entityBuilder = new ExistingEntityBuilder(entityDecorator);
 			} else if (this.entity instanceof Entity theEntity) {
 				this.entityBuilder = new ExistingEntityBuilder(theEntity);
-			} else if (this.entity instanceof EntityBuilder theBuilder) {
+			} else if (this.entity instanceof InternalEntityBuilder theBuilder) {
 				this.entityBuilder = theBuilder;
 			} else {
 				throw new GenericEvitaInternalError("Unexpected entity type: " + this.entity.getClass().getName());
 			}
 		}
 		return this.entityBuilder;
+	}
+
+	@Nonnull
+	public Optional<InternalEntityBuilder> entityBuilderIfPresent() {
+		return ofNullable(this.entityBuilder);
 	}
 
 	@Nonnull
@@ -188,17 +190,12 @@ public class SealedEntityProxyState
 		int primaryKey
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final Optional<EntityBuilder> entityBuilderRef = entityBuilderIfPresent();
-			final EntityContract entity = entityBuilderRef
-				.map(EntityContract.class::cast)
-				.orElseGet(this::entity);
-			return entity.getReference(referenceSchema.getName(), primaryKey)
+			final InternalEntityBuilder entityBuilder = entityBuilder();
+			return this.entity
+				.getReference(referenceSchema.getName(), primaryKey)
 				.filter(
-					ref -> entityBuilderRef
-						.filter(ExistingEntityBuilder.class::isInstance)
-						.map(ExistingEntityBuilder.class::cast)
-						.map(eb -> eb.isPresentInBaseEntity(ref))
-						.orElse(true)
+					ref -> !(entityBuilder instanceof ExistingEntityBuilder eeb) ||
+						eeb.isPresentInBaseEntity(ref)
 				)
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
@@ -212,17 +209,18 @@ public class SealedEntityProxyState
 						)
 					)
 				)
-				.orElseGet(() -> new ProxyWithUpsertCallback(
+				.orElseGet(
+					() -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
 							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
 							this.entity, this::getPrimaryKey,
 							getReferencedEntitySchemas(),
 							new InitialReferenceBuilder(
 								entitySchema,
+								referenceSchema,
 								referenceSchema.getName(),
 								primaryKey,
-								referenceSchema.getCardinality(),
-								referenceSchema.getReferencedEntityType()
+								entityBuilder.getNextReferenceInternalId()
 							),
 							getReflectionLookup(),
 							this.generatedProxyObjects
@@ -230,11 +228,11 @@ public class SealedEntityProxyState
 					)
 				);
 		};
-		return this.generatedProxyObjects.computeIfAbsent(
+		return this.generatedProxyObjects
+			.computeIfAbsent(
 				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
 				key -> instanceSupplier.get()
-			)
-			.proxy(expectedType, instanceSupplier);
+			).proxy(expectedType, instanceSupplier);
 	}
 
 	/**
@@ -242,18 +240,20 @@ public class SealedEntityProxyState
 	 */
 	public void propagateReferenceMutations() {
 		this.generatedProxyObjects.entrySet().stream()
-			.filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
-			.flatMap(
-				it -> it.getValue()
-					.proxy(
-						SealedEntityReferenceProxy.class,
-						() -> {
-							throw new EvitaInvalidUsageException("Unexpected proxy type!");
-						})
-					.getReferenceBuilderIfPresent()
-					.stream()
-			)
-			.forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
+		                          .filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
+		                          .flatMap(
+			                          it -> it.getValue()
+			                                  .proxy(
+				                                  SealedEntityReferenceProxy.class,
+				                                  () -> {
+					                                  throw new EvitaInvalidUsageException("Unexpected proxy type!");
+				                                  }
+			                                  )
+			                                  .getReferenceBuilderIfPresent()
+			                                  .stream()
+		                          )
+		                          .forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(
+			                          referenceBuilder));
 	}
 
 	@Override

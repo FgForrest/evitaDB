@@ -128,7 +128,7 @@ this will not be necessary, but we cannot guarantee it yet.
 2. [Render category menu](solve/render-category-menu.md)
    1. [Mega-menu](solve/render-category-menu.md#mega-menu)
    2. [Dynamic collapsible menu](solve/render-category-menu.md#dynamic-collapsible-menu)
-   3. [Listing sub-cateogires](solve/render-category-menu.md#listing-sub-categories)
+   3. [Listing sub-categories](solve/render-category-menu.md#listing-sub-categories)
    4. [Hybrid menu](solve/render-category-menu.md#hybrid-menu)
    5. [Hide parts of the category menu](solve/render-category-menu.md#hiding-parts-of-the-category-tree)
 3. [Filter products in category](solve/filtering-products-in-category.md)

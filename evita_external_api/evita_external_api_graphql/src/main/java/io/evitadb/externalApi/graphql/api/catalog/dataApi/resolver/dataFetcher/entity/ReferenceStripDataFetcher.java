@@ -28,7 +28,6 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -57,7 +56,7 @@ public class ReferenceStripDataFetcher implements DataFetcher<StripList<Referenc
         final EntityDecorator entity = environment.getSource();
         Assert.isPremiseValid(entity != null, "Entity must not be null");
         Assert.isPremiseValid(
-	        this.referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || this.referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE,
+	        this.referenceSchema.getCardinality().getMax() > 1,
             () -> new GraphQLQueryResolvingInternalError(
                 "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )

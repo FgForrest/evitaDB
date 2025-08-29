@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -37,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -48,15 +49,15 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
  * Builder that is used to create new {@link Reference} instance.
- * Due to performance reasons (see {@link DirectWriteOrOperationLog} microbenchmark) there is special implementation
+ * Due to performance reasons (see `DirectWriteOrOperationLog` microbenchmark) there is special implementation
  * for the situation when entity is newly created. In this case we know everything is new and we don't need to closely
  * monitor the changes so this can speed things up.
  *
@@ -65,15 +66,45 @@ import static java.util.Optional.ofNullable;
 public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Serial private static final long serialVersionUID = 2225492596172273289L;
 
+	/**
+	 * Schema of the owning entity; used to resolve and validate reference schema and attributes.
+	 */
 	private final EntitySchemaContract entitySchema;
-	@Getter private ReferenceKey referenceKey;
-	@Getter private final Cardinality referenceCardinality;
-	@Getter private final String referencedEntityType;
+	/**
+	 * Schema of the reference being built.
+	 */
+	private final ReferenceSchemaContract referenceSchema;
+	/**
+	 * Delegate that builds and stores reference attributes during initial entity creation.
+	 */
 	@Delegate(types = AttributesContract.class)
 	private final AttributesBuilder<AttributeSchemaContract> attributesBuilder;
-	@Getter private String groupType;
-	@Getter private Integer groupId;
+	/**
+	 * Unique key of the reference being built (reference name and referenced entity primary key).
+	 */
+	@Getter private ReferenceKey referenceKey;
+	/**
+	 * Optional type of the group entity this reference is assigned to.
+	 */
+	@Nullable @Getter private String groupType;
+	/**
+	 * Optional primary key of the group entity this reference is assigned to.
+	 */
+	@Nullable @Getter private Integer groupId;
 
+	/**
+	 * Verifies that the attribute exists in the reference schema (if present) and that the provided
+	 * Java type is compatible with the attribute's schema definition.
+	 *
+	 * - Throws an exception if the attribute is not defined or the type is incompatible
+	 * - Uses the entity schema to resolve constraints for the attribute
+	 *
+	 * @param entitySchema     the owning entity schema
+	 * @param referenceSchema  the reference schema or null if implicit
+	 * @param attributeName    the attribute name to validate
+	 * @param aClass           Java type of the attribute value; may be null for mutation-based validation
+	 * @param locationSupplier supplier of a location string for detailed error messages
+	 */
 	static void verifyAttributeIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -89,6 +120,17 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		);
 	}
 
+	/**
+	 * Verifies that the localized attribute exists in the reference schema (if present) and that the
+	 * provided Java type is compatible with the attribute's schema definition for the given locale.
+	 *
+	 * @param entitySchema     the owning entity schema
+	 * @param referenceSchema  the reference schema or null if implicit
+	 * @param attributeName    the attribute name to validate
+	 * @param aClass           Java type of the attribute value array or scalar
+	 * @param locale           locale of the attribute
+	 * @param locationSupplier supplier of a location string for detailed error messages
+	 */
 	static void verifyAttributeIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -105,31 +147,39 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		);
 	}
 
-	public <T extends BiPredicate<String, String> & Serializable> InitialReferenceBuilder(
+	/**
+	 * Creates a builder for a new reference during initial entity creation.
+	 *
+	 * @param entitySchema               schema of the owning entity
+	 * @param referenceName              name of the reference in schema
+	 * @param referencedEntityPrimaryKey primary key of the referenced entity
+	 * @param internalPrimaryKey         internal primary key used during build process
+	 */
+	public InitialReferenceBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		@Nullable Cardinality referenceCardinality,
-		@Nullable String referencedEntityType
+		int internalPrimaryKey
 	) {
 		this.entitySchema = entitySchema;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = referenceCardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceSchema = referenceSchema;
+		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey, internalPrimaryKey);
 		this.groupId = null;
 		this.groupType = null;
 		this.attributesBuilder = new InitialReferenceAttributesBuilder(
 			entitySchema,
-			entitySchema.getReference(referenceName)
-				.orElseGet(() -> Reference.createImplicitSchema(referenceName, referencedEntityType, referenceCardinality, null)),
+			referenceSchema,
 			true
 		);
 	}
+
 
 	@Override
 	public boolean dropped() {
 		return false;
 	}
+
 
 	@Override
 	public int version() {
@@ -138,15 +188,14 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 
 	@Nonnull
 	@Override
-	public Optional<ReferenceSchemaContract> getReferenceSchema() {
-		return this.entitySchema.getReference(this.referenceKey.referenceName());
+	public String getReferencedEntityType() {
+		return this.referenceSchema.getReferencedEntityType();
 	}
 
 	@Nonnull
 	@Override
-	public ReferenceSchemaContract getReferenceSchemaOrThrow() {
-		return this.entitySchema.getReference(this.referenceKey.referenceName())
-			.orElseThrow(() -> new EvitaInvalidUsageException("Reference schema is not available!"));
+	public Cardinality getReferenceCardinality() {
+		return this.referenceSchema.getCardinality();
 	}
 
 	@Nonnull
@@ -156,22 +205,16 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	}
 
 	@Nonnull
-	public ReferenceBuilder setGroup(int primaryKey) {
-		this.groupId = primaryKey;
-		return this;
-	}
-
-	@Nonnull
-	public ReferenceBuilder setGroup(@Nullable String referencedEntity, int primaryKey) {
-		this.groupType = referencedEntity;
-		this.groupId = primaryKey;
-		return this;
-	}
-
-	@Nonnull
 	@Override
 	public Optional<GroupEntityReference> getGroup() {
-		return ofNullable(this.groupId).map(it -> new GroupEntityReference(this.groupType, it, 1, false));
+		return ofNullable(this.groupId)
+			.map(it -> {
+				Assert.isTrue(
+					this.groupType != null,
+					() -> new InvalidMutationException("Group type must be provided when the group type is not yet persisted in the reference schema!")
+				);
+				return new GroupEntityReference(this.groupType, it, 1, false);
+			});
 	}
 
 	@Nonnull
@@ -182,10 +225,49 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 
 	@Nonnull
 	@Override
+	public Optional<ReferenceSchemaContract> getReferenceSchema() {
+		return of(this.referenceSchema);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceSchemaContract getReferenceSchemaOrThrow() {
+		return this.referenceSchema;
+	}
+
+	/**
+	 * Assigns this reference to a group by its primary key.
+	 *
+	 * @param primaryKey primary key of the group entity
+	 * @return this builder for chaining
+	 */
+	@Nonnull
+	public ReferenceBuilder setGroup(int primaryKey) {
+		this.groupId = primaryKey;
+		return this;
+	}
+
+	/**
+	 * Assigns this reference to a group specified by its type and primary key.
+	 *
+	 * @param referencedEntity type of the group entity (nullable when resolvable from schema)
+	 * @param primaryKey       primary key of the group entity
+	 * @return this builder for chaining
+	 */
+	@Nonnull
+	public ReferenceBuilder setGroup(@Nullable String referencedEntity, int primaryKey) {
+		this.groupType = referencedEntity;
+		this.groupId = primaryKey;
+		return this;
+	}
+
+	@Nonnull
+	@Override
 	public ReferenceBuilder removeGroup() {
 		this.groupId = null;
 		return this;
 	}
+
 
 	@Nonnull
 	@Override
@@ -194,35 +276,44 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		return this;
 	}
 
+
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nullable T attributeValue) {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName);
 		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
+				this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(),
+				this.attributesBuilder.getLocationResolver()
 			);
 			this.attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
 	}
 
+
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nullable T[] attributeValue) {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName);
 		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
+				this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(),
+				this.attributesBuilder.getLocationResolver()
 			);
 			this.attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
 	}
+
 
 	@Nonnull
 	@Override
@@ -231,30 +322,38 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		return this;
 	}
 
+
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName, locale);
 		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
+				this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, this.attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale,
+				this.attributesBuilder.getLocationResolver()
 			);
 			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
 	}
 
+
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
 		if (attributeValue == null) {
 			return removeAttribute(attributeName, locale);
 		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
+				this.referenceKey.referenceName()).orElse(null);
 			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, this.attributesBuilder.getLocationResolver()
+				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale,
+				this.attributesBuilder.getLocationResolver()
 			);
 			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
@@ -264,12 +363,36 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
-		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
+		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
+			this.referenceKey.referenceName()).orElse(null);
 		verifyAttributeIsInSchemaAndTypeMatch(
-			this.entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null, this.attributesBuilder.getLocationResolver()
+			this.entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null,
+			this.attributesBuilder.getLocationResolver()
 		);
 		this.attributesBuilder.mutateAttribute(mutation);
 		return this;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
+		return Stream.concat(
+			Stream.of(
+				      new InsertReferenceMutation(this.referenceKey, this.referenceSchema.getCardinality(), this.referenceSchema.getReferencedEntityType()),
+				      this.groupId == null ?
+					      null :
+					      new SetReferenceGroupMutation(this.referenceKey, this.groupType, this.groupId)
+			      )
+			      .filter(Objects::nonNull),
+			this.attributesBuilder.getAttributeValues()
+			                      .stream()
+			                      .map(x ->
+				                           new ReferenceAttributeMutation(
+					                           this.referenceKey,
+					                           new UpsertAttributeMutation(x.key(), Objects.requireNonNull(x.value()))
+				                           )
+			                      )
+		);
 	}
 
 	@Override
@@ -279,33 +402,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 
 	@Nonnull
 	@Override
-	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
-		return Stream.concat(
-			Stream.of(
-					new InsertReferenceMutation(this.referenceKey, this.referenceCardinality, this.referencedEntityType),
-					this.groupId == null ? null : new SetReferenceGroupMutation(this.referenceKey, this.groupType, this.groupId)
-				)
-				.filter(Objects::nonNull),
-			this.attributesBuilder.getAttributeValues()
-				.stream()
-				.map(x ->
-					new ReferenceAttributeMutation(
-						this.referenceKey,
-						new UpsertAttributeMutation(x.key(), Objects.requireNonNull(x.value()))
-					)
-				)
-		);
-	}
-
-	@Nonnull
-	@Override
 	public Reference build() {
 		return new Reference(
-			this.entitySchema,
+			this.referenceSchema,
 			1,
-			this.referenceKey.referenceName(),
-			this.referenceKey.primaryKey(),
-			this.referencedEntityType, this.referenceCardinality,
+			this.referenceKey,
 			getGroup().orElse(null),
 			this.attributesBuilder.build(),
 			false

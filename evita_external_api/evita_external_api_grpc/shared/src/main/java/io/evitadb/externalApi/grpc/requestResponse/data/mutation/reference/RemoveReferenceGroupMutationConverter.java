@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,8 @@ public class RemoveReferenceGroupMutationConverter implements LocalMutationConve
 		return new RemoveReferenceGroupMutation(
 			new ReferenceKey(
 				mutation.getReferenceName(),
-				mutation.getReferencePrimaryKey()
+				mutation.getReferencePrimaryKey(),
+				mutation.getInternalPrimaryKey()
 			)
 		);
 	}
@@ -56,9 +57,11 @@ public class RemoveReferenceGroupMutationConverter implements LocalMutationConve
 	@Nonnull
 	@Override
 	public GrpcRemoveReferenceGroupMutation convert(@Nonnull RemoveReferenceGroupMutation mutation) {
-		return GrpcRemoveReferenceGroupMutation.newBuilder()
+		return GrpcRemoveReferenceGroupMutation
+			.newBuilder()
 			.setReferenceName(mutation.getComparableKey().referenceName())
 			.setReferencePrimaryKey(mutation.getComparableKey().primaryKey())
+			.setInternalPrimaryKey(mutation.getReferenceKey().internalPrimaryKey())
 			.build();
 	}
 }

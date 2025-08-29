@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
@@ -55,6 +55,8 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	public void write(Kryo kryo, Output output, Reference reference) {
 		output.writeVarInt(reference.version(), true);
 		final ReferenceKey referenceKey = reference.getReferenceKey();
+		Assert.isPremiseValid(referenceKey.isKnownInternalPrimaryKey(), "Reference internal id must be positive!");
+		output.writeVarInt(referenceKey.internalPrimaryKey(), true);
 		output.writeString(referenceKey.referenceName());
 		output.writeInt(referenceKey.primaryKey());
 		output.writeBoolean(reference.dropped());
@@ -76,6 +78,7 @@ public class ReferenceSerializer extends Serializer<Reference> {
 	public Reference read(Kryo kryo, Input input, Class<? extends Reference> type) {
 		final EntitySchema schema = EntitySchemaContext.getEntitySchema();
 		final int version = input.readVarInt(true);
+		final int internalPrimaryKey = input.readVarInt(true);
 		final String referenceName = input.readString();
 		final int entityPrimaryKey = input.readInt();
 		final boolean dropped = input.readBoolean();
@@ -90,7 +93,6 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		} else {
 			group = null;
 		}
-		final ReferenceSchemaContract reference = schema.getReferenceOrThrowException(referenceName);
 		final int attributeCount = input.readVarInt(true);
 		final LinkedHashMap<AttributeKey, AttributeValue> attributes = CollectionUtils.createLinkedHashMap(attributeCount);
 		for (int i = 0; i < attributeCount; i++) {
@@ -99,7 +101,10 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		}
 
 		return new Reference(
-			schema, version, referenceName, entityPrimaryKey, reference.getReferencedEntityType(), reference.getCardinality(),
+			schema,
+			schema.getReferenceOrThrowException(referenceName),
+			version,
+			new ReferenceKey(referenceName, entityPrimaryKey, internalPrimaryKey),
 			group, attributes, dropped
 		);
 	}

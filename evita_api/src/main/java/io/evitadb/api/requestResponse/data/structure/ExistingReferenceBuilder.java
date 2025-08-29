@@ -340,10 +340,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 
 		if (groupDiffers || this.attributesBuilder.isThereAnyChangeInMutations()) {
 			return new Reference(
-				this.entitySchema,
+				this.baseReference.getReferenceSchemaOrThrow(),
 				version() + 1,
-				getReferenceName(), getReferencedPrimaryKey(),
-				getReferencedEntityType(), getReferenceCardinality(),
+				getReferenceKey(),
 				newGroup.orElse(null),
 				newAttributes,
 				false

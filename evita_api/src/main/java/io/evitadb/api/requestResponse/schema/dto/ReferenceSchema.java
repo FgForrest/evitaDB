@@ -313,6 +313,39 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
+	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
+	 * different package than current, but still internal code of the Evita ecosystems.
+	 *
+	 * Do not use this method from in the client code!
+	 */
+	public static ReferenceSchemaContract _internalBuild(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Cardinality elevatedCardinality
+	) {
+		return new ReferenceSchema(
+			referenceSchema.getName(),
+			referenceSchema.getNameVariants(),
+			referenceSchema.getDescription(),
+			referenceSchema.getDeprecationNotice(),
+			elevatedCardinality,
+			referenceSchema.getReferencedEntityType(),
+			referenceSchema.isReferencedEntityTypeManaged() ?
+				Map.of() :
+				referenceSchema.getEntityTypeNameVariants(s -> { throw new UnsupportedOperationException("Should not be called!"); } ),
+			referenceSchema.isReferencedEntityTypeManaged(),
+			referenceSchema.getReferencedGroupType(),
+			referenceSchema.isReferencedGroupTypeManaged() ?
+				Map.of() :
+				referenceSchema.getGroupTypeNameVariants(s -> { throw new UnsupportedOperationException("Should not be called!"); }),
+			referenceSchema.isReferencedGroupTypeManaged(),
+			referenceSchema.getReferenceIndexTypeInScopes(),
+			referenceSchema.getFacetedInScopes(),
+			referenceSchema.getAttributes(),
+			referenceSchema.getSortableAttributeCompounds()
+		);
+	}
+
+	/**
 	 * Validates the consistency between the sets of faceted and indexed scopes.
 	 * Ensures that any scope marked as faceted is also marked as indexed.
 	 *

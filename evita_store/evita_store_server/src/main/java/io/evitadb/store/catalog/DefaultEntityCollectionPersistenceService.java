@@ -1548,7 +1548,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					return Stream.concat(
 						ofNullable(entityFetch)
 							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedIds(referenceName))
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedIds(referenceName))
 									.mapToObj(
 										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedEntityType())
 											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedEntityType(), entityFetch), session)
@@ -1558,7 +1558,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 							.orElse(Stream.empty()),
 						ofNullable(entityGroupFetch)
 							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedGroupIds(referenceName))
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedGroupIds(referenceName))
 									.mapToObj(
 										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedGroupType())
 											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedGroupType(), entityGroupFetch), session)

@@ -132,17 +132,17 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */
 	default int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE
+		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			// version
-			+ MemoryMeasuringConstants.INT_SIZE +
+			MemoryMeasuringConstants.INT_SIZE +
 			// dropped
-			+MemoryMeasuringConstants.BYTE_SIZE +
+			MemoryMeasuringConstants.BYTE_SIZE +
 			// referenced entity
-			+MemoryMeasuringConstants.REFERENCE_SIZE + getReferenceKey().estimateSize() +
+			MemoryMeasuringConstants.REFERENCE_SIZE + getReferenceKey().estimateSize() +
 			// group
-			+MemoryMeasuringConstants.REFERENCE_SIZE + getGroup().stream().mapToInt(GroupEntityReference::estimateSize).sum() +
+			MemoryMeasuringConstants.REFERENCE_SIZE + getGroup().stream().mapToInt(GroupEntityReference::estimateSize).sum() +
 			// schema
-			+MemoryMeasuringConstants.REFERENCE_SIZE;
+			MemoryMeasuringConstants.REFERENCE_SIZE;
 	}
 
 	/**

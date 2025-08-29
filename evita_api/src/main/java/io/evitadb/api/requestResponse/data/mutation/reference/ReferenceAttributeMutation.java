@@ -174,10 +174,9 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 		if (attributeBuilder.differs(newAttributes)) {
 			return new Reference(
-				entitySchema,
+				existingValue.getReferenceSchemaOrThrow(),
 				existingValue.version() + 1,
-				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+				existingValue.getReferenceKey(),
 				existingValue.getGroup().orElse(null),
 				newAttributes,
 				false
@@ -215,6 +214,21 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		return this.comparableKey;
 	}
 
+	/**
+	 * Represents a composite key combining a reference key and an attribute key.
+	 * This class facilitates operations that require both the {@link ReferenceKey} and the {@link AttributeKey}.
+	 * The class ensures proper ordering and comparison for its instances by implementing the {@link Comparable} interface.
+	 * Additionally, it provides equality checks and a hash code implementation based on its constituent keys.
+	 *
+	 * This class is immutable and thread-safe.
+	 *
+	 * Implements methods to:
+	 * - Compare instances based on their reference key and attribute key.
+	 * - Evaluate equality and generate hash codes consistently.
+	 *
+	 * Suitable for usage in scenarios where entities with associated attribute keys need to be ordered, filtered, or stored in collections requiring
+	 * comparison or uniqueness constraints.
+	 */
 	public static class ReferenceKeyWithAttributeKey implements Comparable<ReferenceKeyWithAttributeKey>, Serializable {
 		@Serial private static final long serialVersionUID = 773755868610382953L;
 		private final ReferenceKey referenceKey;

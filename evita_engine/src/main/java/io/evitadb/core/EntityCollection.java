@@ -2452,7 +2452,7 @@ public final class EntityCollection implements
 	private void assertReferences(@Nonnull EntitySchema newSchema) {
 		for (ReferenceSchemaContract referenceSchema : newSchema.getReferences().values()) {
 			final Cardinality cardinality = referenceSchema.getCardinality();
-			if (cardinality == Cardinality.ONE_OR_MORE || cardinality == Cardinality.ZERO_OR_MORE) {
+			if (cardinality.getMax() > 1) {
 				final String[] invalidAttributes = referenceSchema.getAttributes()
 					.values()
 					.stream()

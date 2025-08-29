@@ -23,7 +23,9 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -32,6 +34,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -40,16 +43,23 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.dataType.Scope;
+import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
+import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilderTest.assertCardinality;
+import static io.evitadb.test.Entities.BRAND;
 import static java.util.OptionalInt.of;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -59,10 +69,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class ExistingEntityBuilderTest extends AbstractBuilderTest {
-	public static final Currency CZK = Currency.getInstance("CZK");
-	public static final Currency EUR = Currency.getInstance("EUR");
+	private static final Currency CZK = Currency.getInstance("CZK");
+	private static final Currency EUR = Currency.getInstance("EUR");
 	private static final String SORTABLE_ATTRIBUTE = "toSort";
 	private static final String BRAND_TYPE = "BRAND";
+	private static final String ATTRIBUTE_DISCRIMINATOR = "discriminator";
+	private static final String ATTRIBUTE_UPDATED = "updated";
 	private Entity initialEntity;
 	private ExistingEntityBuilder builder;
 
@@ -250,6 +262,25 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	void shouldChangeScopeAndReflectInGetter() {
+		this.builder.setScope(Scope.ARCHIVED);
+		assertEquals(Scope.ARCHIVED, this.builder.getScope());
+
+		final Entity updatedEntity = this.builder.toMutation().orElseThrow()
+			.mutate(this.initialEntity.getSchema(), this.initialEntity);
+
+		assertEquals(Scope.ARCHIVED, updatedEntity.getScope());
+		assertEquals(this.initialEntity.version() + 1, updatedEntity.version());
+	}
+
+	@Test
+	void shouldNotCreateScopeMutationWhenScopeUnchanged() {
+		this.builder.setScope(this.initialEntity.getScope());
+		assertEquals(this.initialEntity.getScope(), this.builder.getScope());
+		assertTrue(this.builder.toMutation().isEmpty());
+	}
+
+	@Test
 	void shouldRemoveAddedReference() {
 		final Entity entityWithBrand = setupEntityWithBrand();
 
@@ -289,7 +320,13 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Nonnull
 	private Entity setupEntityWithBrand() {
-		this.builder.setReference(BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_ONE, 1, whichIs -> whichIs.setGroup("Whatever", 8));
+		this.builder.setReference(
+			BRAND_TYPE,
+			BRAND_TYPE,
+			Cardinality.ZERO_OR_ONE,
+			1,
+			whichIs -> whichIs.setGroup("Whatever", 8)
+		);
 
 		final EntityMutation entityMutation = this.builder.toMutation().orElseThrow();
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
@@ -308,4 +345,161 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 		return entityMutation.mutate(updatedSchema, this.initialEntity);
 	}
+
+	@Test
+	void shouldGetReferencesHandleRemovalsUpdatesAndConflicts() {
+		final Entity entityWithRefs = buildInitialEntityWithDuplicatedReferences();
+		final ExistingEntityBuilder eb = new ExistingEntityBuilder(entityWithRefs);
+
+		eb.updateReferences(
+			ref -> ref.getReferenceName().equals(Entities.CATEGORY),
+			ref -> ref.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now())
+		);
+
+		assertAllCategoriesHasUpdatedAttributeButNothingElseHas(eb);
+
+		// we can set attribute this way, because there are not duplicates
+		eb.setReference(BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()));
+
+		// but we cannot do that on references that allow duplicates
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> eb.setReference(Entities.PARAMETER, 100, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()))
+		);
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> eb.setReference(Entities.STORE, 1000, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()))
+		);
+	}
+
+	private static void assertAllCategoriesHasUpdatedAttributeButNothingElseHas(ExistingEntityBuilder builder) {
+		for (ReferenceContract reference : builder.getReferences()) {
+			if (reference.getReferenceName().equals(Entities.CATEGORY)) {
+				assertNotNull(reference.getAttribute(ATTRIBUTE_UPDATED));
+			} else {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> reference.getAttribute(ATTRIBUTE_UPDATED)
+				);
+			}
+		}
+		final Entity instance = builder.toInstance();
+		for (ReferenceContract reference : instance.getReferences()) {
+			if (reference.getReferenceName().equals(Entities.CATEGORY)) {
+				assertNotNull(reference.getAttribute(ATTRIBUTE_UPDATED));
+			} else {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> reference.getAttribute(ATTRIBUTE_UPDATED)
+				);
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("gradually promote reference cardinality from unique to duplicates")
+	void shouldGraduallyPromoteReferenceCardinality() {
+		// default evolution strategy is ALLOW all
+		final InitialEntityBuilder initialEntityBuilder = new InitialEntityBuilder("product", 100);
+		initialEntityBuilder.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1);
+		assertTrue(initialEntityBuilder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
+		assertCardinality(Cardinality.ZERO_OR_ONE, initialEntityBuilder, new ReferenceKey(BRAND, 1));
+
+		// create builder from initial entity
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(initialEntityBuilder.toInstance());
+
+		// promote to ZERO_OR_MORE
+		builder.setReference(BRAND, 2);
+		assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
+		assertCardinality(Cardinality.ZERO_OR_MORE, builder, new ReferenceKey(BRAND, 1));
+
+		// promote to ZERO_OR_MORE_WITH_DUPLICATES
+		builder.setReference(
+			BRAND,
+			2,
+			ref -> false,
+			UnaryOperator.identity()
+		);
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> builder.getReference(new ReferenceKey(BRAND, 1)).isPresent()
+		);
+		assertCardinality(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, builder, new ReferenceKey(BRAND, 1));
+
+		// add another duplicate
+		builder.setReference(
+			BRAND,
+			3,
+			ref -> false,
+			UnaryOperator.identity()
+		);
+
+		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);
+		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 2, 3);
+	}
+
+	/* TODO JNO - write test for removing reference from base and adding it back again */
+
+	private static void checkCollectionBrands(Collection<ReferenceContract> references, int... expectedPks) {
+		assertEquals(expectedPks.length, references.size());
+
+		int i = 0;
+		for (ReferenceContract ref : references) {
+			assertEquals(expectedPks[i++], ref.getReferencedPrimaryKey());
+		}
+	}
+
+	@Nonnull
+	private Entity buildInitialEntityWithDuplicatedReferences() {
+		final ExistingEntityBuilder eb = new ExistingEntityBuilder(this.initialEntity);
+		// initial: 1x BRAND
+		eb.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1);
+		// initial: 2x CATEGORY (different PKs)
+		eb.setReference(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, 10);
+		eb.setReference(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, 11);
+		// initial: 2x PARAMETER (same PKs)
+		eb.setReference(
+			Entities.PARAMETER,
+			Entities.PARAMETER,
+			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			100,
+			ref -> false,
+			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
+		);
+		eb.setReference(
+			Entities.PARAMETER,
+			Entities.PARAMETER,
+			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			100,
+			ref -> false,
+			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
+		);
+		// initial: 3x STORE (two share same referencedEntityPrimaryKey)
+		eb.setReference(
+			Entities.STORE,
+			Entities.STORE,
+			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			1000,
+			ref -> false,
+			UnaryOperator.identity()
+		);
+		eb.setReference(
+			Entities.STORE,
+			Entities.STORE,
+			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			1001,
+			ref -> false,
+			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
+		);
+		eb.setReference(
+			Entities.STORE,
+			Entities.STORE,
+			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			1001,
+			ref -> false,
+			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
+		);
+		return eb.toInstance();
+	}
+
 }

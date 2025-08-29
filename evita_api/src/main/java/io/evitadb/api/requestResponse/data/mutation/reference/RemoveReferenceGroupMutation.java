@@ -70,9 +70,9 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 		);
 		return new Reference(
 			entitySchema,
+			existingValue.getReferenceSchemaOrThrow(),
 			existingValue.version() + 1,
-			existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-			existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+			existingValue.getReferenceKey(),
 			existingReferenceGroup
 				.filter(Droppable::exists)
 				.map(it -> new GroupEntityReference(

@@ -32,7 +32,6 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -50,6 +49,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializabl
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -76,6 +76,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -138,12 +141,16 @@ public class EntityDecorator implements SealedEntity {
 	/**
 	 * Optimization that ensures that expensive reference filtering using predicates happens only once.
 	 */
-	private final Map<ReferenceKey, ReferenceContract> filteredReferences;
+	private Map<ReferenceKey, ReferenceContract> filteredReferences;
+	/**
+	 * Optimization that ensures that expensive reference filtering using predicates happens only once.
+	 */
+	private Map<ReferenceKey, List<ReferenceContract>> filteredDuplicateReferences;
 	/**
 	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
 	 * and is initialized lazily on first request.
 	 */
-	private final Map<String, DataChunk<ReferenceContract>> filteredReferencesByName;
+	private Map<String, DataChunk<ReferenceContract>> filteredReferencesByName;
 	/**
 	 * Optimization that ensures that expensive attributes filtering using predicates happens only once.
 	 */
@@ -182,15 +189,18 @@ public class EntityDecorator implements SealedEntity {
 					Arrays.sort(references, start, end, referenceComparator);
 				} else {
 					final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
-						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
-						.toArray(ReferenceDecorator[]::new);
+					                                                      .filter(it -> referenceFilter.test(
+						                                                      entityPrimaryKey, it))
+					                                                      .toArray(ReferenceDecorator[]::new);
 					filteredOutReferences += (end - start) - filteredReferences.length;
 
 					Arrays.sort(filteredReferences, referenceComparator);
 
 					for (int i = start; i < end; i++) {
 						final int filteredIndex = i - start;
-						references[i] = filteredReferences.length > filteredIndex ? filteredReferences[filteredIndex] : null;
+						references[i] = filteredReferences.length > filteredIndex ?
+							filteredReferences[filteredIndex] :
+							null;
 					}
 				}
 				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
@@ -199,6 +209,41 @@ public class EntityDecorator implements SealedEntity {
 			} while (referenceComparator != null && nonSortedReferenceCount > 0);
 		}
 		return filteredOutReferences;
+	}
+
+	/**
+	 * Removes references from {@code filteredReferences} that are not present in the provided data chunk. Most of the
+	 * time all the references will be present in the chunk, only when pagination is used and there is a lot of references
+	 * some of them will be missing. In such case, we need to remove them from the filtered references.
+	 *
+	 * @param chunk                The chunk containing a subset of reference contracts. Must not be null.
+	 * @param references           The list of references to filter. Must not be null.
+	 *                             References within the list might contain null elements.
+	 * @param filteredReferences   Map of filtered references to be updated. Must not be null.
+	 * @param duplicatedReferences Map of duplicated references to be updated. Must not be null.
+	 */
+	private static void removeReferencesNotPresentInChunk(
+		@Nonnull DataChunk<ReferenceContract> chunk,
+		@Nonnull List<ReferenceContract> references,
+		@Nonnull Map<ReferenceKey, ReferenceContract> filteredReferences,
+		@Nonnull Map<ReferenceKey, List<ReferenceContract>> duplicatedReferences
+	) {
+		// this will be true only if there is pagination defined (small number of cases)
+		final int chunkSize = chunk.getData().size();
+		if (chunkSize < references.size()) {
+			final Set<ReferenceKey> returnedKeys = createHashSet(chunkSize);
+			for (ReferenceContract referenceContract : chunk) {
+				returnedKeys.add(referenceContract.getReferenceKey());
+			}
+			for (ReferenceContract reference : references) {
+				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
+					final ReferenceContract removedReference = filteredReferences.remove(reference.getReferenceKey());
+					if (removedReference == Entity.DUPLICATE_REFERENCE) {
+						duplicatedReferences.remove(removedReference.getReferenceKey());
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -268,34 +313,6 @@ public class EntityDecorator implements SealedEntity {
 		this.referencePredicate = referencePredicate;
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
-
-		final Collection<ReferenceContract> references = delegate.getReferences();
-		this.filteredReferences = CollectionUtils.createLinkedHashMap(references.size());
-		final Map<String, List<ReferenceContract>> allReferencesByName = CollectionUtils.createLinkedHashMap(entitySchema.getReferences().size());
-		for (ReferenceContract reference : references) {
-			if (referencePredicate.test(reference)) {
-				this.filteredReferences.put(reference.getReferenceKey(), reference);
-				allReferencesByName
-					.computeIfAbsent(
-						reference.getReferenceName(),
-						s -> new ArrayList<>(references.size() / entitySchema.getReferences().size())
-					)
-					.add(reference);
-			}
-		}
-		this.filteredReferencesByName = allReferencesByName
-			.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Map.Entry::getKey,
-					entry -> {
-						final ChunkTransformer chunker = this.delegate.getReferenceChunkTransformer()
-							.apply(entry.getKey());
-						return chunker.createChunk(entry.getValue());
-					}
-				)
-			);
 	}
 
 	/**
@@ -336,6 +353,7 @@ public class EntityDecorator implements SealedEntity {
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
 		this.filteredReferences = decorator.filteredReferences;
+		this.filteredDuplicateReferences = decorator.filteredDuplicateReferences;
 		this.filteredReferencesByName = decorator.filteredReferencesByName;
 	}
 
@@ -432,7 +450,7 @@ public class EntityDecorator implements SealedEntity {
 			if (referenceSchema == null) {
 				index = i;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
-					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
+				                              .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
@@ -445,7 +463,7 @@ public class EntityDecorator implements SealedEntity {
 				);
 				index = i - filteredOutReferences;
 				referenceSchema = entitySchema.getReference(thisReferenceName)
-					.orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
+				                              .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
@@ -455,7 +473,10 @@ public class EntityDecorator implements SealedEntity {
 				fetchReference(
 					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
 				)
-			).orElseGet(() -> new ReferenceDecorator(referenceContract, referencePredicate.getAttributePredicate(thisReferenceName)));
+			).orElseGet(() -> new ReferenceDecorator(
+				referenceContract,
+			                                         referencePredicate.getAttributePredicate(thisReferenceName)
+			));
 		}
 		if (referenceSchema != null && fetchedReferenceComparator != null) {
 			filteredOutReferences += sortAndFilterSubList(
@@ -467,53 +488,71 @@ public class EntityDecorator implements SealedEntity {
 		}
 
 		final Map<String, ReferenceSchemaContract> referencesAccordingToSchema = entitySchema.getReferences();
-		this.filteredReferencesByName = CollectionUtils.createLinkedHashMap(referencesAccordingToSchema.size());
+		this.filteredReferencesByName = createLinkedHashMap(referencesAccordingToSchema.size());
 
 		final int length = fetchedAndFilteredReferences.length - filteredOutReferences;
-		final Map<String, List<ReferenceContract>> indexByName = CollectionUtils.createLinkedHashMap(length);
-		this.filteredReferences = CollectionUtils.createLinkedHashMap(length);
+		final Map<String, List<ReferenceContract>> indexByName = createLinkedHashMap(length);
+		this.filteredReferences = createLinkedHashMap(length);
 		final int averageExpectedCount = referencesAccordingToSchema.isEmpty() ?
 			16 : Math.min(16, length / referencesAccordingToSchema.size() + 1);
+
+		// cache last resolved schema to avoid Optional/map overhead on each iteration
+		final EntitySchemaContract schema = this.delegate.getSchema();
+		ReferenceSchemaContract lastResolvedSchema = null;
+		String lastResolvedSchemaName = null;
 		for (int i = 0; i < length; i++) {
 			final ReferenceDecorator reference = fetchedAndFilteredReferences[i];
-			indexByName.computeIfAbsent(reference.getReferenceName(), s -> new ArrayList<>(averageExpectedCount)).add(reference);
-			this.filteredReferences.put(reference.getReferenceKey(), reference);
+			final String referenceName = reference.getReferenceName();
+			indexByName
+				.computeIfAbsent(
+					referenceName,
+					s -> new ArrayList<>(averageExpectedCount)
+				)
+				.add(reference);
+
+			// resolve schema only when reference name changes
+			if (lastResolvedSchema == null || !referenceName.equals(lastResolvedSchemaName)) {
+				lastResolvedSchema = schema.getReference(referenceName).orElse(null);
+				lastResolvedSchemaName = referenceName;
+			}
+			final boolean duplicatesAllowed = lastResolvedSchema == null
+				? Cardinality.ZERO_OR_MORE.allowsDuplicates()
+				: lastResolvedSchema.getCardinality().allowsDuplicates();
+
+			if (duplicatesAllowed) {
+				// mark reference key as duplicate bearer
+				this.filteredReferences.put(reference.getReferenceKey(), Entity.DUPLICATE_REFERENCE);
+				if (this.filteredDuplicateReferences == null) {
+					this.filteredDuplicateReferences = createHashMap(schema.getReferences().size());
+				}
+				this.filteredDuplicateReferences
+					.computeIfAbsent(
+						reference.getReferenceKey(),
+						k -> new ArrayList<>(2)
+					)
+					.add(reference);
+			} else {
+				// entity decorator wraps entity with up-to-date schema, so having duplicate reference which is not
+				// allowed by the schema is a sign of an invalid state
+				final ReferenceContract previous = this.filteredReferences.putIfAbsent(reference.getReferenceKey(), reference);
+				Assert.isPremiseValid(
+					previous == null,
+					"Unexpected duplicate reference " + reference.getReferenceKey() + " in entity " + entityPrimaryKey + "!"
+				);
+			}
 		}
 		for (String referenceName : referencesAccordingToSchema.keySet()) {
 			if (referencePredicate.isReferenceRequested(referenceName)) {
 				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
 					.orElse(Collections.emptyList());
-				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(entity, referenceName, references);
-				removeReferencesNotPresentInChunk(chunk, references);
+				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
+					entity, referenceName, references);
+				removeReferencesNotPresentInChunk(
+					chunk, references,
+					this.filteredReferences,
+					this.filteredDuplicateReferences
+				);
 				this.filteredReferencesByName.put(referenceName, chunk);
-			}
-		}
-	}
-
-	/**
-	 * Removes references from {@code filteredReferences} that are not present in the provided data chunk. Most of the
-	 * time all the references will be present in the chunk, only when pagination is used and there is a lot of references
-	 * some of them will be missing. In such case, we need to remove them from the filtered references.
-	 *
-	 * @param chunk      The chunk containing a subset of reference contracts. Must not be null.
-	 * @param references The list of references to filter. Must not be null.
-	 *                   References within the list might contain null elements.
-	 */
-	private void removeReferencesNotPresentInChunk(
-		@Nonnull DataChunk<ReferenceContract> chunk,
-		@Nonnull List<ReferenceContract> references
-	) {
-		// this will be true only if there is pagination defined (small number of cases)
-		final int chunkSize = chunk.getData().size();
-		if (chunkSize < references.size()) {
-			final Set<ReferenceKey> returnedKeys = CollectionUtils.createHashSet(chunkSize);
-			for (ReferenceContract referenceContract : chunk) {
-				returnedKeys.add(referenceContract.getReferenceKey());
-			}
-			for (ReferenceContract reference : references) {
-				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
-					this.filteredReferences.remove(reference.getReferenceKey());
-				}
 			}
 		}
 	}
@@ -562,7 +601,9 @@ public class EntityDecorator implements SealedEntity {
 	 * Returns {@link AttributeValueSerializablePredicate} that is enriched enough to satisfy passed `evitaRequest`.
 	 */
 	@Nonnull
-	public AttributeValueSerializablePredicate createAttributePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
+	public AttributeValueSerializablePredicate createAttributePredicateRicherCopyWith(
+		@Nonnull EvitaRequest evitaRequest
+	) {
 		return this.attributePredicate.createRicherCopyWith(evitaRequest);
 	}
 
@@ -578,7 +619,9 @@ public class EntityDecorator implements SealedEntity {
 	 * Returns {@link AssociatedDataValueSerializablePredicate} that is enriched enough to satisfy passed `evitaRequest`.
 	 */
 	@Nonnull
-	public AssociatedDataValueSerializablePredicate createAssociatedDataPredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
+	public AssociatedDataValueSerializablePredicate createAssociatedDataPredicateRicherCopyWith(
+		@Nonnull EvitaRequest evitaRequest
+	) {
 		return this.associatedDataPredicate.createRicherCopyWith(evitaRequest);
 	}
 
@@ -594,7 +637,9 @@ public class EntityDecorator implements SealedEntity {
 	 * Returns {@link ReferenceContractSerializablePredicate} that is enriched enough to satisfy passed `evitaRequest`.
 	 */
 	@Nonnull
-	public ReferenceContractSerializablePredicate createReferencePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
+	public ReferenceContractSerializablePredicate createReferencePredicateRicherCopyWith(
+		@Nonnull EvitaRequest evitaRequest
+	) {
 		return this.referencePredicate.createRicherCopyWith(evitaRequest);
 	}
 
@@ -667,14 +712,14 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Collection<ReferenceContract> getReferences() {
 		this.referencePredicate.checkFetched();
-		return this.filteredReferences.values();
+		return getFilteredReferences().values();
 	}
 
 	@Nonnull
 	@Override
 	public Set<String> getReferenceNames() {
 		this.referencePredicate.checkFetched();
-		return this.filteredReferencesByName.keySet();
+		return getFilteredReferencesByName().keySet();
 	}
 
 	@Nonnull
@@ -687,26 +732,46 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
 		this.referencePredicate.checkFetched(referenceName);
-		return ofNullable(this.filteredReferences.get(new ReferenceKey(referenceName, referencedEntityId)));
+		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nonnull
 	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) throws ContextMissingException, ReferenceNotFoundException {
+	public Optional<ReferenceContract> getReference(
+		@Nonnull ReferenceKey referenceKey
+	) throws ContextMissingException, ReferenceNotFoundException {
 		this.referencePredicate.checkFetched(referenceKey.referenceName());
-		return ofNullable(this.filteredReferences.get(referenceKey));
+		return ofNullable(getFilteredReferences().get(referenceKey));
 	}
 
 	@Nonnull
 	@Override
-	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
+	public List<ReferenceContract> getReferences(
+		@Nonnull ReferenceKey referenceKey
+	) throws ContextMissingException, ReferenceNotFoundException {
+		this.referencePredicate.checkFetched(referenceKey.referenceName());
+		final ReferenceContract reference = getFilteredReferences().get(referenceKey);
+		if (reference == null) {
+			return Collections.emptyList();
+		} else if (reference == Entity.DUPLICATE_REFERENCE) {
+			return Collections.singletonList(reference);
+		} else {
+			return this.filteredDuplicateReferences.get(referenceKey);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(
+		@Nonnull String referenceName
+	) throws ContextMissingException {
 		this.referencePredicate.checkFetched(referenceName);
-		this.delegate.checkReferenceName(referenceName);
-		final DataChunk<ReferenceContract> chunk = this.filteredReferencesByName.get(referenceName);
+		this.delegate.checkReferenceName(referenceName, true);
+		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
 		//noinspection unchecked
 		return (T) (chunk == null ?
-					this.delegate.getReferenceChunkTransformer().apply(referenceName).createChunk(Collections.emptyList()) :
-					chunk);
+			this.delegate.getReferenceChunkTransformer().apply(referenceName).createChunk(Collections.emptyList()) :
+			chunk);
 	}
 
 	@Nonnull
@@ -719,9 +784,9 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Set<Locale> getLocales() {
 		return this.delegate.getLocales()
-			.stream()
-			.filter(this.localePredicate)
-			.collect(Collectors.toSet());
+		                    .stream()
+		                    .filter(this.localePredicate)
+		                    .collect(Collectors.toSet());
 	}
 
 	@Nonnull
@@ -740,8 +805,9 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	@Nonnull
-	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(@Nonnull String referenceName, int referencedEntityId) {
-		return ofNullable(this.filteredReferences.get(new ReferenceKey(referenceName, referencedEntityId)));
+	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(
+		@Nonnull String referenceName, int referencedEntityId) {
+		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nullable
@@ -838,7 +904,7 @@ public class EntityDecorator implements SealedEntity {
 		final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
 		this.attributePredicate.checkFetched(attributeKey);
 		return this.delegate.getAttributeValue(attributeKey)
-			.filter(this.attributePredicate);
+		                    .filter(this.attributePredicate);
 	}
 
 	@Nonnull
@@ -870,7 +936,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
 		this.attributePredicate.checkFetched(attributeKey);
 		return this.delegate.getAttributeValue(attributeKey)
-			.filter(this.attributePredicate);
+		                    .filter(this.attributePredicate);
 	}
 
 	@Nonnull
@@ -879,9 +945,9 @@ public class EntityDecorator implements SealedEntity {
 		this.attributePredicate.checkFetched();
 		if (this.filteredAttributes == null) {
 			this.filteredAttributes = this.delegate.getAttributeValues()
-				.stream()
-				.filter(this.attributePredicate)
-				.collect(Collectors.toList());
+			                                       .stream()
+			                                       .filter(this.attributePredicate)
+			                                       .collect(Collectors.toList());
 		}
 		return this.filteredAttributes;
 	}
@@ -891,9 +957,9 @@ public class EntityDecorator implements SealedEntity {
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
 		this.attributePredicate.checkFetched(new AttributeKey(attributeName));
 		return this.delegate.getAttributeValues(attributeName)
-			.stream()
-			.filter(this.attributePredicate)
-			.collect(Collectors.toList());
+		                    .stream()
+		                    .filter(this.attributePredicate)
+		                    .collect(Collectors.toList());
 	}
 
 	@Nonnull
@@ -933,9 +999,13 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
+	public <T extends Serializable> T getAssociatedData(
+		@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
 		return getAssociatedDataValue(associatedDataName)
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(Objects.requireNonNull(it.value()), dtoType, reflectionLookup))
+			.map(it -> ComplexDataObjectConverter.getOriginalForm(
+				Objects.requireNonNull(it.value()), dtoType,
+				reflectionLookup
+			))
 			.orElse(null);
 	}
 
@@ -968,38 +1038,43 @@ public class EntityDecorator implements SealedEntity {
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-			.filter(this.associatedDataPredicate)
-			.map(it -> (T) it.value())
-			.orElse(null);
+		                    .filter(this.associatedDataPredicate)
+		                    .map(it -> (T) it.value())
+		                    .orElse(null);
 	}
 
 	@Nullable
 	@Override
-	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
+	public <T extends Serializable> T getAssociatedData(
+		@Nonnull String associatedDataName, @Nonnull Locale locale, @Nonnull Class<T> dtoType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
 		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-			.filter(this.associatedDataPredicate)
-			.map(AssociatedDataValue::value)
-			.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
-			.orElse(null);
+		                    .filter(this.associatedDataPredicate)
+		                    .map(AssociatedDataValue::value)
+		                    .map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
+		                    .orElse(null);
 	}
 
 	@Nullable
 	@Override
-	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+	public <T extends Serializable> T[] getAssociatedDataArray(
+		@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		//noinspection unchecked
 		return this.delegate.getAssociatedDataValue(associatedDataName, locale)
-			.filter(this.associatedDataPredicate)
-			.map(it -> (T[]) it.value())
-			.orElse(null);
+		                    .filter(this.associatedDataPredicate)
+		                    .map(it -> (T[]) it.value())
+		                    .orElse(null);
 	}
 
 	@Nonnull
 	@Override
-	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+	public Optional<AssociatedDataValue> getAssociatedDataValue(
+		@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
 		this.associatedDataPredicate.checkFetched(associatedDataKey);
 		return this.delegate.getAssociatedDataValue(associatedDataKey)
-			.filter(this.associatedDataPredicate);
+		                    .filter(this.associatedDataPredicate);
 	}
 
 	@Nonnull
@@ -1031,7 +1106,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull AssociatedDataKey associatedDataKey) {
 		this.associatedDataPredicate.checkFetched(associatedDataKey);
 		return this.delegate.getAssociatedDataValue(associatedDataKey)
-			.filter(this.associatedDataPredicate);
+		                    .filter(this.associatedDataPredicate);
 	}
 
 	@Nonnull
@@ -1040,9 +1115,9 @@ public class EntityDecorator implements SealedEntity {
 		if (this.filteredAssociatedData == null) {
 			this.associatedDataPredicate.checkFetched();
 			this.filteredAssociatedData = this.delegate.getAssociatedDataValues()
-				.stream()
-				.filter(this.associatedDataPredicate)
-				.collect(Collectors.toList());
+			                                           .stream()
+			                                           .filter(this.associatedDataPredicate)
+			                                           .collect(Collectors.toList());
 		}
 		return this.filteredAssociatedData;
 	}
@@ -1051,9 +1126,9 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
 		return this.delegate.getAssociatedDataValues(associatedDataName)
-			.stream()
-			.filter(this.associatedDataPredicate)
-			.collect(Collectors.toList());
+		                    .stream()
+		                    .filter(this.associatedDataPredicate)
+		                    .collect(Collectors.toList());
 	}
 
 	@Nonnull
@@ -1072,7 +1147,7 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) throws ContextMissingException {
 		this.pricePredicate.checkFetched(priceKey.currency(), priceKey.priceList());
 		return this.delegate.getPrice(priceKey)
-			.filter(this.pricePredicate);
+		                    .filter(this.pricePredicate);
 	}
 
 	@Nonnull
@@ -1080,15 +1155,18 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		this.pricePredicate.checkFetched(currency, priceList);
 		return this.delegate.getPrice(priceId, priceList, currency)
-			.filter(this.pricePredicate);
+		                    .filter(this.pricePredicate);
 	}
 
 	@Nonnull
 	@Override
-	public Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency) throws UnexpectedResultCountException, ContextMissingException {
+	public Optional<PriceContract> getPrice(
+		@Nonnull String priceList,
+		@Nonnull Currency currency
+	) throws UnexpectedResultCountException, ContextMissingException {
 		this.pricePredicate.checkFetched(currency, priceList);
 		return this.delegate.getPrice(priceList, currency)
-			.filter(this.pricePredicate);
+		                    .filter(this.pricePredicate);
 	}
 
 	@Nonnull
@@ -1107,14 +1185,16 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Collection<PriceContract> getPrices(@Nonnull Currency currency, @Nonnull String priceList) throws ContextMissingException {
+	public Collection<PriceContract> getPrices(
+		@Nonnull Currency currency, @Nonnull String priceList) throws ContextMissingException {
 		this.pricePredicate.checkFetched(currency, priceList);
 		return SealedEntity.super.getPrices(currency, priceList);
 	}
 
 	@Nonnull
 	@Override
-	public Optional<PriceContract> getPriceForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) {
+	public Optional<PriceContract> getPriceForSale(
+		@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) {
 		this.pricePredicate.checkFetched(currency, priceListPriority);
 		if (this.pricePredicate.isContextAvailable()) {
 			// verify the mandated context
@@ -1124,8 +1204,16 @@ public class EntityDecorator implements SealedEntity {
 					Arrays.equals(priceListPriority, this.pricePredicate.getPriceLists()),
 				() -> "Entity cannot provide price for sale different from the context it was loaded in! " +
 					"The entity `" + getPrimaryKey() + "` was fetched using `" + this.pricePredicate.getCurrency() + "` currency, " +
-					ofNullable(this.pricePredicate.getValidIn()).map(it -> "valid at `" + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(it) + "`").orElse("") +
-					" and price list in this priority: " + ofNullable(this.pricePredicate.getPriceLists()).map(Arrays::stream).map(it -> it.map(element -> "`" + element + "`").collect(Collectors.joining(", "))) + "."
+					ofNullable(this.pricePredicate.getValidIn()).map(
+						it -> "valid at `" + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(it) + "`").orElse("") +
+					" and price list in this priority: " + ofNullable(this.pricePredicate.getPriceLists()).map(
+						                                                                                      Arrays::stream)
+					                                                                                      .map(
+						                                                                                      it -> it.map(
+							                                                                                              element -> "`" + element + "`")
+						                                                                                              .collect(
+							                                                                                              Collectors.joining(
+								                                                                                              ", "))) + "."
 			);
 		}
 		return SealedEntity.super.getPriceForSale(currency, atTheMoment, priceListPriority);
@@ -1178,18 +1266,22 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public List<PriceContract> getAllPricesForSale(@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority) throws ContextMissingException {
+	public List<PriceContract> getAllPricesForSale(
+		@Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment,
+		@Nonnull String... priceListPriority
+	) throws ContextMissingException {
 		this.pricePredicate.checkFetched(currency, priceListPriority);
-		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(currency, atTheMoment, priceListPriority);
+		final List<PriceContract> allPricesForSale = SealedEntity.super.getAllPricesForSale(
+			currency, atTheMoment, priceListPriority);
 		if (allPricesForSale.size() > 1) {
 			return allPricesForSale
 				.stream()
 				.sorted(
 					Comparator.comparing(PriceContract::priceId)
-						.thenComparing(
-							PriceContract::innerRecordId,
-							Comparator.nullsLast(Integer::compareTo)
-						)
+					          .thenComparing(
+						          PriceContract::innerRecordId,
+						          Comparator.nullsLast(Integer::compareTo)
+					          )
 				).toList();
 		} else {
 			return allPricesForSale;
@@ -1205,7 +1297,7 @@ public class EntityDecorator implements SealedEntity {
 			Stream.concat(
 				Arrays.stream(context.priceListPriority().orElseThrow(ContextMissingException::new)),
 				Arrays.stream(context.accompanyingPrices().orElseThrow(ContextMissingException::new))
-					.flatMap(it -> Arrays.stream(it.priceListPriority()))
+				      .flatMap(it -> Arrays.stream(it.priceListPriority()))
 			).toArray(String[]::new)
 		);
 		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices();
@@ -1213,11 +1305,11 @@ public class EntityDecorator implements SealedEntity {
 			return allPricesForSale
 				.stream()
 				.sorted(
-					Comparator.comparing(it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().priceId())
-						.thenComparing(
-							it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().innerRecordId(),
-							Comparator.nullsLast(Integer::compareTo)
-						)
+					Comparator.comparing(it -> ((PriceForSaleWithAccompanyingPrices) it).priceForSale().priceId())
+					          .thenComparing(
+						          it -> ((PriceForSaleWithAccompanyingPrices) it).priceForSale().innerRecordId(),
+						          Comparator.nullsLast(Integer::compareTo)
+					          )
 				).toList();
 		} else {
 			return allPricesForSale;
@@ -1233,16 +1325,17 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
 	) {
 		this.pricePredicate.checkFetched(currency, priceListPriority);
-		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
+		final List<PriceForSaleWithAccompanyingPrices> allPricesForSale = SealedEntity.super.getAllPricesForSaleWithAccompanyingPrices(
+			currency, atTheMoment, priceListPriority, accompanyingPricesRequest);
 		if (allPricesForSale.size() > 1) {
 			return allPricesForSale
 				.stream()
 				.sorted(
-					Comparator.comparing(it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().priceId())
-						.thenComparing(
-							it -> ((PriceForSaleWithAccompanyingPrices)it).priceForSale().innerRecordId(),
-							Comparator.nullsLast(Integer::compareTo)
-						)
+					Comparator.comparing(it -> ((PriceForSaleWithAccompanyingPrices) it).priceForSale().priceId())
+					          .thenComparing(
+						          it -> ((PriceForSaleWithAccompanyingPrices) it).priceForSale().innerRecordId(),
+						          Comparator.nullsLast(Integer::compareTo)
+					          )
 				).toList();
 		} else {
 			return allPricesForSale;
@@ -1267,7 +1360,10 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	@Override
-	public boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException {
+	public boolean hasPriceInInterval(
+		@Nonnull BigDecimal from, @Nonnull BigDecimal to,
+		@Nonnull QueryPriceMode queryPriceMode
+	) throws ContextMissingException {
 		if (this.pricePredicate.isContextAvailable()) {
 			this.pricePredicate.checkPricesFetched();
 			// method context available does NullPointer check
@@ -1289,9 +1385,9 @@ public class EntityDecorator implements SealedEntity {
 		if (this.filteredPrices == null) {
 			this.pricePredicate.checkPricesFetched();
 			this.filteredPrices = this.delegate.getPrices()
-				.stream()
-				.filter(this.pricePredicate)
-				.collect(Collectors.toList());
+			                                   .stream()
+			                                   .filter(this.pricePredicate)
+			                                   .collect(Collectors.toList());
 		}
 		return this.filteredPrices;
 	}
@@ -1306,7 +1402,9 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	@Nonnull
-	public Optional<PriceContract> getPriceForSale(@Nonnull Predicate<PriceContract> predicate) throws ContextMissingException {
+	public Optional<PriceContract> getPriceForSale(
+		@Nonnull Predicate<PriceContract> predicate
+	) throws ContextMissingException {
 		if (this.pricePredicate.isContextAvailable()) {
 			this.pricePredicate.checkPricesFetched();
 			// method context available does NullPointer check
@@ -1391,6 +1489,128 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
+	 * Retrieves a filtered map of references based on the provided filtering logic.
+	 * The method processes references, applies a predicate to select which references are included,
+	 * and handles cases where duplicate references (with the same {@link ReferenceKey}) are allowed
+	 * based on their schema definitions.
+	 *
+	 * If the references allow duplicates, they are tracked separately in an internal map.
+	 * For references that do not allow duplicates, the values are stored directly in the returned map.
+	 *
+	 * @return a map of filtered references, where the keys are unique {@link ReferenceKey}
+	 * objects and the values are corresponding {@link ReferenceContract} objects.
+	 * If duplicates are permitted for certain references, those keys are marked
+	 * and handled accordingly.
+	 */
+	@Nonnull
+	private Map<ReferenceKey, ReferenceContract> getFilteredReferences() {
+		if (this.filteredReferences == null) {
+			final Collection<ReferenceContract> references = this.delegate.getReferences();
+			if (references.isEmpty()) {
+				this.filteredReferences = Collections.emptyMap();
+				this.filteredDuplicateReferences = Collections.emptyMap();
+			} else {
+				// this quite ugly part is necessary so that we can propely handle references that allow duplicates
+				// i.e. references with same ReferenceKey, that are distinguished only by their set of attributes
+				Map<ReferenceKey, ReferenceContract> indexedReferences = createLinkedHashMap(references.size());
+				Map<ReferenceKey, List<ReferenceContract>> duplicatedIndexedReferences = null;
+
+				// cache last resolved schema to avoid Optional/map overhead on each iteration
+				final EntitySchemaContract schema = getSchema();
+				ReferenceSchemaContract lastResolvedSchema = null;
+				String lastResolvedSchemaName = null;
+				for (ReferenceContract reference : references) {
+					if (this.referencePredicate.test(reference)) {
+						final String referenceName = reference.getReferenceName();
+						final ReferenceKey referenceKey = reference.getReferenceKey();
+
+						// resolve schema only when reference name changes
+						if (lastResolvedSchema == null || !referenceName.equals(lastResolvedSchemaName)) {
+							lastResolvedSchema = schema.getReference(referenceName).orElse(null);
+							lastResolvedSchemaName = referenceName;
+						}
+						final boolean duplicatesAllowed = lastResolvedSchema == null
+							? Cardinality.ZERO_OR_MORE.allowsDuplicates()
+							: lastResolvedSchema.getCardinality().allowsDuplicates();
+
+						if (duplicatesAllowed) {
+							// mark as duplicate-bearing key (idempotent)
+							indexedReferences.putIfAbsent(referenceKey, Entity.DUPLICATE_REFERENCE);
+
+							if (duplicatedIndexedReferences == null) {
+								duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
+							}
+							duplicatedIndexedReferences
+								.computeIfAbsent(referenceKey, key -> new ArrayList<>(2))
+								.add(reference);
+						} else {
+							final ReferenceContract previous = indexedReferences.putIfAbsent(referenceKey, reference);
+							if (previous != null) {
+								// convert to duplicate tracking
+								indexedReferences.put(referenceKey, Entity.DUPLICATE_REFERENCE);
+								if (duplicatedIndexedReferences == null) {
+									duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
+								}
+								final List<ReferenceContract> duplicatedReferences = duplicatedIndexedReferences.computeIfAbsent(
+									referenceKey, key -> new ArrayList<>(2)
+								);
+								duplicatedReferences.add(previous);
+								duplicatedReferences.add(reference);
+							}
+						}
+					}
+				}
+
+				this.filteredReferences = Collections.unmodifiableMap(indexedReferences);
+				this.filteredDuplicateReferences = duplicatedIndexedReferences == null ?
+					Collections.emptyMap() :
+					Collections.unmodifiableMap(duplicatedIndexedReferences);
+			}
+		}
+		return this.filteredReferences;
+	}
+
+	/**
+	 * Retrieves a map of filtered references grouped by their reference name.
+	 * The filtering is based on a predicate that determines which references are included.
+	 * If the references have not been previously filtered, this method processes the delegate's
+	 * references, applies the filtering, groups them by name, and transforms them into data chunks.
+	 *
+	 * @return a non-null map where keys are reference names and values are DataChunk objects containing filtered references.
+	 */
+	@Nonnull
+	private Map<String, DataChunk<ReferenceContract>> getFilteredReferencesByName() {
+		if (this.filteredReferencesByName == null) {
+			final Collection<ReferenceContract> references = this.delegate.getReferences();
+			final Map<String, List<ReferenceContract>> allReferencesByName = createLinkedHashMap(
+				this.entitySchema.getReferences().size()
+			);
+			for (ReferenceContract reference : references) {
+				if (this.referencePredicate.test(reference)) {
+					allReferencesByName
+						.computeIfAbsent(
+							reference.getReferenceName(),
+							s -> new ArrayList<>(references.size() / this.entitySchema.getReferences().size())
+						)
+						.add(reference);
+				}
+			}
+			this.filteredReferencesByName = allReferencesByName
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Map.Entry::getKey,
+						entry -> this.delegate.getReferenceChunkTransformer()
+						                      .apply(entry.getKey())
+						                      .createChunk(entry.getValue())
+					)
+				);
+		}
+		return this.filteredReferencesByName;
+	}
+
+	/**
 	 * Method fetches the referenced entity and group entity if those entities are managed by the evitaDB and there
 	 * is a request for fetching their bodies in input request.
 	 */
@@ -1409,7 +1629,8 @@ public class EntityDecorator implements SealedEntity {
 		}
 
 		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referenceGroupEntityFetcher != null && referencedEntity != null ?
-			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) : null;
+			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
+			null;
 		return new ReferenceDecorator(
 			reference,
 			referencedEntity,

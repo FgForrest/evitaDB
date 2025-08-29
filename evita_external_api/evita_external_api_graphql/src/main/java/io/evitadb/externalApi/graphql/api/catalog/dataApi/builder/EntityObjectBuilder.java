@@ -651,8 +651,7 @@ public class EntityObjectBuilder {
 				final GraphQLInputType referenceOrder = this.orderConstraintSchemaBuilder.build(referenceDataLocator);
 
 				final Cardinality referenceCardinality = referenceSchema.getCardinality();
-				final boolean referenceIsList = Cardinality.ZERO_OR_MORE.equals(referenceCardinality) ||
-					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
+				final boolean referenceIsList = referenceCardinality.getMax() > 1;
 
 				{ // base reference field
 					final GraphQLFieldDefinition.Builder referenceFieldBuilder = EntityDescriptor.REFERENCE
@@ -672,17 +671,17 @@ public class EntityObjectBuilder {
 							.to(this.argumentBuilderTransformer));
 					}
 
-					switch (referenceCardinality) {
-						case ZERO_OR_ONE -> referenceFieldBuilder.type(referenceObject);
-						case EXACTLY_ONE -> referenceFieldBuilder.type(nonNull(referenceObject));
-						case ZERO_OR_MORE, ONE_OR_MORE ->
-							referenceFieldBuilder.type(nonNull(list(nonNull(referenceObject))));
+					final DataFetcher<?> referenceDataFetcher;
+					if (referenceCardinality.getMax() > 1) {
+						referenceFieldBuilder.type(nonNull(list(nonNull(referenceObject))));
+						referenceDataFetcher = new ReferencesDataFetcher(referenceSchema);
+					} else if (referenceCardinality.getMin() == 1) {
+						referenceFieldBuilder.type(nonNull(referenceObject));
+						referenceDataFetcher = new ReferenceDataFetcher(referenceSchema);
+					} else {
+						referenceFieldBuilder.type(referenceObject);
+						referenceDataFetcher = new ReferenceDataFetcher(referenceSchema);
 					}
-
-					final DataFetcher<?> referenceDataFetcher = switch (referenceCardinality) {
-						case ZERO_OR_ONE, EXACTLY_ONE -> new ReferenceDataFetcher(referenceSchema);
-						case ZERO_OR_MORE, ONE_OR_MORE -> new ReferencesDataFetcher(referenceSchema);
-					};
 
 					fields.add(new BuiltFieldDescriptor(
 						referenceFieldBuilder.build(),
