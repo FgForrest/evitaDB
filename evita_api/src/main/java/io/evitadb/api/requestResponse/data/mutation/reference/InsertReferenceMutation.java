@@ -230,6 +230,20 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	}
 
 	/**
+	 * Creates a new instance of {@code InsertReferenceMutation} with the updated cardinality.
+	 * This method is used to modify the cardinality of a reference mutation while keeping other fields unchanged.
+	 *
+	 * @param newCardinality the new {@link Cardinality} to be applied for this reference mutation
+	 * @return a new instance of {@code InsertReferenceMutation} with the specified cardinality
+	 */
+	@Nonnull
+	public InsertReferenceMutation withCardinality(@Nonnull Cardinality newCardinality) {
+		return new InsertReferenceMutation(
+			this.referenceKey, newCardinality, this.referencedEntityType
+		);
+	}
+
+	/**
 	 * Retrieves the reference schema associated with the given entity schema and reference key.
 	 * If the reference schema is not explicitly defined in the entity schema, this method attempts
 	 * to create an implicit reference schema based on the reference key, referenced entity type,

@@ -144,7 +144,19 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertFalse(references.isEmpty());
 		for (ReferenceContract reference : references) {
 			assertEquals(
-				cardinality, reference
+				cardinality,
+				reference
+					.getReferenceSchemaOrThrow()
+					.getCardinality()
+			);
+		}
+
+		final Collection<ReferenceContract> builtReferences = builder.toInstance().getReferences(
+			referenceKey.referenceName());
+		for (ReferenceContract reference : builtReferences) {
+			assertEquals(
+				cardinality,
+				reference
 					.getReferenceSchemaOrThrow()
 					.getCardinality()
 			);
@@ -1072,9 +1084,45 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			ref -> false,
 			UnaryOperator.identity()
 		);
+		/* cannot change referenced entity type this way */
+		assertThrows(
+			InvalidMutationException.class,
+			() -> {
+				builder.setReference(
+					BRAND,
+					"differentEntityType",
+					Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+					2,
+					ref -> false,
+					UnaryOperator.identity()
+				);
+			}
+		);
+		/* cannot change cardinality this way */
+		assertThrows(
+			InvalidMutationException.class,
+			() -> {
+				builder.setReference(
+					BRAND,
+					BRAND,
+					Cardinality.ONE_OR_MORE,
+					2,
+					ref -> false,
+					UnaryOperator.identity()
+				);
+			}
+		);
 		assertThrows(
 			ReferenceAllowsDuplicatesException.class,
-			() -> builder.getReference(new ReferenceKey(BRAND, 1)).isPresent()
+			() -> builder.getReference(new ReferenceKey(BRAND, 1))
+		);
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> builder.getReference(BRAND, 1)
+		);
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> builder.setReference(BRAND, 5)
 		);
 		assertCardinality(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, builder, new ReferenceKey(BRAND, 1));
 

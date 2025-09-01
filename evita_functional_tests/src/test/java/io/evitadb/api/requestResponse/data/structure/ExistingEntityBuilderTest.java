@@ -27,6 +27,7 @@ import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -286,7 +287,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 		final SealedEntity updatedInstance = new ExistingEntityBuilder(entityWithBrand)
 			.setReference(
-				BRAND_TYPE, BRAND_TYPE, Cardinality.ZERO_OR_MORE, 2,
+				BRAND_TYPE, 2,
 				whichIs -> whichIs.setAttribute("newAttribute", "someValue")
 			)
 			.removeReference(BRAND_TYPE, 2)
@@ -299,16 +300,16 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	void shouldRemoveExistingReferenceAndAddAgain() {
 		final Entity entityWithBrand = setupEntityWithBrand();
 
-		final SealedEntity updatedInstance = new ExistingEntityBuilder(entityWithBrand)
+		final EntityBuilder entityBuilder = new ExistingEntityBuilder(entityWithBrand)
 			.removeReference(BRAND_TYPE, 1)
 			.setReference(
 				BRAND_TYPE, 1,
 				whichIs -> whichIs
 					.setGroup("Whatever", 8)
 					.setAttribute("newAttribute", "someValue")
-			)
-			.toInstance();
+			);
 
+		final SealedEntity updatedInstance = entityBuilder.toInstance();
 		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
 
 		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
@@ -411,7 +412,10 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// promote to ZERO_OR_MORE
 		builder.setReference(BRAND, 2);
 		assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
-		assertCardinality(Cardinality.ZERO_OR_MORE, builder, new ReferenceKey(BRAND, 1));
+
+		// new reference has automatically elevated cardinality
+		assertEquals(Cardinality.ZERO_OR_MORE, builder.getReference(new ReferenceKey(BRAND, 2)).orElseThrow().getReferenceSchemaOrThrow().getCardinality());
+		assertEquals(Cardinality.ZERO_OR_MORE, builder.toInstance().getReference(new ReferenceKey(BRAND, 2)).orElseThrow().getReferenceSchemaOrThrow().getCardinality());
 
 		// promote to ZERO_OR_MORE_WITH_DUPLICATES
 		builder.setReference(
@@ -420,11 +424,17 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			ref -> false,
 			UnaryOperator.identity()
 		);
+		// new references has automatically elevated cardinality
+		for (ReferenceContract reference : builder.getReferences(new ReferenceKey(BRAND, 2))) {
+			assertEquals(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
+		}
+		for (ReferenceContract reference : builder.toInstance().getReferences(new ReferenceKey(BRAND, 2))) {
+			assertEquals(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
+		}
 		assertThrows(
 			ReferenceAllowsDuplicatesException.class,
 			() -> builder.getReference(new ReferenceKey(BRAND, 1)).isPresent()
 		);
-		assertCardinality(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, builder, new ReferenceKey(BRAND, 1));
 
 		// add another duplicate
 		builder.setReference(
@@ -437,8 +447,6 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);
 		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 2, 3);
 	}
-
-	/* TODO JNO - write test for removing reference from base and adding it back again */
 
 	private static void checkCollectionBrands(Collection<ReferenceContract> references, int... expectedPks) {
 		assertEquals(expectedPks.length, references.size());

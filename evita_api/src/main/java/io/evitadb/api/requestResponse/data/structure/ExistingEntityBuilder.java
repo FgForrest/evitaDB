@@ -66,6 +66,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.PlainChunk;
@@ -82,12 +83,15 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder.assertReferenceSchemaCompatibility;
+import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
@@ -160,10 +164,18 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 */
 	@Nullable private Map<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> referenceMutations;
 	/**
+	 * Contains names of all reference names that have at least one insert reference mutation in this instance.
+	 * For such references it contains overall number of references with this name combined from base entity
+	 * and mutations.
+	 */
+	@Nullable private Map<String, Integer> referencesDefinedCount;
+	/**
+	 * Contains reference schemas with locally promoted cardinality or locally resolved.
+	 */
+	@Nullable private Map<String, ReferenceSchemaContract> localReferenceSchemas;
+	/**
 	 * Tracks internal primary keys of references removed during this build session to allow
 	 * proper merging semantics when a previously removed reference is upserted again.
-	 *
-	 * TODO JNO - tohle nějak vypadlo? Potřebujeme to?
 	 */
 	private Set<Integer> removedReferences;
 	/**
@@ -197,6 +209,39 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	}
 
 	/**
+	 * Creates a builder for a plain base entity (no decorator) and optionally enqueues local mutations.
+	 *
+	 * Predicates default to permissive DEFAULT_INSTANCE variants to reflect no fetch filtering context.
+	 *
+	 * @param baseEntity     non-null base entity to build upon
+	 * @param localMutations non-null collection of local mutations to enqueue (may be empty)
+	 */
+	public ExistingEntityBuilder(
+		@Nonnull Entity baseEntity,
+		@Nonnull Collection<LocalMutation<?, ?>> localMutations
+	) {
+		this.baseEntity = baseEntity;
+		this.baseEntityDecorator = null;
+		this.attributesBuilder = new ExistingEntityAttributesBuilder(
+			this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
+		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
+			this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
+		this.pricesBuilder = new ExistingPricesBuilder(
+			this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
+		this.referenceMutations = null;
+		this.referencesDefinedCount = null;
+		this.localePredicate = LocaleSerializablePredicate.DEFAULT_INSTANCE;
+		this.hierarchyPredicate = HierarchySerializablePredicate.DEFAULT_INSTANCE;
+		this.attributePredicate = AttributeValueSerializablePredicate.DEFAULT_INSTANCE;
+		this.associatedDataPredicate = AssociatedDataValueSerializablePredicate.DEFAULT_INSTANCE;
+		this.pricePredicate = PriceContractSerializablePredicate.DEFAULT_INSTANCE;
+		this.referencePredicate = ReferenceContractSerializablePredicate.DEFAULT_INSTANCE;
+		for (LocalMutation<?, ?> localMutation : localMutations) {
+			addMutation(localMutation);
+		}
+	}
+
+	/**
 	 * Creates a builder for an existing entity that may already be decorated and optionally pre-filled
 	 * with local mutations to apply on top of the base entity state.
 	 *
@@ -208,7 +253,9 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 * @param localMutations non-null collection of local mutations to enqueue (may be empty)
 	 */
 	public ExistingEntityBuilder(
-		@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
+		@Nonnull EntityDecorator baseEntity,
+		@Nonnull Collection<LocalMutation<?, ?>> localMutations
+	) {
 		this.baseEntity = baseEntity.getDelegate();
 		this.baseEntityDecorator = baseEntity;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(
@@ -218,6 +265,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.pricesBuilder = new ExistingPricesBuilder(
 			this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
 		this.referenceMutations = null;
+		this.referencesDefinedCount = null;
 		this.localePredicate = baseEntity.getLocalePredicate();
 		this.hierarchyPredicate = baseEntity.getHierarchyPredicate();
 		this.attributePredicate = baseEntity.getAttributePredicate();
@@ -236,35 +284,6 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 */
 	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity) {
 		this(baseEntity, Collections.emptyList());
-	}
-
-	/**
-	 * Creates a builder for a plain base entity (no decorator) and optionally enqueues local mutations.
-	 *
-	 * Predicates default to permissive DEFAULT_INSTANCE variants to reflect no fetch filtering context.
-	 *
-	 * @param baseEntity     non-null base entity to build upon
-	 * @param localMutations non-null collection of local mutations to enqueue (may be empty)
-	 */
-	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
-		this.baseEntity = baseEntity;
-		this.baseEntityDecorator = null;
-		this.attributesBuilder = new ExistingEntityAttributesBuilder(
-			this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
-		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
-			this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
-		this.pricesBuilder = new ExistingPricesBuilder(
-			this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
-		this.referenceMutations = new HashMap<>();
-		this.localePredicate = LocaleSerializablePredicate.DEFAULT_INSTANCE;
-		this.hierarchyPredicate = HierarchySerializablePredicate.DEFAULT_INSTANCE;
-		this.attributePredicate = AttributeValueSerializablePredicate.DEFAULT_INSTANCE;
-		this.associatedDataPredicate = AssociatedDataValueSerializablePredicate.DEFAULT_INSTANCE;
-		this.pricePredicate = PriceContractSerializablePredicate.DEFAULT_INSTANCE;
-		this.referencePredicate = ReferenceContractSerializablePredicate.DEFAULT_INSTANCE;
-		for (LocalMutation<?, ?> localMutation : localMutations) {
-			addMutation(localMutation);
-		}
 	}
 
 	/**
@@ -397,19 +416,18 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 			ReferenceContract toAdd = baseRef;
 
 			// mutations by internal PK for the business-key (name + PK) of this reference
-			final Map<Integer, List<ReferenceMutation<?>>> byIpk = this.referenceMutations == null ?
-				Map.of() : this.referenceMutations.get(baseRef.getReferenceKey());
+			final Map<Integer, List<ReferenceMutation<?>>> byIpk = ofNullable(this.referenceMutations)
+				.map(it -> it.get(baseRef.getReferenceKey()))
+				.orElseGet(Map::of);
 
-			if (byIpk != null) {
-				// get all mutations affecting this concrete reference (same as original getReferenceMutationsByReferenceKey call)
-				final List<ReferenceMutation<?>> mutations = getReferenceMutationsByReferenceKey(
-					baseRef.getReferenceKey(), byIpk, Operation.READ
-				);
-				if (!mutations.isEmpty()) {
-					final ReferenceContract mutated = evaluateReferenceMutations(baseRef, mutations);
-					if (mutated != null && mutated.differsFrom(baseRef)) {
-						toAdd = mutated;
-					}
+			// get all mutations affecting this concrete reference (same as original getReferenceMutationsByReferenceKey call)
+			final List<ReferenceMutation<?>> mutations = getReferenceMutationsByReferenceKey(
+				baseRef.getReferenceKey(), byIpk, Operation.READ
+			);
+			if (!mutations.isEmpty()) {
+				final ReferenceContract mutated = evaluateReferenceMutations(baseRef, mutations);
+				if (mutated != null && mutated.differsFrom(baseRef)) {
+					toAdd = mutated;
 				}
 			}
 
@@ -492,6 +510,13 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		if (!referencesAvailable(referenceKey.referenceName())) {
 			throw ContextMissingException.referenceContextMissing(referenceKey.referenceName());
 		}
+		if (referenceKey.isUnknownReference() &&
+			getReferenceSchemaContract(referenceKey.referenceName())
+				.map(ReferenceSchemaContract::getCardinality)
+				.map(Cardinality::allowsDuplicates)
+				.orElse(false)) {
+			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), getSchema(), Operation.READ);
+		}
 		final Optional<ReferenceContract> reference = this.baseEntity
 			.getReference(referenceKey)
 			.map(
@@ -518,7 +543,6 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	public List<ReferenceContract> getReferences(
 		@Nonnull ReferenceKey referenceKey
 	) throws ContextMissingException, ReferenceNotFoundException {
-		/* TODO JNO - write tests with Junie */
 		if (!referencesAvailable(referenceKey.referenceName())) {
 			throw ContextMissingException.referenceContextMissing(referenceKey.referenceName());
 		}
@@ -529,12 +553,6 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		// build a set of known internal PKs for fast membership checks (only for known positive internal PKs)
 		final int baseSize = baseReferences.size();
 		final HashSet<Integer> knownInternalPks = CollectionUtils.createHashSet(baseSize);
-		for (int i = 0; i < baseSize; i++) {
-			final ReferenceKey rk = baseReferences.get(i).getReferenceKey();
-			if (rk.isKnownInternalPrimaryKey()) {
-				knownInternalPks.add(rk.internalPrimaryKey());
-			}
-		}
 
 		// fetch relevant mutation bulk only once
 		final Map<Integer, List<ReferenceMutation<?>>> mutationBulk =
@@ -552,7 +570,12 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 				continue;
 			}
 			if (mutationBulk != null) {
-				final int ipk = baseRef.getReferenceKey().internalPrimaryKey();
+				final ReferenceKey baseRefKey = baseRef.getReferenceKey();
+				final int ipk = baseRefKey.internalPrimaryKey();
+				if (baseRefKey.isKnownInternalPrimaryKey()) {
+					knownInternalPks.add(ipk);
+				}
+
 				final List<ReferenceMutation<?>> mutationsForRef = mutationBulk.get(ipk);
 				if (mutationsForRef != null) {
 					result.add(evaluateReferenceMutations(baseRef, mutationsForRef));
@@ -599,11 +622,14 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	@Nonnull
 	@Override
 	public Set<Locale> getAllLocales() {
-		return Stream.concat(
-			             this.attributesBuilder.getAttributeLocales().stream(),
-			             this.associatedDataBuilder.getAssociatedDataLocales().stream()
-		             )
-		             .collect(Collectors.toSet());
+		final Set<Locale> attributeLocales = this.attributesBuilder.getAttributeLocales();
+		final Set<Locale> associatedDataLocales = this.associatedDataBuilder.getAssociatedDataLocales();
+
+		final int expectedSize = attributeLocales.size() + associatedDataLocales.size();
+		final Set<Locale> result = CollectionUtils.createHashSet(Math.max(16, expectedSize));
+		result.addAll(attributeLocales);
+		result.addAll(associatedDataLocales);
+		return result;
 	}
 
 	/**
@@ -615,12 +641,22 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 */
 	@Nonnull
 	public Set<Locale> getLocales() {
-		return Stream.concat(
-			             this.attributesBuilder.getAttributeLocales().stream(),
-			             this.associatedDataBuilder.getAssociatedDataLocales().stream()
-		             )
-		             .filter(this.localePredicate)
-		             .collect(Collectors.toSet());
+		final Set<Locale> attributeLocales = this.attributesBuilder.getAttributeLocales();
+		final Set<Locale> associatedDataLocales = this.associatedDataBuilder.getAssociatedDataLocales();
+
+		final int expectedSize = attributeLocales.size() + associatedDataLocales.size();
+		final Set<Locale> result = CollectionUtils.createHashSet(Math.max(16, expectedSize));
+		for (Locale attributeLocale : attributeLocales) {
+			if (this.localePredicate.test(attributeLocale)) {
+				result.add(attributeLocale);
+			}
+		}
+		for (Locale associatedDataLocale : associatedDataLocales) {
+			if (this.localePredicate.test(associatedDataLocale)) {
+				result.add(associatedDataLocale);
+			}
+		}
+		return result;
 	}
 
 	@Nonnull
@@ -631,6 +667,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 			.orElseGet(this.baseEntity::getScope);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setScope(@Nonnull Scope scope) {
 		this.scopeMutation = Objects.equals(this.baseEntity.getScope(), scope) ?
@@ -638,6 +675,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setParent(int parentPrimaryKey) {
 		if (!parentAvailable()) {
@@ -648,6 +686,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeParent() {
 		if (!parentAvailable()) {
@@ -658,6 +697,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
@@ -673,159 +713,73 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
-	public EntityBuilder setReference(
-		@Nonnull String referenceName,
-		int referencedPrimaryKey
-	) {
-		return setUniqueReferenceInternal(
-			getReferenceSchemaOrThrowException(referenceName),
-			new ReferenceKey(referenceName, referencedPrimaryKey),
-			null,
-			null,
-			null
-		);
-	}
-
-	@Override
-	public EntityBuilder setReference(
-		@Nonnull String referenceName,
-		int referencedPrimaryKey,
-		@Nullable Consumer<ReferenceBuilder> whichIs
-	) {
-		return setUniqueReferenceInternal(
-			getReferenceSchemaOrThrowException(referenceName),
-			new ReferenceKey(referenceName, referencedPrimaryKey),
-			null,
-			null,
-			whichIs
-		);
-	}
-
-	@Override
-	public EntityBuilder setReference(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
-		int referencedPrimaryKey
-	) {
-		return setUniqueReferenceInternal(
-			getReferenceSchemaOrThrowException(referenceName),
-			new ReferenceKey(referenceName, referencedPrimaryKey),
-			referencedEntityType,
-			cardinality,
-			null
-		);
-	}
-
-	@Override
-	public EntityBuilder setReference(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
-		int referencedPrimaryKey,
-		@Nullable Consumer<ReferenceBuilder> whichIs
-	) {
-		return setUniqueReferenceInternal(
-			getReferenceSchemaOrThrowException(referenceName),
-			new ReferenceKey(referenceName, referencedPrimaryKey),
-			referencedEntityType,
-			cardinality,
-			whichIs
-		);
-	}
-
-	/**
-	 * Sets a unique reference internally while ensuring compliance with the specified reference schema. The method
-	 * validates that the reference conforms to the rules defined in the schema, and may promote cardinality if permissible.
-	 * It enforces constraints such as avoiding duplicate references and maintaining schema consistency.
-	 *
-	 * @param referenceSchema the schema associated with the reference, used to validate its properties and constraints
-	 * @param referenceKey the unique key identifying the referenced entity; this includes the primary key and internal key
-	 * @param referencedEntityType the type of the referenced entity; must match the schema-defined type, if provided
-	 * @param cardinality the cardinality of the reference; if provided, must match the schema-defined cardinality
-	 * @param whichIs an optional consumer for setting additional properties of the reference during its building process
-	 * @return the updated instance of InternalEntityBuilder that includes the newly added or updated reference
-	 */
 	@Nonnull
-	private InternalEntityBuilder setUniqueReferenceInternal(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull ReferenceKey referenceKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
-		@Nullable Consumer<ReferenceBuilder> whichIs
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey
 	) {
-		final String referenceName = referenceKey.referenceName();
-		final int referencedPrimaryKey = referenceKey.primaryKey();
-
-		if (!referencesAvailable(referenceName)) {
-			throw ContextMissingException.referenceContextMissing(referenceName);
-		}
-
-		Assert.isTrue(
-			this.referencePredicate.isReferenceRequested(referenceName),
-			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrThrowException(referenceName),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			null,
+			null,
+			null
 		);
-
-		final String schemaDefinedReferencedEntityType = referenceSchema.getReferencedEntityType();
-		if (referencedEntityType != null) {
-			Assert.isTrue(
-				Objects.equals(schemaDefinedReferencedEntityType, referencedEntityType),
-				() -> new InvalidMutationException(
-					"The reference `" + referenceName + "` is already defined to point to `" +
-						schemaDefinedReferencedEntityType + "` entity type, cannot change it to `" + referencedEntityType + "`!"
-				)
-			);
-		}
-
-		final Cardinality schemaCardinality = referenceSchema.getCardinality();
-		// this method cannot be used when duplicates are allowed by schema
-		final EntitySchemaContract entitySchema = getSchema();
-		if (schemaCardinality.allowsDuplicates()) {
-			throw new ReferenceAllowsDuplicatesException(referenceName, entitySchema, Operation.WRITE);
-		}
-		// we don't allow explicit cardinality change
-		if (cardinality != null && cardinality != schemaCardinality) {
-			throw new InvalidMutationException(
-				"The reference `" + referenceName + "` is already defined to have `" +
-					referenceSchema.getCardinality() + "` cardinality, cannot change it to `" + cardinality + "` by data update!"
-			);
-		}
-		// but we allow implicit cardinality widening when needed
-		if (this.referenceMutations != null &&
-			// reference has already mutations tied to different internal primary key
-			ofNullable(this.referenceMutations.get(referenceKey))
-				.map(Map::keySet)
-				.map(mutations -> !mutations.contains(referenceKey.internalPrimaryKey()))
-				.orElse(false) &&
-			// and the schema cardinality does not allow it
-			schemaCardinality.getMax() <= 1 &&
-			!entitySchema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)
-		) {
-			throw new InvalidMutationException(
-				"The reference `" + referenceName + "` is already defined to have `" +
-					referenceSchema.getCardinality() + "` cardinality, cannot add another reference to it!"
-			);
-		}
-
-		final Optional<ReferenceContract> existingReference =
-			this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
-		final ReferenceBuilder referenceBuilder = existingReference
-			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, entitySchema))
-			.filter(this.referencePredicate)
-			.orElseGet(
-				() -> new InitialReferenceBuilder(
-					entitySchema,
-					referenceSchema,
-					referenceName, referencedPrimaryKey,
-					getNextReferenceInternalId()
-				)
-			);
-		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
-		addOrReplaceReferenceMutations(referenceBuilder);
-		return this;
 	}
 
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrThrowException(referenceName),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			null,
+			null,
+			whichIs
+		);
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey
+	) {
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			referencedEntityType,
+			cardinality,
+			null
+		);
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			referencedEntityType,
+			cardinality,
+			whichIs
+		);
+	}
+
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName,
@@ -844,11 +798,12 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
 		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
@@ -857,16 +812,20 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 			throw ContextMissingException.referenceContextMissing(referenceName);
 		}
 
-		if (getReferenceSchemaContract(referenceName).map(it -> it.getCardinality().allowsDuplicates()).orElse(false)) {
-			throw new ReferenceAllowsDuplicatesException(referenceName, getSchema(), Operation.WRITE);
-		}
+		final Optional<ReferenceSchemaContract> referenceSchema = getReferenceSchemaContract(referenceName);
+		referenceSchema.ifPresent(
+			theRefSchema -> assertReferenceSchemaCompatibility(theRefSchema, referencedEntityType, cardinality)
+		);
 
 		Assert.isTrue(
 			this.referencePredicate.test(
 				new Reference(
 					getSchema(),
-					getSchema().getReference(referenceName)
-					           .orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
+					referenceSchema.orElseGet(
+						() -> getReferenceSchemaOrCreateImplicit(
+							referenceName, referencedEntityType, cardinality
+						)
+					),
 					new ReferenceKey(referenceName, referencedPrimaryKey),
 					null
 				)
@@ -894,24 +853,28 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
 		removeReferenceInternal(new ReferenceKey(referenceName, referencedPrimaryKey), false);
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReference(@Nonnull ReferenceKey referenceKey) throws ReferenceNotKnownException {
 		removeReferenceInternal(referenceKey, false);
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull String referenceName, int referencedPrimaryKey) {
 		removeReferenceInternal(new ReferenceKey(referenceName, referencedPrimaryKey), true);
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull String referenceName) {
 		if (!referencesAvailable(referenceName)) {
@@ -921,6 +884,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return removeReferences(ref -> Objects.equals(referenceName, ref.getReferenceName()));
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
 		if (!referencesAvailable(referenceName)) {
@@ -932,6 +896,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return removeReferences(combinedFilter);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull Predicate<ReferenceContract> filter) {
 		final Collection<ReferenceContract> currentReferences = getReferences();
@@ -1235,10 +1200,17 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		final Optional<ReferenceContract> existingReferenceOpt =
 			this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
 		if (existingReferenceOpt.isEmpty()) {
-			// Fast path: no existing reference with this key
+			// no existing reference with this key - we can just add the mutation set
 			final Map<Integer, List<ReferenceMutation<?>>> referenceMutationIndex =
 				getReferenceMutationsForKey(referenceKey);
+			// register change set
 			referenceMutationIndex.put(internalReferenceKey, changeSet);
+
+			registerCardinalityAndPromoteNewIfNeeded(
+				referenceKey,
+				getReferenceSchemaOrThrowException(referenceKey.referenceName()),
+				referenceMutationIndex
+			);
 		} else {
 			// There is some existing reference in the base entity - we may need to merge or replace
 			final Optional<ReferenceContract> refInBaseOpt = this.baseEntity
@@ -1246,7 +1218,10 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 				.filter(Droppable::exists);
 
 			final boolean existsAndNotLocallyRemoved = refInBaseOpt
-				.map(ref -> ref.exists() && !this.removedReferences.contains(internalReferenceKey))
+				.map(ref ->
+					     ref.exists() &&
+						     !(this.removedReferences != null && this.removedReferences.remove(internalReferenceKey))
+				)
 				.orElse(true);
 
 			if (existsAndNotLocallyRemoved) {
@@ -1490,7 +1465,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.pricesBuilder.buildChangeSet().forEach(mutations::add);
 		buildReferenceChangeSet().forEach(mutations::add);
 		//noinspection unchecked,rawtypes
-		Collections.sort((List)mutations);
+		Collections.sort((List) mutations);
 
 		if (mutations.isEmpty()) {
 			return Optional.empty();
@@ -1527,6 +1502,149 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	}
 
 	/**
+	 * Sets a unique reference internally while ensuring compliance with the specified reference schema. The method
+	 * validates that the reference conforms to the rules defined in the schema, and may promote cardinality if permissible.
+	 * It enforces constraints such as avoiding duplicate references and maintaining schema consistency.
+	 *
+	 * @param referenceSchema      the schema associated with the reference, used to validate its properties and constraints
+	 * @param referenceKey         the unique key identifying the referenced entity; this includes the primary key and internal key
+	 * @param referencedEntityType the type of the referenced entity; must match the schema-defined type, if provided
+	 * @param cardinality          the cardinality of the reference; if provided, must match the schema-defined cardinality
+	 * @param whichIs              an optional consumer for setting additional properties of the reference during its building process
+	 * @return the updated instance of InternalEntityBuilder that includes the newly added or updated reference
+	 */
+	@Nonnull
+	private InternalEntityBuilder setUniqueReferenceInternal(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		final String referenceName = referenceKey.referenceName();
+		final int referencedPrimaryKey = referenceKey.primaryKey();
+
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
+
+		Assert.isTrue(
+			this.referencePredicate.isReferenceRequested(referenceName),
+			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
+		);
+
+		assertReferenceSchemaCompatibility(referenceSchema, referencedEntityType, cardinality);
+
+		// this method cannot be used when duplicates are allowed by schema
+		final EntitySchemaContract entitySchema = getSchema();
+		final Cardinality schemaCardinality = referenceSchema.getCardinality();
+		if (schemaCardinality.allowsDuplicates()) {
+			throw new ReferenceAllowsDuplicatesException(referenceName, entitySchema, Operation.WRITE);
+		}
+
+		// but we allow implicit cardinality widening when needed
+		if (this.referenceMutations != null &&
+			// reference has already mutations tied to different internal primary key
+			ofNullable(this.referenceMutations.get(referenceKey))
+				.map(Map::keySet)
+				.map(mutations -> !mutations.contains(referenceKey.internalPrimaryKey()))
+				.orElse(false) &&
+			// and the schema cardinality does not allow it
+			schemaCardinality.getMax() <= 1 &&
+			!entitySchema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)
+		) {
+			throw new InvalidMutationException(
+				"The reference `" + referenceName + "` is already defined to have `" +
+					schemaCardinality + "` cardinality, cannot add another reference to it!"
+			);
+		}
+
+		final Optional<ReferenceContract> existingReference =
+			this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
+		final ReferenceBuilder referenceBuilder = existingReference
+			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, entitySchema))
+			.filter(this.referencePredicate)
+			.orElseGet(
+				() -> new InitialReferenceBuilder(
+					entitySchema,
+					referenceSchema,
+					referenceName, referencedPrimaryKey,
+					getNextReferenceInternalId()
+				)
+			);
+		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
+		addOrReplaceReferenceMutations(referenceBuilder);
+		return this;
+	}
+
+	/**
+	 * Registers the cardinality of the reference and promotes the cardinality to a higher level if needed,
+	 * while ensuring compliance with the schema constraints. Updates or elevates the cardinality where
+	 * necessary in reference mutations.
+	 *
+	 * @param referenceKey           the unique key identifying the reference
+	 * @param referenceSchema        the schema definition of the reference, which includes cardinality constraints
+	 * @param referenceMutationIndex the index mapping reference primary keys to their respective mutations
+	 */
+	private void registerCardinalityAndPromoteNewIfNeeded(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Map<Integer, List<ReferenceMutation<?>>> referenceMutationIndex
+	) {
+		// but we need to adapt the cardinality if needed
+		if (this.referencesDefinedCount == null) {
+			this.referencesDefinedCount = new HashMap<>(8);
+		}
+		final String referenceName = referenceKey.referenceName();
+		if (!this.referencesDefinedCount.containsKey(referenceName)) {
+			final Collection<ReferenceContract> references = this.baseEntity.getReferences();
+			int counter = 0;
+			for (ReferenceContract reference : references) {
+				if (reference.exists() && reference.getReferenceKey().referenceName().equals(referenceName)) {
+					counter++;
+				}
+			}
+			this.referencesDefinedCount.put(referenceName, counter);
+		}
+
+		// register a new reference
+		final Integer currentReferenceCount = this.referencesDefinedCount.merge(referenceName, 1, Integer::sum);
+		final Cardinality schemaCardinality = referenceSchema.getCardinality();
+		final boolean lowCardinality = schemaCardinality.getMax() < currentReferenceCount;
+		final boolean hasDuplicates = referenceMutationIndex.size() > 1;
+		final boolean duplicateMismatch = hasDuplicates && !schemaCardinality.allowsDuplicates();
+		if (lowCardinality || duplicateMismatch) {
+			if (!this.getSchema().getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
+				throw new InvalidMutationException(
+					"The reference `" + referenceName + "` is already defined to have `" +
+						schemaCardinality + "` cardinality, cannot add another reference to it!"
+				);
+			} else {
+				// we need to promote the cardinality in all insert reference mutations
+				final Cardinality elevatedCardinality = schemaCardinality.getMin() == 0 ?
+					(hasDuplicates ? Cardinality.ZERO_OR_MORE_WITH_DUPLICATES : Cardinality.ZERO_OR_MORE) :
+					(hasDuplicates ? Cardinality.ONE_OR_MORE_WITH_DUPLICATES : Cardinality.ONE_OR_MORE) ;
+				for (Entry<Integer, List<ReferenceMutation<?>>> entry : referenceMutationIndex.entrySet()) {
+					final List<ReferenceMutation<?>> mutations = entry.getValue();
+					final List<ReferenceMutation<?>> newMutations = new ArrayList<>(mutations.size());
+					for (ReferenceMutation<?> mutation : mutations) {
+						if (mutation instanceof InsertReferenceMutation irm) {
+							newMutations.add(irm.withCardinality(elevatedCardinality));
+							cacheLocalSchema(
+								referenceName,
+								ReferenceSchema._internalBuild(referenceSchema, elevatedCardinality)
+							);
+						} else {
+							newMutations.add(mutation);
+						}
+					}
+					entry.setValue(newMutations);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Resolves the list of mutations for a reference identified by the given business {@link ReferenceKey}.
 	 *
 	 * The top-level mutation index groups mutations by business key, while the inner map disambiguates
@@ -1549,12 +1667,15 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		@Nonnull Map<Integer, List<ReferenceMutation<?>>> mutations,
 		@Nonnull Operation operation
 	) {
-		if (referenceKey.isKnownInternalPrimaryKey()) {
-			return mutations.get(referenceKey.internalPrimaryKey());
-		} else if (mutations.size() == 1) {
-			return mutations.values().iterator().next();
+		if (referenceKey.isUnknownReference()) {
+			if (mutations.size() == 1) {
+				return mutations.values().iterator().next();
+			} else {
+				throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.getSchema(), operation);
+			}
 		} else {
-			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.getSchema(), operation);
+			final List<ReferenceMutation<?>> foundChangeSet = mutations.get(referenceKey.internalPrimaryKey());
+			return foundChangeSet == null ? Collections.emptyList() : foundChangeSet;
 		}
 	}
 
@@ -1705,6 +1826,18 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 					removedMutations.remove(referenceKey.internalPrimaryKey());
 				}
 			}
+			// adjust the reference count if we tracked it
+			for (List<ReferenceMutation<?>> mutations : removedMutations.values()) {
+				for (ReferenceMutation<?> mutation : mutations) {
+					if (mutation instanceof InsertReferenceMutation) {
+						Assert.isPremiseValid(
+							this.referencesDefinedCount != null,
+							"Reference `" + referenceName + "` count is expected to be tracked in the builder!"
+						);
+						this.referencesDefinedCount.merge(referenceName, -1, Integer::sum);
+					}
+				}
+			}
 			removed = true;
 		}
 
@@ -1723,6 +1856,9 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 						new RemoveReferenceMutation(completeReferenceKey)
 					)
 				);
+			if (this.removedReferences == null) {
+				this.removedReferences = new HashSet<>(4);
+			}
 			this.removedReferences.add(completeReferenceKey.internalPrimaryKey());
 			removed = true;
 		}
@@ -1772,7 +1908,10 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 			final Boolean entityGroupValid = originalReferencedEntityGroup
 				.map(EntityContract::getPrimaryKey)
 				.map(
-					it -> theReference.getGroup().map(group -> Objects.equals(it, group.getPrimaryKey())).orElse(false))
+					it -> theReference.getGroup()
+					                  .map(group -> Objects.equals(it, group.getPrimaryKey()))
+					                  .orElse(false)
+				)
 				.orElse(false);
 			if (entityValid || entityGroupValid) {
 				return new ReferenceDecorator(
@@ -1804,22 +1943,47 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 * Retrieves an existing ReferenceSchemaContract for the specified reference name, or creates
 	 * an implicit schema if none exists.
 	 *
-	 * @param referenceName the name of the reference to retrieve or create the schema for; must not be null
+	 * @param referenceName        the name of the reference to retrieve or create the schema for; must not be null
 	 * @param referencedEntityType the type of the entity being referenced; must not be null
-	 * @param cardinality the cardinality that defines the relationship; must not be null
+	 * @param cardinality          the cardinality that defines the relationship; must not be null
 	 * @return the existing ReferenceSchemaContract or a newly created implicit schema
 	 * @throws ReferenceNotKnownException if the reference cannot be located and cannot be created implicitly
 	 */
 	@Nonnull
 	private ReferenceSchemaContract getReferenceSchemaOrCreateImplicit(
 		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality
-	)
-		throws ReferenceNotKnownException
-	{
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality
+	) throws ReferenceNotKnownException {
 		return getReferenceSchemaContract(referenceName)
-			.orElseGet(() -> Reference.createImplicitSchema(referenceName, referencedEntityType, cardinality, null));
+			.orElseGet(
+				() -> {
+					if (referencedEntityType == null || cardinality == null) {
+						throw new ReferenceNotKnownException(referenceName);
+					}
+					final ReferenceSchema implicit = Reference.createImplicitSchema(
+						referenceName, referencedEntityType, cardinality, null
+					);
+					cacheLocalSchema(referenceName, implicit);
+					return implicit;
+				}
+			);
+	}
+
+	/**
+	 * Caches the provided reference schema locally by its reference name.
+	 *
+	 * @param referenceName the unique name identifying the reference schema; must not be null
+	 * @param referenceSchema the reference schema contract to be cached; must not be null
+	 */
+	private void cacheLocalSchema(
+		@Nonnull String referenceName,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		if (this.localReferenceSchemas == null) {
+			this.localReferenceSchemas = new HashMap<>(4);
+		}
+		this.localReferenceSchemas.put(referenceName, referenceSchema);
 	}
 
 	/**
@@ -1830,15 +1994,23 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 */
 	@Nonnull
 	private Optional<ReferenceSchemaContract> getReferenceSchemaContract(@Nonnull String referenceName) {
-		return getSchema()
-			.getReference(referenceName)
-			.or(() -> {
-				final Collection<ReferenceContract> existingReferences = getReferences(referenceName);
-				for (ReferenceContract existingReference : existingReferences) {
-					return existingReference.getReferenceSchema();
+		return Optional
+			.ofNullable(this.localReferenceSchemas)
+			.map(it -> it.get(referenceName))
+			.or(() -> getSchema().getReference(referenceName))
+			.or(
+				() -> {
+					final Collection<ReferenceContract> references = this.baseEntity.getReferences();
+					for (ReferenceContract reference : references) {
+						if (reference.exists() && reference.getReferenceName().equals(
+							referenceName)) {
+							cacheLocalSchema(referenceName, reference.getReferenceSchemaOrThrow());
+							return reference.getReferenceSchema();
+						}
+					}
+					return empty();
 				}
-				return Optional.empty();
-			});
+			);
 	}
 
 }

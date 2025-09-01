@@ -618,24 +618,28 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setScope(@Nonnull Scope scope) {
 		this.scope = scope;
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setParent(int parentPrimaryKey) {
 		this.parent = parentPrimaryKey;
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeParent() {
 		this.parent = null;
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
@@ -664,6 +668,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(@Nonnull String referenceName, int referencedPrimaryKey) {
 		return setUniqueReferenceInternal(
@@ -675,6 +680,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
@@ -687,6 +693,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName,
@@ -703,6 +710,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName,
@@ -724,6 +732,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName,
@@ -741,6 +750,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder setReference(
 		@Nonnull String referenceName,
@@ -753,9 +763,10 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		final Map<ReferenceKey, ReferenceContract> theReferenceIndex = getReferenceIndexForUpdate();
 		final ReferenceContract theReference = theReferenceIndex.get(referenceKey);
-		final Optional<ReferenceSchemaContract> referenceSchema = ofNullable(theReference)
-			.filter(it -> it != Entity.DUPLICATE_REFERENCE)
-			.map(ReferenceContract::getReferenceSchemaOrThrow);
+		final Optional<ReferenceSchemaContract> referenceSchema = getReferenceSchemaContract(referenceName);
+		referenceSchema.ifPresent(
+			theRefSchema -> assertReferenceSchemaCompatibility(theRefSchema, referencedEntityType, cardinality)
+		);
 
 		if (theReference == null) {
 			// no existing reference was found - create brand new, and we know it's not duplicate
@@ -855,6 +866,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		}
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
 		if (this.references != null) {
@@ -873,6 +885,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReference(@Nonnull ReferenceKey referenceKey) throws ReferenceNotKnownException {
 		if (this.references != null) {
@@ -920,6 +933,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull String referenceName, int referencedPrimaryKey) {
 		if (this.references != null) {
@@ -939,6 +953,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull String referenceName) {
 		if (this.references != null) {
@@ -958,12 +973,14 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
 		final Predicate<ReferenceContract> nameFilter = reference -> referenceName.equals(reference.getReferenceName());
 		return this.removeReferences(nameFilter.and(filter));
 	}
 
+	@Nonnull
 	@Override
 	public EntityBuilder removeReferences(@Nonnull Predicate<ReferenceContract> filter) {
 		if (this.references != null) {
@@ -1265,28 +1282,13 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String schemaDefinedReferencedEntityType = referenceSchema.getReferencedEntityType();
-		if (referencedEntityType != null) {
-			Assert.isTrue(
-				Objects.equals(schemaDefinedReferencedEntityType, referencedEntityType),
-				() -> new InvalidMutationException(
-					"The reference `" + referenceName + "` is already defined to point to `" +
-						schemaDefinedReferencedEntityType + "` entity type, cannot change it to `" + referencedEntityType + "`!"
-				)
-			);
-		}
+		final Cardinality schemaCardinality = assertReferenceSchemaCompatibility(
+			referenceSchema, referencedEntityType, cardinality
+		);
 
-		final Cardinality schemaCardinality = referenceSchema.getCardinality();
 		// this method cannot be used when duplicates are allowed by schema
 		if (schemaCardinality.allowsDuplicates()) {
 			throw new ReferenceAllowsDuplicatesException(referenceName, getSchema(), Operation.WRITE);
-		}
-		// we don't allow explicit cardinality change
-		if (cardinality != null && cardinality != schemaCardinality) {
-			throw new InvalidMutationException(
-				"The reference `" + referenceName + "` is already defined to have `" +
-					referenceSchema.getCardinality() + "` cardinality, cannot change it to `" + cardinality + "` by data update!"
-			);
 		}
 		// but we allow implicit cardinality widening when needed
 		if (this.referencesDefinedCount != null && this.referencesDefinedCount.containsKey(referenceName) && schemaCardinality.getMax() <= 1) {
@@ -1341,6 +1343,46 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	}
 
 	/**
+	 * Asserts the compatibility of the provided reference schema with the specified references entity type and cardinality.
+	 * Ensures that the referenced entity type and cardinality provided are either compatible with or match the
+	 * already defined values in the reference schema. If they are incompatible, an {@code InvalidMutationException} is thrown.
+	 *
+	 * @param referenceSchema the reference schema contract to validate against
+	 * @param referencedEntityType the referenced entity type to check for compatibility, may be null
+	 * @param cardinality the cardinality to check for compatibility, may be null
+	 * @return the cardinality defined in the provided reference schema
+	 */
+	@Nonnull
+	static Cardinality assertReferenceSchemaCompatibility(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality
+	) {
+		final String schemaDefinedReferencedEntityType = referenceSchema.getReferencedEntityType();
+		if (referencedEntityType != null) {
+			Assert.isTrue(
+				Objects.equals(schemaDefinedReferencedEntityType, referencedEntityType),
+				() -> new InvalidMutationException(
+					"The reference `" + referenceSchema.getName() + "` is already defined to point to `" +
+						schemaDefinedReferencedEntityType + "` entity type, cannot change it to `" + referencedEntityType + "`!"
+				)
+			);
+		}
+
+		final Cardinality schemaCardinality = referenceSchema.getCardinality();
+		if (cardinality != null) {
+			Assert.isTrue(
+				Objects.equals(schemaCardinality, cardinality),
+				() -> new InvalidMutationException(
+					"The reference `" + referenceSchema.getName() + "` is already defined to have `" +
+						schemaCardinality + "` cardinality, cannot change it to `" + cardinality + "`!"
+				)
+			);
+		}
+		return schemaCardinality;
+	}
+
+	/**
 	 * Promotes the cardinality from zero/one to one, to zero/one to many. Modifies reference schemas
 	 * of all existing references of a particular type (locally) to the elevated cardinality. This is a local change
 	 * that does not affect the schema itself - it is used only behave consistently within this builder.
@@ -1372,12 +1414,13 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 						new Reference(
 							updatedSchema,
 							reference instanceof Reference ref ?
-								ref : new Reference(
-								getSchema(),
-								referenceSchema,
-								referenceKey.internalPrimaryKey(),
-								reference
-							)
+								ref :
+								new Reference(
+									getSchema(),
+									referenceSchema,
+									referenceKey.internalPrimaryKey(),
+									reference
+								)
 						)
 					);
 					it.remove();
@@ -1424,12 +1467,13 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 						new Reference(
 							updatedSchema,
 							reference instanceof Reference ref ?
-								ref : new Reference(
-								getSchema(),
-								referenceSchema,
-								referenceKey.internalPrimaryKey(),
-								reference
-							)
+								ref :
+								new Reference(
+									getSchema(),
+									referenceSchema,
+									referenceKey.internalPrimaryKey(),
+									reference
+								)
 						)
 					);
 					it.remove();
@@ -1547,8 +1591,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		@Nonnull String referenceName,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality
-	)
-		throws ReferenceNotKnownException {
+	) throws ReferenceNotKnownException {
 		return getReferenceSchemaContract(referenceName)
 			.orElseGet(() -> {
 				if (referencedEntityType == null || cardinality == null) {
@@ -1621,7 +1664,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 			return reference instanceof Reference ref ?
 				new Reference(getNextReferenceInternalId(), ref) :
 				new Reference(
-					this.schema, reference.getReferenceSchemaOrThrow(), getNextReferenceInternalId(), reference);
+					this.schema, reference.getReferenceSchemaOrThrow(), getNextReferenceInternalId(), reference
+				);
 		} else {
 			return reference;
 		}
