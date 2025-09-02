@@ -309,6 +309,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 * @throws GenericEvitaInternalError when an unknown mutation type is encountered
 	 */
 	public void addMutation(@Nonnull LocalMutation<?, ?> localMutation) {
+		localMutation = localMutation.withDecisiveTimestamp(System.nanoTime());
 		if (localMutation instanceof SetEntityScopeMutation setScopeMutation) {
 			this.scopeMutation = setScopeMutation;
 		} else if (localMutation instanceof ParentMutation hierarchicalPlacementMutation) {
@@ -318,6 +319,25 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
 			this.associatedDataBuilder.addMutation(associatedDataMutation);
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
+			if (localMutation instanceof InsertReferenceMutation irs) {
+				// we need to resolve the referenced entity type and cardinality from schema
+				if (irs.getReferencedEntityType() == null || irs.getReferenceCardinality() == null) {
+					final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(
+						referenceMutation.getReferenceKey().referenceName()
+					);
+					referenceMutation = irs.withReferenceTo(
+						referenceSchema.getReferencedEntityType(),
+						referenceSchema.getCardinality()
+					);
+				} else {
+					// check we have access to the reference
+					getReferenceSchemaOrCreateImplicit(
+						referenceMutation.getReferenceKey().referenceName(),
+						irs.getReferencedEntityType(),
+						irs.getReferenceCardinality()
+					);
+				}
+			}
 			getReferenceMutationsForKey(referenceMutation.getReferenceKey())
 				.computeIfAbsent(
 					referenceMutation.getReferenceKey().internalPrimaryKey(),
@@ -363,7 +383,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 
 	@Override
 	public boolean parentAvailable() {
-		return this.baseEntity.parentAvailable();
+		return this.hierarchyMutation != null || this.baseEntity.parentAvailable();
 	}
 
 	@Nonnull
@@ -374,11 +394,21 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		}
 		return ofNullable(this.hierarchyMutation)
 			.map(it ->
-				     it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent())
-				       .stream()
-				       .mapToObj(
-					       pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(getType(), pId, null))
-				       .findFirst()
+			     {
+				     final EntitySchemaContract schema = getSchema();
+				     return it.mutateLocal(
+					              schema,
+					              this.baseEntity.parent == null ?
+						              OptionalInt.empty() : OptionalInt.of(this.baseEntity.parent)
+				              )
+				              .stream()
+				              .mapToObj(
+					              pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(
+						              getType(), pId, null
+					              )
+				              )
+				              .findFirst();
+			     }
 			)
 			.orElseGet(
 				() -> this.baseEntityDecorator == null ?
@@ -518,7 +548,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), getSchema(), Operation.READ);
 		}
 		final Optional<ReferenceContract> reference = this.baseEntity
-			.getReference(referenceKey)
+			.getReferenceWithoutSchemaCheck(referenceKey)
 			.map(
 				it -> ofNullable(this.referenceMutations)
 					.map(mutations -> mutations.get(referenceKey))
@@ -1464,8 +1494,11 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.associatedDataBuilder.buildChangeSet().forEach(mutations::add);
 		this.pricesBuilder.buildChangeSet().forEach(mutations::add);
 		buildReferenceChangeSet().forEach(mutations::add);
-		//noinspection unchecked,rawtypes
-		Collections.sort((List) mutations);
+
+		//noinspection unchecked
+		mutations.sort(
+			Comparator.comparing(LocalMutation.class::cast)
+		);
 
 		if (mutations.isEmpty()) {
 			return Optional.empty();
@@ -1568,7 +1601,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 				() -> new InitialReferenceBuilder(
 					entitySchema,
 					referenceSchema,
-					referenceName, referencedPrimaryKey,
+					referenceName,
+					referencedPrimaryKey,
 					getNextReferenceInternalId()
 				)
 			);
@@ -1731,7 +1765,9 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 					);
 
 					// retrieve to base reference if it exists to start mutation from it
-					ReferenceContract updatedReference = this.baseEntity.references.get(composedReferenceKey);
+					ReferenceContract updatedReference = this.baseEntity
+						.getReferenceWithoutSchemaCheck(composedReferenceKey)
+						.orElse(null);
 
 					// apply all mutations in the order they were added
 					final List<ReferenceMutation<?>> mutations = entry.getValue();
@@ -1817,7 +1853,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 					new ReferenceKey(referenceName, referencedPrimaryKey)
 			);
 
-		if (removedMutations != null) {
+		if (removedMutations != null && !removedMutations.isEmpty()) {
 			if (!allowRemovingAllDuplicates && removedMutations.size() > 1) {
 				this.referenceMutations.put(referenceKey, removedMutations);
 				if (referenceKey.isUnknownReference()) {
@@ -1841,26 +1877,23 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 			removed = true;
 		}
 
-		final Optional<ReferenceContract> theReference = this.baseEntity
-			.getReferenceWithoutSchemaCheck(referenceKey)
-			.filter(Droppable::exists)
-			.filter(this.referencePredicate);
-
-		if (theReference.isPresent()) {
-			// if the reference was part of the previous entity version we build upon, remove it as-well
-			final ReferenceKey completeReferenceKey = theReference.get().getReferenceKey();
-			getReferenceMutationsForKey(referenceKey)
-				.put(
-					completeReferenceKey.internalPrimaryKey(),
-					Collections.singletonList(
-						new RemoveReferenceMutation(completeReferenceKey)
-					)
-				);
-			if (this.removedReferences == null) {
-				this.removedReferences = new HashSet<>(4);
+		for (ReferenceContract theReference : this.baseEntity.getReferencesWithoutSchemaCheck(referenceKey)) {
+			if (theReference.exists() && this.referencePredicate.test(theReference)) {
+				// if the reference was part of the previous entity version we build upon, remove it as-well
+				final ReferenceKey completeReferenceKey = theReference.getReferenceKey();
+				getReferenceMutationsForKey(referenceKey)
+					.put(
+						completeReferenceKey.internalPrimaryKey(),
+						Collections.singletonList(
+							new RemoveReferenceMutation(completeReferenceKey)
+						)
+					);
+				if (this.removedReferences == null) {
+					this.removedReferences = new HashSet<>(4);
+				}
+				this.removedReferences.add(completeReferenceKey.internalPrimaryKey());
+				removed = true;
 			}
-			this.removedReferences.add(completeReferenceKey.internalPrimaryKey());
-			removed = true;
 		}
 
 		Assert.isTrue(

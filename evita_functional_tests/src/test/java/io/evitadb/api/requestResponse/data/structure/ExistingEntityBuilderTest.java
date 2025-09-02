@@ -30,12 +30,20 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -45,7 +53,6 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
-import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,10 +64,14 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilderTest.assertCardinality;
 import static io.evitadb.test.Entities.BRAND;
+import static io.evitadb.test.Entities.CATEGORY;
+import static io.evitadb.test.Entities.PARAMETER;
+import static io.evitadb.test.Entities.STORE;
 import static java.util.OptionalInt.of;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -79,12 +90,60 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	private Entity initialEntity;
 	private ExistingEntityBuilder builder;
 
-	public static void assertPrice(SealedEntity updatedInstance, int priceId, String priceList, Currency currency, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
-		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(() -> fail("Price not found!"));
+	public static void assertPrice(
+		@Nonnull PricesContract updatedInstance,
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(
+			() -> fail("Price not found!"));
 		assertEquals(priceWithoutTax, price.priceWithoutTax());
 		assertEquals(taxRate, price.taxRate());
 		assertEquals(priceWithTax, price.priceWithTax());
 		assertEquals(indexed, price.indexed());
+	}
+
+	private static void assertAllCategoriesHasUpdatedAttributeButNothingElseHas(
+		@Nonnull ExistingEntityBuilder builder
+	) {
+		for (ReferenceContract reference : builder.getReferences()) {
+			if (reference.getReferenceName().equals(CATEGORY)) {
+				assertNotNull(reference.getAttribute(ATTRIBUTE_UPDATED));
+			} else {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> reference.getAttribute(ATTRIBUTE_UPDATED)
+				);
+			}
+		}
+		final Entity instance = builder.toInstance();
+		for (ReferenceContract reference : instance.getReferences()) {
+			if (reference.getReferenceName().equals(CATEGORY)) {
+				assertNotNull(reference.getAttribute(ATTRIBUTE_UPDATED));
+			} else {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> reference.getAttribute(ATTRIBUTE_UPDATED)
+				);
+			}
+		}
+	}
+
+	private static void checkCollectionBrands(
+		@Nonnull Collection<ReferenceContract> references,
+		int... expectedPks
+	) {
+		assertEquals(expectedPks.length, references.size());
+
+		int i = 0;
+		for (ReferenceContract ref : references) {
+			assertEquals(expectedPks[i++], ref.getReferencedPrimaryKey());
+		}
 	}
 
 	@BeforeEach
@@ -132,14 +191,35 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		this.builder.removeParent();
 		assertTrue(this.builder.getParentEntity().isEmpty());
 
-		final Entity updatedEntity = this.builder.toMutation()
-			.map(it -> it.mutate(this.initialEntity.getSchema(), this.initialEntity))
+		final Entity updatedEntity = this.builder
+			.toMutation()
+			.map(
+				it -> it.mutate(
+					this.initialEntity.getSchema(),
+					this.initialEntity
+				)
+			)
 			.orElse(this.initialEntity);
 
 		assertFalse(updatedEntity.parentAvailable());
 		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParent);
 		assertThrows(EntityIsNotHierarchicalException.class, updatedEntity::getParentEntity);
 		assertEquals(this.initialEntity.version() + 1, updatedEntity.version());
+	}
+
+	@Test
+	void shouldCollectAllLocalesCorrectly() {
+		assertEquals(Set.of(Locale.ENGLISH), this.builder.getAllLocales());
+		assertEquals(Set.of(Locale.ENGLISH), this.builder.getLocales());
+		assertEquals(Set.of(Locale.ENGLISH), this.builder.toInstance().getAllLocales());
+		assertEquals(Set.of(Locale.ENGLISH), this.builder.toInstance().getLocales());
+
+		// add a new localized attribute
+		this.builder.setAttribute("newLocalizedAttribute", Locale.GERMAN, "value");
+		assertEquals(Set.of(Locale.ENGLISH, Locale.GERMAN), this.builder.getAllLocales());
+		assertEquals(Set.of(Locale.ENGLISH, Locale.GERMAN), this.builder.getLocales());
+		assertEquals(Set.of(Locale.ENGLISH, Locale.GERMAN), this.builder.toInstance().getAllLocales());
+		assertEquals(Set.of(Locale.ENGLISH, Locale.GERMAN), this.builder.toInstance().getLocales());
 	}
 
 	@Test
@@ -154,7 +234,8 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		this.builder.removePriceInnerRecordHandling();
 		assertEquals(PriceInnerRecordHandling.NONE, this.builder.getPriceInnerRecordHandling());
 
-		final Entity updatedEntity = this.builder.toMutation().orElseThrow().mutate(this.initialEntity.getSchema(), this.initialEntity);
+		final Entity updatedEntity = this.builder.toMutation().orElseThrow().mutate(
+			this.initialEntity.getSchema(), this.initialEntity);
 		assertEquals(PriceInnerRecordHandling.NONE, updatedEntity.getPriceInnerRecordHandling());
 	}
 
@@ -166,7 +247,8 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			this.builder.getParentEntity()
 		);
 
-		final Entity updatedEntity = this.builder.toMutation().orElseThrow().mutate(this.initialEntity.getSchema(), this.initialEntity);
+		final Entity updatedEntity = this.builder.toMutation().orElseThrow().mutate(
+			this.initialEntity.getSchema(), this.initialEntity);
 		assertEquals(this.initialEntity.version() + 1, updatedEntity.version());
 		assertEquals(of(78), updatedEntity.getParent());
 	}
@@ -238,8 +320,12 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.withAttribute(SORTABLE_ATTRIBUTE, String.class, AttributeSchemaEditor::sortable)
 			.toInstance();
 
-		final ExistingEntityBuilder existingEntityBuilder = new ExistingEntityBuilder(new InitialEntityBuilder(schema).toInstance());
-		assertThrows(IllegalArgumentException.class, () -> existingEntityBuilder.setAttribute(SORTABLE_ATTRIBUTE, new String[]{"abc", "def"}));
+		final ExistingEntityBuilder existingEntityBuilder = new ExistingEntityBuilder(
+			new InitialEntityBuilder(schema).toInstance());
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> existingEntityBuilder.setAttribute(SORTABLE_ATTRIBUTE, new String[]{"abc", "def"})
+		);
 	}
 
 	@Test
@@ -268,7 +354,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(Scope.ARCHIVED, this.builder.getScope());
 
 		final Entity updatedEntity = this.builder.toMutation().orElseThrow()
-			.mutate(this.initialEntity.getSchema(), this.initialEntity);
+		                                         .mutate(this.initialEntity.getSchema(), this.initialEntity);
 
 		assertEquals(Scope.ARCHIVED, updatedEntity.getScope());
 		assertEquals(this.initialEntity.version() + 1, updatedEntity.version());
@@ -319,41 +405,13 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		});
 	}
 
-	@Nonnull
-	private Entity setupEntityWithBrand() {
-		this.builder.setReference(
-			BRAND_TYPE,
-			BRAND_TYPE,
-			Cardinality.ZERO_OR_ONE,
-			1,
-			whichIs -> whichIs.setGroup("Whatever", 8)
-		);
-
-		final EntityMutation entityMutation = this.builder.toMutation().orElseThrow();
-		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
-		assertEquals(2, localMutations.size());
-
-		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, (EntitySchema) this.initialEntity.getSchema());
-		final LocalEntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
-			CATALOG_SCHEMA,
-			sealedEntitySchema,
-			localMutations
-		).orElseThrow();
-
-		final EntitySchemaContract updatedSchema = sealedEntitySchema
-			.withMutations(schemaMutations)
-			.toInstance();
-
-		return entityMutation.mutate(updatedSchema, this.initialEntity);
-	}
-
 	@Test
 	void shouldGetReferencesHandleRemovalsUpdatesAndConflicts() {
 		final Entity entityWithRefs = buildInitialEntityWithDuplicatedReferences();
 		final ExistingEntityBuilder eb = new ExistingEntityBuilder(entityWithRefs);
 
 		eb.updateReferences(
-			ref -> ref.getReferenceName().equals(Entities.CATEGORY),
+			ref -> ref.getReferenceName().equals(CATEGORY),
 			ref -> ref.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now())
 		);
 
@@ -365,36 +423,62 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// but we cannot do that on references that allow duplicates
 		assertThrows(
 			ReferenceAllowsDuplicatesException.class,
-			() -> eb.setReference(Entities.PARAMETER, 100, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()))
+			() -> eb.setReference(
+				PARAMETER, 100, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()))
 		);
 		assertThrows(
 			ReferenceAllowsDuplicatesException.class,
-			() -> eb.setReference(Entities.STORE, 1000, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()))
+			() -> eb.setReference(
+				STORE, 1000, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()))
 		);
+
+		final Set<String> expectedReferences = Set.of(BRAND, CATEGORY, PARAMETER, STORE);
+		assertEquals(expectedReferences, eb.getReferenceNames());
+		assertEquals(expectedReferences, eb.toInstance().getReferenceNames());
 	}
 
-	private static void assertAllCategoriesHasUpdatedAttributeButNothingElseHas(ExistingEntityBuilder builder) {
-		for (ReferenceContract reference : builder.getReferences()) {
-			if (reference.getReferenceName().equals(Entities.CATEGORY)) {
-				assertNotNull(reference.getAttribute(ATTRIBUTE_UPDATED));
-			} else {
-				assertThrows(
-					AttributeNotFoundException.class,
-					() -> reference.getAttribute(ATTRIBUTE_UPDATED)
-				);
-			}
-		}
-		final Entity instance = builder.toInstance();
-		for (ReferenceContract reference : instance.getReferences()) {
-			if (reference.getReferenceName().equals(Entities.CATEGORY)) {
-				assertNotNull(reference.getAttribute(ATTRIBUTE_UPDATED));
-			} else {
-				assertThrows(
-					AttributeNotFoundException.class,
-					() -> reference.getAttribute(ATTRIBUTE_UPDATED)
-				);
-			}
-		}
+	@Test
+	void shouldGetReferencesByName() {
+		final Entity entityWithRefs = buildInitialEntityWithDuplicatedReferences();
+		final ExistingEntityBuilder eb = new ExistingEntityBuilder(entityWithRefs);
+
+		// verify expected references counts
+		assertEquals(1, eb.getReferences(BRAND).size());
+		assertEquals(1, eb.toInstance().getReferences(BRAND).size());
+		assertEquals(2, eb.getReferences(CATEGORY).size());
+		assertEquals(2, eb.toInstance().getReferences(CATEGORY).size());
+		assertEquals(2, eb.getReferences(PARAMETER).size());
+		assertEquals(2, eb.toInstance().getReferences(PARAMETER).size());
+		assertEquals(3, eb.getReferences(STORE).size());
+
+		// update some references
+		eb.setReference(BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_UPDATED, OffsetDateTime.now()));
+		eb.setReference(CATEGORY, 10, whichIs -> whichIs.setGroup(STORE, 15));
+
+		// the count has to remain the same
+		assertEquals(1, eb.getReferences(BRAND).size());
+		assertEquals(1, eb.toInstance().getReferences(BRAND).size());
+		assertEquals(2, eb.getReferences(CATEGORY).size());
+		assertEquals(2, eb.toInstance().getReferences(CATEGORY).size());
+		assertEquals(2, eb.getReferences(PARAMETER).size());
+		assertEquals(2, eb.toInstance().getReferences(PARAMETER).size());
+		assertEquals(3, eb.getReferences(STORE).size());
+
+		// add a few references
+		eb.setReference(BRAND, 2);
+		eb.setReference(CATEGORY, 12);
+		eb.setReference(PARAMETER, 101, ref -> false, whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "C"));
+		eb.setReference(STORE, 1002, ref -> false, UnaryOperator.identity());
+
+		// the count has to grow
+		assertEquals(2, eb.getReferences(BRAND).size());
+		assertEquals(2, eb.toInstance().getReferences(BRAND).size());
+		assertEquals(3, eb.getReferences(CATEGORY).size());
+		assertEquals(3, eb.toInstance().getReferences(CATEGORY).size());
+		assertEquals(3, eb.getReferences(PARAMETER).size());
+		assertEquals(3, eb.toInstance().getReferences(PARAMETER).size());
+		assertEquals(4, eb.getReferences(STORE).size());
+		assertEquals(4, eb.toInstance().getReferences(STORE).size());
 	}
 
 	@Test
@@ -414,8 +498,19 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
 
 		// new reference has automatically elevated cardinality
-		assertEquals(Cardinality.ZERO_OR_MORE, builder.getReference(new ReferenceKey(BRAND, 2)).orElseThrow().getReferenceSchemaOrThrow().getCardinality());
-		assertEquals(Cardinality.ZERO_OR_MORE, builder.toInstance().getReference(new ReferenceKey(BRAND, 2)).orElseThrow().getReferenceSchemaOrThrow().getCardinality());
+		assertEquals(
+			Cardinality.ZERO_OR_MORE, builder.getReference(new ReferenceKey(BRAND, 2))
+			                                 .orElseThrow()
+			                                 .getReferenceSchemaOrThrow()
+			                                 .getCardinality()
+		);
+		assertEquals(
+			Cardinality.ZERO_OR_MORE, builder.toInstance()
+			                                 .getReference(new ReferenceKey(BRAND, 2))
+			                                 .orElseThrow()
+			                                 .getReferenceSchemaOrThrow()
+			                                 .getCardinality()
+		);
 
 		// promote to ZERO_OR_MORE_WITH_DUPLICATES
 		builder.setReference(
@@ -426,10 +521,12 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		);
 		// new references has automatically elevated cardinality
 		for (ReferenceContract reference : builder.getReferences(new ReferenceKey(BRAND, 2))) {
-			assertEquals(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
+			assertEquals(
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
 		}
 		for (ReferenceContract reference : builder.toInstance().getReferences(new ReferenceKey(BRAND, 2))) {
-			assertEquals(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
+			assertEquals(
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
 		}
 		assertThrows(
 			ReferenceAllowsDuplicatesException.class,
@@ -448,13 +545,180 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 2, 3);
 	}
 
-	private static void checkCollectionBrands(Collection<ReferenceContract> references, int... expectedPks) {
-		assertEquals(expectedPks.length, references.size());
+	@Test
+	void shouldModifyEntityViaDirectMutations() {
+		final InitialEntityBuilder initialEntityBuilder = new InitialEntityBuilder("product", 100);
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(initialEntityBuilder.toInstance());
 
-		int i = 0;
-		for (ReferenceContract ref : references) {
-			assertEquals(expectedPks[i++], ref.getReferencedPrimaryKey());
-		}
+		builder.addMutation(new SetParentMutation(10));
+		builder.addMutation(new SetParentMutation(20));
+		builder.addMutation(new UpsertAttributeMutation("name", "Product Name"));
+		builder.addMutation(new UpsertAttributeMutation("name", "Different product Name"));
+		builder.addMutation(new UpsertAttributeMutation("description", Locale.ENGLISH, "Product Description"));
+		builder.addMutation(new UpsertAttributeMutation("description", Locale.GERMAN, "Produkt Beschreibung"));
+		builder.addMutation(new UpsertAssociatedDataMutation("data", "Data"));
+		builder.addMutation(new UpsertAssociatedDataMutation("data", "Updated data"));
+		builder.addMutation(new UpsertAssociatedDataMutation("url", Locale.ENGLISH, "http://example.com/en"));
+		builder.addMutation(new UpsertAssociatedDataMutation("url", Locale.GERMAN, "http://example.com/de"));
+		builder.addMutation(new UpsertPriceMutation(
+			new PriceKey(1, "basic", CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true));
+		builder.addMutation(new UpsertPriceMutation(
+			new PriceKey(1, "basic", CZK), null, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.valueOf(20), null, false));
+		builder.addMutation(new UpsertPriceMutation(
+			new PriceKey(2, "basic", EUR), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true));
+		builder.addMutation(
+			new InsertReferenceMutation(new ReferenceKey(BRAND_TYPE, 1), Cardinality.ZERO_OR_ONE, BRAND_TYPE));
+		builder.addMutation(new InsertReferenceMutation(new ReferenceKey(BRAND_TYPE, 2)));
+		builder.addMutation(new ReferenceAttributeMutation(
+			new ReferenceKey(BRAND_TYPE, 1), new UpsertAttributeMutation("brandName", Locale.ENGLISH, "Brand Name")));
+		builder.addMutation(new ReferenceAttributeMutation(
+			new ReferenceKey(BRAND_TYPE, 1), new UpsertAttributeMutation(
+			"brandName", Locale.ENGLISH,
+			"Brand Name updated"
+		)
+		));
+		builder.addMutation(new ReferenceAttributeMutation(
+			new ReferenceKey(BRAND_TYPE, 1), new UpsertAttributeMutation(
+			"brandName", Locale.GERMAN,
+			"Brand Bezeichnung"
+		)
+		));
+
+		// assert all data is present
+		final Entity entity = builder.toInstance();
+		assertEquals(20, builder.getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+		assertEquals(20, entity.getParent().orElseThrow());
+		assertEquals("Different product Name", builder.getAttribute("name"));
+		assertEquals("Different product Name", entity.getAttribute("name"));
+		assertEquals("Product Description", builder.getAttribute("description", Locale.ENGLISH));
+		assertEquals("Product Description", entity.getAttribute("description", Locale.ENGLISH));
+		assertEquals("Produkt Beschreibung", builder.getAttribute("description", Locale.GERMAN));
+		assertEquals("Produkt Beschreibung", entity.getAttribute("description", Locale.GERMAN));
+		assertEquals("Updated data", builder.getAssociatedData("data"));
+		assertEquals("Updated data", entity.getAssociatedData("data"));
+		assertEquals("http://example.com/en", builder.getAssociatedData("url", Locale.ENGLISH));
+		assertEquals("http://example.com/en", entity.getAssociatedData("url", Locale.ENGLISH));
+		assertEquals("http://example.com/de", builder.getAssociatedData("url", Locale.GERMAN));
+		assertEquals("http://example.com/de", entity.getAssociatedData("url", Locale.GERMAN));
+		assertPrice(builder, 1, "basic", CZK, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.valueOf(20), false);
+		assertPrice(entity, 1, "basic", CZK, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.valueOf(20), false);
+		assertPrice(builder, 2, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
+		assertPrice(entity, 2, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
+		assertEquals(2, builder.getReferences(BRAND_TYPE).size());
+		assertEquals(2, entity.getReferences(BRAND_TYPE).size());
+		entity.getReference(BRAND_TYPE, 1)
+		      .ifPresent(ref -> {
+			      assertEquals("Brand Name updated", ref.getAttribute("brandName", Locale.ENGLISH));
+			      assertEquals(
+				      "Brand Name updated",
+				      builder.getReference(BRAND_TYPE, 1)
+				             .orElseThrow()
+				             .getAttribute("brandName", Locale.ENGLISH)
+			      );
+			      assertEquals("Brand Bezeichnung", ref.getAttribute("brandName", Locale.GERMAN));
+			      assertEquals(
+				      "Brand Bezeichnung",
+				      builder.getReference(BRAND_TYPE, 1)
+				             .orElseThrow()
+				             .getAttribute("brandName", Locale.GERMAN)
+			      );
+		      });
+	}
+
+	@Test
+	void shouldRemoveReferences() {
+		final Entity initialEntity = buildInitialEntityWithDuplicatedReferences();
+		final ExistingEntityBuilder eb = new ExistingEntityBuilder(initialEntity);
+
+		eb.removeReference(BRAND, 1);
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> eb.removeReference(PARAMETER, 100)
+		);
+
+		final ReferenceContract findRealParameter = eb.getReferences(new ReferenceKey(PARAMETER, 100)).iterator().next();
+		// remove it by its key - it includes internal primary key, so it should work now
+		eb.removeReference(findRealParameter.getReferenceKey());
+
+		final Entity modifiedInstance = eb.toInstance();
+
+		assertEquals(0, eb.getReferences(BRAND).size());
+		assertEquals(0, modifiedInstance.getReferences(BRAND).stream().filter(Droppable::exists).count());
+		assertEquals(1, eb.getReferences(PARAMETER).size());
+		assertNotEquals(
+			findRealParameter.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class),
+			eb.getReferences(PARAMETER).iterator().next().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+		);
+		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
+		assertNotEquals(
+			findRealParameter.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class),
+			modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+		);
+	}
+
+	@Test
+	void shouldRemoveReferencesByNameInBulk() {
+		final Entity initialEntity = buildInitialEntityWithDuplicatedReferences();
+		final ExistingEntityBuilder eb = new ExistingEntityBuilder(initialEntity);
+
+		eb.removeReferences(PARAMETER, 100);
+		eb.removeReferences(STORE, ref -> "A".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)));
+
+		final Entity modifiedInstance = eb.toInstance();
+
+		assertEquals(1, eb.getReferences(PARAMETER).size());
+		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
+		assertEquals(2, eb.getReferences(STORE).size());
+		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
+		assertEquals("B", eb.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
+		assertEquals("B", modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
+	}
+
+	@Test
+	void shouldRemoveReferencesInBulk() {
+		final Entity initialEntity = buildInitialEntityWithDuplicatedReferences();
+		final ExistingEntityBuilder eb = new ExistingEntityBuilder(initialEntity);
+
+		final Set<String> referencesForRemoval = Set.of(PARAMETER, STORE);
+		eb.removeReferences(ref -> referencesForRemoval.contains(ref.getReferenceName()) && "A".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)));
+
+		final Entity modifiedInstance = eb.toInstance();
+
+		assertEquals(1, eb.getReferences(PARAMETER).size());
+		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
+		assertEquals(2, eb.getReferences(STORE).size());
+		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
+		assertEquals("B", eb.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
+		assertEquals("B", modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
+	}
+
+	@Nonnull
+	private Entity setupEntityWithBrand() {
+		this.builder.setReference(
+			BRAND_TYPE,
+			BRAND_TYPE,
+			Cardinality.ZERO_OR_ONE,
+			1,
+			whichIs -> whichIs.setGroup("Whatever", 8)
+		);
+
+		final EntityMutation entityMutation = this.builder.toMutation().orElseThrow();
+		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
+		assertEquals(2, localMutations.size());
+
+		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(
+			() -> CATALOG_SCHEMA, (EntitySchema) this.initialEntity.getSchema());
+		final LocalEntitySchemaMutation[] schemaMutations = EntityMutation.verifyOrEvolveSchema(
+			CATALOG_SCHEMA,
+			sealedEntitySchema,
+			localMutations
+		).orElseThrow();
+
+		final EntitySchemaContract updatedSchema = sealedEntitySchema
+			.withMutations(schemaMutations)
+			.toInstance();
+
+		return entityMutation.mutate(updatedSchema, this.initialEntity);
 	}
 
 	@Nonnull
@@ -463,20 +727,20 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// initial: 1x BRAND
 		eb.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1);
 		// initial: 2x CATEGORY (different PKs)
-		eb.setReference(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, 10);
-		eb.setReference(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, 11);
+		eb.setReference(CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE, 10);
+		eb.setReference(CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE, 11);
 		// initial: 2x PARAMETER (same PKs)
 		eb.setReference(
-			Entities.PARAMETER,
-			Entities.PARAMETER,
+			PARAMETER,
+			PARAMETER,
 			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			100,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
 		eb.setReference(
-			Entities.PARAMETER,
-			Entities.PARAMETER,
+			PARAMETER,
+			PARAMETER,
 			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			100,
 			ref -> false,
@@ -484,30 +748,41 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		);
 		// initial: 3x STORE (two share same referencedEntityPrimaryKey)
 		eb.setReference(
-			Entities.STORE,
-			Entities.STORE,
+			STORE,
+			STORE,
 			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1000,
 			ref -> false,
 			UnaryOperator.identity()
 		);
 		eb.setReference(
-			Entities.STORE,
-			Entities.STORE,
+			STORE,
+			STORE,
 			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1001,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
 		eb.setReference(
-			Entities.STORE,
-			Entities.STORE,
+			STORE,
+			STORE,
 			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1001,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
 		);
-		return eb.toInstance();
+		final Entity resultInstance = eb.toInstance();
+
+		assertEquals(1, resultInstance.getReferences(BRAND).size());
+		assertEquals(1, resultInstance.getReferences(BRAND).size());
+		assertEquals(2, resultInstance.getReferences(CATEGORY).size());
+		assertEquals(2, resultInstance.getReferences(CATEGORY).size());
+		assertEquals(2, resultInstance.getReferences(PARAMETER).size());
+		assertEquals(2, resultInstance.getReferences(PARAMETER).size());
+		assertEquals(3, resultInstance.getReferences(STORE).size());
+		assertEquals(3, resultInstance.getReferences(STORE).size());
+
+		return resultInstance;
 	}
 
 }

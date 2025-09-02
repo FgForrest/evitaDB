@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
@@ -88,6 +89,13 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 	public ReferenceAttributeMutation(@Nonnull String referenceName, int primaryKey, @Nonnull AttributeMutation attributeMutation) {
 		this(new ReferenceKey(referenceName, primaryKey), attributeMutation);
+	}
+
+	private ReferenceAttributeMutation(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeMutation attributeMutation, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
+		this.attributeMutation = attributeMutation;
+		this.attributeKey = attributeMutation.getAttributeKey();
+		this.comparableKey = new ReferenceKeyWithAttributeKey(referenceKey, this.attributeKey);
 	}
 
 	@Nonnull
@@ -201,6 +209,12 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new ReferenceAttributeMutation(this.referenceKey, this.attributeMutation, newDecisiveTimestamp);
 	}
 
 	@Override

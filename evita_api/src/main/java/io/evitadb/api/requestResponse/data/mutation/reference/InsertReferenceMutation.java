@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
@@ -60,12 +61,6 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	@Serial private static final long serialVersionUID = 6295749367283283232L;
 
 	/**
-	 * Contains primary unique identifier of the Reference. The business key consists of
-	 * {@link ReferenceSchemaContract#getName()} and {@link Entity#getPrimaryKey()}.
-	 */
-	@Nonnull
-	private final ReferenceKey referenceKey;
-	/**
 	 * Contains information about reference cardinality. This value is usually NULL except the case when the reference
 	 * is created for the first time and {@link io.evitadb.api.requestResponse.schema.EvolutionMode#ADDING_REFERENCES} is allowed.
 	 */
@@ -82,17 +77,27 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 
 	public InsertReferenceMutation(@Nonnull ReferenceKey referenceKey) {
 		super(referenceKey);
-		this.referenceKey = referenceKey;
 		this.referenceCardinality = null;
 		this.referencedEntityType = null;
 	}
 
 	public InsertReferenceMutation(
-		@Nonnull ReferenceKey referenceKey, @Nullable Cardinality referenceCardinality,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Cardinality referenceCardinality,
 		@Nullable String referencedEntityType
 	) {
 		super(referenceKey);
-		this.referenceKey = referenceKey;
+		this.referenceCardinality = referenceCardinality;
+		this.referencedEntityType = referencedEntityType;
+	}
+
+	public InsertReferenceMutation(
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Cardinality referenceCardinality,
+		@Nullable String referencedEntityType,
+		long decisiveTimestamp
+	) {
+		super(referenceKey, decisiveTimestamp);
 		this.referenceCardinality = referenceCardinality;
 		this.referencedEntityType = referencedEntityType;
 	}
@@ -240,6 +245,33 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	public InsertReferenceMutation withCardinality(@Nonnull Cardinality newCardinality) {
 		return new InsertReferenceMutation(
 			this.referenceKey, newCardinality, this.referencedEntityType
+		);
+	}
+
+	/**
+	 * Creates a new instance of {@code InsertReferenceMutation} with the specified referenced entity type
+	 * and cardinality. This method allows updating the associated entity type and cardinality for a reference mutation,
+	 * while keeping other fields unchanged.
+	 *
+	 * @param referencedEntityType the type of the entity being referenced
+	 * @param cardinality the {@link Cardinality} to be applied to the reference
+	 * @return a new instance of {@code InsertReferenceMutation} with the updated referenced entity type and cardinality
+	 */
+	@Nonnull
+	public InsertReferenceMutation withReferenceTo(
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality
+	) {
+		return new InsertReferenceMutation(
+			this.referenceKey, cardinality, referencedEntityType
+		);
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new InsertReferenceMutation(
+			this.referenceKey, this.referenceCardinality, this.referencedEntityType, newDecisiveTimestamp
 		);
 	}
 

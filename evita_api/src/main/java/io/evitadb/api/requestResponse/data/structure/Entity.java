@@ -590,7 +590,7 @@ public class Entity implements SealedEntity {
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<ReferenceKey, Map<Integer, ReferenceContract>> newReferences
 	) {
-		final Set<String> mergedTypes;
+		final Set<String> mergedReferenceNames;
 		final Collection<ReferenceContract> mergedReferences;
 
 		final Entity entity = possibleEntity.orElse(null);
@@ -601,15 +601,21 @@ public class Entity implements SealedEntity {
 
 		if (newReferences.isEmpty()) {
 			// Reuse existing views/collections, no new allocations.
-			mergedTypes = schemaRefNames;
+			mergedReferenceNames = schemaRefNames;
 			mergedReferences = existingRefs;
 		} else {
 			// Build mergedTypes with a single HashSet pre-sized for expected size.
 			final int expectedTypeCount = schemaRefNames.size() + newReferences.size();
-			mergedTypes = CollectionUtils.createHashSet(expectedTypeCount);
-			mergedTypes.addAll(schemaRefNames);
+			mergedReferenceNames = CollectionUtils.createHashSet(expectedTypeCount);
+			// add all schema defined reference names
+			mergedReferenceNames.addAll(schemaRefNames);
+			// there might have been new reference names in the base entity added that are not yet in the schema
+			if (entity != null) {
+				mergedReferenceNames.addAll(entity.getReferenceNames());
+			}
+			// add all new reference names
 			for (ReferenceKey rk : newReferences.keySet()) {
-				mergedTypes.add(rk.referenceName());
+				mergedReferenceNames.add(rk.referenceName());
 			}
 
 			// Pre-size references list to avoid resizes.
@@ -635,10 +641,12 @@ public class Entity implements SealedEntity {
 				list.addAll(m.values());
 			}
 
+			// references needs to be always sorted by their natural ordering
+			Collections.sort(list);
 			mergedReferences = list;
 		}
 
-		return new ReferenceTuple(mergedReferences, mergedTypes);
+		return new ReferenceTuple(mergedReferences, mergedReferenceNames);
 	}
 
 	/**
@@ -674,7 +682,15 @@ public class Entity implements SealedEntity {
 					.collect(
 						Collectors.toMap(
 							NamedSchemaContract::getName,
-							Function.identity()
+							Function.identity(),
+							(o, n) -> {
+								if (o.equals(n)) {
+									return o;
+								} else {
+									throw new EvitaInvalidUsageException("Duplicate associated data key `" + o.getName() + "` with different schema: " + o + " and " + n);
+								}
+							},
+							LinkedHashMap::new
 						)
 					)
 			);
@@ -725,7 +741,11 @@ public class Entity implements SealedEntity {
 						NamedSchemaContract::getName,
 						Function.identity(),
 						(o, n) -> {
-							throw new EvitaInvalidUsageException("Duplicate attribute key " + o.getName());
+							if (o.equals(n)) {
+								return o;
+							} else {
+								throw new EvitaInvalidUsageException("Duplicate attribute key `" + o.getName() + "` with different schema: " + o + " and " + n);
+							}
 						},
 						LinkedHashMap::new
 					)
@@ -772,7 +792,7 @@ public class Entity implements SealedEntity {
 		@Nonnull PriceMutation priceMutation
 	) {
 		final PriceContract existingPriceValue = possibleEntity
-			.flatMap(it -> it.getPrice(priceMutation.getPriceKey()))
+			.flatMap(it -> it.prices.getPriceWithoutSchemaCheck(priceMutation.getPriceKey()))
 			.orElse(null);
 		ofNullable(
 			returnIfChanged(
@@ -905,7 +925,8 @@ public class Entity implements SealedEntity {
 	) {
 		OptionalInt newParent;
 		final OptionalInt existingPlacement = possibleEntity
-			.map(Entity::getParent)
+			.filter(it -> it.parent != null)
+			.map(it -> OptionalInt.of(it.parent))
 			.orElse(OptionalInt.empty());
 		newParent = parentMutation.mutateLocal(entitySchema, existingPlacement);
 		return newParent.stream().boxed().findAny().orElse(null);
@@ -1051,6 +1072,7 @@ public class Entity implements SealedEntity {
 						duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
 					}
 					duplicatedList.add(reference);
+					indexedReferences.put(genericKey, DUPLICATE_REFERENCE);
 				} else {
 					throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.CREATE);
 				}
@@ -1084,7 +1106,7 @@ public class Entity implements SealedEntity {
 
 	@Override
 	public boolean parentAvailable() {
-		return this.withHierarchy;
+		return this.withHierarchy || this.parent != null;
 	}
 
 	/**
@@ -1194,10 +1216,34 @@ public class Entity implements SealedEntity {
 	 * Part of the private API.
 	 */
 	@Nonnull
+	public List<ReferenceContract> getReferencesWithoutSchemaCheck(
+		@Nonnull ReferenceKey referenceKey
+	) throws ContextMissingException, ReferenceNotFoundException {
+		final ReferenceContract reference = this.references.get(referenceKey);
+		return reference == DUPLICATE_REFERENCE ?
+			this.duplicateReferences.get(referenceKey) :
+			(reference == null ? Collections.emptyList() : Collections.singletonList(reference));
+	}
+
+	/**
+	 * Returns reference contract without checking the existence in the schema.
+	 * Part of the private API.
+	 */
+	@Nonnull
 	public Optional<ReferenceContract> getReferenceWithoutSchemaCheck(@Nonnull ReferenceKey referenceKey) {
 		final ReferenceContract reference = this.references.get(referenceKey);
 		if (reference == DUPLICATE_REFERENCE) {
-			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.READ);
+			if (referenceKey.isUnknownReference()) {
+				throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.READ);
+			} else {
+				return Objects
+					// when this.references contains DUPLICATE_REFERENCE marker,
+					// this.duplicateReferences must contain the actual references
+					.requireNonNull(this.duplicateReferences.get(referenceKey))
+					.stream()
+					.filter(it -> it.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey())
+					.findFirst();
+			}
 		}
 		return ofNullable(reference);
 	}

@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.mutation.parent;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import lombok.EqualsAndHashCode;
@@ -51,6 +52,11 @@ public class SetParentMutation extends ParentMutation {
 		this.parentPrimaryKey = parentPrimaryKey;
 	}
 
+	private SetParentMutation(int parentPrimaryKey, long decisiveTimestamp) {
+		super(decisiveTimestamp);
+		this.parentPrimaryKey = parentPrimaryKey;
+	}
+
 	@Nonnull
 	@Override
 	public OptionalInt mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable OptionalInt existingValue) {
@@ -71,6 +77,12 @@ public class SetParentMutation extends ParentMutation {
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new SetParentMutation(this.parentPrimaryKey, newDecisiveTimestamp);
 	}
 
 	@Override

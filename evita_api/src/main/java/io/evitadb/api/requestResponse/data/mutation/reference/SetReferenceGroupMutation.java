@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -88,6 +89,13 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	public SetReferenceGroupMutation(@Nonnull String referenceName, int referencedEntityPrimaryKey, @Nullable String groupType, int groupPrimaryKey) {
 		super(referenceName, referencedEntityPrimaryKey);
+		this.groupType = groupType;
+		this.groupPrimaryKey = groupPrimaryKey;
+	}
+
+	private SetReferenceGroupMutation(
+		@Nonnull ReferenceKey referenceKey, long decisiveTimestamp, @Nullable String groupType, int groupPrimaryKey) {
+		super(referenceKey, decisiveTimestamp);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
 	}
@@ -232,6 +240,12 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new SetReferenceGroupMutation(this.referenceKey, newDecisiveTimestamp, this.groupType, this.groupPrimaryKey);
 	}
 
 	@Override

@@ -44,6 +44,7 @@ import java.io.Serial;
 @EqualsAndHashCode
 public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Serial private static final long serialVersionUID = -8465670492875977978L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Scope to be set in the target entity.
 	 */
@@ -51,6 +52,12 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 
 	public SetEntityScopeMutation(@Nonnull Scope scope) {
 		this.scope = scope;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	private SetEntityScopeMutation(@Nonnull Scope scope, long decisiveTimestamp) {
+		this.scope = scope;
+		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
 	@Nonnull
@@ -79,6 +86,12 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new SetEntityScopeMutation(this.scope, newDecisiveTimestamp);
 	}
 
 	@Override

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
@@ -49,6 +50,10 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 
 	public RemoveReferenceGroupMutation(@Nonnull ReferenceKey referenceKey) {
 		super(referenceKey);
+	}
+
+	private RemoveReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
 	}
 
 	@Nonnull
@@ -97,6 +102,12 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemoveReferenceGroupMutation(this.referenceKey, newDecisiveTimestamp);
 	}
 
 	@Override

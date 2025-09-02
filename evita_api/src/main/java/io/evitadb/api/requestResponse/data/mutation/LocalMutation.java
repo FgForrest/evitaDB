@@ -88,6 +88,27 @@ public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Ca
 	 */
 	S getComparableKey();
 
+	/**
+	 * Internal timestamp that allows to determine mutation order if their comparable keys are the same. This
+	 * situation should normally never happen, but if it does, we need to have a way how to determine which mutation
+	 * should be executed first. This timestamp must be set at the time of mutation creation or adding mutation to
+	 * the builder.
+	 *
+	 * @return internal timestamp of the mutation
+	 */
+	long getDecisiveTimestamp();
+
+	/**
+	 * Method is executed internally when mutation is added to the mutation set. It creates copy of the mutation
+	 * with new decisive timestamp so that mutations can be reliably ordered even if their business keys are
+	 * the same.
+	 *
+	 * @param newDecisiveTimestamp new decisive timestamp
+	 * @return copy of the mutation with new decisive timestamp
+	 */
+	@Nonnull
+	LocalMutation<?,?> withDecisiveTimestamp(long newDecisiveTimestamp);
+
 	@Override
 	@Nonnull
 	default Stream<ChangeCatalogCapture> toChangeCatalogCapture(
@@ -111,7 +132,7 @@ public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Ca
 				final int businessKeyCmpResult = getComparableKey().compareTo(o.getComparableKey());
 				if (businessKeyCmpResult == 0) {
 					// this should not happen
-					return Integer.compare(System.identityHashCode(this), System.identityHashCode(o));
+					return Long.compare(this.getDecisiveTimestamp(), o.getDecisiveTimestamp());
 				} else {
 					return businessKeyCmpResult;
 				}

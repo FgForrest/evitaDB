@@ -56,6 +56,10 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 		this(new ReferenceKey(referenceName, primaryKey));
 	}
 
+	private RemoveReferenceMutation(@Nonnull ReferenceKey referenceKey, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
+	}
+
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
@@ -91,6 +95,12 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemoveReferenceMutation(this.referenceKey, newDecisiveTimestamp);
 	}
 
 	@Override

@@ -28,10 +28,8 @@ import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.dataType.ContainerType;
-import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,17 +39,27 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode
 public abstract class ReferenceMutation<T extends Comparable<T>> implements NamedLocalMutation<ReferenceContract, T> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Identification of the reference that is being manipulated by this mutation.
 	 */
 	@Getter protected final ReferenceKey referenceKey;
 
+	protected ReferenceMutation(@Nonnull ReferenceKey referenceKey) {
+		this.referenceKey = referenceKey;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
 	protected ReferenceMutation(@Nonnull String referenceName, int primaryKey) {
 		this(new ReferenceKey(referenceName, primaryKey));
+	}
+
+	protected ReferenceMutation(@Nonnull ReferenceKey referenceKey, long decisiveTimestamp) {
+		this.decisiveTimestamp = decisiveTimestamp;
+		this.referenceKey = referenceKey;
 	}
 
 	@Nonnull
