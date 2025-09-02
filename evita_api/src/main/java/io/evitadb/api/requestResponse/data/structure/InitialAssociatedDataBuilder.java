@@ -27,12 +27,14 @@ import io.evitadb.api.exception.InvalidDataTypeMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 
 import javax.annotation.Nonnull;
@@ -40,7 +42,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -78,7 +79,30 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	 */
 	InitialAssociatedDataBuilder(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
-		this.associatedDataValues = new HashMap<>();
+		this.associatedDataValues = CollectionUtils.createHashMap(8);
+	}
+
+	InitialAssociatedDataBuilder(
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Collection<AssociatedDataValue> associatedDataValues
+	) {
+		this.entitySchema = schema;
+		this.associatedDataValues = CollectionUtils.createHashMap(associatedDataValues.size());
+		for (AssociatedDataValue associatedDataValue : associatedDataValues) {
+			final AssociatedDataKey associatedDataKey = associatedDataValue.key();
+			if (associatedDataKey.localized()) {
+				this.setAssociatedData(
+					associatedDataKey.associatedDataName(),
+					associatedDataKey.localeOrThrowException(),
+					associatedDataValue.value()
+				);
+			} else {
+				this.setAssociatedData(
+					associatedDataKey.associatedDataName(),
+					associatedDataValue.value()
+				);
+			}
+		}
 	}
 
 	@Nonnull
@@ -307,7 +331,9 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Stream<? extends AssociatedDataMutation> buildChangeSet() {
-		throw new UnsupportedOperationException("Initial entity creation doesn't support change monitoring - it has no sense.");
+		return getAssociatedDataValues()
+			.stream()
+			.map(ad -> new UpsertAssociatedDataMutation(ad.key(), ad.valueOrThrowException()));
 	}
 
 	@Nonnull

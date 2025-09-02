@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
@@ -106,7 +107,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		this.attributesBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
 			baseReference.getReferenceSchema().orElseGet(
-				() -> Reference.createImplicitSchema(
+				() -> ReferencesBuilder.createImplicitSchema(
 					baseReference.getReferenceName(),
 					baseReference.getReferencedEntityType(),
 					baseReference.getReferenceCardinality(),
@@ -351,4 +352,5 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return this.baseReference;
 		}
 	}
+
 }

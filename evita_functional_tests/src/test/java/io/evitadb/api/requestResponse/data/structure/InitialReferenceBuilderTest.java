@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -61,7 +62,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldCreateReference() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-1
@@ -124,7 +125,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldOverwriteReferenceData() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-4
@@ -170,7 +171,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldSetAndRemoveGroupWithoutType() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-1
@@ -188,7 +189,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldProduceProperChangeSetForReference() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-1

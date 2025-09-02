@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -300,7 +301,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 								"the referenced entity type and cardinality are not provided in the mutation."
 						);
 					}
-					return Reference.createImplicitSchema(
+					return ReferencesBuilder.createImplicitSchema(
 						this.referenceKey.referenceName(),
 						this.referencedEntityType,
 						this.referenceCardinality,

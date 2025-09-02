@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.reference;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
@@ -55,7 +56,7 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				Reference.createImplicitSchema("category", "category", Cardinality.ZERO_OR_MORE, null),
+				ReferencesBuilder.createImplicitSchema("category", "category", Cardinality.ZERO_OR_MORE, null),
 				new ReferenceKey("category", 5),
 				null
 			)

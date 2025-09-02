@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
@@ -58,15 +59,14 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.evitadb.api.requestResponse.data.structure.References.DEFAULT_CHUNK_TRANSFORMER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,7 +87,7 @@ class EntityTest extends AbstractBuilderTest {
 	@Test
 	@DisplayName("marker should have proper toString implementation")
 	void shouldRenderToString() {
-		assertEquals("DUPLICATE_REFERENCE_MARKER", Entity.DUPLICATE_REFERENCE.toString());
+		assertEquals("DUPLICATE_REFERENCE_MARKER", References.DUPLICATE_REFERENCE.toString());
 	}
 
 	@Test
@@ -105,25 +105,23 @@ class EntityTest extends AbstractBuilderTest {
 		final Prices prices = new Prices(schema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false);
 		final ReferenceContract ref = new Reference(
 			schema,
-			Reference.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 5), null
 		);
+		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
-
-		final Entity.ChunkTransformerAccessor accessor = Entity.DEFAULT_CHUNK_TRANSFORMER;
 
 		final Entity e = Entity._internalBuild(
 			123,
 			null,
 			schema,
 			null,
-			List.of(ref),
+			references,
 			attributes,
 			associatedData,
 			prices,
 			locales,
-			Scope.LIVE,
-			accessor
+			Scope.LIVE
 		);
 
 		assertEquals(1, e.version());
@@ -147,29 +145,27 @@ class EntityTest extends AbstractBuilderTest {
 
 		final ReferenceContract ref = new Reference(
 			schema,
-			Reference.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 5),
 			null
 		);
 		final EntityAttributes attributes = new EntityAttributes(schema);
 		final AssociatedData associatedData = new AssociatedData(schema);
 		final Prices prices = new Prices(schema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false);
+		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
-
-		final Set<String> referencesDefined = new HashSet<>(Arrays.asList(BRAND, "customRef"));
 
 		final Entity e = Entity._internalBuild(
 			321,
 			2,
 			schema,
 			42,
-			List.of(ref),
+			references,
 			attributes,
 			associatedData,
 			prices,
 			locales,
-			referencesDefined,
-			true,
+			Scope.LIVE,
 			true
 		);
 
@@ -193,30 +189,28 @@ class EntityTest extends AbstractBuilderTest {
 
 		final ReferenceContract ref = new Reference(
 			schema,
-			Reference.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 6),
 			null
 		);
 		final EntityAttributes attributes = new EntityAttributes(schema);
 		final AssociatedData associatedData = new AssociatedData(schema);
 		final Prices prices = new Prices(schema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false);
+		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
-
-		final Entity.ChunkTransformerAccessor accessor = Entity.DEFAULT_CHUNK_TRANSFORMER;
 
 		final Entity e = Entity._internalBuild(
 			3,
 			777,
 			schema,
 			null,
-			List.of(ref),
+			references,
 			attributes,
 			associatedData,
 			prices,
 			locales,
 			Scope.ARCHIVED,
-			false,
-			accessor
+			false
 		);
 
 		assertEquals(3, e.version());
@@ -237,7 +231,6 @@ class EntityTest extends AbstractBuilderTest {
 			.toInstance();
 
 		final Entity base = new InitialEntityBuilder(schema).toInstance();
-		final Entity.ChunkTransformerAccessor accessor = Entity.DEFAULT_CHUNK_TRANSFORMER;
 
 		final Entity e = Entity._internalBuild(
 			base,
@@ -245,14 +238,13 @@ class EntityTest extends AbstractBuilderTest {
 			888,
 			schema,
 			99,
-			Collections.emptyList(),
+			null,
 			null,
 			null,
 			null,
 			null,
 			Scope.LIVE,
-			false,
-			accessor
+			false
 		);
 
 		assertEquals(base.version() + 5, e.version());

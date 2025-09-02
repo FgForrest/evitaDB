@@ -5761,13 +5761,13 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 					assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
 
-					final StripList<ReferenceContract> foundParameters = productByPk.getReferenceChunk(Entities.PARAMETER);
+					final StripList<ReferenceContract> foundParameters = (StripList<ReferenceContract>) productByPk.getReferenceChunk(Entities.PARAMETER);
 					foundParameters
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.forEach(referencedParameters::add);
 
-					final PaginatedList<ReferenceContract> foundPriceLists = productByPk.getReferenceChunk(Entities.PRICE_LIST);
+					final PaginatedList<ReferenceContract> foundPriceLists = (PaginatedList<ReferenceContract>) productByPk.getReferenceChunk(Entities.PRICE_LIST);
 					foundPriceLists
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)

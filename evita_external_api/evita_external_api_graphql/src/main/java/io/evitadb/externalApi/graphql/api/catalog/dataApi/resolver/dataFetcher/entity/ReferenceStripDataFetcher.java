@@ -61,6 +61,6 @@ public class ReferenceStripDataFetcher implements DataFetcher<StripList<Referenc
                 "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        return entity.getReferenceChunk(this.referenceSchema.getName());
+        return (StripList<ReferenceContract>) entity.getReferenceChunk(this.referenceSchema.getName());
     }
 }

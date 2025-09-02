@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 	void setUp() {
 		this.initialReference = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-4

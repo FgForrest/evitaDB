@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
@@ -164,7 +165,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 			entitySchema,
 			existingValue.getReferenceSchema()
 				.orElseGet(
-					() -> Reference.createImplicitSchema(
+					() -> ReferencesBuilder.createImplicitSchema(
 						existingValue.getReferenceName(),
 						existingValue.getReferencedEntityType(),
 						existingValue.getReferenceCardinality(),

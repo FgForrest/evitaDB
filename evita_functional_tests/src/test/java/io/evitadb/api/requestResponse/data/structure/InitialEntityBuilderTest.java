@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
@@ -44,10 +45,12 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
@@ -437,7 +440,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 
 		final Reference ref = new Reference(
 			schema,
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(Entities.BRAND, 7),
 			null
 		);
@@ -1087,16 +1090,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change referenced entity type this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> {
-				builder.setReference(
-					BRAND,
-					"differentEntityType",
-					Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-					2,
-					ref -> false,
-					UnaryOperator.identity()
-				);
-			}
+			() -> builder.setReference(
+				BRAND,
+				"differentEntityType",
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				2,
+				ref -> false,
+				UnaryOperator.identity()
+			)
 		);
 		/* cannot change cardinality this way */
 		assertThrows(
@@ -1136,6 +1137,236 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 
 		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);
 		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 2, 3);
+	}
+
+	@Test
+	void shouldAllowAddingNewDefinitions() {
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(EvolutionMode.values())
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
+		// add parent
+		builder.setParent(1);
+		// add attribute
+		builder.setAttribute("code", "X");
+		// add localized attribute
+		builder.setAttribute("loc", Locale.ENGLISH, "EN");
+		builder.setAttribute("loc", Locale.FRENCH, "FR");
+		// add associated data
+		builder.setAssociatedData("manual", Locale.ENGLISH, "Manual EN");
+		// add reference with attribute
+		builder.setReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			whichIs -> whichIs.setAttribute("priority", 1)
+		);
+		// automatically elevate cardinality to ZERO_OR_MORE
+		builder.setReference(
+			BRAND, 2,
+			whichIs -> whichIs.setAttribute("priority", 2)
+		);
+		// set price inner record handling
+		builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM);
+		// add price
+		builder.setPrice(1, "basic", Currency.getInstance("USD"), new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true);
+
+		// assert everything is present
+		assertEquals(1, builder.getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+		assertEquals("X", builder.getAttribute("code"));
+		assertEquals("EN", builder.getAttribute("loc", Locale.ENGLISH));
+		assertEquals("FR", builder.getAttribute("loc", Locale.FRENCH));
+		assertEquals("Manual EN", builder.getAssociatedData("manual", Locale.ENGLISH));
+		assertEquals(2, builder.getReferences(BRAND).size());
+		assertEquals(1, builder.getReference(BRAND, 1).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(2, builder.getReference(BRAND, 2).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(PriceInnerRecordHandling.SUM, builder.getPriceInnerRecordHandling());
+		assertEquals(1, builder.getPrices().size());
+		assertNotNull(builder.getPrice(new PriceKey(1, "basic", Currency.getInstance("USD"))).orElseThrow());
+
+		// assert everything is present in the built entity
+		final Entity entity = builder.toInstance();
+		assertEquals(1, entity.getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+		assertEquals("X", entity.getAttribute("code"));
+		assertEquals("EN", entity.getAttribute("loc", Locale.ENGLISH));
+		assertEquals("FR", entity.getAttribute("loc", Locale.FRENCH));
+		assertEquals("Manual EN", entity.getAssociatedData("manual", Locale.ENGLISH));
+		assertEquals(2, entity.getReferences(BRAND).size());
+		assertEquals(1, entity.getReference(BRAND, 1).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(2, entity.getReference(BRAND, 2).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(PriceInnerRecordHandling.SUM, entity.getPriceInnerRecordHandling());
+		assertEquals(1, entity.getPrices().size());
+		assertNotNull(entity.getPrice(new PriceKey(1, "basic", Currency.getInstance("USD"))).orElseThrow());
+	}
+
+	@Test
+	void shouldDenyExternalPrimaryKey() {
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow()
+			.withGeneratedPrimaryKey()
+			.toInstance();
+
+		assertThrows(
+			InvalidMutationException.class,
+			() -> new InitialEntityBuilder(schema, 1)
+		);
+	}
+
+	@Test
+	void shouldDenyGeneratedPrimaryKey() {
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withoutGeneratedPrimaryKey()
+			.withGeneratedPrimaryKey()
+			.toInstance();
+
+		assertThrows(
+			InvalidMutationException.class,
+			() -> new InitialEntityBuilder(schema)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingAttributes() {
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+				EvolutionMode.ADDING_REFERENCES
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAttribute("code", "X")
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+				whichIs -> whichIs.setAttribute("priority", 1)
+			)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingAssociatedData() {
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAssociatedData("key", "value")
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAssociatedData("key", Locale.ENGLISH, "value")
+		);
+	}
+
+	@Test
+	void shouldDenyAddingParent() {
+
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setParent(1)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingPrice() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM)
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setPrice(
+				1, "basic", Currency.getInstance("USD"),
+				new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true
+			)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingReference() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(BRAND, 1)
+		);
+	}
+
+	@Test
+	void shouldDenyElevatingCardinality() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+				EvolutionMode.ADDING_REFERENCES
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		builder.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1);
+
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(BRAND, 2)
+		);
 	}
 
 	private static void checkCollectionBrands(Collection<ReferenceContract> references, int... expectedPks) {

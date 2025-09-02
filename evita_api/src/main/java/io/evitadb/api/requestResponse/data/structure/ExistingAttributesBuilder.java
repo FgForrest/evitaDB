@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
@@ -34,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -234,6 +236,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName);
+		assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
 		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).filter(Droppable::exists).isEmpty()) {
 			this.attributeMutations.remove(attributeKey);
 		} else {
@@ -250,6 +253,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
+			assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
 			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
 					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver()
@@ -271,6 +275,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
+			assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
 			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
 					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver()
@@ -289,6 +294,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
+		assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
 		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).filter(Droppable::exists).isEmpty()) {
 			this.attributeMutations.remove(attributeKey);
 		} else {
@@ -305,6 +311,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
+			assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
 			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
 					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver()
@@ -326,6 +333,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
+			assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
 			if (!this.suppressVerification) {
 				InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
 					this.baseAttributes.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver()
@@ -343,7 +351,9 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	@Override
 	public T mutateAttribute(@Nonnull AttributeMutation mutation) {
-		this.attributeMutations.put(mutation.getAttributeKey(), mutation);
+		final AttributeKey attributeKey = mutation.getAttributeKey();
+		assertAttributeAvailableAndMatchPredicate(attributeKey);
+		this.attributeMutations.put(attributeKey, mutation);
 		//noinspection unchecked
 		return (T) this;
 	}
@@ -454,6 +464,9 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Override
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
+		if (!attributesAvailable()) {
+			throw ContextMissingException.attributeContextMissing();
+		}
 		return getAttributeValuesWithoutPredicate()
 			.filter(this.attributePredicate)
 			.collect(Collectors.toList());
@@ -582,6 +595,7 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	 */
 	@Nonnull
 	private Optional<AttributeValue> getAttributeValueInternal(AttributeKey attributeKey) {
+		assertAttributeAvailableAndMatchPredicate(attributeKey);
 		final Optional<AttributeValue> attributeValue = ofNullable(this.baseAttributes.attributeValues.get(attributeKey))
 			.map(it ->
 				ofNullable(this.attributeMutations.get(attributeKey))
@@ -596,6 +610,25 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 					.map(it -> it.mutateLocal(this.entitySchema, null))
 			);
 		return attributeValue.filter(this.attributePredicate);
+	}
+
+	/**
+	 * Checks if a specific attribute identified by the given {@code attributeKey} is available
+	 * in the context and if it matches the predefined predicate.
+	 * If the attribute is not available, throws a {@link ContextMissingException}.
+	 * If the attribute does not match the predicate, an assertion error is thrown.
+	 *
+	 * @param attributeKey the key identifying the attribute to check for availability and
+	 *                     compliance with the predicate; must not be null
+	 */
+	private void assertAttributeAvailableAndMatchPredicate(@Nonnull AttributeKey attributeKey) {
+		if (!attributeAvailable(attributeKey.attributeName())) {
+			throw ContextMissingException.attributeContextMissing(attributeKey.attributeName());
+		}
+		Assert.isTrue(
+			this.attributePredicate.test(new AttributeValue(attributeKey, -1)),
+			"Attribute `" + attributeKey + "` was not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
+		);
 	}
 
 }

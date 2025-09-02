@@ -62,12 +62,12 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;

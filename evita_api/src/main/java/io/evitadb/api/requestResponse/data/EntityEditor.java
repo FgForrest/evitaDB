@@ -23,29 +23,16 @@
 
 package io.evitadb.api.requestResponse.data;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.ReferenceNotKnownException;
-import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
-
-import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 
 /**
  * Contract for classes that allow creating, updating, or removing information in an {@link Entity}
@@ -55,8 +42,12 @@ import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySch
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityEditor<W extends EntityEditor<W>>
-	extends EntityContract, AttributesEditor<W, EntityAttributeSchemaContract>, AssociatedDataEditor<W>,
-	PricesEditor<W> {
+	extends EntityContract,
+	AttributesEditor<W, EntityAttributeSchemaContract>,
+	AssociatedDataEditor<W>,
+	PricesEditor<W>,
+	ReferencesEditor<W>
+{
 
 	/**
 	 * Sets the scope of the entity. When {@link Scope#ARCHIVED} is set and the entity is saved, the entity is
@@ -91,282 +82,6 @@ public interface EntityEditor<W extends EntityEditor<W>>
 	 */
 	@Nonnull
 	W removeParent();
-
-	/**
-	 * Iterates over all references of the entity, filters them by the predicate, and applies the consumer
-	 * to update all matching references. If none match the predicate, no action is performed.
-	 *
-	 * @param filter  predicate used to select references that should be updated
-	 * @param whichIs consumer that mutates each matching reference; may be {@code null} for no-op
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W updateReferences(
-		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
-	);
-
-	/**
-	 * Creates or updates a reference of the entity. A reference represents a relation to another evitaDB entity or
-	 * to an external source. The exact target entity is defined in
-	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
-	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}.
-	 *
-	 * This method expects that a {@link ReferenceSchemaContract} for the given {@code referenceName} already exists
-	 * in the {@link EntitySchemaContract}.
-	 *
-	 * @param referenceName        the name of the reference as defined in the entity schema
-	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @return this editor instance for fluent chaining
-	 * @throws ReferenceNotKnownException when the reference doesn't exist in the entity schema
-	 */
-	@Nonnull
-	W setReference(
-		@Nonnull String referenceName,
-		int referencedPrimaryKey
-	) throws ReferenceNotKnownException;
-
-	/**
-	 * Creates or updates a reference of the entity. A reference represents a relation to another
-	 * evitaDB entity or to an external source. The exact target entity is defined in
-	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
-	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}. The third argument accepts
-	 * a consumer that allows setting additional information on the reference, such as its
-	 * {@link ReferenceContract#getAttributeValues()} or grouping.
-	 *
-	 * This method expects that a {@link ReferenceSchemaContract} for the given {@code referenceName}
-	 * already exists in the {@link EntitySchemaContract}.
-	 *
-	 * @param referenceName        the name of the reference as defined in the entity schema
-	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping; may be {@code null}
-	 * @return this editor instance for fluent chaining
-	 * @throws ReferenceNotKnownException when the reference doesn't exist in the entity schema
-	 */
-	@Nonnull
-	W setReference(
-		@Nonnull String referenceName,
-		int referencedPrimaryKey,
-		@Nullable Consumer<ReferenceBuilder> whichIs
-	) throws ReferenceNotKnownException;
-
-	/**
-	 * Creates or updates a reference of the entity. A reference represents a relation to another evitaDB entity or to
-	 * an external source. The exact target entity is defined in
-	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
-	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}.
-	 *
-	 * The third argument accepts a predicate that identifies existing references to be updated among potentially
-	 * multiple references of the same {@code referenceName} targeting the specified {@code referencedPrimaryKey}.
-	 * If the predicate matches multiple references, all are updated. If none match, a new reference is created and
-	 * passed to the consumer for initialization.
-	 *
-	 * The fourth argument accepts a consumer that allows setting additional information on the reference such as its
-	 * {@link ReferenceContract#getAttributeValues()} or grouping information.
-	 *
-	 * This method expects that a {@link ReferenceSchemaContract} for the given {@code referenceName} already exists
-	 * in the {@link EntitySchemaContract}.
-	 *
-	 * @param referenceName        the name of the reference as defined in the entity schema
-	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @param filter               predicate used to select existing references to update
-	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping; may be {@code null}
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W setReference(
-		@Nonnull String referenceName,
-		int referencedPrimaryKey,
-		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
-	);
-
-	/**
-	 * Creates or updates a reference of the entity. The reference represents a relation to another evitaDB entity
-	 * or to an external source. The exact target entity is defined in
-	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
-	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}.
-	 *
-	 * If no {@link ReferenceSchemaContract} exists yet, a new one is created. The new reference will have these
-	 * properties automatically set up:
-	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE – you will be able to filter by presence of this reference
-	 * (at the cost of higher memory usage)
-	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE – reference data will not be part of the {@link FacetSummary}
-	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is an entity with matching
-	 * {@code referencedEntityType} in the current catalog, otherwise FALSE
-	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} – not defined
-	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} FALSE
-	 *
-	 * If you need to change these defaults, fetch the reference schema by calling
-	 * {@link CatalogContract#getEntitySchema(String)}, access it via
-	 * {@link EntitySchemaContract#getReference(String)}, open it for write, and update it in the evitaDB instance via
-	 * {@link EntitySchemaBuilder#updateVia(EvitaSessionContract)}.
-	 *
-	 * @param referenceName        the name of the reference being created or updated
-	 * @param referencedEntityType the type of the referenced entity
-	 * @param cardinality          expected cardinality as defined by the schema
-	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W setReference(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
-		int referencedPrimaryKey
-	);
-
-	/**
-	 * Creates or updates a reference of the entity. A reference represents a relation to another evitaDB entity or to
-	 * an external source. The exact target entity is defined in
-	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
-	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}. The fifth argument accepts a consumer that
-	 * allows setting additional information on the reference such as its
-	 * {@link ReferenceContract#getAttributeValues()} or grouping information.
-	 *
-	 * If no {@link ReferenceSchemaContract} exists yet, a new one is created. The new reference will have these
-	 * properties automatically set up:
-	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE – you will be able to filter by presence of this reference
-	 * (at the cost of higher memory usage)
-	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE – reference data will not be part of the {@link FacetSummary}
-	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is an entity with matching
-	 * {@code referencedEntityType} in the current catalog, otherwise FALSE
-	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} – as defined in {@code whichIs} lambda
-	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} TRUE if there already is an entity with matching
-	 * {@link ReferenceContract#getGroup()} in the current catalog, otherwise FALSE
-	 *
-	 * If you need to change these defaults, fetch the reference schema by calling
-	 * {@link CatalogContract#getEntitySchema(String)}, access it via
-	 * {@link EntitySchemaContract#getReference(String)}, open it for write, and update it in the evitaDB instance via
-	 * {@link EntitySchemaBuilder#updateVia(EvitaSessionContract)}.
-	 *
-	 * @param referenceName        the name of the reference being created or updated
-	 * @param referencedEntityType the type of the referenced entity
-	 * @param cardinality          expected cardinality as defined by the schema
-	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping; may be {@code null}
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W setReference(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
-		int referencedPrimaryKey,
-		@Nullable Consumer<ReferenceBuilder> whichIs
-	);
-
-	/**
-	 * Creates or updates a reference of the entity. A reference represents a relation to another evitaDB entity or to
-	 * an external source. The exact target entity is defined in
-	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
-	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}.
-	 *
-	 * The fifth argument accepts a predicate that identifies existing references to be updated among potentially
-	 * multiple references of the same {@code referenceName} targeting the specified {@code referencedPrimaryKey}.
-	 * If the predicate matches multiple references, all are updated. If none match, a new reference is created and
-	 * passed to the consumer for initialization.
-	 *
-	 * The sixth argument accepts a consumer that allows setting additional information on the reference such as its
-	 * {@link ReferenceContract#getAttributeValues()} or grouping information.
-	 *
-	 * If no {@link ReferenceSchemaContract} exists yet, a new one is created. The new reference will have these
-	 * properties automatically set up:
-	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE – you will be able to filter by presence of this reference
-	 * (at the cost of higher memory usage)
-	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE – reference data will not be part of the {@link FacetSummary}
-	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is an entity with matching
-	 * {@code referencedEntityType} in the current catalog, otherwise FALSE
-	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} – as defined in {@code whichIs} lambda
-	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} TRUE if there already is an entity with matching
-	 * {@link ReferenceContract#getGroup()} in the current catalog, otherwise FALSE
-	 *
-	 * If you need to change these defaults, fetch the reference schema by calling
-	 * {@link CatalogContract#getEntitySchema(String)}, access it via
-	 * {@link EntitySchemaContract#getReference(String)}, open it for write, and update it in the evitaDB instance via
-	 * {@link EntitySchemaBuilder#updateVia(EvitaSessionContract)}.
-	 *
-	 * @param referenceName        the name of the reference being created or updated
-	 * @param referencedEntityType the type of the referenced entity
-	 * @param cardinality          expected cardinality as defined by the schema
-	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @param filter               predicate used to select existing references to update
-	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping; may be {@code null}
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W setReference(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
-		int referencedPrimaryKey,
-		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
-	);
-
-	/**
-	 * Removes an existing reference with the specified name and primary key.
-	 *
-	 * @param referenceName        the name of the reference to remove
-	 * @param referencedPrimaryKey the primary key of the referenced entity to remove the link to
-	 * @return this editor instance for fluent chaining
-	 * @throws ReferenceNotKnownException when the reference doesn't exist in the entity schema
-	 */
-	@Nonnull
-	W removeReference(@Nonnull String referenceName, int referencedPrimaryKey) throws ReferenceNotKnownException;
-
-	/**
-	 * Removes an existing reference with the specified name and primary key.
-	 *
-	 * @param referenceKey the key of the reference to remove
-	 * @return this editor instance for fluent chaining
-	 * @throws ReferenceNotKnownException when the reference doesn't exist in the entity schema
-	 */
-	@Nonnull
-	W removeReference(@Nonnull ReferenceKey referenceKey) throws ReferenceNotKnownException;
-
-	/**
-	 * Removes all existing references with the specified name that target the specified primary key. This method may
-	 * remove multiple references if the reference schema allows multiple (duplicate) references to the same entity.
-	 * If duplicates are not allowed by the schema, at most one reference will be removed.
-	 *
-	 * @param referenceName        the name of the reference to remove
-	 * @param referencedPrimaryKey the primary key of the referenced entity whose links should be removed
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W removeReferences(@Nonnull String referenceName, int referencedPrimaryKey);
-
-	/**
-	 * Removes all existing references with the specified name. This method may remove multiple references at once if
-	 * the reference schema allows higher {@link Cardinality}.
-	 *
-	 * @param referenceName the name of the references to remove
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W removeReferences(@Nonnull String referenceName);
-
-	/**
-	 * Removes matching references with the specified name. This method may remove multiple references at once if
-	 * the reference schema allows higher {@link Cardinality} and the predicate matches multiple references.
-	 *
-	 * @param referenceName the name of the references to remove
-	 * @param filter        predicate used to select references to remove
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter);
-
-	/**
-	 * Removes matching references from the entity. This method may remove multiple references if the
-	 * predicate matches multiple ones.
-	 *
-	 * @param filter predicate used to select references to remove
-	 * @return this editor instance for fluent chaining
-	 */
-	@Nonnull
-	W removeReferences(@Nonnull Predicate<ReferenceContract> filter);
 
 	/**
 	 * Interface that simply combines {@link EntitySchemaEditor} and {@link EntitySchemaContract} entity contracts together.

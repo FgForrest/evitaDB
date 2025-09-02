@@ -60,6 +60,6 @@ public class ReferencePageDataFetcher implements DataFetcher<PaginatedList<Refer
                 "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        return entity.getReferenceChunk(this.referenceSchema.getName());
+        return (PaginatedList<ReferenceContract>) entity.getReferenceChunk(this.referenceSchema.getName());
     }
 }

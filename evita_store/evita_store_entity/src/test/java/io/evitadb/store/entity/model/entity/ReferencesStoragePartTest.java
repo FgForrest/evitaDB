@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceAttributes;
@@ -76,7 +77,7 @@ class ReferencesStoragePartTest {
 		final EntitySchemaContract schema = mockEntitySchema();
 		return new Reference(
 			schema,
-			Reference.createImplicitSchema(refName, EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, group),
+			ReferencesBuilder.createImplicitSchema(refName, EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, group),
 			1,
 			new ReferenceKey(refName, pk, internalPk),
 			group,
@@ -361,7 +362,7 @@ class ReferencesStoragePartTest {
 		assertFalse(empty.isLocalePresent(Locale.ENGLISH));
 
 		final Reference rEn = new Reference(
-			Reference.createImplicitSchema("A", EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, null),
+			ReferencesBuilder.createImplicitSchema("A", EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, null),
 			1,
 			new ReferenceKey("A", 1, 1),
 			null,

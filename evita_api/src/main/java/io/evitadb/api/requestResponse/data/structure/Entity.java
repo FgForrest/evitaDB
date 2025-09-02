@@ -23,11 +23,9 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException.Operation;
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.order.AttributeNatural;
@@ -40,8 +38,6 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
-import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
@@ -51,6 +47,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferencesContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -63,49 +60,40 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.dataType.DataChunk;
-import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
-import one.edee.oss.proxycian.PredicateMethodClassification;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
-import one.edee.oss.proxycian.util.ReflectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.lang.reflect.InvocationTargetException;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
-import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
+import static io.evitadb.api.requestResponse.data.structure.References.DEFAULT_CHUNK_TRANSFORMER;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
@@ -130,16 +118,6 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class Entity implements SealedEntity {
 	@Serial private static final long serialVersionUID = 8637366499361070438L;
-	/**
-	 * Default implementation of the chunk transformer that simply wraps the input list into a one page facade.
-	 */
-	public static final ChunkTransformerAccessor DEFAULT_CHUNK_TRANSFORMER =
-		referenceName -> NoTransformer.INSTANCE;
-
-	/**
-	 * Internal reference constant used for recognition of duplicate references.
-	 */
-	static final ReferenceContract DUPLICATE_REFERENCE = createThrowingStub();
 
 	/**
 	 * Contains version of this object and gets increased with any (direct) entity update. Allows to execute
@@ -174,30 +152,6 @@ public class Entity implements SealedEntity {
 	 */
 	@Nullable final Integer parent;
 	/**
-	 * Contains true if the entity is allowed to have parents by the schema.
-	 */
-	final boolean withHierarchy;
-	/**
-	 * Contains all references of the entity.
-	 */
-	final Collection<ReferenceContract> referenceCollection;
-	/**
-	 * Contains an index of entity references by their unique keys. Contains only references that cannot have duplicates
-	 * according to a {@link ReferenceSchemaContract#getCardinality()}.
-	 * @see ReferenceContract
-	 */
-	final Map<ReferenceKey, ReferenceContract> references;
-	/**
-	 * Contains an index of entity references by their unique keys. Contains only references that may have duplicates
-	 * according to a {@link ReferenceSchemaContract#getCardinality()}.
-	 * @see ReferenceContract
-	 */
-	final Map<ReferenceKey, List<ReferenceContract>> duplicateReferences;
-	/**
-	 * Contains set of all {@link ReferenceSchemaContract#getName()} defined in entity {@link EntitySchemaContract}.
-	 */
-	final Set<String> referencesDefined;
-	/**
 	 * Entity (global) attributes allows defining set of data that are fetched in bulk along with the entity body.
 	 * Attributes may be indexed for fast filtering ({@link AttributeSchemaContract#isFilterable()}) or can be used to sort along
 	 * ({@link AttributeSchemaContract#isSortable()}). Attributes are not automatically indexed in order not to waste precious
@@ -210,7 +164,8 @@ public class Entity implements SealedEntity {
 	 * Attributes are not recommended for bigger data as they are all loaded at once when {@link AttributeContent}
 	 * requirement is used. Large data that are occasionally used store in {@link @AssociatedData}.
 	 */
-	@Delegate(types = EntityAttributes.class) final EntityAttributes attributes;
+	@Delegate(types = EntityAttributes.class)
+	final EntityAttributes attributes;
 	/**
 	 * Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched
 	 * along with entity in order to present data to the target consumer (i.e. user / API / bot). Associated data may be stored
@@ -220,22 +175,38 @@ public class Entity implements SealedEntity {
 	 * The search query must contain specific {@link AssociatedDataContent} requirement in order
 	 * associated data are fetched along with the entity. Associated data are stored and fetched separately by their name.
 	 */
-	@Delegate(types = AssociatedDataContract.class) final AssociatedData associatedData;
+	@Delegate(types = AssociatedDataContract.class)
+	final AssociatedData associatedData;
 	/**
 	 * Prices are specific to a very few entities, but because correct price computation is very complex in e-commerce
 	 * systems and highly affects performance of the entities filtering and sorting, they deserve first class support
 	 * in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 	 * customers.
 	 * <p>
-	 * Specifying prices on entity allows usage of {@link PriceValidIn},
-	 * {@link PriceBetween}, {@link QueryPriceMode}
-	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural},
-	 * ordering of the entities. Additional requirements
-	 * {@link PriceHistogram}, {@link PriceContent}
-	 * can be used in query as well.
+	 * Specifying prices on entity allows usage of {@link PriceValidIn}, {@link PriceBetween}, {@link QueryPriceMode}
+	 * and {@link PriceInPriceLists} filtering constraints and also {@link PriceNatural}, ordering of the entities.
+	 * Additional requirements {@link PriceHistogram}, {@link PriceContent} can be used in query as well.
 	 */
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	@Nonnull final Prices prices;
+	/**
+	 * References refer to other entities (of same or different entity type).
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
+	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
+	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
+	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
+	 *
+	 * Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
+	 * of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
+	 * to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
+	 * group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
+	 * Evita.
+	 *
+	 * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+	 */
+	@Delegate(types = ReferencesContract.class, excludes = Versioned.class)
+	@Nonnull final References references;
+
 	/**
 	 * Contains set of all {@link Locale} that were used for localized {@link Attributes} or {@link AssociatedData} of
 	 * this particular entity.
@@ -254,17 +225,6 @@ public class Entity implements SealedEntity {
 	 * @see Scope
 	 */
 	private final Scope scope;
-	/**
-	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
-	 * and is initialized lazily on first request.
-	 */
-	private Map<String, DataChunk<ReferenceContract>> referencesByName;
-	/**
-	 * Contains transformer function that takes FULL list of references by their name and returns page that conforms
-	 * to the evita request. The function is called lazily on first request for chunked data. The function should not
-	 * trap entire evita request in its closure.
-	 */
-	private final ChunkTransformerAccessor referenceChunkTransformer;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
@@ -278,13 +238,12 @@ public class Entity implements SealedEntity {
 		@Nullable Integer version,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable Integer parent,
-		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull References references,
 		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
-		@Nonnull Scope scope,
-		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
+		@Nonnull Scope scope
 	) {
 		return new Entity(
 			ofNullable(version).orElse(1),
@@ -297,8 +256,7 @@ public class Entity implements SealedEntity {
 			prices,
 			locales,
 			scope,
-			false,
-			referenceChunkTransformer
+			false
 		);
 	}
 
@@ -314,13 +272,11 @@ public class Entity implements SealedEntity {
 		@Nullable Integer version,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable Integer parent,
-		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull References references,
 		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
-		@Nonnull Set<String> referencesDefined,
-		boolean withHierarchy,
 		boolean dropped
 	) {
 		return new Entity(
@@ -333,11 +289,8 @@ public class Entity implements SealedEntity {
 			associatedData,
 			prices,
 			locales,
-			referencesDefined,
-			withHierarchy,
 			Scope.DEFAULT_SCOPE,
-			dropped,
-			Entity.DEFAULT_CHUNK_TRANSFORMER
+			dropped
 		);
 	}
 
@@ -353,21 +306,19 @@ public class Entity implements SealedEntity {
 		int primaryKey,
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer parent,
-		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull References references,
 		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Scope scope,
-		boolean dropped,
-		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
+		boolean dropped
 	) {
 		return new Entity(
 			version, schema, primaryKey,
 			parent, references,
 			attributes, associatedData, prices,
-			locales, scope, dropped,
-			referenceChunkTransformer
+			locales, scope, dropped
 		);
 	}
 
@@ -384,26 +335,24 @@ public class Entity implements SealedEntity {
 		int primaryKey,
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer parent,
-		@Nullable Collection<ReferenceContract> references,
+		@Nullable References references,
 		@Nullable EntityAttributes attributes,
 		@Nullable AssociatedData associatedData,
 		@Nullable Prices prices,
 		@Nullable Set<Locale> locales,
 		@Nonnull Scope scope,
-		boolean dropped,
-		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
+		boolean dropped
 	) {
 		return new Entity(
 			version, schema, primaryKey,
 			ofNullable(parent).orElse(entity.parent),
-			ofNullable(references).orElse(entity.references.values()),
+			ofNullable(references).orElse(entity.references),
 			ofNullable(attributes).orElse(entity.attributes),
 			ofNullable(associatedData).orElse(entity.associatedData),
 			ofNullable(prices).orElse(entity.prices),
 			ofNullable(locales).orElse(entity.locales),
 			scope,
-			dropped,
-			referenceChunkTransformer
+			dropped
 		);
 	}
 
@@ -465,7 +414,7 @@ public class Entity implements SealedEntity {
 		final AssociatedData newAssociatedDataContainer = recreateAssociatedDataContainer(entitySchema, possibleEntity, newAssociatedData);
 
 		// create or reuse existing reference container
-		final ReferenceTuple mergedReferences = recreateReferences(possibleEntity, newReferences);
+		final References mergedReferences = recreateReferences(entitySchema, possibleEntity, newReferences);
 
 		// create or reuse existing prices
 		final Prices priceContainer = recreatePrices(entitySchema, possibleEntity, newPriceInnerRecordHandling, newPrices);
@@ -487,16 +436,13 @@ public class Entity implements SealedEntity {
 				entitySchema,
 				possibleEntity.map(Entity::getPrimaryKey).orElse(null),
 				newParent,
-				mergedReferences.references(),
+				mergedReferences,
 				newAttributeContainer,
 				newAssociatedDataContainer,
 				priceContainer,
 				entityLocales,
-				mergedReferences.referencesDefined(),
-				entitySchema.isWithHierarchy() || newParent != null,
 				newScope,
-				false,
-				entity.referenceChunkTransformer
+				false
 			);
 		} else if (entity == null) {
 			return new Entity(entitySchema.getName(), null);
@@ -586,7 +532,8 @@ public class Entity implements SealedEntity {
 	 */
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	@Nonnull
-	private static ReferenceTuple recreateReferences(
+	private static References recreateReferences(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<ReferenceKey, Map<Integer, ReferenceContract>> newReferences
 	) {
@@ -646,7 +593,14 @@ public class Entity implements SealedEntity {
 			mergedReferences = list;
 		}
 
-		return new ReferenceTuple(mergedReferences, mergedReferenceNames);
+		return new References(
+			entitySchema,
+			mergedReferences,
+			mergedReferenceNames,
+			possibleEntity
+				.map(it -> it.references.getReferenceChunkTransformer())
+				.orElse(DEFAULT_CHUNK_TRANSFORMER)
+		);
 	}
 
 	/**
@@ -828,7 +782,7 @@ public class Entity implements SealedEntity {
 					return it.get(referenceKey.internalPrimaryKey());
 				}
 			})
-			.or(() -> possibleEntity.flatMap(it -> it.getReferenceWithoutSchemaCheck(referenceKey)))
+			.or(() -> possibleEntity.flatMap(it -> it.references.getReferenceWithoutSchemaCheck(referenceKey)))
 			.orElse(null);
 
 		// apply the mutation
@@ -945,69 +899,34 @@ public class Entity implements SealedEntity {
 		}
 	}
 
-	/**
-	 * Entities are not meant to be constructed by the client code. Use {@link InitialEntityBuilder} to create new or update
-	 * existing entities.
-	 */
-	private Entity(
-		int version,
-		@Nonnull EntitySchemaContract schema,
-		@Nullable Integer primaryKey,
-		@Nullable Integer parent,
-		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull EntityAttributes attributes,
-		@Nonnull AssociatedData associatedData,
-		@Nonnull Prices prices,
-		@Nonnull Set<Locale> locales,
-		@Nonnull Scope scope,
-		boolean dropped,
-		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
+	public Entity(
+		@Nonnull String type,
+		@Nullable Integer primaryKey
 	) {
-		this(
-			version,
-			schema,
-			primaryKey,
-			parent,
-			references,
-			attributes,
-			associatedData,
-			prices,
-			locales,
-			schema.getReferences().keySet(),
-			schema.isWithHierarchy(),
-			scope,
-			dropped,
-			referenceChunkTransformer
-		);
-	}
-
-	public Entity(@Nonnull String type, @Nullable Integer primaryKey) {
 		this(
 			EntitySchema._internalBuild(type),
 			primaryKey
 		);
 	}
 
-	public Entity(@Nonnull EntitySchemaContract schema, @Nullable Integer primaryKey) {
+	public Entity(
+		@Nonnull EntitySchemaContract schema,
+		@Nullable Integer primaryKey
+	) {
 		this.version = 1;
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
 		this.parent = null;
-		this.withHierarchy = this.schema.isWithHierarchy();
-		this.referenceCollection = List.of();
-		this.references = Map.of();
-		this.duplicateReferences = Map.of();
-		this.referencesDefined = Collections.emptySet();
 		this.attributes = new EntityAttributes(this.schema);
 		this.associatedData = new AssociatedData(this.schema);
 		this.prices = new Prices(
 			this.schema, 1, Collections.emptySet(), PriceInnerRecordHandling.NONE
 		);
+		this.references = new References(this.schema);
 		this.locales = Collections.emptySet();
 		this.scope = Scope.DEFAULT_SCOPE;
 		this.dropped = false;
-		this.referenceChunkTransformer = Entity.DEFAULT_CHUNK_TRANSFORMER;
 	}
 
 	/**
@@ -1019,94 +938,31 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer primaryKey,
 		@Nullable Integer parent,
-		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull References references,
 		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
-		@Nonnull Set<String> referencesDefined,
-		boolean withHierarchy,
 		@Nonnull Scope scope,
-		boolean dropped,
-		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
+		boolean dropped
 	) {
 		this.version = version;
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
 		this.parent = parent;
-		this.withHierarchy = withHierarchy;
-
-		this.referenceCollection = Collections.unmodifiableCollection(references);
-		// this quite ugly part is necessary so that we can propely handle references that allow duplicates
-		// i.e. references with same ReferenceKey, that are distinguished only by their set of attributes
-		Map<ReferenceKey, ReferenceContract> indexedReferences = references.isEmpty() ? null : CollectionUtils.createHashMap(references.size());
-		Map<ReferenceKey, List<ReferenceContract>> duplicatedIndexedReferences = null;
-
-		// cache last resolved schema to avoid Optional/map overhead on each iteration
-		ReferenceKey lastReferenceKey = null;
-
-		for (ReferenceContract reference : references) {
-			final ReferenceKey referenceKey = reference.getReferenceKey();
-			final boolean duplicate = lastReferenceKey != null && lastReferenceKey.referenceName().equals(referenceKey.referenceName()) &&
-				lastReferenceKey.primaryKey() == referenceKey.primaryKey();
-
-			if (duplicate) {
-				final boolean duplicatesAllowed = schema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY) ||
-					schema.getReference(referenceKey.referenceName())
-						.map(ReferenceSchemaContract::getCardinality)
-						  .map(Cardinality::allowsDuplicates)
-						  .orElse(false);
-				if (duplicatesAllowed) {
-					if (duplicatedIndexedReferences == null) {
-						duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
-					}
-					final ReferenceKey genericKey = new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
-					final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
-					final List<ReferenceContract> duplicatedList;
-					if (previous != null) {
-						duplicatedList = new ArrayList<>(2);
-						duplicatedIndexedReferences.put(genericKey, duplicatedList);
-						duplicatedList.add(previous);
-					} else {
-						duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
-					}
-					duplicatedList.add(reference);
-					indexedReferences.put(genericKey, DUPLICATE_REFERENCE);
-				} else {
-					throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.CREATE);
-				}
-			} else {
-				indexedReferences.putIfAbsent(referenceKey, reference);
-			}
-
-			lastReferenceKey = referenceKey;
-		}
-
-		this.references = indexedReferences == null ? Map.of() : Collections.unmodifiableMap(indexedReferences);
-		if (duplicatedIndexedReferences == null) {
-			this.duplicateReferences = Map.of();
-		} else {
-			// wrap lists first, then map
-			for (Entry<ReferenceKey, List<ReferenceContract>> entry : duplicatedIndexedReferences.entrySet()) {
-				entry.setValue(Collections.unmodifiableList(entry.getValue()));
-			}
-			this.duplicateReferences = Collections.unmodifiableMap(duplicatedIndexedReferences);
-		}
-
-		this.referencesDefined = referencesDefined;
 		this.attributes = attributes;
 		this.associatedData = associatedData;
 		this.prices = prices;
+		this.references = references;
 		this.locales = Collections.unmodifiableSet(locales);
 		this.scope = scope;
 		this.dropped = dropped;
-		this.referenceChunkTransformer = referenceChunkTransformer;
 	}
 
 	@Override
 	public boolean parentAvailable() {
-		return this.withHierarchy || this.parent != null;
+		return this.schema.isWithHierarchy() || this.parent != null;
 	}
 
 	/**
@@ -1128,7 +984,7 @@ public class Entity implements SealedEntity {
 	@Nonnull
 	public OptionalInt getParent() throws EntityIsNotHierarchicalException {
 		Assert.isTrue(
-			this.withHierarchy,
+			this.parentAvailable(),
 			() -> new EntityIsNotHierarchicalException(this.schema.getName())
 		);
 		return this.parent == null ? OptionalInt.empty() : OptionalInt.of(this.parent);
@@ -1138,7 +994,7 @@ public class Entity implements SealedEntity {
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
 		Assert.isTrue(
-			this.withHierarchy,
+			this.parentAvailable(),
 			() -> new EntityIsNotHierarchicalException(this.schema.getName())
 		);
 		return ofNullable(this.parent)
@@ -1153,139 +1009,6 @@ public class Entity implements SealedEntity {
 	@Override
 	public boolean referencesAvailable(@Nonnull String referenceName) {
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences() {
-		return this.referenceCollection;
-	}
-
-	@Nonnull
-	@Override
-	public Set<String> getReferenceNames() {
-		return this.referencesDefined;
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		return this.getReferenceChunk(referenceName).getData();
-	}
-
-	@Nonnull
-	@Override
-	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
-		checkReferenceName(referenceName, true);
-		if (this.referencesByName == null) {
-			// here we never limit the references by input requirements
-			// this is managed on the entity decorator level
-			final HashMap<String, DataChunk<ReferenceContract>> chunksByName =
-				CollectionUtils.createHashMap(this.referencesDefined.size());
-			for (ReferenceContract reference : this.referenceCollection) {
-				chunksByName.computeIfAbsent(
-					reference.getReferenceKey().referenceName(),
-					it -> new PlainChunk<>(new ArrayList<>(2))
-				)
-				            .getData()
-				            .add(reference);
-			}
-			this.referencesByName = chunksByName;
-		}
-		//noinspection unchecked
-		return (T) this.referencesByName.computeIfAbsent(
-			referenceName,
-			refName -> this.referenceChunkTransformer.apply(refName).createChunk(Collections.emptyList())
-		);
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		checkReferenceName(referenceName, false);
-		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
-		final ReferenceContract reference = this.references.get(referenceKey);
-		if (reference == DUPLICATE_REFERENCE) {
-			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.READ);
-		}
-		return ofNullable(reference);
-	}
-
-	/**
-	 * Returns reference contract without checking the existence in the schema.
-	 * Part of the private API.
-	 */
-	@Nonnull
-	public List<ReferenceContract> getReferencesWithoutSchemaCheck(
-		@Nonnull ReferenceKey referenceKey
-	) throws ContextMissingException, ReferenceNotFoundException {
-		final ReferenceContract reference = this.references.get(referenceKey);
-		return reference == DUPLICATE_REFERENCE ?
-			this.duplicateReferences.get(referenceKey) :
-			(reference == null ? Collections.emptyList() : Collections.singletonList(reference));
-	}
-
-	/**
-	 * Returns reference contract without checking the existence in the schema.
-	 * Part of the private API.
-	 */
-	@Nonnull
-	public Optional<ReferenceContract> getReferenceWithoutSchemaCheck(@Nonnull ReferenceKey referenceKey) {
-		final ReferenceContract reference = this.references.get(referenceKey);
-		if (reference == DUPLICATE_REFERENCE) {
-			if (referenceKey.isUnknownReference()) {
-				throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.READ);
-			} else {
-				return Objects
-					// when this.references contains DUPLICATE_REFERENCE marker,
-					// this.duplicateReferences must contain the actual references
-					.requireNonNull(this.duplicateReferences.get(referenceKey))
-					.stream()
-					.filter(it -> it.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey())
-					.findFirst();
-			}
-		}
-		return ofNullable(reference);
-	}
-
-	@Override
-	@Nonnull
-	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
-		checkReferenceName(referenceKey.referenceName(), false);
-		return getReferenceWithoutSchemaCheck(referenceKey);
-	}
-
-	@Nonnull
-	@Override
-	public List<ReferenceContract> getReferences(
-		@Nonnull ReferenceKey referenceKey
-	) throws ContextMissingException, ReferenceNotFoundException {
-		checkReferenceName(referenceKey.referenceName(), true);
-		final ReferenceContract reference = this.references.get(referenceKey);
-		return reference == DUPLICATE_REFERENCE ?
-			this.duplicateReferences.get(referenceKey) :
-			(reference == null ? Collections.emptyList() : Collections.singletonList(reference));
-	}
-
-	/**
-	 * Checks whether the reference is defined in the schema or is otherwise known.
-	 */
-	public void checkReferenceName(@Nonnull String referenceName, boolean allowDuplicates) {
-		final Optional<ReferenceSchemaContract> schemaDefined = this.schema.getReference(referenceName);
-		Assert.isTrue(
-			// schema is either defined or can be added automatically
-			schemaDefined.isPresent() ||
-				(this.schema.getEvolutionMode().contains(EvolutionMode.ADDING_REFERENCES) &&
-					this.referencesDefined.contains(referenceName)),
-			() -> new ReferenceNotFoundException(referenceName, this.schema)
-		);
-		Assert.isTrue(
-			// allow if duplicates are allowed or
-			allowDuplicates ||
-				// reference schema allows automatic evolution to duplicate references
-				this.schema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY),
-			() -> new ReferenceAllowsDuplicatesException(referenceName, this.schema, Operation.READ)
-		);
 	}
 
 	@Nonnull
@@ -1335,11 +1058,13 @@ public class Entity implements SealedEntity {
 	}
 
 	/**
-	 * This method is part of the internal API and is not meant to be used by the client code.
+	 * Retrieves the reference chunk transformer associated with this instance.
+	 *
+	 * @return a {@link ChunkTransformerAccessor} object representing the reference chunk transformer.
 	 */
 	@Nonnull
 	public ChunkTransformerAccessor getReferenceChunkTransformer() {
-		return this.referenceChunkTransformer;
+		return this.references.getReferenceChunkTransformer();
 	}
 
 	@Override
@@ -1362,79 +1087,6 @@ public class Entity implements SealedEntity {
 	@Override
 	public String toString() {
 		return describe();
-	}
-
-	/**
-	 * DTO for passing merged references and their types.
-	 */
-	private record ReferenceTuple(
-		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull Set<String> referencesDefined
-	) {
-	}
-
-	/**
-	 * This interface provides access to chunk transformers for particular reference name. The implementations are
-	 * not ought to check the existence of reference in the schema and simply fall back to {@link NoTransformer}
-	 * implementation if necessary, but they must never return NULL.
-	 */
-	public interface ChunkTransformerAccessor {
-
-		/**
-		 * Returns chunk transformer for the given reference name.
-		 *
-		 * @param referenceName name of the reference
-		 * @return chunk transformer for the given reference name, never NULL
-		 */
-		@Nonnull
-		ChunkTransformer apply(@Nonnull String referenceName);
-
-	}
-
-	/**
-	 * Creates mock instance of reference contract that
-	 */
-	@Nonnull
-	private static ReferenceContract createThrowingStub() {
-		return ByteBuddyProxyGenerator.instantiate(
-			new ByteBuddyDispatcherInvocationHandler<>(
-				"DUPLICATE_REFERENCE_MARKER",
-				// special toString implementation
-				new PredicateMethodClassification<>(
-					"Object methods",
-					(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, Object.class, "toString"),
-					(method, state) -> null,
-					(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState
-				),
-				// objects method must pass through
-				new PredicateMethodClassification<>(
-					"Object methods",
-					(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, Object.class),
-					(method, state) -> null,
-					(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-						try {
-							return invokeSuper.call();
-						} catch (Exception e) {
-							throw new InvocationTargetException(e);
-						}
-					}
-				),
-				// for all other methods we will throw the exception that the reference is not indexed
-				new PredicateMethodClassification<>(
-					"All other methods",
-					(method, proxyState) -> true,
-					(method, state) -> null,
-					(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-						throw new UnsupportedOperationException("Not supposed to be called");
-					}
-				)
-			),
-			new Class<?>[]{
-				ReferenceContract.class
-			},
-			EMPTY_CLASS_ARRAY,
-			EMPTY_OBJECT_ARRAY
-		);
 	}
 
 }

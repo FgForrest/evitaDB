@@ -28,6 +28,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -412,7 +413,10 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nonnull
 	@Override
 	public Stream<? extends AttributeMutation> buildChangeSet() {
-		throw new UnsupportedOperationException("Initial entity creation doesn't support change monitoring - it has no sense.");
+		return getAttributeValues()
+			.stream()
+			.filter(it -> it.value() != null)
+			.map(it -> new UpsertAttributeMutation(it.key(), it.value()));
 	}
 
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -43,7 +44,7 @@ class InitialReferenceAttributesBuilderTest extends InitialAttributesBuilderTest
 	protected InitialAttributesBuilder<?, ?> builder() {
 		return new InitialReferenceAttributesBuilder(
 			EntitySchema._internalBuild("whatever"),
-			Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_MORE, null)
+			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_MORE, null)
 		);
 	}
 

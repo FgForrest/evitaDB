@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -57,7 +58,7 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+				ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
 				new ReferenceKey("brand", 5),
 				null
 			)
@@ -88,7 +89,7 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
 				new ReferenceKey("brand", 5),
 				group
 			)

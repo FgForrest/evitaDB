@@ -238,7 +238,7 @@ public class EntityDecorator implements SealedEntity {
 			for (ReferenceContract reference : references) {
 				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
 					final ReferenceContract removedReference = filteredReferences.remove(reference.getReferenceKey());
-					if (removedReference == Entity.DUPLICATE_REFERENCE) {
+					if (removedReference == References.DUPLICATE_REFERENCE) {
 						duplicatedReferences.remove(removedReference.getReferenceKey());
 					}
 				}
@@ -521,7 +521,7 @@ public class EntityDecorator implements SealedEntity {
 
 			if (duplicatesAllowed) {
 				// mark reference key as duplicate bearer
-				this.filteredReferences.put(reference.getReferenceKey(), Entity.DUPLICATE_REFERENCE);
+				this.filteredReferences.put(reference.getReferenceKey(), References.DUPLICATE_REFERENCE);
 				if (this.filteredDuplicateReferences == null) {
 					this.filteredDuplicateReferences = createHashMap(schema.getReferences().size());
 				}
@@ -753,7 +753,7 @@ public class EntityDecorator implements SealedEntity {
 		final ReferenceContract reference = getFilteredReferences().get(referenceKey);
 		if (reference == null) {
 			return Collections.emptyList();
-		} else if (reference == Entity.DUPLICATE_REFERENCE) {
+		} else if (reference == References.DUPLICATE_REFERENCE) {
 			return Collections.singletonList(reference);
 		} else {
 			return this.filteredDuplicateReferences.get(referenceKey);
@@ -762,16 +762,18 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public <T extends DataChunk<ReferenceContract>> T getReferenceChunk(
+	public DataChunk<ReferenceContract> getReferenceChunk(
 		@Nonnull String referenceName
 	) throws ContextMissingException {
 		this.referencePredicate.checkFetched(referenceName);
-		this.delegate.checkReferenceName(referenceName, true);
+		this.delegate.references.checkReferenceName(referenceName, true);
 		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
-		//noinspection unchecked
-		return (T) (chunk == null ?
-			this.delegate.getReferenceChunkTransformer().apply(referenceName).createChunk(Collections.emptyList()) :
-			chunk);
+		return chunk == null ?
+				this.delegate.references
+					.getReferenceChunkTransformer()
+					.apply(referenceName)
+					.createChunk(Collections.emptyList()) :
+				chunk;
 	}
 
 	@Nonnull
@@ -783,10 +785,11 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	@Override
 	public Set<Locale> getLocales() {
-		return this.delegate.getLocales()
-		                    .stream()
-		                    .filter(this.localePredicate)
-		                    .collect(Collectors.toSet());
+		return this.delegate
+			.getLocales()
+			.stream()
+			.filter(this.localePredicate)
+			.collect(Collectors.toSet());
 	}
 
 	@Nonnull
@@ -1535,7 +1538,7 @@ public class EntityDecorator implements SealedEntity {
 
 						if (duplicatesAllowed) {
 							// mark as duplicate-bearing key (idempotent)
-							indexedReferences.putIfAbsent(referenceKey, Entity.DUPLICATE_REFERENCE);
+							indexedReferences.putIfAbsent(referenceKey, References.DUPLICATE_REFERENCE);
 
 							if (duplicatedIndexedReferences == null) {
 								duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
@@ -1547,7 +1550,7 @@ public class EntityDecorator implements SealedEntity {
 							final ReferenceContract previous = indexedReferences.putIfAbsent(referenceKey, reference);
 							if (previous != null) {
 								// convert to duplicate tracking
-								indexedReferences.put(referenceKey, Entity.DUPLICATE_REFERENCE);
+								indexedReferences.put(referenceKey, References.DUPLICATE_REFERENCE);
 								if (duplicatedIndexedReferences == null) {
 									duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
 								}
@@ -1601,9 +1604,11 @@ public class EntityDecorator implements SealedEntity {
 				.collect(
 					Collectors.toMap(
 						Map.Entry::getKey,
-						entry -> this.delegate.getReferenceChunkTransformer()
-						                      .apply(entry.getKey())
-						                      .createChunk(entry.getValue())
+						entry -> this.delegate
+							.references
+							.getReferenceChunkTransformer()
+							.apply(entry.getKey())
+							.createChunk(entry.getValue())
 					)
 				);
 		}

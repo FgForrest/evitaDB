@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.reference;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -50,7 +51,7 @@ class RemoveReferenceGroupMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
 				new ReferenceKey("brand", 5),
 				group
 			)
@@ -91,7 +92,7 @@ class RemoveReferenceGroupMutationTest extends AbstractMutationTest {
 					this.productSchema,
 					new Reference(
 						this.productSchema,
-						Reference.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+						ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
 						2,
 						new ReferenceKey("brand", 5),
 						group,

@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -71,8 +72,38 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 * Entity schema if available.
 	 */
 	private final EntitySchemaContract entitySchema;
-	private final Map<PriceKey, PriceContract> prices = new HashMap<>(16);
-	@Getter private PriceInnerRecordHandling priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
+	private final Map<PriceKey, PriceContract> prices;
+	@Getter private PriceInnerRecordHandling priceInnerRecordHandling;
+
+	InitialPricesBuilder(EntitySchemaContract entitySchema) {
+		this.entitySchema = entitySchema;
+		this.prices = CollectionUtils.createHashMap(16);
+		this.priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
+	}
+
+	InitialPricesBuilder(
+		@Nonnull EntitySchemaContract schema,
+		@Nullable PriceInnerRecordHandling priceInnerRecordHandling,
+		@Nonnull Collection<PriceContract> prices
+	) {
+		this.entitySchema = schema;
+		this.priceInnerRecordHandling = priceInnerRecordHandling == null ?
+			PriceInnerRecordHandling.NONE : priceInnerRecordHandling;
+		this.prices = new HashMap<>(prices.size());
+		for (PriceContract price : prices) {
+			this.setPrice(
+				price.priceId(),
+				price.priceList(),
+				price.currency(),
+				price.innerRecordId(),
+				price.priceWithoutTax(),
+				price.taxRate(),
+				price.priceWithTax(),
+				price.validity(),
+				price.indexed()
+			);
+		}
+	}
 
 	@Override
 	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {

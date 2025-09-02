@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.*;
@@ -196,7 +197,12 @@ public class EntityConverter {
 					grpcEntity.getVersion(),
 					entitySchema,
 					grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
-					references,
+					new References(
+						entitySchema,
+						references,
+						entitySchema.getReferences().keySet(),
+						evitaRequest::getReferenceChunkTransformer
+					),
 					new EntityAttributes(
 						entitySchema,
 						toAttributeValues(
@@ -222,8 +228,7 @@ public class EntityConverter {
 						.stream()
 						.map(EvitaDataTypesConverter::toLocale)
 						.collect(Collectors.toSet()),
-					toScope(grpcEntity.getScope()),
-					evitaRequest::getReferenceChunkTransformer
+					toScope(grpcEntity.getScope())
 				),
 				entitySchema,
 				parentEntity,
@@ -311,7 +316,7 @@ public class EntityConverter {
 		return new Reference(
 			entitySchema,
 			entitySchema.getReference(referenceName)
-			            .orElseGet(() -> Reference.createImplicitSchema(referenceName, referencedEntityType, cardinality, group)),
+			            .orElseGet(() -> ReferencesBuilder.createImplicitSchema(referenceName, referencedEntityType, cardinality, group)),
 			grpcReference.getVersion(),
 			new ReferenceKey(
 				referenceName,

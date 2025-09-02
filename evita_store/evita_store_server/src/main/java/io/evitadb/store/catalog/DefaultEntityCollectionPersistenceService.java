@@ -39,8 +39,8 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;

@@ -27,7 +27,7 @@ package io.evitadb.store.spi.chunk;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
 

@@ -25,17 +25,12 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
-import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.require.HierarchyContent;
-import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
@@ -43,7 +38,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -62,6 +56,7 @@ public interface EntityContract extends EntityClassifierWithParent,
 	AttributesContract<EntityAttributeSchemaContract>,
 	AssociatedDataContract,
 	PricesContract,
+	ReferencesContract,
 	Versioned,
 	Droppable {
 
@@ -108,115 +103,6 @@ public interface EntityContract extends EntityClassifierWithParent,
 	@Nonnull
 	Optional<EntityClassifierWithParent> getParentEntity()
 		throws EntityIsNotHierarchicalException, ContextMissingException;
-
-	/**
-	 * Returns true if entity references were fetched along with the entity. Calling this method before calling any
-	 * other method that requires references to be fetched will allow you to avoid {@link ContextMissingException}.
-	 */
-	boolean referencesAvailable();
-
-	/**
-	 * Returns true if references of particular name was fetched along with the entity. Calling this method
-	 * before calling any other method that requires references to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 *
-	 * @return true if at least one reference of particular name were fetched along with the entity
-	 */
-	boolean referencesAvailable(@Nonnull String referenceName);
-
-	/**
-	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB
-	 * entities or external entities in different systems.
-	 *
-	 * @return collection of all the fetched references of the entity
-	 * @throws ContextMissingException when {@link ReferenceContent} is not part of the query requirements
-	 */
-	@Nonnull
-	Collection<ReferenceContract> getReferences()
-		throws ContextMissingException;
-
-	/**
-	 * Returns set of unique names of references of this entity.
-	 *
-	 * @return set of all names of the fetched references of the entity
-	 * @throws ContextMissingException when {@link ReferenceContent} is not part of the query requirements
-	 */
-	@Nonnull
-	Set<String> getReferenceNames()
-		throws ContextMissingException;
-
-	/**
-	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
-	 * other evitaDB entities or external entities in different systems.
-	 *
-	 * @param referenceName name of the reference
-	 * @return collection of references from reference of given name
-	 *
-	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
-	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
-	 */
-	@Nonnull
-	Collection<ReferenceContract> getReferences(@Nonnull String referenceName)
-		throws ContextMissingException, ReferenceNotFoundException;
-
-	/**
-	 * Returns single {@link Reference} instance that is referencing passed entity type with certain primary key.
-	 * The references represent relations to other evitaDB entities or external entities in different systems.
-	 *
-	 * @param referenceName name of the reference
-	 * @param referencedEntityId primary key of the entity that is referenced
-	 *
-	 * @return reference to the entity or empty if the entity is not referenced
-	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
-	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
-	 */
-	@Nonnull
-	Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId)
-		throws ContextMissingException, ReferenceNotFoundException;
-
-	/**
-	 * Returns single {@link Reference} instance that is referencing passed entity type with certain primary key.
-	 * The references represent relations to other evitaDB entities or external entities in different systems.
-	 *
-	 * @param referenceKey reference key combining both reference name and referenced entity id information
-	 *
-	 * @return reference to the entity or empty if the entity is not referenced
-	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
-	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
-	 * @throws ReferenceAllowsDuplicatesException when reference schema allows duplicates, in such case you need to use
-	 * {@link #getReferences(ReferenceKey)} method
-	 */
-	@Nonnull
-	Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey)
-		throws ContextMissingException, ReferenceNotFoundException, ReferenceAllowsDuplicatesException;
-
-	/**
-	 * Returns one or more {@link Reference} instances that is referencing passed entity type with certain primary key.
-	 * The references represent relations to other evitaDB entities or external entities in different systems.
-	 *
-	 * @param referenceKey reference key combining both reference name and referenced entity id information
-	 *
-	 * @return reference to the entity or empty if the entity is not referenced
-	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
-	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
-	 */
-	@Nonnull
-	List<ReferenceContract> getReferences(@Nonnull ReferenceKey referenceKey)
-		throws ContextMissingException, ReferenceNotFoundException;
-
-	/**
-	 * Returns collection of {@link Reference} to certain type of other entities. References represent relations to
-	 * other evitaDB entities or external entities in different systems.
-	 *
-	 * @param referenceName name of the reference
-	 *
-	 * @return page or strip of references with additional information about total number of references and other
-	 *         information about the possibly incomplete chunk of data
-	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
-	 */
-	@Nonnull
-	<T extends DataChunk<ReferenceContract>> T getReferenceChunk(@Nonnull String referenceName)
-		throws ContextMissingException;
 
 	/**
 	 * Returns set of locales this entity has any of localized data in. Although {@link EntitySchemaContract#getLocales()} may
@@ -332,4 +218,5 @@ public interface EntityContract extends EntityClassifierWithParent,
 			(pricesAvailable() ? of(getPrices()).filter(it -> !it.isEmpty()).map(it -> ", " + it.stream().map(Object::toString).collect(Collectors.joining(", "))).orElse(null) : "") +
 			(locales.isEmpty() ? "" : ", localized to " + locales.stream().map(Locale::toString).collect(Collectors.joining(", ")));
 	}
+
 }

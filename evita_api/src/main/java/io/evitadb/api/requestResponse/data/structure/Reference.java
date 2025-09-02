@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Delegate;
 
@@ -110,23 +109,6 @@ public class Reference implements ReferenceContract {
 	 * a new value continuing with the versioning where it was stopped for the last time.
 	 */
 	private final boolean dropped;
-
-	/**
-	 * Creates new reference with given parameters. This method is used only as a temporal schema until it's created.
-	 */
-	@Nonnull
-	public static ReferenceSchema createImplicitSchema(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality,
-		@Nullable GroupEntityReference group
-	) {
-		return ReferenceSchema._internalBuild(
-			referenceName, referencedEntityType, false, cardinality,
-			ofNullable(group).map(GroupEntityReference::getType).orElse(null), false,
-			null, null
-		);
-	}
 
 	public Reference(
 		int internalId,

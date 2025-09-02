@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -48,6 +49,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -392,16 +394,98 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				BRAND_TYPE, 1,
 				whichIs -> whichIs
 					.setGroup("Whatever", 8)
+					.setAttribute("brandName", "Brand A")
+					.setAttribute("brandCode", "008")
 					.setAttribute("newAttribute", "someValue")
 			);
+
+		assertEquals(
+			3, entityBuilder.toMutation().orElseThrow().getLocalMutations().size()
+		);
 
 		final SealedEntity updatedInstance = entityBuilder.toInstance();
 		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
 
 		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
-			assertEquals("Whatever", reference.getGroup().map(GroupEntityReference::getType).orElse(null));
+			assertEquals(
+				"Whatever", reference.getGroup()
+				                     .filter(Droppable::exists)
+				                     .map(GroupEntityReference::getType)
+				                     .orElse(null)
+			);
 			assertEquals(8, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
 			assertEquals("someValue", reference.getAttribute("newAttribute"));
+			assertEquals("Brand A", reference.getAttribute("brandName"));
+			assertEquals("008", reference.getAttribute("brandCode"));
+			assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
+		});
+	}
+
+	@Test
+	void shouldRemoveExistingReferenceAndAddAgainChangingGroup() {
+		final Entity entityWithBrand = setupEntityWithBrand();
+
+		final EntityBuilder entityBuilder = new ExistingEntityBuilder(entityWithBrand)
+			.removeReference(BRAND_TYPE, 1)
+			.setReference(
+				BRAND_TYPE, 1,
+				whichIs -> whichIs
+					.setGroup("Whatever", 9)
+					.setAttribute("brandName", "Brand A")
+					.setAttribute("brandCode", "008")
+					.setAttribute("newAttribute", "someValue")
+			);
+
+		assertEquals(
+			4, entityBuilder.toMutation().orElseThrow().getLocalMutations().size()
+		);
+
+		final SealedEntity updatedInstance = entityBuilder.toInstance();
+		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
+
+		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
+			assertEquals(
+				"Whatever", reference.getGroup()
+				                     .filter(Droppable::exists)
+				                     .map(GroupEntityReference::getType)
+				                     .orElse(null)
+			);
+			assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
+			assertEquals("someValue", reference.getAttribute("newAttribute"));
+			assertEquals("Brand A", reference.getAttribute("brandName"));
+			assertEquals("008", reference.getAttribute("brandCode"));
+			assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
+		});
+	}
+
+	@Test
+	void shouldRemoveExistingReferenceAndAddAgainRemovingGroup() {
+		final Entity entityWithBrand = setupEntityWithBrand();
+
+		final EntityBuilder entityBuilder = new ExistingEntityBuilder(entityWithBrand)
+			.removeReference(BRAND_TYPE, 1)
+			.setReference(
+				BRAND_TYPE, 1,
+				whichIs -> whichIs
+					.removeGroup()
+					.setAttribute("brandName", "Brand A")
+					.removeAttribute("brandCode")
+					.setAttribute("newAttribute", "someValue")
+					.removeAttribute("newAttribute")
+			);
+
+		assertEquals(
+			3, entityBuilder.toMutation().orElseThrow().getLocalMutations().size()
+		);
+
+		final SealedEntity updatedInstance = entityBuilder.toInstance();
+		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
+
+		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
+			assertTrue(reference.getGroup().filter(Droppable::exists).isEmpty());
+			assertEquals("Brand A", reference.getAttribute("brandName"));
+			assertTrue(reference.getAttributeValue("brandCode").filter(Droppable::exists).isEmpty());
+			assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
 		});
 	}
 
@@ -499,17 +583,46 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 		// new reference has automatically elevated cardinality
 		assertEquals(
-			Cardinality.ZERO_OR_MORE, builder.getReference(new ReferenceKey(BRAND, 2))
-			                                 .orElseThrow()
-			                                 .getReferenceSchemaOrThrow()
-			                                 .getCardinality()
+			Cardinality.ZERO_OR_MORE,
+			builder.getReference(new ReferenceKey(BRAND, 2))
+			       .orElseThrow()
+			       .getReferenceSchemaOrThrow()
+			       .getCardinality()
 		);
 		assertEquals(
-			Cardinality.ZERO_OR_MORE, builder.toInstance()
-			                                 .getReference(new ReferenceKey(BRAND, 2))
-			                                 .orElseThrow()
-			                                 .getReferenceSchemaOrThrow()
-			                                 .getCardinality()
+			Cardinality.ZERO_OR_MORE,
+			builder.toInstance()
+			       .getReference(new ReferenceKey(BRAND, 2))
+			       .orElseThrow()
+			       .getReferenceSchemaOrThrow()
+			       .getCardinality()
+		);
+
+		/* cannot change referenced entity type this way */
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND,
+				"differentEntityType",
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				2,
+				ref -> false,
+				UnaryOperator.identity()
+			)
+		);
+		/* cannot change cardinality this way */
+		assertThrows(
+			InvalidMutationException.class,
+			() -> {
+				builder.setReference(
+					BRAND,
+					BRAND,
+					Cardinality.ONE_OR_MORE,
+					2,
+					ref -> false,
+					UnaryOperator.identity()
+				);
+			}
 		);
 
 		// promote to ZERO_OR_MORE_WITH_DUPLICATES
@@ -636,7 +749,9 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			() -> eb.removeReference(PARAMETER, 100)
 		);
 
-		final ReferenceContract findRealParameter = eb.getReferences(new ReferenceKey(PARAMETER, 100)).iterator().next();
+		final ReferenceContract findRealParameter = eb.getReferences(new ReferenceKey(PARAMETER, 100))
+		                                              .iterator()
+		                                              .next();
 		// remove it by its key - it includes internal primary key, so it should work now
 		eb.removeReference(findRealParameter.getReferenceKey());
 
@@ -652,7 +767,12 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
 		assertNotEquals(
 			findRealParameter.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class),
-			modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+			modifiedInstance.getReferences(PARAMETER)
+			                .stream()
+			                .filter(Droppable::exists)
+			                .findFirst()
+			                .orElseThrow()
+			                .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
 		);
 	}
 
@@ -670,8 +790,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
 		assertEquals(2, eb.getReferences(STORE).size());
 		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
-		assertEquals("B", eb.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
-		assertEquals("B", modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
+		assertEquals(
+			"B", eb.getReferences(STORE)
+			       .stream()
+			       .filter(Droppable::exists)
+			       .findFirst()
+			       .orElseThrow()
+			       .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+		);
+		assertEquals(
+			"B", modifiedInstance.getReferences(STORE)
+			                     .stream()
+			                     .filter(Droppable::exists)
+			                     .findFirst()
+			                     .orElseThrow()
+			                     .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+		);
 	}
 
 	@Test
@@ -680,7 +814,10 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final ExistingEntityBuilder eb = new ExistingEntityBuilder(initialEntity);
 
 		final Set<String> referencesForRemoval = Set.of(PARAMETER, STORE);
-		eb.removeReferences(ref -> referencesForRemoval.contains(ref.getReferenceName()) && "A".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)));
+		eb.removeReferences(
+			ref -> referencesForRemoval.contains(ref.getReferenceName()) &&
+				"A".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class))
+		);
 
 		final Entity modifiedInstance = eb.toInstance();
 
@@ -688,8 +825,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
 		assertEquals(2, eb.getReferences(STORE).size());
 		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
-		assertEquals("B", eb.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
-		assertEquals("B", modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).findFirst().orElseThrow().getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class));
+		assertEquals(
+			"B", eb.getReferences(STORE)
+			       .stream()
+			       .filter(Droppable::exists)
+			       .findFirst()
+			       .orElseThrow()
+			       .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+		);
+		assertEquals(
+			"B", modifiedInstance.getReferences(STORE)
+			                     .stream()
+			                     .filter(Droppable::exists)
+			                     .findFirst()
+			                     .orElseThrow()
+			                     .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+		);
 	}
 
 	@Nonnull
@@ -700,11 +851,14 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			Cardinality.ZERO_OR_ONE,
 			1,
 			whichIs -> whichIs.setGroup("Whatever", 8)
+			                  .setAttribute("brandName", "Brand A")
+			                  .setAttribute("brandCode", "007")
+			                  .setAttribute("brandCountry", "CZ")
 		);
 
 		final EntityMutation entityMutation = this.builder.toMutation().orElseThrow();
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();
-		assertEquals(2, localMutations.size());
+		assertEquals(5, localMutations.size());
 
 		final SealedEntitySchema sealedEntitySchema = new EntitySchemaDecorator(
 			() -> CATALOG_SCHEMA, (EntitySchema) this.initialEntity.getSchema());
@@ -719,6 +873,198 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		return entityMutation.mutate(updatedSchema, this.initialEntity);
+	}
+
+	@Test
+	void shouldAllowAddingNewDefinitions() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(EvolutionMode.values())
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		// add parent
+		builder.setParent(1);
+		// add attribute
+		builder.setAttribute("code", "X");
+		// add localized attribute
+		builder.setAttribute("loc", Locale.ENGLISH, "EN");
+		builder.setAttribute("loc", Locale.FRENCH, "FR");
+		// add associated data
+		builder.setAssociatedData("manual", Locale.ENGLISH, "Manual EN");
+		// add reference with attribute
+		builder.setReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			whichIs -> whichIs.setAttribute("priority", 1)
+		);
+		// automatically elevate cardinality to ZERO_OR_MORE
+		builder.setReference(
+			BRAND, 2,
+			whichIs -> whichIs.setAttribute("priority", 2)
+		);
+		// set price inner record handling
+		builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM);
+		// add price
+		builder.setPrice(1, "basic", Currency.getInstance("USD"), new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true);
+
+		// assert everything is present
+		assertEquals(1, builder.getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+		assertEquals("X", builder.getAttribute("code"));
+		assertEquals("EN", builder.getAttribute("loc", Locale.ENGLISH));
+		assertEquals("FR", builder.getAttribute("loc", Locale.FRENCH));
+		assertEquals("Manual EN", builder.getAssociatedData("manual", Locale.ENGLISH));
+		assertEquals(2, builder.getReferences(BRAND).size());
+		assertEquals(1, builder.getReference(BRAND, 1).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(2, builder.getReference(BRAND, 2).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(PriceInnerRecordHandling.SUM, builder.getPriceInnerRecordHandling());
+		assertEquals(1, builder.getPrices().size());
+		assertNotNull(builder.getPrice(new PriceKey(1, "basic", Currency.getInstance("USD"))).orElseThrow());
+
+		// assert everything is present in the built entity
+		final Entity entity = builder.toInstance();
+		assertEquals(1, entity.getParentEntity().orElseThrow().getPrimaryKeyOrThrowException());
+		assertEquals("X", entity.getAttribute("code"));
+		assertEquals("EN", entity.getAttribute("loc", Locale.ENGLISH));
+		assertEquals("FR", entity.getAttribute("loc", Locale.FRENCH));
+		assertEquals("Manual EN", entity.getAssociatedData("manual", Locale.ENGLISH));
+		assertEquals(2, entity.getReferences(BRAND).size());
+		assertEquals(1, entity.getReference(BRAND, 1).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(2, entity.getReference(BRAND, 2).orElseThrow().getAttribute("priority", Integer.class).intValue());
+		assertEquals(PriceInnerRecordHandling.SUM, entity.getPriceInnerRecordHandling());
+		assertEquals(1, entity.getPrices().size());
+		assertNotNull(entity.getPrice(new PriceKey(1, "basic", Currency.getInstance("USD"))).orElseThrow());
+	}
+
+	@Test
+	void shouldDenyAddingAttributes() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+				EvolutionMode.ADDING_REFERENCES
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAttribute("code", "X")
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+				whichIs -> whichIs.setAttribute("priority", 1)
+			)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingAssociatedData() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAssociatedData("key", "value")
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAssociatedData("key", Locale.ENGLISH, "value")
+		);
+	}
+
+	@Test
+	void shouldDenyAddingParent() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setParent(1)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingPrice() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM)
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setPrice(
+				1, "basic", Currency.getInstance("USD"),
+				new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true
+			)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingReference() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(BRAND, 1)
+		);
+	}
+
+	@Test
+	void shouldDenyElevatingCardinality() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+				EvolutionMode.ADDING_REFERENCES
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		builder.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1);
+
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(BRAND, 2)
+		);
 	}
 
 	@Nonnull

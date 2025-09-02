@@ -177,7 +177,7 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
-	public Optional<InternalEntityBuilder> entityBuilderIfPresent() {
+	public Optional<EntityBuilder> entityBuilderIfPresent() {
 		return ofNullable(this.entityBuilder);
 	}
 
@@ -190,11 +190,11 @@ public class SealedEntityProxyState
 		int primaryKey
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final InternalEntityBuilder entityBuilder = entityBuilder();
+			final InternalEntityBuilder theEntityBuilder = entityBuilder();
 			return this.entity
 				.getReference(referenceSchema.getName(), primaryKey)
 				.filter(
-					ref -> !(entityBuilder instanceof ExistingEntityBuilder eeb) ||
+					ref -> !(theEntityBuilder instanceof ExistingEntityBuilder eeb) ||
 						eeb.isPresentInBaseEntity(ref)
 				)
 				.map(
@@ -220,7 +220,7 @@ public class SealedEntityProxyState
 								referenceSchema,
 								referenceSchema.getName(),
 								primaryKey,
-								entityBuilder.getNextReferenceInternalId()
+								theEntityBuilder.getNextReferenceInternalId()
 							),
 							getReflectionLookup(),
 							this.generatedProxyObjects
@@ -239,21 +239,23 @@ public class SealedEntityProxyState
 	 * Method propagates all mutations in reference proxies to the {@link #entityBuilder()}.
 	 */
 	public void propagateReferenceMutations() {
-		this.generatedProxyObjects.entrySet().stream()
-		                          .filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
-		                          .flatMap(
-			                          it -> it.getValue()
-			                                  .proxy(
-				                                  SealedEntityReferenceProxy.class,
-				                                  () -> {
-					                                  throw new EvitaInvalidUsageException("Unexpected proxy type!");
-				                                  }
-			                                  )
-			                                  .getReferenceBuilderIfPresent()
-			                                  .stream()
-		                          )
-		                          .forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(
-			                          referenceBuilder));
+		final InternalEntityBuilder theEntityBuilder = entityBuilder();
+		this.generatedProxyObjects
+			.entrySet()
+			.stream()
+			.filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
+			.flatMap(
+				it -> it.getValue()
+				        .proxy(
+					        SealedEntityReferenceProxy.class,
+					        () -> {
+						        throw new EvitaInvalidUsageException("Unexpected proxy type!");
+					        }
+				        )
+				        .getReferenceBuilderIfPresent()
+				        .stream()
+			)
+			.forEach(theEntityBuilder::addOrReplaceReferenceMutations);
 	}
 
 	@Override
