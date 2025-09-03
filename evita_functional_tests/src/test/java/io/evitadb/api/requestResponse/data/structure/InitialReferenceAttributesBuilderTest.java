@@ -44,7 +44,7 @@ class InitialReferenceAttributesBuilderTest extends InitialAttributesBuilderTest
 	protected InitialAttributesBuilder<?, ?> builder() {
 		return new InitialReferenceAttributesBuilder(
 			EntitySchema._internalBuild("whatever"),
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_MORE, null)
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_MORE, null)
 		);
 	}
 

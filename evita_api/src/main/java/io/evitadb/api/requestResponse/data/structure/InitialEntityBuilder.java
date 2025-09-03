@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -45,9 +46,11 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -145,6 +148,13 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		this.schema = schema;
 		this.primaryKey = null;
 		this.scope = Scope.DEFAULT_SCOPE;
+		Assert.isTrue(
+			schema.isWithGeneratedPrimaryKey() || schema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+			() -> new InvalidMutationException(
+				"Schema `" + schema.getName() + "` is not configured to generate primary keys." +
+					" Please provide the primary key when creating the entity."
+			)
+		);
 	}
 
 	/**
@@ -171,6 +181,13 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		this.schema = schema;
 		this.primaryKey = primaryKey;
 		this.scope = Scope.DEFAULT_SCOPE;
+		Assert.isTrue(
+			!schema.isWithGeneratedPrimaryKey() || schema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+			() -> new InvalidMutationException(
+				"Schema `" + schema.getName() + "` is configured to generate primary keys." +
+					" Please call the constructor without primary key parameter."
+			)
+		);
 	}
 
 	/**
@@ -422,6 +439,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder setParent(int parentPrimaryKey) {
+		assertHierarchyAllowed();
 		this.parent = parentPrimaryKey;
 		return this;
 	}
@@ -429,6 +447,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeParent() {
+		assertHierarchyAllowed();
 		this.parent = null;
 		return this;
 	}
@@ -726,6 +745,26 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 				new Prices(this.schema, PriceInnerRecordHandling.NONE) : this.pricesBuilder.build(),
 			getAllLocales(),
 			false
+		);
+	}
+
+	/**
+	 * Asserts that the hierarchy operation is allowed based on the current schema configuration.
+	 * This check validates that the schema either supports hierarchy explicitly or allows the
+	 * addition of hierarchy through its evolution mode settings. If neither condition is met,
+	 * an {@link InvalidMutationException} is thrown with a detailed message indicating that
+	 * hierarchy operations are not permitted.
+	 *
+	 * Throws:
+	 * - InvalidMutationException: Thrown if the schema does not support hierarchy
+	 * and does not allow adding hierarchy in evolution mode.
+	 */
+	private void assertHierarchyAllowed() {
+		Assert.isTrue(
+			this.schema.isWithHierarchy() || this.schema.allows(EvolutionMode.ADDING_HIERARCHY),
+			() -> new InvalidMutationException(
+				"Schema `" + this.schema.getName() + "` is not configured to support hierarchy."
+			)
 		);
 	}
 

@@ -302,6 +302,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 						);
 					}
 					return ReferencesBuilder.createImplicitSchema(
+						entitySchema,
 						this.referenceKey.referenceName(),
 						this.referencedEntityType,
 						this.referenceCardinality,

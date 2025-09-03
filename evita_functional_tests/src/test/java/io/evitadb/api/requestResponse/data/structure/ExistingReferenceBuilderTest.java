@@ -51,7 +51,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 	void setUp() {
 		this.initialReference = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-4

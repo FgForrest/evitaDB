@@ -62,7 +62,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldCreateReference() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-1
@@ -125,7 +125,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldOverwriteReferenceData() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-4
@@ -171,7 +171,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldSetAndRemoveGroupWithoutType() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-1
@@ -189,7 +189,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldProduceProperChangeSetForReference() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
 			-1

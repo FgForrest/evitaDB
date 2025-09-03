@@ -56,7 +56,7 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				ReferencesBuilder.createImplicitSchema("category", "category", Cardinality.ZERO_OR_MORE, null),
+				ReferencesBuilder.createImplicitSchema(this.productSchema, "category", "category", Cardinality.ZERO_OR_MORE, null),
 				new ReferenceKey("category", 5),
 				null
 			)

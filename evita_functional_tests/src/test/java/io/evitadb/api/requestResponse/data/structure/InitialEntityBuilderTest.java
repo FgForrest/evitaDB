@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
+import io.evitadb.test.generator.DataGenerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -440,7 +441,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 
 		final Reference ref = new Reference(
 			schema,
-			ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(schema, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(Entities.BRAND, 7),
 			null
 		);
@@ -1209,7 +1210,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			CATALOG_SCHEMA,
 			PRODUCT_SCHEMA
 		)
-			.verifySchemaButAllow()
+			.verifySchemaStrictly()
 			.withGeneratedPrimaryKey()
 			.toInstance();
 
@@ -1226,8 +1227,8 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			CATALOG_SCHEMA,
 			PRODUCT_SCHEMA
 		)
+			.verifySchemaStrictly()
 			.withoutGeneratedPrimaryKey()
-			.withGeneratedPrimaryKey()
 			.toInstance();
 
 		assertThrows(
@@ -1287,6 +1288,49 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	void shouldDenyAddingLanguage() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+				EvolutionMode.ADDING_REFERENCES,
+				EvolutionMode.ADDING_ATTRIBUTES,
+				EvolutionMode.ADDING_ASSOCIATED_DATA
+			)
+			.withLocale(Locale.ENGLISH)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		// this should work - adding data in existing language
+		builder.setAttribute("code", Locale.ENGLISH, "X");
+		builder.setAssociatedData("whatever", Locale.ENGLISH, "X");
+		// this should fail - adding data in non-supported language
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAttribute("code", Locale.GERMAN, "X")
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAssociatedData("whatever", Locale.GERMAN, "X")
+		);
+		// this should work - adding data in existing language
+		builder.setReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			whichIs -> whichIs.setAttribute("priority", Locale.ENGLISH, 1)
+		);
+		// this should fail - adding data in non-supported language
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE, 2,
+				whichIs -> whichIs.setAttribute("priority", Locale.GERMAN, 1)
+			)
+		);
+	}
+
+	@Test
 	void shouldDenyAddingParent() {
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1331,6 +1375,34 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	void shouldDenyAddingPriceCurrency() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.withPriceInCurrency(DataGenerator.CURRENCY_CZK)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		// adding price in allowed currency should work
+		builder.setPrice(
+			1, "basic", DataGenerator.CURRENCY_CZK,
+			new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true
+		);
+		// adding price in non-allowed currency should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setPrice(
+				1, "basic", Currency.getInstance("USD"),
+				new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true
+			)
+		);
+	}
+
+	@Test
 	void shouldDenyAddingReference() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1344,7 +1416,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(BRAND, 1)
+			() -> builder.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1)
 		);
 	}
 

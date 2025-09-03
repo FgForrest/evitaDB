@@ -55,6 +55,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.test.generator.DataGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -986,6 +987,49 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	void shouldDenyAddingLanguage() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION,
+				EvolutionMode.ADDING_REFERENCES,
+				EvolutionMode.ADDING_ATTRIBUTES,
+				EvolutionMode.ADDING_ASSOCIATED_DATA
+			)
+			.withLocale(Locale.ENGLISH)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		// this should work - adding data in existing language
+		builder.setAttribute("code", Locale.ENGLISH, "X");
+		builder.setAssociatedData("whatever", Locale.ENGLISH, "X");
+		// this should fail - adding data in non-supported language
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAttribute("code", Locale.GERMAN, "X")
+		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setAssociatedData("whatever", Locale.GERMAN, "X")
+		);
+		// this should work - adding data in existing language
+		builder.setReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			whichIs -> whichIs.setAttribute("priority", Locale.ENGLISH, 1)
+		);
+		// this should fail - adding data in non-supported language
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE, 2,
+				whichIs -> whichIs.setAttribute("priority", Locale.GERMAN, 1)
+			)
+		);
+	}
+
+	@Test
 	void shouldDenyAddingParent() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1019,6 +1063,34 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			InvalidMutationException.class,
 			() -> builder.setPriceInnerRecordHandling(PriceInnerRecordHandling.SUM)
 		);
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setPrice(
+				1, "basic", Currency.getInstance("USD"),
+				new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true
+			)
+		);
+	}
+
+	@Test
+	void shouldDenyAddingPriceCurrency() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(
+				EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION
+			)
+			.withPriceInCurrency(DataGenerator.CURRENCY_CZK)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		// adding price in allowed currency should work
+		builder.setPrice(
+			1, "basic", DataGenerator.CURRENCY_CZK,
+			new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true
+		);
+		// adding price in non-allowed currency should fail
 		assertThrows(
 			InvalidMutationException.class,
 			() -> builder.setPrice(

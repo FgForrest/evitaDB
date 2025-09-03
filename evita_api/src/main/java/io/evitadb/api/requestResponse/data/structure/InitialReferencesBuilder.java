@@ -840,7 +840,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				if (referencedEntityType == null || cardinality == null) {
 					throw new ReferenceNotKnownException(referenceName);
 				}
-				return ReferencesBuilder.createImplicitSchema(referenceName, referencedEntityType, cardinality, null);
+				return ReferencesBuilder.createImplicitSchema(
+					this.schema, referenceName, referencedEntityType, cardinality, null
+				);
 			});
 	}
 

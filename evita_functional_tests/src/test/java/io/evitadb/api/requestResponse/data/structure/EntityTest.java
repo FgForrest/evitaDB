@@ -105,7 +105,7 @@ class EntityTest extends AbstractBuilderTest {
 		final Prices prices = new Prices(schema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false);
 		final ReferenceContract ref = new Reference(
 			schema,
-			ReferencesBuilder.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(schema, BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 5), null
 		);
 		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
@@ -145,7 +145,7 @@ class EntityTest extends AbstractBuilderTest {
 
 		final ReferenceContract ref = new Reference(
 			schema,
-			ReferencesBuilder.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(schema, BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 5),
 			null
 		);
@@ -189,7 +189,7 @@ class EntityTest extends AbstractBuilderTest {
 
 		final ReferenceContract ref = new Reference(
 			schema,
-			ReferencesBuilder.createImplicitSchema(BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(schema, BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 6),
 			null
 		);

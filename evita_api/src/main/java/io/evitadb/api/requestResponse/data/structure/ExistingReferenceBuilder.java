@@ -108,6 +108,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			entitySchema,
 			baseReference.getReferenceSchema().orElseGet(
 				() -> ReferencesBuilder.createImplicitSchema(
+					entitySchema,
 					baseReference.getReferenceName(),
 					baseReference.getReferencedEntityType(),
 					baseReference.getReferenceCardinality(),

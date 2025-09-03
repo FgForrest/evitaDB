@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
@@ -36,8 +37,10 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -362,11 +365,19 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		 */
 		@Nonnull
 		static ReferenceSchema createImplicitSchema(
+			@Nonnull EntitySchemaContract entitySchema,
 			@Nonnull String referenceName,
 			@Nonnull String referencedEntityType,
 			@Nonnull Cardinality cardinality,
 			@Nullable GroupEntityReference group
 		) {
+			Assert.isTrue(
+				entitySchema.allows(EvolutionMode.ADDING_REFERENCES),
+				() -> new InvalidMutationException(
+					"Entity schema `" + entitySchema.getName() + "` doesn't allow adding new references on the fly! " +
+						"You need to update the schema first before you can add new references with name `" + referenceName + "`."
+				)
+			);
 			return ReferenceSchema._internalBuild(
 				referenceName, referencedEntityType, false, cardinality,
 				ofNullable(group).map(GroupEntityReference::getType).orElse(null), false,

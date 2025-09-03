@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -35,7 +36,9 @@ import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHan
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -106,7 +109,11 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
+	public PricesBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed
+	) {
+		assertPricesAllowed(currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
@@ -115,16 +122,26 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
+	public PricesBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		assertPricesAllowed(currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, indexed);
+		final Price thePrice = new Price(
+			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed) {
+	public PricesBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed
+	) {
+		assertPricesAllowed(currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
@@ -133,9 +150,15 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public PricesBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
+	public PricesBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity, boolean indexed
+	) {
+		assertPricesAllowed(currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		final Price thePrice = new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
+		final Price thePrice = new Price(
+			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
 		this.prices.put(priceKey, thePrice);
 		return this;
@@ -143,6 +166,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Override
 	public PricesBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
+		assertPricesAllowed(currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		this.prices.remove(priceKey);
 		return this;
@@ -150,20 +174,34 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Override
 	public PricesBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
+		assertPricesAllowed();
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 		return this;
 	}
 
 	@Override
 	public PricesBuilder removePriceInnerRecordHandling() {
+		assertPricesAllowed();
 		this.priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 		return this;
 	}
 
 	@Override
 	public PricesBuilder removeAllNonTouchedPrices() {
+		assertPricesAllowed();
 		// do nothing - every price in initial prices builder is touched
 		return this;
+	}
+
+	@Override
+	public boolean pricesAvailable() {
+		return true;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) {
+		return ofNullable(this.prices.get(priceKey));
 	}
 
 	@Nonnull
@@ -174,7 +212,10 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Nonnull
 	@Override
-	public Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency) throws UnexpectedResultCountException, ContextMissingException {
+	public Optional<PriceContract> getPrice(
+		@Nonnull String priceList,
+		@Nonnull Currency currency
+	) throws UnexpectedResultCountException, ContextMissingException {
 		final List<PriceContract> matchingPrices = getPrices()
 			.stream()
 			.filter(it -> it.priceList().equals(priceList) && it.currency().equals(currency))
@@ -186,11 +227,6 @@ public class InitialPricesBuilder implements PricesBuilder {
 			);
 		}
 		return matchingPrices.isEmpty() ? Optional.empty() : Optional.of(matchingPrices.get(0));
-	}
-
-	@Override
-	public boolean pricesAvailable() {
-		return true;
 	}
 
 	@Override
@@ -223,7 +259,10 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
-	public boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode) throws ContextMissingException {
+	public boolean hasPriceInInterval(
+		@Nonnull BigDecimal from, @Nonnull BigDecimal to,
+		@Nonnull QueryPriceMode queryPriceMode
+	) throws ContextMissingException {
 		throw new ContextMissingException();
 	}
 
@@ -236,12 +275,6 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Override
 	public int version() {
 		return 1;
-	}
-
-	@Nonnull
-	@Override
-	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) {
-		return ofNullable(this.prices.get(priceKey));
 	}
 
 	@Nonnull
@@ -260,8 +293,53 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Override
 	public Stream<? extends LocalMutation<?, ?>> buildChangeSet() {
 		return Stream.concat(
-			this.priceInnerRecordHandling == null ? Stream.empty() : Stream.of(new SetPriceInnerRecordHandlingMutation(this.priceInnerRecordHandling)),
+			this.priceInnerRecordHandling == null ?
+				Stream.empty() :
+				Stream.of(new SetPriceInnerRecordHandlingMutation(this.priceInnerRecordHandling)),
 			this.prices.entrySet().stream().map(it -> new UpsertPriceMutation(it.getKey(), it.getValue()))
+		);
+	}
+
+	/**
+	 * Ensures that the entity schema supports prices or permits the addition of prices through schema evolution.
+	 *
+	 * This method verifies that the entity schema either explicitly includes price information
+	 * (as determined by {@link EntitySchemaContract#isWithPrice()}) or allows the addition of prices
+	 * (as determined by {@link EntitySchemaContract#allows(EvolutionMode)}). If neither condition is true,
+	 * an {@link InvalidMutationException} is thrown, indicating that the current configuration does not
+	 * support the addition of price-related data.
+	 *
+	 * @throws InvalidMutationException if the entity schema does not support prices and does not allow
+	 *                                  adding prices.
+	 */
+	private void assertPricesAllowed() {
+		Assert.isTrue(
+			this.entitySchema.isWithPrice() || this.entitySchema.allows(EvolutionMode.ADDING_PRICES),
+			() -> new InvalidMutationException(
+				"Entity `" + this.entitySchema.getName() + "` doesn't support prices, cannot set price inner record handling!"
+			)
+		);
+	}
+
+	/**
+	 * Ensures that the provided currency is allowed by the entity schema.
+	 *
+	 * This method verifies that the specified {@code currency} is either included in the entity schema's
+	 * list of supported currencies or that the entity schema allows the addition of new currencies through
+	 * schema evolution. If neither condition is met, an {@link InvalidMutationException} is thrown.
+	 *
+	 * @param currency the currency to validate against the entity schema
+	 * @throws InvalidMutationException if the provided currency is not supported by the entity schema and
+	 *                                  adding new currencies is not allowed.
+	 */
+	private void assertPricesAllowed(@Nonnull Currency currency) {
+		assertPricesAllowed();
+		Assert.isTrue(
+			this.entitySchema.getCurrencies().contains(currency) || this.entitySchema.allows(EvolutionMode.ADDING_CURRENCIES),
+			() -> new InvalidMutationException(
+				"Entity `" + this.entitySchema.getName() + "` doesn't support currency `" + currency + "`, cannot set price in this currency! " +
+					"You need to update entity schema to allow adding this currency first."
+			)
 		);
 	}
 
@@ -269,15 +347,21 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 * Method throws {@link AmbiguousPriceException} when there is conflict in prices.
 	 */
 	private void assertPriceNotAmbiguousBeforeAdding(@Nonnull Price price) {
-		final PriceContract conflictingPrice = getPrices().stream()
+		final PriceContract conflictingPrice = getPrices()
+			.stream()
 			.filter(it -> it.priceList().equals(price.priceList()))
 			.filter(it -> it.currency().equals(price.currency()))
 			.filter(it -> it.priceId() != price.priceId())
-			.filter(it -> Objects.equals(it.innerRecordId(), price.innerRecordId()))
+			.filter(it -> Objects.equals(
+				it.innerRecordId(),
+				price.innerRecordId()
+			))
 			.filter(it ->
-				price.validity() == null ||
-					ofNullable(it.validity()).map(existingValidity -> existingValidity.overlaps(price.validity()))
-						.orElse(true)
+				        price.validity() == null ||
+					        ofNullable(it.validity()).map(
+						                                 existingValidity -> existingValidity.overlaps(
+							                                 price.validity()))
+					                                 .orElse(true)
 			)
 			.findFirst()
 			.orElse(null);

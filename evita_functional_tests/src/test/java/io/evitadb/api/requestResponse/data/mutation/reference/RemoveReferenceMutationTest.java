@@ -55,7 +55,7 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
 				new ReferenceKey("brand", 5),
 				group
 			)
@@ -93,7 +93,7 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 					this.productSchema,
 					new Reference(
 						this.productSchema,
-						ReferencesBuilder.createImplicitSchema("brand", "brand", Cardinality.ZERO_OR_ONE, group),
+						ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
 						2,
 						new ReferenceKey("brand", 5),
 						group,

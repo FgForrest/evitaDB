@@ -316,7 +316,7 @@ public class EntityConverter {
 		return new Reference(
 			entitySchema,
 			entitySchema.getReference(referenceName)
-			            .orElseGet(() -> ReferencesBuilder.createImplicitSchema(referenceName, referencedEntityType, cardinality, group)),
+			            .orElseGet(() -> ReferencesBuilder.createImplicitSchema(entitySchema, referenceName, referencedEntityType, cardinality, group)),
 			grpcReference.getVersion(),
 			new ReferenceKey(
 				referenceName,

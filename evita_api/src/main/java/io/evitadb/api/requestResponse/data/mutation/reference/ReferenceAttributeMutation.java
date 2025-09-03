@@ -166,6 +166,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 			existingValue.getReferenceSchema()
 				.orElseGet(
 					() -> ReferencesBuilder.createImplicitSchema(
+						entitySchema,
 						existingValue.getReferenceName(),
 						existingValue.getReferencedEntityType(),
 						existingValue.getReferenceCardinality(),

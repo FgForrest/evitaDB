@@ -1245,7 +1245,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 						throw new ReferenceNotKnownException(referenceName);
 					}
 					final ReferenceSchema implicit = ReferencesBuilder.createImplicitSchema(
-						referenceName, referencedEntityType, cardinality, null
+						this.entitySchema, referenceName, referencedEntityType, cardinality, null
 					);
 					cacheLocalSchema(referenceName, implicit);
 					return implicit;
