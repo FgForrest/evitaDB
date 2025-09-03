@@ -1142,7 +1142,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAllowAddingNewDefinitions() {
-
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
 			PRODUCT_SCHEMA
@@ -1201,6 +1200,39 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(PriceInnerRecordHandling.SUM, entity.getPriceInnerRecordHandling());
 		assertEquals(1, entity.getPrices().size());
 		assertNotNull(entity.getPrice(new PriceKey(1, "basic", Currency.getInstance("USD"))).orElseThrow());
+	}
+
+	@Test
+	void shouldKeepAttributeSchemaConsistentOverMultipleReferences() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaButAllow(EvolutionMode.values())
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
+		// add reference with attribute
+		builder.setReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			whichIs -> whichIs.setAttribute("priority", 1)
+		);
+		// attempt to set attribute as localized should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, 2,
+				whichIs -> whichIs.setAttribute("priority", Locale.ENGLISH, 2)
+			)
+		);
+		// attempt to set attribute as different type should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, 2,
+				whichIs -> whichIs.setAttribute("priority", "2")
+			)
+		);
 	}
 
 	@Test

@@ -23,24 +23,15 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.utils.Assert;
-import lombok.AccessLevel;
-import lombok.Getter;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Collection;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Extension of the {@link InitialAttributesBuilder} for {@link EntityAttributes}.
@@ -49,21 +40,11 @@ import java.util.stream.Stream;
  */
 public class InitialEntityAttributesBuilder extends InitialAttributesBuilder<EntityAttributeSchemaContract, InitialEntityAttributesBuilder> {
 	@Serial private static final long serialVersionUID = 860482522446542007L;
-	@Getter(AccessLevel.PRIVATE) private final String location;
 
 	public InitialEntityAttributesBuilder(
 		@Nonnull EntitySchemaContract schema
 	) {
 		super(schema);
-		this.location = "`" + schema.getName() + "`";
-	}
-
-	public InitialEntityAttributesBuilder(
-		@Nonnull EntitySchemaContract schema,
-		boolean suppressVerification
-	) {
-		super(schema, suppressVerification);
-		this.location = "`" + schema.getName() + "`";
 	}
 
 	public InitialEntityAttributesBuilder(
@@ -86,13 +67,12 @@ public class InitialEntityAttributesBuilder extends InitialAttributesBuilder<Ent
 				);
 			}
 		}
-		this.location = "`" + schema.getName() + "`";
 	}
 
 	@Nonnull
 	@Override
 	public Supplier<String> getLocationResolver() {
-		return this::getLocation;
+		return () -> "`" + this.entitySchema.getName() + "`";
 	}
 
 	@Nonnull
@@ -104,43 +84,18 @@ public class InitialEntityAttributesBuilder extends InitialAttributesBuilder<Ent
 	@Nonnull
 	@Override
 	public EntityAttributes build() {
-		final Map<String, EntityAttributeSchemaContract> newAttributes = this.attributeValues
-			.entrySet()
-			.stream()
-			.filter(entry -> this.entitySchema.getAttribute(entry.getKey().attributeName()).isEmpty())
-			.map(Entry::getValue)
-			.map(AttributesBuilder::createImplicitEntityAttributeSchema)
-			.collect(
-				Collectors.toUnmodifiableMap(
-					AttributeSchemaContract::getName,
-					Function.identity(),
-					(attributeType, attributeType2) -> {
-						Assert.isTrue(
-							Objects.equals(attributeType, attributeType2),
-							"Ambiguous situation - there are two attributes with the same name and different definition:\n" +
-								attributeType + "\n" +
-								attributeType2
-						);
-						return attributeType;
-					}
-				)
-			);
 		return new EntityAttributes(
 			this.entitySchema,
 			this.attributeValues.values(),
-			newAttributes.isEmpty() ?
-				this.entitySchema.getAttributes() :
-				Stream.concat(
-						this.entitySchema.getAttributes().entrySet().stream(),
-						newAttributes.entrySet().stream()
-					)
-					.collect(
-						Collectors.toUnmodifiableMap(
-							Entry::getKey,
-							Entry::getValue
-						)
-					)
+			this.attributeTypes == null ?
+				new LazyHashMapDelegate<>(4) :
+				this.attributeTypes
 		);
 	}
 
+	@Nonnull
+	@Override
+	protected EntityAttributeSchemaContract createImplicitSchema(@Nonnull AttributeValue theAttributeValue) {
+		return AttributesBuilder.createImplicitEntityAttributeSchema(theAttributeValue);
+	}
 }

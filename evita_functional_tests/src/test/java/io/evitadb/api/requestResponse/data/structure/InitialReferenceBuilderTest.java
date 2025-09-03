@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class InitialReferenceBuilderTest extends AbstractBuilderTest {
+	private HashMap<String, AttributeSchemaContract> attributeTypes = new HashMap<>(4);
 
 	@Test
 	void shouldCreateReference() {
@@ -65,7 +67,8 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			-1
+			-1,
+			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -128,7 +131,8 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			-4
+			-4,
+			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("brandPriority", 155L)
@@ -174,7 +178,8 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			-1
+			-1,
+			this.attributeTypes
 		).setGroup("brandGroup", 42);
 
 		assertTrue(builder.getGroup().isPresent());
@@ -192,7 +197,8 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			-1
+			-1,
+			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
 			.setGroup("group", 78);

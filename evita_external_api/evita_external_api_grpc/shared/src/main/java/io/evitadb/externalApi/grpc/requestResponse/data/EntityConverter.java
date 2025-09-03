@@ -64,6 +64,7 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -209,7 +210,7 @@ public class EntityConverter {
 							grpcEntity.getGlobalAttributesMap(),
 							grpcEntity.getLocalizedAttributesMap()
 						),
-						entitySchema.getAttributes()
+						new LazyHashMapDelegate<>(4)
 					),
 					new AssociatedData(
 						entitySchema,

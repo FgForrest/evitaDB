@@ -47,9 +47,9 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Optional.of;
@@ -78,7 +78,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	 * Delegate that builds and stores reference attributes during initial entity creation.
 	 */
 	@Delegate(types = AttributesContract.class)
-	private final AttributesBuilder<AttributeSchemaContract> attributesBuilder;
+	private final InitialReferenceAttributesBuilder attributesBuilder;
 	/**
 	 * Unique key of the reference being built (reference name and referenced entity primary key).
 	 */
@@ -93,61 +93,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nullable @Getter private Integer groupId;
 
 	/**
-	 * Verifies that the attribute exists in the reference schema (if present) and that the provided
-	 * Java type is compatible with the attribute's schema definition.
-	 *
-	 * - Throws an exception if the attribute is not defined or the type is incompatible
-	 * - Uses the entity schema to resolve constraints for the attribute
-	 *
-	 * @param entitySchema     the owning entity schema
-	 * @param referenceSchema  the reference schema or null if implicit
-	 * @param attributeName    the attribute name to validate
-	 * @param aClass           Java type of the attribute value; may be null for mutation-based validation
-	 * @param locationSupplier supplier of a location string for detailed error messages
-	 */
-	static void verifyAttributeIsInSchemaAndTypeMatch(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull String attributeName,
-		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Supplier<String> locationSupplier
-	) {
-		final AttributeSchemaContract attributeSchema = ofNullable(referenceSchema)
-			.flatMap(it -> it.getAttribute(attributeName))
-			.orElse(null);
-		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-			entitySchema, attributeName, aClass, null, attributeSchema, locationSupplier
-		);
-	}
-
-	/**
-	 * Verifies that the localized attribute exists in the reference schema (if present) and that the
-	 * provided Java type is compatible with the attribute's schema definition for the given locale.
-	 *
-	 * @param entitySchema     the owning entity schema
-	 * @param referenceSchema  the reference schema or null if implicit
-	 * @param attributeName    the attribute name to validate
-	 * @param aClass           Java type of the attribute value array or scalar
-	 * @param locale           locale of the attribute
-	 * @param locationSupplier supplier of a location string for detailed error messages
-	 */
-	static void verifyAttributeIsInSchemaAndTypeMatch(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull String attributeName,
-		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Locale locale,
-		@Nonnull Supplier<String> locationSupplier
-	) {
-		final AttributeSchemaContract attributeSchema = ofNullable(referenceSchema)
-			.flatMap(it -> it.getAttribute(attributeName))
-			.orElse(null);
-		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-			entitySchema, attributeName, aClass, locale, attributeSchema, locationSupplier
-		);
-	}
-
-	/**
 	 * Creates a builder for a new reference during initial entity creation.
 	 *
 	 * @param entitySchema               schema of the owning entity
@@ -160,7 +105,8 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String referenceName,
 		int referencedEntityPrimaryKey,
-		int internalPrimaryKey
+		int internalPrimaryKey,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		this.entitySchema = entitySchema;
 		this.referenceSchema = referenceSchema;
@@ -170,7 +116,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		this.attributesBuilder = new InitialReferenceAttributesBuilder(
 			entitySchema,
 			referenceSchema,
-			true
+			attributeTypes
 		);
 	}
 
@@ -280,38 +226,22 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(
-		@Nonnull String attributeName, @Nullable T attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
-				this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(),
-				this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, attributeValue);
-			return this;
-		}
+		@Nonnull String attributeName,
+		@Nullable T attributeValue
+	) {
+		this.attributesBuilder.setAttribute(attributeName, attributeValue);
+		return this;
 	}
 
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(
-		@Nonnull String attributeName, @Nullable T[] attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
-				this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(),
-				this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, attributeValue);
-			return this;
-		}
+		@Nonnull String attributeName,
+		@Nullable T[] attributeValue
+	) {
+		this.attributesBuilder.setAttribute(attributeName, attributeValue);
+		return this;
 	}
 
 
@@ -326,49 +256,29 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(
-		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName, locale);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
-				this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale,
-				this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
-			return this;
-		}
+		@Nonnull String attributeName,
+		@Nonnull Locale locale,
+		@Nullable T attributeValue
+	) {
+		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+		return this;
 	}
 
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(
-		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName, locale);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
-				this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale,
-				this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
-			return this;
-		}
+		@Nonnull String attributeName,
+		@Nonnull Locale locale,
+		@Nullable T[] attributeValue
+	) {
+		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+		return this;
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
-		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(
-			this.referenceKey.referenceName()).orElse(null);
-		verifyAttributeIsInSchemaAndTypeMatch(
-			this.entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null,
-			this.attributesBuilder.getLocationResolver()
-		);
 		this.attributesBuilder.mutateAttribute(mutation);
 		return this;
 	}

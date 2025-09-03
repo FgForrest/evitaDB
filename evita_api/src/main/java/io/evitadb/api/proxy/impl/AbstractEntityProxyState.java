@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -380,12 +381,15 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull Class<?> mainType,
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntityContract entity,
-		@Nonnull ReferenceContract reference
+		@Nonnull ReferenceContract reference,
+		@Nonnull Map<String, AttributeSchemaContract> referenceAttributeTypes
 	) {
 		return ProxycianFactory.createEntityReferenceProxy(
 			mainType, expectedType, this.recipes, this.collectedRecipes,
 			entity, this::getPrimaryKey,
-			this.referencedEntitySchemas, reference, getReflectionLookup(),
+			this.referencedEntitySchemas,
+			reference, referenceAttributeTypes,
+			getReflectionLookup(),
 			this.generatedProxyObjects
 		);
 	}
@@ -404,13 +408,14 @@ abstract class AbstractEntityProxyState implements
 	@Nonnull
 	public <T> T getOrCreateEntityReferenceProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull ReferenceContract reference
+		@Nonnull ReferenceContract reference,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityReferenceProxy(
 				this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
 				this.entity, this::getPrimaryKey,
-				this.referencedEntitySchemas, reference, getReflectionLookup(),
+				this.referencedEntitySchemas, reference, attributeTypes, getReflectionLookup(),
 				this.generatedProxyObjects
 			)
 		);

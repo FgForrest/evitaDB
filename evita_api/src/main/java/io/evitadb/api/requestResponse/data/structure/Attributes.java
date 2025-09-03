@@ -37,7 +37,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,7 +47,6 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -97,7 +95,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	 * Contains attribute definition that is built up along way with attribute adding or it may be directly filled
 	 * in from the engine when entity with attributes is loaded from persistent storage.
 	 */
-	@Getter final Map<String, S> attributeTypes;
+	final Map<String, S> attributeTypes;
 	/**
 	 * Optimization that ensures that expensive attribute name resolving happens only once.
 	 */
@@ -106,10 +104,6 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	 * Optimization that ensures that expensive attribute name resolving happens only once.
 	 */
 	private Set<AttributeKey> attributeKeys;
-	/**
-	 * Optimization that ensures that expensive attribute name resolving happens only once.
-	 */
-	private List<AttributeValue> filteredAttributeValues;
 	/**
 	 * Contains set of all locales that has at least one localized attribute.
 	 */
@@ -187,7 +181,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName) {
-		final AttributeSchemaContract attributeSchema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		Assert.isTrue(
 			!attributeSchema.isLocalized(),
@@ -202,7 +196,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName) {
-		final AttributeSchemaContract attributeSchema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		Assert.isTrue(
 			!attributeSchema.isLocalized(),
@@ -217,7 +211,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
-		final AttributeSchemaContract attributeSchema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		if (attributeSchema.isLocalized()) {
 			return empty();
@@ -229,7 +223,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T getAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		//noinspection unchecked
 		return (T) (schema.isLocalized() ?
@@ -242,7 +236,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nullable
 	public <T extends Serializable> T[] getAttributeArray(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		//noinspection unchecked,ConstantConditions
 		return (T[]) (schema.isLocalized() ?
@@ -255,17 +249,11 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Override
 	@Nonnull
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		return schema.isLocalized() ?
 			ofNullable(this.attributeValues.get(new AttributeKey(attributeName, locale))) :
 			ofNullable(this.attributeValues.get(new AttributeKey(attributeName)));
-	}
-
-	@Override
-	@Nonnull
-	public Optional<S> getAttributeSchema(@Nonnull String attributeName) {
-		return ofNullable(this.attributeTypes.get(attributeName));
 	}
 
 	@Override
@@ -309,7 +297,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
 		final String attributeName = attributeKey.attributeName();
-		final AttributeSchemaContract schema = ofNullable(this.attributeTypes.get(attributeName))
+		final AttributeSchemaContract schema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
 		return schema.isLocalized() ?
 			ofNullable(this.attributeValues.get(attributeKey)) :
@@ -321,14 +309,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	 */
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
-		if (this.filteredAttributeValues == null) {
-			this.filteredAttributeValues = this.attributeValues
-				.values()
-				.stream()
-				.filter(attributeValue -> this.attributeTypes.get(attributeValue.key().attributeName()) != null)
-				.toList();
-		}
-		return this.filteredAttributeValues;
+		return this.attributeValues.values();
 	}
 
 	@Nonnull

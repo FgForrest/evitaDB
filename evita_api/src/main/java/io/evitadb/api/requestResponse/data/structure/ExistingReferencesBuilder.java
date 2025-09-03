@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGro
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -57,6 +58,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -128,6 +130,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * don't have it assigned yet.
 	 */
 	private int lastLocallyAssignedReferenceId = 0;
+	/**
+	 * Map of attribute types for the reference shared for all references of the same type.
+	 */
+	private final Map<String, AttributeSchemaContract> attributeTypes;
 
 	ExistingReferencesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -139,6 +145,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		this.baseReferences = baseReferences;
 		this.referencePredicate = referencePredicate;
 		this.richReferenceFetcher = richReferenceFetcher;
+		this.attributeTypes = new LazyHashMapDelegate<>(4);
 	}
 
 	@Override
@@ -378,7 +385,11 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 		for (ReferenceContract reference : getReferences()) {
 			if (filter.test(reference)) {
-				final ExistingReferenceBuilder builder = new ExistingReferenceBuilder(reference, this.entitySchema);
+				final ExistingReferenceBuilder builder = new ExistingReferenceBuilder(
+					reference,
+					this.entitySchema,
+					this.attributeTypes
+				);
 				addOrReplaceReferenceMutations(whichIs.apply(builder));
 			}
 		}
@@ -493,14 +504,21 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			referenceKey);
 		final ReferenceBuilder referenceBuilder;
 		if (existingReference.map(filter::test).orElse(false)) {
-			referenceBuilder = whichIs.apply(new ExistingReferenceBuilder(existingReference.get(), schema));
+			referenceBuilder = whichIs.apply(
+				new ExistingReferenceBuilder(
+					existingReference.get(),
+					schema,
+					this.attributeTypes
+				)
+			);
 		} else {
 			referenceBuilder = whichIs.apply(
 				new InitialReferenceBuilder(
 					schema,
 					getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality),
 					referenceName, referencedPrimaryKey,
-					getNextReferenceInternalId()
+					getNextReferenceInternalId(),
+					this.attributeTypes
 				)
 			);
 		}
@@ -833,7 +851,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	@Nonnull
 	@Override
 	public References build() {
-		if (this.referenceMutations != null && !this.referenceMutations.isEmpty()) {
+		if (isThereAnyChangeInMutations()) {
 			return new References(
 				this.entitySchema,
 				getReferences(),
@@ -843,6 +861,17 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		} else {
 			return this.baseReferences;
 		}
+	}
+
+	/**
+	 * Checks if there are any changes in the mutations by determining
+	 * whether the reference mutations list is non-null and not empty.
+	 *
+	 * @return true if the reference mutations list is not null and not empty;
+	 *         false otherwise.
+	 */
+	public boolean isThereAnyChangeInMutations() {
+		return this.referenceMutations != null && !this.referenceMutations.isEmpty();
 	}
 
 	/**
@@ -899,7 +928,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			this.baseReferences.getReferenceWithoutSchemaCheck(referenceKey);
 		final ReferenceBuilder referenceBuilder = existingReference
 			.filter(reference -> isNotReferenceLocallyRemoved(reference.getReferenceKey()))
-			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, entitySchema))
+			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, entitySchema, this.attributeTypes))
 			.filter(this.referencePredicate)
 			.orElseGet(
 				() -> new InitialReferenceBuilder(
@@ -907,7 +936,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 					referenceSchema,
 					referenceName,
 					referencedPrimaryKey,
-					getNextReferenceInternalId()
+					getNextReferenceInternalId(),
+					this.attributeTypes
 				)
 			);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
@@ -1171,7 +1201,11 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	) {
 		ReferenceContract mutatedReference = reference;
 		for (ReferenceMutation<?> mutation : mutations) {
-			mutatedReference = mutation.mutateLocal(this.entitySchema, mutatedReference);
+			if (mutation instanceof ReferenceAttributeMutation ram) {
+				mutatedReference = ram.mutateLocal(this.entitySchema, mutatedReference, this.attributeTypes);
+			} else {
+				mutatedReference = mutation.mutateLocal(this.entitySchema, mutatedReference);
+			}
 		}
 		final ReferenceContract theReference = mutatedReference != null && mutatedReference.differsFrom(reference) ?
 			mutatedReference :

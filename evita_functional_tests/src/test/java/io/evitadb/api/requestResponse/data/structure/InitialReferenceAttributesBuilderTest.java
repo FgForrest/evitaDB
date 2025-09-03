@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
 
@@ -44,7 +45,8 @@ class InitialReferenceAttributesBuilderTest extends InitialAttributesBuilderTest
 	protected InitialAttributesBuilder<?, ?> builder() {
 		return new InitialReferenceAttributesBuilder(
 			EntitySchema._internalBuild("whatever"),
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_MORE, null)
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_MORE, null),
+			new HashMap<>(4)
 		);
 	}
 

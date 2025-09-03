@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -46,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -98,6 +100,10 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 * don't have it assigned yet (which is none in the initial entity builder).
 	 */
 	private int lastLocallyAssignedReferenceId = 0;
+	/**
+	 * Map of attribute types for the reference shared for all references of the same type.
+	 */
+	private final Map<String, AttributeSchemaContract> attributeTypes = new LazyHashMapDelegate<>(4);
 
 	InitialReferencesBuilder(@Nonnull EntitySchemaContract schema) {
 		this.schema = schema;
@@ -247,7 +253,6 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	@Nonnull
 	@Override
 	public DataChunk<ReferenceContract> getReferenceChunk(
@@ -271,7 +276,10 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			if (filter.test(referenceContract)) {
 				// if the predicate passes, we need to update the reference
 				final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
-					referenceContract, this.schema);
+					referenceContract,
+					this.schema,
+					this.attributeTypes
+				);
 				final ReferenceContract updatedReference = whichIs.apply(refBuilder).build();
 				updates.add(new ReferenceExchange(i, updatedReference));
 			}
@@ -392,7 +400,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				referenceSchema
 					.orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
 				referenceName, referencedPrimaryKey,
-				getNextReferenceInternalId()
+				getNextReferenceInternalId(),
+				this.attributeTypes
 			);
 			addReferenceInternal(whichIs.apply(builder).build());
 			return this;
@@ -407,7 +416,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					// if the predicate passes, we need to update the reference
 					final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
 						referenceContract,
-						this.schema
+						this.schema,
+						this.attributeTypes
 					);
 					final ReferenceContract updatedReference = whichIs.apply(refBuilder).build();
 					updates.add(new ReferenceExchange(i, updatedReference));
@@ -422,7 +432,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 						.orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
 					referenceName,
 					referencedPrimaryKey,
-					getNextReferenceInternalId()
+					getNextReferenceInternalId(),
+					this.attributeTypes
 				);
 				theReferenceCollection.add(whichIs.apply(refBuilder).build());
 			} else {
@@ -438,7 +449,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			final ReferenceContract theFinalReference;
 			if (filter.test(theReference)) {
 				// if the predicate matches, we update the existing reference
-				final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(theReference, this.schema);
+				final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
+					theReference, this.schema, this.attributeTypes
+				);
 				theFinalReference = whichIs.apply(refBuilder).build();
 				theReferenceIndex.put(referenceKey, theFinalReference);
 				theReferenceCollection.removeIf(examinedReference -> examinedReference == theReference);
@@ -470,7 +483,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					theReferenceSchema,
 					referenceName,
 					referencedPrimaryKey,
-					getNextReferenceInternalId()
+					getNextReferenceInternalId(),
+					this.attributeTypes
 				);
 				Objects.requireNonNull(this.referencesDefinedCount)
 				       .computeIfPresent(referenceName, (k, v) -> v + 1);
@@ -990,7 +1004,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			referencedEntityPrimaryKey,
 			referenceKey.isUnknownReference() ?
 				getNextReferenceInternalId() :
-				referenceKey.internalPrimaryKey()
+				referenceKey.internalPrimaryKey(),
+			this.attributeTypes
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
 		addReferenceInternal(builder.build());

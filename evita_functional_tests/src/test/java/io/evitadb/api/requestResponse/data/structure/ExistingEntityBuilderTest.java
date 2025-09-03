@@ -1119,6 +1119,64 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	void shouldKeepAttributeSchemaConsistentOverMultipleReferences() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				CATEGORY, CATEGORY, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.withAttribute("code", String.class)
+			)
+			.verifySchemaButAllow(EvolutionMode.values())
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		// add reference with attribute
+		builder.setReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			whichIs -> whichIs.setAttribute("priority", 1)
+		);
+		// attempt to set attribute as localized should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, 2,
+				whichIs -> whichIs.setAttribute("priority", Locale.ENGLISH, 2)
+			)
+		);
+		// attempt to set attribute as different type should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND, 2,
+				whichIs -> whichIs.setAttribute("priority", "2")
+			)
+		);
+		// add attribute to already defined reference
+		builder.setReference(
+			CATEGORY, 1,
+			whichIs -> whichIs.setAttribute("code", "X")
+		);
+		// attempt to set attribute as localized should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				CATEGORY, 2,
+				whichIs -> whichIs.setAttribute("code", Locale.ENGLISH, "Y")
+			)
+		);
+		// attempt to set attribute as different type should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				CATEGORY, 2,
+				whichIs -> whichIs.setAttribute("code", 2)
+			)
+		);
+	}
+
+	@Test
 	void shouldDenyElevatingCardinality() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,

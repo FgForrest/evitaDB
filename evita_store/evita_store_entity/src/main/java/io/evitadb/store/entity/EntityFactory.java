@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.References;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -117,7 +118,7 @@ public class EntityFactory {
 				entitySchema,
 				// fill all contents of the attributes loaded from storage (may be empty)
 				attributeValues,
-				entitySchema.getAttributes()
+				new LazyHashMapDelegate<>(4)
 			),
 			// always initialize Associated data container
 			new AssociatedData(
@@ -215,7 +216,7 @@ public class EntityFactory {
 				new EntityAttributes(
 					entitySchema,
 					attributeValues,
-					entitySchema.getAttributes()
+					new LazyHashMapDelegate<>(4)
 				),
 			// when no additional associated data containers were loaded
 			associatedDataStorageContainers.isEmpty() ?

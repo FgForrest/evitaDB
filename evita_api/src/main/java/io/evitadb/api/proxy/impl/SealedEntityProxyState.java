@@ -30,6 +30,7 @@ import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -40,11 +41,13 @@ import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InternalEntityBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
@@ -191,6 +194,9 @@ public class SealedEntityProxyState
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
 			final InternalEntityBuilder theEntityBuilder = entityBuilder();
+			final Map<String, AttributeSchemaContract> attributeTypesForReference = getAttributeTypesForReference(
+				referenceSchema.getName()
+			);
 			return this.entity
 				.getReference(referenceSchema.getName(), primaryKey)
 				.filter(
@@ -200,10 +206,18 @@ public class SealedEntityProxyState
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
-							this.entity, this::getPrimaryKey,
+							this.getProxyClass(), expectedType,
+							this.recipes,
+							this.collectedRecipes,
+							this.entity,
+							this::getPrimaryKey,
 							this.referencedEntitySchemas,
-							new ExistingReferenceBuilder(existingReference, getEntitySchema()),
+							new ExistingReferenceBuilder(
+								existingReference,
+								entitySchema,
+								attributeTypesForReference
+							),
+							attributeTypesForReference,
 							getReflectionLookup(),
 							this.generatedProxyObjects
 						)
@@ -212,16 +226,21 @@ public class SealedEntityProxyState
 				.orElseGet(
 					() -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
-							this.entity, this::getPrimaryKey,
+							this.getProxyClass(), expectedType,
+							this.recipes,
+							this.collectedRecipes,
+							this.entity,
+							this::getPrimaryKey,
 							getReferencedEntitySchemas(),
 							new InitialReferenceBuilder(
 								entitySchema,
 								referenceSchema,
 								referenceSchema.getName(),
 								primaryKey,
-								theEntityBuilder.getNextReferenceInternalId()
+								theEntityBuilder.getNextReferenceInternalId(),
+								attributeTypesForReference
 							),
+							attributeTypesForReference,
 							getReflectionLookup(),
 							this.generatedProxyObjects
 						)
@@ -233,6 +252,41 @@ public class SealedEntityProxyState
 				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
 				key -> instanceSupplier.get()
 			).proxy(expectedType, instanceSupplier);
+	}
+
+	/**
+	 * Retrieves or initializes a map of attribute types for the specified reference schema.
+	 * This method ensures that the attribute types are stored in a local data store
+	 * associated with the given reference schema.
+	 *
+	 * @param referenceName the name of the reference schema
+	 * @return a map where the keys are attribute names and the values are attribute schema contracts for the reference schema
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	public Map<String, AttributeSchemaContract> getAttributeTypesForReference(@Nonnull String referenceName) {
+		return (Map<String, AttributeSchemaContract>)
+			getOrCreateLocalDataStore()
+				.computeIfAbsent(
+					"__referenceAttributes_" + referenceName,
+					k -> CollectionUtils.createHashMap(4)
+				);
+	}
+
+	/**
+	 * Creates new proxy for a reference.
+	 *
+	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
+	 * not known (the referenced entity needs to be persisted first).
+	 *
+	 * @param expectedType            contract that the proxy should implement
+	 * @param reference               reference instance to create proxy for
+	 * @param <T>                     type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 */
+	@Nonnull
+	public <T> T getOrCreateEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull ReferenceContract reference) {
+		return getOrCreateEntityReferenceProxy(expectedType, reference, getAttributeTypesForReference(reference.getReferenceName()));
 	}
 
 	/**

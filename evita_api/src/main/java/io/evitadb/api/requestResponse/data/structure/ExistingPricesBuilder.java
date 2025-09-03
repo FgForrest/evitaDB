@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -59,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -110,38 +110,59 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	/**
 	 * Method allows adding specific mutation on the fly.
 	 */
-	public void addMutation(@Nonnull SetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation) {
+	public void addMutation(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
 		assertPricesAllowed(this.entitySchema);
-		this.priceInnerRecordHandlingEntityMutation = setPriceInnerRecordHandlingMutation;
+		final PriceInnerRecordHandling updatedValue = mutation.mutateLocal(
+			this.entitySchema, this.basePrices
+		).getPriceInnerRecordHandling();
+		if (updatedValue != this.basePrices.getPriceInnerRecordHandling()) {
+			this.priceInnerRecordHandlingEntityMutation = mutation;
+		} else {
+			this.priceInnerRecordHandlingEntityMutation = null;
+		}
 	}
 
 	/**
 	 * Method allows adding specific mutation on the fly.
 	 */
-	public void addMutation(@Nonnull PriceMutation localMutation) {
-		if (localMutation instanceof UpsertPriceMutation upsertPriceMutation) {
+	public void addMutation(@Nonnull PriceMutation mutation) {
+		if (mutation instanceof UpsertPriceMutation upsertPriceMutation) {
 			final PriceKey priceKey = upsertPriceMutation.getPriceKey();
 			assertPricesAllowed(this.entitySchema, priceKey.currency());
-			assertPriceNotAmbiguousBeforeAdding(
-				new Price(
-					priceKey,
-					upsertPriceMutation.getInnerRecordId(),
-					upsertPriceMutation.getPriceWithoutTax(),
-					upsertPriceMutation.getTaxRate(),
-					upsertPriceMutation.getPriceWithTax(),
-					upsertPriceMutation.getValidity(),
-					upsertPriceMutation.isIndexed()
-				)
-			);
-			this.priceMutations.put(priceKey, upsertPriceMutation);
-		} else if (localMutation instanceof RemovePriceMutation removePriceMutation) {
+			final PriceContract existingValue = this.basePrices
+				.getPriceWithoutSchemaCheck(priceKey)
+				.orElse(null);
+			final PriceContract updatedValue = mutation.mutateLocal(this.entitySchema, existingValue);
+			if (existingValue == null || updatedValue.differsFrom(existingValue)) {
+				assertPriceNotAmbiguousBeforeAdding(
+					new Price(
+						priceKey,
+						upsertPriceMutation.getInnerRecordId(),
+						upsertPriceMutation.getPriceWithoutTax(),
+						upsertPriceMutation.getTaxRate(),
+						upsertPriceMutation.getPriceWithTax(),
+						upsertPriceMutation.getValidity(),
+						upsertPriceMutation.isIndexed()
+					)
+				);
+				this.priceMutations.put(priceKey, upsertPriceMutation);
+			}
+		} else if (mutation instanceof RemovePriceMutation removePriceMutation) {
 			final PriceKey priceKey = removePriceMutation.getPriceKey();
 			assertPricesAllowed(this.entitySchema);
-			Assert.notNull(this.basePrices.getPriceWithoutSchemaCheck(priceKey), "Price " + priceKey + " doesn't exist!");
-			final RemovePriceMutation mutation = new RemovePriceMutation(priceKey);
-			this.priceMutations.put(priceKey, mutation);
+			final PriceContract existingValue = this.basePrices
+				.getPriceWithoutSchemaCheck(priceKey)
+				.orElse(null);
+			Assert.isTrue(
+				existingValue != null && existingValue.exists(),
+				() -> new InvalidMutationException("Price " + priceKey + " doesn't exist!")
+			);
+			final PriceContract updatedValue = mutation.mutateLocal(this.entitySchema, existingValue);
+			if (updatedValue.differsFrom(existingValue)) {
+				this.priceMutations.put(priceKey, removePriceMutation);
+			}
 		} else {
-			throw new GenericEvitaInternalError("Unknown Evita price mutation: `" + localMutation.getClass() + "`!");
+			throw new GenericEvitaInternalError("Unknown Evita price mutation: `" + mutation.getClass() + "`!");
 		}
 	}
 
@@ -177,49 +198,30 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity, boolean indexed
 	) {
-		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		assertPricesAllowed(this.entitySchema, currency);
-		assertPricesFetchedAndMatchPredicate(priceKey, PriceContentMode.ALL);
-		final UpsertPriceMutation mutation = new UpsertPriceMutation(
-			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
-		assertPriceNotAmbiguousBeforeAdding(
-			new Price(priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed));
-		this.priceMutations.put(priceKey, mutation);
+		addMutation(
+			new UpsertPriceMutation(
+				new PriceKey(priceId, priceList, currency),
+				innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed
+			)
+		);
 		return this;
 	}
 
 	@Override
 	public PricesBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
-		assertPricesAllowed(this.entitySchema, currency);
-		assertPricesFetchedAndMatchPredicate(priceKey, PriceContentMode.ALL);
-		Assert.notNull(
-			this.basePrices.getPriceWithoutSchemaCheck(priceKey).filter(Droppable::exists),
-			"Price " + priceKey + " doesn't exist!"
-		);
-		final RemovePriceMutation mutation = new RemovePriceMutation(priceKey);
-		this.priceMutations.put(priceKey, mutation);
+		addMutation(new RemovePriceMutation(new PriceKey(priceId, priceList, currency)));
 		return this;
 	}
 
 	@Override
 	public PricesBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		assertPricesAllowed(this.entitySchema);
-		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
-		this.priceInnerRecordHandlingEntityMutation = new SetPriceInnerRecordHandlingMutation(priceInnerRecordHandling);
+		addMutation(new SetPriceInnerRecordHandlingMutation(priceInnerRecordHandling));
 		return this;
 	}
 
 	@Override
 	public PricesBuilder removePriceInnerRecordHandling() {
-		assertPricesAllowed(this.entitySchema);
-		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
-		Assert.isTrue(
-			this.basePrices.getPriceInnerRecordHandling() != PriceInnerRecordHandling.NONE,
-			"Price inner record handling is already set to NONE!"
-		);
-		this.priceInnerRecordHandlingEntityMutation = new SetPriceInnerRecordHandlingMutation(
-			PriceInnerRecordHandling.NONE);
+		addMutation(new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE));
 		return this;
 	}
 
@@ -347,6 +349,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	public Collection<PriceContract> getPrices() {
 		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
 		return getPricesWithoutPredicate()
+			.filter(PriceContract::exists)
 			.filter(this.pricePredicate)
 			.collect(Collectors.toList());
 	}
@@ -424,36 +427,31 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	@Nonnull
 	@Override
 	public Prices build() {
-		final Collection<PriceContract> newPrices = getPricesWithoutPredicate().collect(Collectors.toList());
-		final Map<PriceKey, PriceContract> newPriceIndex = newPrices
-			.stream()
-			.collect(
-				Collectors.toMap(
-					PriceContract::priceKey,
-					Function.identity()
-				)
-			);
-		final PriceInnerRecordHandling newPriceInnerRecordHandling = getPriceInnerRecordHandling();
-		if (this.basePrices.getPriceInnerRecordHandling() != newPriceInnerRecordHandling ||
-			this.basePrices.getPrices().size() != newPrices.size() ||
-			this.basePrices.getPrices()
-			               .stream()
-			               .anyMatch(
-				               it -> ofNullable(newPriceIndex.get(it.priceKey()))
-					               .map(price -> price.differsFrom(it))
-					               .orElse(true)
-			               )
-		) {
+		if (isThereAnyChangeInMutations()) {
+			final Collection<PriceContract> newPrices = getPricesWithoutPredicate().collect(Collectors.toList());
 			return new Prices(
 				this.basePrices.entitySchema,
 				this.basePrices.version() + 1,
 				newPrices,
-				newPriceInnerRecordHandling,
+				getPriceInnerRecordHandling(),
 				!newPrices.isEmpty()
 			);
 		} else {
 			return this.basePrices;
 		}
+	}
+
+	/**
+	 * Checks if there is any change in the current set of price-related mutations.
+	 * The method evaluates whether price mutations exist, whether all non-modified prices should be removed,
+	 * or whether an internal record handling mutation is present.
+	 *
+	 * @return {@code true} if there is any change in mutations, otherwise {@code false}.
+	 */
+	public boolean isThereAnyChangeInMutations() {
+		return this.priceInnerRecordHandlingEntityMutation != null ||
+			this.removeAllNonModifiedPrices ||
+			!this.priceMutations.isEmpty();
 	}
 
 	@Nonnull
@@ -470,8 +468,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 						     })
 						     .orElseGet(() -> this.removeAllNonModifiedPrices ? null : it)
 				)
-				.filter(Objects::nonNull)
-				.filter(PriceContract::exists),
+				.filter(Objects::nonNull),
 			this.priceMutations
 				.values()
 				.stream()

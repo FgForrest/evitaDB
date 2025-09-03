@@ -27,18 +27,15 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.utils.Assert;
-import lombok.AccessLevel;
-import lombok.Getter;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Extension of the {@link ExistingAttributesBuilder} for {@link ReferenceAttributes}.
@@ -51,8 +48,6 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 	 * Definition of the reference schema.
 	 */
 	private final ReferenceSchemaContract referenceSchema;
-	@Getter(AccessLevel.PRIVATE)
-	private final String location;
 
 	public ExistingReferenceAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -60,9 +55,8 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 		@Nonnull Collection<AttributeValue> attributes,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
-		super(entitySchema, attributes, attributeTypes);
+		super(entitySchema, new ReferenceAttributes(entitySchema, referenceSchema, attributes, attributeTypes), attributeTypes);
 		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
 	}
 
 	public ExistingReferenceAttributesBuilder(
@@ -70,28 +64,16 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Collection<AttributeValue> attributes,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
-		boolean suppressVerification,
 		@Nonnull Collection<AttributeMutation> attributeMutations
-		) {
-		super(entitySchema, attributes, attributeTypes, suppressVerification, attributeMutations);
+	) {
+		super(entitySchema, new ReferenceAttributes(entitySchema, referenceSchema, attributes, attributeTypes), attributeTypes, attributeMutations);
 		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
 	}
 
 	@Nonnull
 	@Override
 	public Supplier<String> getLocationResolver() {
-		return this::getLocation;
-	}
-
-	@Nonnull
-	@Override
-	protected ReferenceAttributes createAttributesContainer(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Collection<AttributeValue> attributes,
-		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
-	) {
-		return new ReferenceAttributes(entitySchema, this.referenceSchema, attributes, attributeTypes);
+		return () -> "`" + this.entitySchema.getName() + "` reference `" + this.referenceSchema.getName() + "`";
 	}
 
 	@Nonnull
@@ -99,38 +81,22 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 	public Attributes<AttributeSchemaContract> build() {
 		if (isThereAnyChangeInMutations()) {
 			final Collection<AttributeValue> newAttributeValues = getAttributeValuesWithoutPredicate().collect(Collectors.toList());
-			final Map<String, AttributeSchemaContract> newAttributeTypes = Stream.concat(
-					this.baseAttributes.attributeTypes.values().stream(),
-					// we don't check baseAttributes.allowUnknownAttributeTypes here because it gets checked on adding a mutation
-					newAttributeValues
-						.stream()
-						// filter out new attributes that has no type yet
-						.filter(it -> !this.baseAttributes.attributeTypes.containsKey(it.key().attributeName()))
-						// create definition for them on the fly
-						.map(AttributesBuilder::createImplicitReferenceAttributeSchema)
-				)
-				.collect(
-					Collectors.toUnmodifiableMap(
-						AttributeSchemaContract::getName,
-						Function.identity(),
-						(attributeSchema, attributeSchema2) -> {
-							Assert.isTrue(
-								attributeSchema.equals(attributeSchema2),
-								"Attribute " + attributeSchema.getName() + " has incompatible types in the same entity!"
-							);
-							return attributeSchema;
-						}
-					)
-				);
 			return new ReferenceAttributes(
 				this.baseAttributes.entitySchema,
 				this.referenceSchema,
 				newAttributeValues,
-				newAttributeTypes
+				this.attributeTypes == null || this.attributeTypes.isEmpty() ?
+					new LazyHashMapDelegate<>(4) :
+					new HashMap<>(this.attributeTypes)
 			);
 		} else {
 			return this.baseAttributes;
 		}
 	}
 
+	@Nonnull
+	@Override
+	protected AttributeSchemaContract createImplicitSchema(@Nonnull AttributeValue theAttributeValue) {
+		return AttributesBuilder.createImplicitReferenceAttributeSchema(theAttributeValue);
+	}
 }

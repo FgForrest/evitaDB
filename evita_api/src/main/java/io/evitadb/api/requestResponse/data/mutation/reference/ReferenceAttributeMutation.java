@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
@@ -38,7 +37,6 @@ import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -53,7 +51,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -156,6 +154,19 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(
+			entitySchema,
+			existingValue,
+			Map.of()
+		);
+	}
+
+	@Nonnull
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> locallyAddedAttributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot update attributes on reference " + this.referenceKey + " - reference doesn't exist!")
@@ -163,20 +174,9 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
 		final ExistingReferenceAttributesBuilder attributeBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
-			existingValue.getReferenceSchema()
-				.orElseGet(
-					() -> ReferencesBuilder.createImplicitSchema(
-						entitySchema,
-						existingValue.getReferenceName(),
-						existingValue.getReferencedEntityType(),
-						existingValue.getReferenceCardinality(),
-						existingValue.getGroup().orElse(null)
-					)
-				),
+			existingValue.getReferenceSchemaOrThrow(),
 			existingValue.getAttributeValues(),
-			existingValue.getReferenceSchema()
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			locallyAddedAttributeTypes
 		);
 		final Attributes<AttributeSchemaContract> newAttributes = attributeBuilder
 			.mutateAttribute(this.attributeMutation)

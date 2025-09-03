@@ -26,12 +26,16 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Extension of {@link Attributes} for entity attributes.
@@ -61,9 +65,17 @@ public class EntityAttributes extends Attributes<EntityAttributeSchemaContract> 
 		@Nonnull EntitySchemaContract entitySchema
 	) {
 		super(
-			entitySchema, Collections.emptyList(),
-			entitySchema.getAttributes()
+			entitySchema,
+			Collections.emptyList(),
+			new LazyHashMapDelegate<>(4)
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntityAttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
+		return this.entitySchema.getAttribute(attributeName)
+	                            .or(() -> ofNullable(this.attributeTypes.get(attributeName)));
 	}
 
 	@Nonnull

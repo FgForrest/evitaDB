@@ -28,10 +28,12 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 	private ReferenceContract initialReference;
+	private final HashMap<String, AttributeSchemaContract> attributeTypes = new HashMap<>(4);
 
 	@BeforeEach
 	void setUp() {
@@ -54,7 +57,8 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			-4
+			-4,
+			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -65,7 +69,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldModifyAttributes() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
 			.setAttribute("brandPriority", 155L)
 			.removeAttribute("country", Locale.ENGLISH)
 			.setAttribute("newAttribute", "Hi");
@@ -88,7 +92,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Changed name")
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -99,7 +103,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldModifyReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
 			.setGroup("newGroup", 77);
 
 		assertEquals(
@@ -117,7 +121,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemoveReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
+		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
 			.removeGroup();
 
 		assertTrue(builder.getGroup().isEmpty());
@@ -129,7 +133,7 @@ class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalReferenceInstanceWhenNothingHasChanged() {
-		final ReferenceContract reference = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA)
+		final ReferenceContract reference = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
 			.setAttribute("country", Locale.CANADA, "Canada")

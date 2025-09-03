@@ -37,7 +37,6 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGro
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -54,10 +53,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -78,17 +77,19 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	private final ExistingReferenceAttributesBuilder attributesBuilder;
 	private ReferenceMutation<ReferenceKey> referenceGroupMutation;
 
-	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
-		@Nonnull ReferenceContract baseReference,
-		@Nonnull EntitySchemaContract entitySchema
-	) {
-		this(baseReference, entitySchema, Collections.emptyList());
-	}
-
-	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
+	public ExistingReferenceBuilder(
 		@Nonnull ReferenceContract baseReference,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Collection<LocalMutation<?, ?>> mutations
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
+		this(baseReference, entitySchema, Collections.emptyList(), attributeTypes);
+	}
+
+	public ExistingReferenceBuilder(
+		@Nonnull ReferenceContract baseReference,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<LocalMutation<?, ?>> mutations,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
@@ -116,10 +117,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 				)
 			),
 			baseReference.getAttributeValues(),
-			baseReference.getReferenceSchema()
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap()),
-			true,
+			attributeTypes,
 			attributeMutations
 		);
 	}
@@ -229,31 +227,15 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, attributeValue);
-			return this;
-		}
+		this.attributesBuilder.setAttribute(attributeName, attributeValue);
+		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, attributeValue);
-			return this;
-		}
+		this.attributesBuilder.setAttribute(attributeName, attributeValue);
+		return this;
 	}
 
 	@Nonnull
@@ -266,31 +248,15 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName, locale);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
-			return this;
-		}
+		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+		return this;
 	}
 
 	@Nonnull
 	@Override
 	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
-		if (attributeValue == null) {
-			return removeAttribute(attributeName, locale);
-		} else {
-			final ReferenceSchemaContract referenceSchema = this.entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
-				this.entitySchema, referenceSchema, attributeName, attributeValue.getClass(), this.attributesBuilder.getLocationResolver()
-			);
-			this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
-			return this;
-		}
+		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+		return this;
 	}
 
 	@Nonnull

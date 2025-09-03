@@ -58,6 +58,7 @@ import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
+import one.edee.oss.proxycian.trait.ProxyStateAccessor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -892,13 +893,16 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
+				//noinspection CastToIncompatibleInterface
+				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				final Optional<ReferenceContract> firstReference = sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
 					.findFirst();
 				return firstReference.map(
 						referenceContract -> proxyReferenceFactory.createEntityReferenceProxy(
-							mainType, itemType, sealedEntity, referencedEntitySchemas, referenceContract
+							mainType, itemType, sealedEntity, referencedEntitySchemas, referenceContract,
+							proxyState.getAttributeTypesForReference(referenceName)
 						)
 					)
 					.orElse(null);
@@ -927,7 +931,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					return null;
 				} else {
 					return references.findFirst()
-						.map(referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract))
+						.map(
+							referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract)
+						)
 						.orElse(null);
 				}
 			}
@@ -948,8 +954,11 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
 				final EntityContract entity = theState.entity();
-				final Integer referencedId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
-				return referenceExtractor.apply(entity, referenceName, referencedId)
+				final Integer referencedId = Objects.requireNonNull(
+					EvitaDataTypes.toTargetType((Serializable) args[0], int.class)
+				);
+				return referenceExtractor
+					.apply(entity, referenceName, referencedId)
 					.map(referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract))
 					.orElse(null);
 			}
@@ -969,10 +978,21 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
+				//noinspection CastToIncompatibleInterface
+				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(
+						it -> proxyReferenceFactory.createEntityReferenceProxy(
+							mainType,
+							itemType,
+							sealedEntity,
+							referencedEntitySchemas,
+							it,
+							proxyState.getAttributeTypesForReference(referenceName)
+						)
+					)
 					.toList();
 			} else {
 				return Collections.emptyList();
@@ -1039,10 +1059,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
+				//noinspection CastToIncompatibleInterface
+				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(
+						it -> proxyReferenceFactory.createEntityReferenceProxy(
+							mainType, itemType, sealedEntity, referencedEntitySchemas, it,
+							proxyState.getAttributeTypesForReference(referenceName)
+						)
+					)
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
 				return Collections.emptySet();
@@ -1086,10 +1113,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
+				//noinspection CastToIncompatibleInterface
+				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(
+						it -> proxyReferenceFactory.createEntityReferenceProxy(
+							mainType, itemType, sealedEntity, referencedEntitySchemas, it,
+							proxyState.getAttributeTypesForReference(referenceName)
+						)
+					)
 					.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 			} else {
 				return null;

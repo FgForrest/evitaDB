@@ -5,6 +5,7 @@ module evita.common {
 
 	exports io.evitadb.dataType;
 	exports io.evitadb.dataType.data;
+	exports io.evitadb.dataType.map;
 	exports io.evitadb.dataType.trie;
 	exports io.evitadb.dataType.exception;
 	exports io.evitadb.dataType.expression;

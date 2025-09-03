@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -164,11 +165,15 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.baseEntity = baseEntity;
 		this.baseEntityDecorator = null;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(
-			this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
+			this.baseEntity.schema, this.baseEntity.attributes,
+			ExistsPredicate.instance(), new LazyHashMapDelegate<>(4)
+		);
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
-			this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
+			this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance()
+		);
 		this.pricesBuilder = new ExistingPricesBuilder(
-			this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
+			this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate()
+		);
 		this.referencesBuilder = new ExistingReferencesBuilder(
 			this.baseEntity.schema, this.baseEntity.references,
 			ReferenceContractSerializablePredicate.DEFAULT_INSTANCE,
@@ -203,9 +208,12 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.baseEntity = baseEntity.getDelegate();
 		this.baseEntityDecorator = baseEntity;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(
-			this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
+			this.baseEntity.schema, this.baseEntity.attributes,
+			baseEntity.getAttributePredicate(), new LazyHashMapDelegate<>(4)
+		);
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
-			this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
+			this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate()
+		);
 		this.pricesBuilder = new ExistingPricesBuilder(
 			this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate()
 		);
@@ -893,9 +901,28 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	@Nonnull
 	@Override
 	public Entity toInstance() {
-		return toMutation()
-			.map(it -> it.mutate(this.baseEntity.getSchema(), this.baseEntity))
-			.orElse(this.baseEntity);
+		final boolean modified = this.scopeMutation != null ||
+			this.hierarchyMutation != null ||
+			this.attributesBuilder.isThereAnyChangeInMutations() ||
+			this.associatedDataBuilder.isThereAnyChangeInMutations() ||
+			this.pricesBuilder.isThereAnyChangeInMutations() ||
+			this.referencesBuilder.isThereAnyChangeInMutations();
+		if (modified) {
+			return Entity._internalBuild(
+				this.getPrimaryKey(),
+				this.version(),
+				this.getSchema(),
+				this.getParentEntity().map(EntityClassifier::getPrimaryKey).orElse(null),
+				this.referencesBuilder.build(),
+				this.attributesBuilder.build(),
+				this.associatedDataBuilder.build(),
+				this.pricesBuilder.build(),
+				this.getLocales(),
+				this.getScope()
+			);
+		} else {
+			return this.baseEntity;
+		}
 	}
 
 	/**

@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.map.LazyHashMapDelegate;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Delegate;
 
@@ -45,6 +46,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -163,7 +165,9 @@ public class Reference implements ReferenceContract {
 			entitySchema,
 			referenceSchema,
 			reference.getAttributeValues(),
-			referenceSchema.getAttributes()
+			reference instanceof Reference ref && !(ref.attributes.attributeTypes.isEmpty()) ?
+				new HashMap<>(ref.attributes.attributeTypes) :
+				new LazyHashMapDelegate<>(4)
 		);
 		this.dropped = reference.dropped();
 	}
@@ -263,7 +267,7 @@ public class Reference implements ReferenceContract {
 			entitySchema,
 			referenceSchema,
 			attributes,
-			referenceSchema.getAttributes()
+			new LazyHashMapDelegate<>(4)
 		);
 		this.dropped = dropped;
 	}
