@@ -987,6 +987,17 @@ public class Entity implements SealedEntity {
 			this.parentAvailable(),
 			() -> new EntityIsNotHierarchicalException(this.schema.getName())
 		);
+		return getParentWithoutSchemaCheck();
+	}
+
+	/**
+	 * Retrieves the parent identifier without performing a schema check.
+	 * If the parent is null, an empty OptionalInt is returned.
+	 *
+	 * @return an OptionalInt containing the parent if it exists, or an empty OptionalInt if the parent is null.
+	 */
+	@Nonnull
+	public OptionalInt getParentWithoutSchemaCheck() {
 		return this.parent == null ? OptionalInt.empty() : OptionalInt.of(this.parent);
 	}
 

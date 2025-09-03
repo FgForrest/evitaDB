@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
@@ -50,6 +51,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -398,10 +400,13 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder setParent(int parentPrimaryKey) {
-		if (!parentAvailable()) {
-			throw ContextMissingException.hierarchyContextMissing();
+		final EntitySchemaContract schema = getSchema();
+		if (!schema.isWithHierarchy() && !schema.allows(EvolutionMode.ADDING_HIERARCHY)) {
+			throw new InvalidMutationException(
+				"Entity `" + getType() + "` is not hierarchical and its schema doesn't allow to become hierarchical on first hierarchy mutation!"
+			);
 		}
-		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParent(), OptionalInt.of(parentPrimaryKey)) ?
+		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParentWithoutSchemaCheck(), OptionalInt.of(parentPrimaryKey)) ?
 			new SetParentMutation(parentPrimaryKey) : null;
 		return this;
 	}

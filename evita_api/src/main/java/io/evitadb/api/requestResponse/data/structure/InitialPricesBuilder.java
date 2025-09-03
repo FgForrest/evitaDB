@@ -113,7 +113,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed
 	) {
-		assertPricesAllowed(currency);
+		assertPricesAllowed(this.entitySchema, currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, null, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
@@ -127,7 +127,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
 		boolean indexed
 	) {
-		assertPricesAllowed(currency);
+		assertPricesAllowed(this.entitySchema, currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(
 			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, null, indexed);
@@ -141,7 +141,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed
 	) {
-		assertPricesAllowed(currency);
+		assertPricesAllowed(this.entitySchema, currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(priceKey, null, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		assertPriceNotAmbiguousBeforeAdding(thePrice);
@@ -155,7 +155,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity, boolean indexed
 	) {
-		assertPricesAllowed(currency);
+		assertPricesAllowed(this.entitySchema, currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		final Price thePrice = new Price(
 			priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
@@ -166,7 +166,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Override
 	public PricesBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		assertPricesAllowed(currency);
+		assertPricesAllowed(this.entitySchema, currency);
 		final PriceKey priceKey = new PriceKey(priceId, priceList, currency);
 		this.prices.remove(priceKey);
 		return this;
@@ -174,21 +174,21 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Override
 	public PricesBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		assertPricesAllowed();
+		assertPricesAllowed(this.entitySchema);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 		return this;
 	}
 
 	@Override
 	public PricesBuilder removePriceInnerRecordHandling() {
-		assertPricesAllowed();
+		assertPricesAllowed(this.entitySchema);
 		this.priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 		return this;
 	}
 
 	@Override
 	public PricesBuilder removeAllNonTouchedPrices() {
-		assertPricesAllowed();
+		assertPricesAllowed(this.entitySchema);
 		// do nothing - every price in initial prices builder is touched
 		return this;
 	}
@@ -311,12 +311,13 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 *
 	 * @throws InvalidMutationException if the entity schema does not support prices and does not allow
 	 *                                  adding prices.
+	 * @param schema   the entity schema to validate against
 	 */
-	private void assertPricesAllowed() {
+	static void assertPricesAllowed(@Nonnull EntitySchemaContract schema) {
 		Assert.isTrue(
-			this.entitySchema.isWithPrice() || this.entitySchema.allows(EvolutionMode.ADDING_PRICES),
+			schema.isWithPrice() || schema.allows(EvolutionMode.ADDING_PRICES),
 			() -> new InvalidMutationException(
-				"Entity `" + this.entitySchema.getName() + "` doesn't support prices, cannot set price inner record handling!"
+				"Entity `" + schema.getName() + "` doesn't support prices, cannot set price inner record handling!"
 			)
 		);
 	}
@@ -328,16 +329,17 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 * list of supported currencies or that the entity schema allows the addition of new currencies through
 	 * schema evolution. If neither condition is met, an {@link InvalidMutationException} is thrown.
 	 *
+	 * @param schema   the entity schema to validate against
 	 * @param currency the currency to validate against the entity schema
 	 * @throws InvalidMutationException if the provided currency is not supported by the entity schema and
 	 *                                  adding new currencies is not allowed.
 	 */
-	private void assertPricesAllowed(@Nonnull Currency currency) {
-		assertPricesAllowed();
+	static void assertPricesAllowed(@Nonnull EntitySchemaContract schema, @Nonnull Currency currency) {
+		assertPricesAllowed(schema);
 		Assert.isTrue(
-			this.entitySchema.getCurrencies().contains(currency) || this.entitySchema.allows(EvolutionMode.ADDING_CURRENCIES),
+			schema.getCurrencies().contains(currency) || schema.allows(EvolutionMode.ADDING_CURRENCIES),
 			() -> new InvalidMutationException(
-				"Entity `" + this.entitySchema.getName() + "` doesn't support currency `" + currency + "`, cannot set price in this currency! " +
+				"Entity `" + schema.getName() + "` doesn't support currency `" + currency + "`, cannot set price in this currency! " +
 					"You need to update entity schema to allow adding this currency first."
 			)
 		);

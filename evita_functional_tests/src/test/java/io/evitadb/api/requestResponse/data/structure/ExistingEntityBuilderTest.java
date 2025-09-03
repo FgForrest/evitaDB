@@ -1114,7 +1114,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(BRAND, 1)
+			() -> builder.setReference(BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1)
 		);
 	}
 
