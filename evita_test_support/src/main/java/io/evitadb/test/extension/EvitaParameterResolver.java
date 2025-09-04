@@ -130,32 +130,78 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Slf4j
 public class EvitaParameterResolver
 	implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
+	/**
+	 * Root directory for temporary evitaDB storage used by tests.
+	 */
 	protected static final Path STORAGE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita");
+	/**
+	 * Total number of entities created across all initialized evita instances during this test run.
+	 */
 	protected final static AtomicInteger CREATED_EVITA_ENTITIES = new AtomicInteger();
+	/**
+	 * Counter of created evita instances in this JVM for testing purposes.
+	 */
 	protected final static AtomicInteger CREATED_EVITA_INSTANCES = new AtomicInteger();
+	/**
+	 * Peak number of concurrently alive evita instances observed during the test run.
+	 */
 	protected final static AtomicInteger PEAK_EVITA_INSTANCES = new AtomicInteger();
+	/**
+	 * Global reference to dataset index allowing cross-extension access (mainly for debugging/metrics).
+	 */
 	protected static final AtomicReference<Map<String, DataSetInfo>> DATA_SET_INFO = new AtomicReference<>();
+	/**
+	 * Index of all available API providers indexed by their unique code.
+	 */
 	@SuppressWarnings("rawtypes")
-	private static final Map<String, ExternalApiProviderRegistrar> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
-	                                                                                                      .stream()
-	                                                                                                      .collect(
-		                                                                                                      Collectors.toMap(
-			                                                                                                      ExternalApiProviderRegistrar::getExternalApiCode,
-			                                                                                                      Function.identity()
-		                                                                                                      ));
+	private static final Map<String, ExternalApiProviderRegistrar> AVAILABLE_PROVIDERS =
+		ExternalApiServer.gatherExternalApiProviders()
+		                 .stream()
+		                 .collect(
+			                 Collectors.toMap(
+				                 ExternalApiProviderRegistrar::getExternalApiCode,
+				                 Function.identity()
+			                 ));
+	/**
+	 * Reserved parameter name recognized by this resolver to inject catalog name into tests.
+	 */
 	private static final String PARAMETER_CATALOG_NAME = "catalogName";
+	/**
+	 * Named argument key for passing Evita instance into dataset methods.
+	 */
 	private static final String DATA_NAME_EVITA = "evita";
+	/**
+	 * Named argument key for passing catalog name into dataset methods.
+	 */
 	private static final String DATA_NAME_CATALOG_NAME = "catalogName";
+	/**
+	 * Named argument key for passing session (created lazily) into dataset methods.
+	 */
 	private static final String DATA_NAME_EVITA_SESSION = "evitaSession";
+	/**
+	 * Named argument key for passing EvitaServer instance into dataset methods.
+	 */
 	private static final String DATA_NAME_EVITA_SERVER = "evitaServer";
+	/**
+	 * Store key used to keep dataset index in JUnit's global store.
+	 */
 	private static final String EVITA_DATA_SET_INDEX = "__dataSetIndex";
+	/**
+	 * Prefix used for datasets created implicitly when no @UseDataSet is present.
+	 */
 	private static final String EVITA_ANONYMOUS_EVITA = "__anonymousEvita";
+	/**
+	 * Source of randomness used for generating isolated folder names.
+	 */
 	private static final Random RANDOM = new Random();
 
 	/**
 	 * Indexes all methods annotated with {@link DataSet} annotation into the `dataSets` index.
 	 */
-	private static void indexTestClass(@Nonnull Map<String, DataSetInfo> dataSets, @Nonnull Class<?> testClass, @Nullable IsolateDataSetBySuffix isolateDataSetBySuffix) {
+	private static void indexTestClass(
+		@Nonnull Map<String, DataSetInfo> dataSets, @Nonnull Class<?> testClass,
+		@Nullable IsolateDataSetBySuffix isolateDataSetBySuffix
+	) {
 		final IsolateDataSetBySuffix isolateDataSetBySuffixToUse = isolateDataSetBySuffix == null ?
 			testClass.getAnnotation(IsolateDataSetBySuffix.class) :
 			isolateDataSetBySuffix;
@@ -164,7 +210,8 @@ public class EvitaParameterResolver
 			ofNullable(declaredMethod.getAnnotation(DataSet.class))
 				.ifPresent(it -> {
 					declaredMethod.setAccessible(true);
-					final String dataSetName = it.value() + (isolateDataSetBySuffixToUse != null ? "_" + isolateDataSetBySuffixToUse.value() : "");
+					final String dataSetName = it.value() +
+						(isolateDataSetBySuffixToUse != null ? "_" + isolateDataSetBySuffixToUse.value() : "");
 					dataSetsInThisClass.computeIfAbsent(
 						dataSetName,
 						dsName -> new DataSetInfo(
@@ -202,6 +249,10 @@ public class EvitaParameterResolver
 
 	/**
 	 * Creates new evitaDB instance with one catalog of `catalogName`.
+	 *
+	 * @param catalogName      name of the catalog to be created
+	 * @param randomFolderName unique folder name to be usedfor evitaDB storage
+	 * @return new evitaDB instance
 	 */
 	@Nonnull
 	private static Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
@@ -214,47 +265,49 @@ public class EvitaParameterResolver
 		Assert.isTrue(evitaDataPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
 		Assert.isTrue(evitaExportPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
 		final Evita evita = new Evita(
-			EvitaConfiguration.builder()
-			                  .server(
-				                  // disable automatic session termination
-				                  // to avoid closing sessions when you stop at breakpoint
-				                  ServerOptions.builder()
-				                               .closeSessionsAfterSecondsOfInactivity(-1)
-				                               .serviceThreadPool(
-					                               ThreadPoolOptions.serviceThreadPoolBuilder()
-					                                                .minThreadCount(1)
-					                                                .maxThreadCount(1)
-					                                                .queueSize(10_000)
-					                                                .build()
-				                               )
-				                               .requestThreadPool(
-					                               ThreadPoolOptions.requestThreadPoolBuilder()
-					                                                .queueSize(10_000)
-					                                                .build()
-				                               )
-				                               .transactionThreadPool(
-					                               ThreadPoolOptions.transactionThreadPoolBuilder()
-					                                                .queueSize(10_000)
-					                                                .build()
-				                               )
-				                               .build()
-			                  )
-			                  .storage(
-				                  // point evitaDB to a test directory (temp directory)
-				                  StorageOptions.builder()
-				                                .storageDirectory(evitaDataPath)
-				                                .exportDirectory(evitaExportPath)
-				                                .maxOpenedReadHandles(1000)
-				                                .syncWrites(false)
-				                                .build()
-			                  )
-			                  .cache(
-				                  // disable cache for tests
-				                  CacheOptions.builder()
-				                              .enabled(false)
-				                              .build()
-			                  )
-			                  .build()
+			EvitaConfiguration
+				.builder()
+				.server(
+					// disable automatic session termination
+					// to avoid closing sessions when you stop at breakpoint
+					ServerOptions
+						.builder()
+						.closeSessionsAfterSecondsOfInactivity(-1)
+						.serviceThreadPool(
+							ThreadPoolOptions.serviceThreadPoolBuilder()
+							                 .minThreadCount(1)
+							                 .maxThreadCount(1)
+							                 .queueSize(10_000)
+							                 .build()
+						)
+						.requestThreadPool(
+							ThreadPoolOptions.requestThreadPoolBuilder()
+							                 .queueSize(10_000)
+							                 .build()
+						)
+						.transactionThreadPool(
+							ThreadPoolOptions.transactionThreadPoolBuilder()
+							                 .queueSize(10_000)
+							                 .build()
+						)
+						.build()
+				)
+				.storage(
+					// point evitaDB to a test directory (temp directory)
+					StorageOptions.builder()
+					              .storageDirectory(evitaDataPath)
+					              .exportDirectory(evitaExportPath)
+					              .maxOpenedReadHandles(1000)
+					              .syncWrites(false)
+					              .build()
+				)
+				.cache(
+					// disable cache for tests
+					CacheOptions.builder()
+					            .enabled(false)
+					            .build()
+				)
+				.build()
 		);
 		evita.defineCatalog(catalogName);
 		return evita;
@@ -262,6 +315,11 @@ public class EvitaParameterResolver
 
 	/**
 	 * Tries to find `annotationClass` annotation on an similar method on superclass.
+	 *
+	 * @param parameterContext current parameter context
+	 * @param extensionContext current extension context
+	 * @param annotationClass  class of the annotation to be found
+	 * @return found annotation or null if not found
 	 */
 	@SuppressWarnings("SameParameterValue")
 	@Nullable
@@ -302,6 +360,10 @@ public class EvitaParameterResolver
 
 	/**
 	 * Returns true if all method parameters are compliant (have corresponding Java types).
+	 *
+	 * @param superClassMethod super class method
+	 * @param testMethod       test method
+	 * @return true if all method parameters are compliant
 	 */
 	private static boolean allParametersAreCompliant(@Nonnull Method superClassMethod, @Nonnull Method testMethod) {
 		for (int i = 0; i < superClassMethod.getParameters().length; i++) {
@@ -316,6 +378,10 @@ public class EvitaParameterResolver
 
 	/**
 	 * Method finds an annotation of `annotationClass` on super class.
+	 *
+	 * @param extensionContext current extension context
+	 * @param annotationClass  class of the annotation to be found
+	 * @return found annotation or null if not found
 	 */
 	@SuppressWarnings("SameParameterValue")
 	@Nullable
@@ -347,6 +413,9 @@ public class EvitaParameterResolver
 
 	/**
 	 * Retrieves dataset index from store.
+	 *
+	 * @param context current extension context
+	 * @return dataset index
 	 */
 	@Nonnull
 	private static Map<String, DataSetInfo> getDataSetIndex(@Nonnull ExtensionContext context) {
@@ -366,6 +435,10 @@ public class EvitaParameterResolver
 	/**
 	 * Collects method input arguments in correct order trying to match them primarily by name, secondarily by type
 	 * against `availableArguments` offering.
+	 *
+	 * @param method             method to be invoked
+	 * @param availableArguments available arguments to be matched
+	 * @return array of arguments to be passed to the method
 	 */
 	@Nullable
 	private static Object[] placeArguments(@Nonnull Method method, @Nonnull Map<String, Object> availableArguments) {
@@ -388,18 +461,19 @@ public class EvitaParameterResolver
 				matchingValue = possibleValue;
 			} else {
 				// find by type
-				matchingValue = availableArguments.values()
-				                                  .stream()
-				                                  .filter(it -> {
-					                                  if (it instanceof LazyParameter<?> lazyParameter) {
-						                                  return parameter.getType().isAssignableFrom(
-							                                  lazyParameter.type());
-					                                  } else {
-						                                  return parameter.getType().isInstance(it);
-					                                  }
-				                                  })
-				                                  .findFirst()
-				                                  .orElse(null);
+				matchingValue = availableArguments
+					.values()
+					.stream()
+					.filter(it -> {
+						if (it instanceof LazyParameter<?> lazyParameter) {
+							return parameter.getType().isAssignableFrom(
+								lazyParameter.type());
+						} else {
+							return parameter.getType().isInstance(it);
+						}
+					})
+					.findFirst()
+					.orElse(null);
 			}
 
 			result[i] = matchingValue instanceof LazyParameter<?> lazyParameter ?
@@ -411,6 +485,11 @@ public class EvitaParameterResolver
 
 	/**
 	 * Creates {@link ApiOptions} for {@link EvitaServer}.
+	 *
+	 * @param datasetName name of the dataset
+	 * @param dataSetInfo dataset info
+	 * @param evita       evitaDB instance
+	 * @param portManager port manager
 	 */
 	@Nonnull
 	private static ApiOptions createApiOptions(
@@ -419,20 +498,25 @@ public class EvitaParameterResolver
 		@Nonnull Evita evita,
 		@Nonnull PortManager portManager
 	) {
-		final String[] unknownApis = Arrays.stream(dataSetInfo.webApi())
-		                                   .filter(it -> !AVAILABLE_PROVIDERS.containsKey(it))
-		                                   .toArray(String[]::new);
+		final String[] unknownApis = Arrays
+			.stream(dataSetInfo.webApi())
+			.filter(it -> !AVAILABLE_PROVIDERS.containsKey(it))
+			.toArray(String[]::new);
 		if (ArrayUtils.isEmpty(unknownApis)) {
-			final Builder apiOptionsBuilder = ApiOptions.builder()
-			                                            // 10 s request timeout - tests are highly parallel, squeezing our CI infrastructure
-			                                            .requestTimeoutInMillis(10_000)
-			                                            .certificate(
-				                                            CertificateOptions.builder()
-				                                                              .folderPath(evita.getConfiguration()
-				                                                                               .storage()
-				                                                                               .storageDirectory() + "-certificates")
-				                                                              .build()
-			                                            );
+			final Builder apiOptionsBuilder = ApiOptions
+				.builder()
+				// 10 s request timeout - tests are highly parallel, squeezing our CI infrastructure
+				.requestTimeoutInMillis(10_000)
+				.certificate(
+					CertificateOptions
+						.builder()
+						.folderPath(
+							evita.getConfiguration()
+							     .storage()
+							     .storageDirectory() + "-certificates"
+						)
+						.build()
+				);
 			final int[] ports = portManager.allocatePorts(datasetName, dataSetInfo.webApi().length);
 			int portIndex = 0;
 			for (String webApiCode : dataSetInfo.webApi()) {
@@ -461,8 +545,18 @@ public class EvitaParameterResolver
 		}
 	}
 
+	/**
+	 * Creates a method-local JUnit store namespace that uniquely identifies the combination of:
+	 * - this resolver class,
+	 * - current test instance,
+	 * - current test method.
+	 * This prevents cross-test interference when caching resources per-method.
+	 *
+	 * @param context current extension context
+	 * @return namespaced store key
+	 */
 	@Nonnull
-	private static Namespace createTestMethodLocalNamespace(ExtensionContext context) {
+	private static Namespace createTestMethodLocalNamespace(@Nonnull ExtensionContext context) {
 		return Namespace.create(
 			EvitaParameterResolver.class,
 			context.getRequiredTestInstance(),
@@ -470,6 +564,16 @@ public class EvitaParameterResolver
 		);
 	}
 
+	/**
+	 * Initializes and starts an EvitaServer instance with the provided Evita and ApiOptions objects.
+	 * If the server is configured with a system provider, it performs periodic checks to ensure
+	 * the server is running and accessible through the specified base URLs.
+	 *
+	 * @param evita      the Evita instance to be used for the server
+	 * @param apiOptions the API options that configure the server's behavior and endpoints
+	 * @return the initialized and running EvitaServer instance
+	 * @throws IllegalStateException if the server fails to start or become accessible within the allowed timeframe
+	 */
 	@Nonnull
 	private static EvitaServer openWebApi(
 		@Nonnull Evita evita,
@@ -518,9 +622,10 @@ public class EvitaParameterResolver
 		} while (initAttempt < 3000);
 
 		throw new IllegalStateException(
-			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls())
-			                                              .map(it -> "`" + it + "server-name`")
-			                                              .collect(Collectors.joining(", ")) + " within 10 minutes!",
+			"Evita server hasn't started on url " + Arrays
+				.stream(cfg.getBaseUrls())
+				.map(it -> "`" + it + "server-name`")
+				.collect(Collectors.joining(", ")) + " within 10 minutes!",
 			lastException
 		);
 	}
@@ -573,9 +678,12 @@ public class EvitaParameterResolver
 	}
 
 	@Override
-	public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-		final IsolateDataSetBySuffix isolateDataSetBySuffix = extensionContext.getTestClass()
-			.map(it -> it.getAnnotation(IsolateDataSetBySuffix.class))
+	public boolean supportsParameter(
+		ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
+		final IsolateDataSetBySuffix isolateDataSetBySuffix = extensionContext
+			.getTestClass()
+			.map(it -> it.getAnnotation(
+				IsolateDataSetBySuffix.class))
 			.orElse(null);
 		final BiFunction<ParameterContext, ExtensionContext, Optional<DataSetInfo>> dataSetInfoProvider = (pc, ec) -> {
 			final UseDataSet methodUseDataSet = ofNullable(
@@ -610,22 +718,26 @@ public class EvitaParameterResolver
 			RestTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			LabApiTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaClient.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
-			(String.class.isAssignableFrom(parameterContext.getParameter().getType()) && PARAMETER_CATALOG_NAME.equals(
-				parameterContext.getParameter().getName())) ||
-			dataSetInfoProvider.apply(parameterContext, extensionContext)
-			                   .map(DataSetInfo::dataCarrier)
-			                   .map(
-				                   it -> ofNullable(it.getValueByName(parameterContext.getParameter().getName()))
-					                   .orElseGet(() -> it.getValueByType(parameterContext.getParameter().getType()))
-			                   )
-			                   .orElse(null) != null;
+			(String.class.isAssignableFrom(parameterContext.getParameter().getType()) &&
+				PARAMETER_CATALOG_NAME.equals(parameterContext.getParameter().getName())) ||
+			dataSetInfoProvider
+				.apply(parameterContext, extensionContext)
+				.map(DataSetInfo::dataCarrier)
+				.map(
+					it -> ofNullable(it.getValueByName(parameterContext.getParameter().getName()))
+						.orElseGet(() -> it.getValueByType(parameterContext.getParameter().getType()))
+				)
+				.orElse(null) != null;
 	}
 
 	@Nullable
 	@Override
-	public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-		final IsolateDataSetBySuffix isolateDataSetBySuffix = extensionContext.getTestClass()
-			.map(it -> it.getAnnotation(IsolateDataSetBySuffix.class))
+	public Object resolveParameter(
+		ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
+		final IsolateDataSetBySuffix isolateDataSetBySuffix = extensionContext
+			.getTestClass()
+			.map(it -> it.getAnnotation(
+				IsolateDataSetBySuffix.class))
 			.orElse(null);
 		// when Evita implementation is required
 		final UseDataSet methodUseDataSet = ofNullable(
@@ -641,7 +753,8 @@ public class EvitaParameterResolver
 			"UseDataSet annotation can be specified on parameter OR method level, but not both!"
 		);
 		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
-		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, isolateDataSetBySuffix, dataSetIndex, parameterContext, extensionContext);
+		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(
+			useDataSet, isolateDataSetBySuffix, dataSetIndex, parameterContext, extensionContext);
 
 		// prefer the data created by the test itself
 		final DataCarrier dataCarrier = dataSetInfo.dataCarrier();
@@ -667,31 +780,37 @@ public class EvitaParameterResolver
 				// return new evita client
 				return dataSetInfo.evitaClient(
 					evitaServer -> {
-						final AbstractApiOptions grpcConfig = evitaServer.getExternalApiServer()
-						                                                 .getApiOptions()
-						                                                 .getEndpointConfiguration(GrpcProvider.CODE);
+						final AbstractApiOptions grpcConfig =
+							evitaServer.getExternalApiServer()
+							           .getApiOptions()
+							           .getEndpointConfiguration(GrpcProvider.CODE);
 						if (grpcConfig == null) {
 							throw new ParameterResolutionException(
 								"gRPC web API was not opened for the dataset `" + dataSetName + "`!");
 						}
-						final AbstractApiOptions systemConfig = evitaServer.getExternalApiServer()
-						                                                   .getApiOptions()
-						                                                   .getEndpointConfiguration(SystemProvider.CODE);
+						final AbstractApiOptions systemConfig =
+							evitaServer.getExternalApiServer()
+							           .getApiOptions()
+							           .getEndpointConfiguration(
+								           SystemProvider.CODE);
 						if (systemConfig == null) {
 							throw new ParameterResolutionException(
 								"System web API was not opened for the dataset `" + dataSetName + "`!");
 						}
 						return new EvitaClient(
-							EvitaClientConfiguration.builder()
-							                        .certificateFolderPath(Path.of(evitaServer.getEvita()
-							                                                                  .getConfiguration()
-							                                                                  .storage()
-							                                                                  .storageDirectory() + "-client"))
-							                        .host(grpcConfig.getHost()[0].hostAddress())
-							                        .port(grpcConfig.getHost()[0].port())
-							                        .systemApiPort(systemConfig.getHost()[0].port())
-							                        .timeout(10, TimeUnit.MINUTES)
-							                        .build()
+							EvitaClientConfiguration
+								.builder()
+								.certificateFolderPath(
+									Path.of(evitaServer.getEvita()
+									                   .getConfiguration()
+									                   .storage()
+									                   .storageDirectory() + "-client")
+								)
+								.host(grpcConfig.getHost()[0].hostAddress())
+								.port(grpcConfig.getHost()[0].port())
+								.systemApiPort(systemConfig.getHost()[0].port())
+								.timeout(10, TimeUnit.MINUTES)
+								.build()
 						);
 					}
 				);
@@ -788,6 +907,14 @@ public class EvitaParameterResolver
 		}
 	}
 
+	/**
+	 * Retrieves and initializes the {@link DataSetInfo} for the given parameters. The method ensures
+	 * that the data set is prepared and initialized according to the test's requirements, setting up
+	 * necessary components or configurations as needed.
+	 *
+	 * @param useDataSet an optional {@link UseDataSet} annotation specifying the data set to be used.
+	 *                   If null, an anonymous data set is initialized.
+	 * @param isolateDataSetBySuffix an optional {@link IsolateDataSetBySuffix} annotation to*/
 	@Nonnull
 	public DataSetInfo getInitializedDataSetInfo(
 		@Nullable UseDataSet useDataSet,
@@ -829,10 +956,10 @@ public class EvitaParameterResolver
 							evita,
 							null,
 							null,
-							(terminationContext, dataSetState) -> terminationContext.getTestMethod()
-							                                                        .map(m -> m.equals(
-								                                                        dataSetState.testMethod()))
-							                                                        .orElse(false)
+							(terminationContext, dataSetState)
+								-> terminationContext.getTestMethod()
+								                     .map(m -> m.equals(dataSetState.testMethod()))
+								                     .orElse(false)
 						)
 					)
 				);
@@ -852,7 +979,9 @@ public class EvitaParameterResolver
 				return alreadyExistingAnonymousInstance;
 			}
 		} else {
-			final String dataSetToUse = isolateDataSetBySuffix == null ? useDataSet.value() : useDataSet.value() + "_" + isolateDataSetBySuffix.value();
+			final String dataSetToUse = isolateDataSetBySuffix == null ?
+				useDataSet.value() :
+				useDataSet.value() + "_" + isolateDataSetBySuffix.value();
 			final DataSetInfo dataSetInfo = dataSetIndex.get(dataSetToUse);
 			if (dataSetInfo == null) {
 				throw new ParameterResolutionException(
@@ -1039,6 +1168,12 @@ public class EvitaParameterResolver
 		}
 	}
 
+	/**
+	 * Immutable descriptor of a test dataset lifecycle and its resources.
+	 *
+	 * It keeps track of initialization and teardown methods, opened web APIs, and the current
+	 * mutable state held in an {@link AtomicReference}.
+	 */
 	protected record DataSetInfo(
 		@Nonnull String name,
 		@Nonnull String catalogName,
@@ -1050,6 +1185,9 @@ public class EvitaParameterResolver
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
 
+		/**
+		 * Convenience constructor without pre-existing state.
+		 */
 		public DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
@@ -1061,6 +1199,9 @@ public class EvitaParameterResolver
 			);
 		}
 
+		/**
+		 * Returns the initialized {@link Evita} instance for this dataset or null if not initialized yet.
+		 */
 		@Nullable
 		public Evita evitaInstance() {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1068,6 +1209,9 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns the running {@link EvitaServer} instance for this dataset or null if web API is disabled.
+		 */
 		@Nullable
 		public EvitaServer evitaServerInstance() {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1075,6 +1219,9 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns custom data produced by the dataset initialization method, if any.
+		 */
 		@Nullable
 		public DataCarrier dataCarrier() {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1082,6 +1229,10 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns a cached {@link EvitaClient} or creates one using the provided factory.
+		 * Requires the dataset to have gRPC web API enabled.
+		 */
 		@Nullable
 		public EvitaClient evitaClient(@Nonnull Function<EvitaServer, EvitaClient> factory) {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1101,6 +1252,10 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns a cached {@link GraphQLTester} or creates one using the provided factory.
+		 * Requires the dataset to have GraphQL web API enabled.
+		 */
 		@Nullable
 		public GraphQLTester graphQLTester(@Nonnull Function<EvitaServer, GraphQLTester> factory) {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1120,6 +1275,10 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns a cached {@link GraphQLSchemaTester} or creates one using the provided factory.
+		 * Requires the dataset to have GraphQL web API enabled.
+		 */
 		@Nullable
 		public GraphQLSchemaTester graphQLSchemaTester(@Nonnull Function<EvitaServer, GraphQLSchemaTester> factory) {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1139,6 +1298,10 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns a cached {@link RestTester} or creates one using the provided factory.
+		 * Requires the dataset to have REST web API enabled.
+		 */
 		@Nullable
 		public RestTester restTester(@Nonnull Function<EvitaServer, RestTester> factory) {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1158,6 +1321,10 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Returns a cached {@link LabApiTester} or creates one using the provided factory.
+		 * Requires the dataset to have Lab web API enabled.
+		 */
 		@Nullable
 		public LabApiTester labApiTester(@Nonnull Function<EvitaServer, LabApiTester> factory) {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
@@ -1177,6 +1344,10 @@ public class EvitaParameterResolver
 				.orElse(null);
 		}
 
+		/**
+		 * Initializes the dataset state once using the provided state creator.
+		 * Subsequent calls will fail.
+		 */
 		public void init(@Nonnull Supplier<DataSetState> stateCreator) {
 			final DataSetState previousState = this.dataSetInfoAtomicReference.compareAndExchange(
 				null,
@@ -1187,6 +1358,11 @@ public class EvitaParameterResolver
 			}
 		}
 
+		/**
+		 * Updates the dataset state with the current test instance and method while keeping resources.
+		 *
+		 * @return this instance for chaining
+		 */
 		public DataSetInfo updateState(
 			@Nonnull Object testInstance, @Nonnull Method testMethod,
 			@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate
@@ -1200,6 +1376,11 @@ public class EvitaParameterResolver
 			return this;
 		}
 
+		/**
+		 * Evaluates destroy predicate and, if it matches, tears down the dataset and frees resources.
+		 *
+		 * @return true if the dataset was destroyed
+		 */
 		public boolean destroyIfPredicateMatches(
 			@Nonnull String dataSetName,
 			@Nonnull DataSetInfo dataSetInfo,
@@ -1217,6 +1398,11 @@ public class EvitaParameterResolver
 				.orElse(false);
 		}
 
+		/**
+		 * Forces immediate teardown of this dataset, closing server, client and deleting storage.
+		 *
+		 * @return true if the dataset was present and destroyed
+		 */
 		public boolean destroy(
 			@Nonnull String dataSetName,
 			@Nonnull DataSetInfo dataSetInfo,
@@ -1233,9 +1419,15 @@ public class EvitaParameterResolver
 		}
 	}
 
+	/**
+	 * Descriptor of a catalog initialization method and expected resulting catalog state.
+	 */
 	private record CatalogInitMethod(@Nonnull Method method, @Nonnull CatalogState expectedState) {
 	}
 
+	/**
+	 * Wrapper for a lazily created parameter value used during reflective invocation.
+	 */
 	private record LazyParameter<T>(
 		@Nonnull Class<T> type,
 		@Nonnull Supplier<T> factory
@@ -1268,6 +1460,9 @@ public class EvitaParameterResolver
 			);
 		}
 
+		/**
+		 * Returns a new state with updated test instance/method and destroy predicate, reusing resources.
+		 */
 		@Nonnull
 		public DataSetState update(
 			@Nonnull Object testInstance, @Nonnull Method testMethod,

@@ -67,10 +67,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Serial private static final long serialVersionUID = 2225492596172273289L;
 
 	/**
-	 * Schema of the owning entity; used to resolve and validate reference schema and attributes.
-	 */
-	private final EntitySchemaContract entitySchema;
-	/**
 	 * Schema of the reference being built.
 	 */
 	private final ReferenceSchemaContract referenceSchema;
@@ -108,7 +104,6 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		int internalPrimaryKey,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
-		this.entitySchema = entitySchema;
 		this.referenceSchema = referenceSchema;
 		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey, internalPrimaryKey);
 		this.groupId = null;
@@ -134,6 +129,12 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 
 	@Nonnull
 	@Override
+	public Optional<SealedEntity> getReferencedEntity() {
+		return Optional.empty();
+	}
+
+	@Nonnull
+	@Override
 	public String getReferencedEntityType() {
 		return this.referenceSchema.getReferencedEntityType();
 	}
@@ -146,18 +147,13 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 
 	@Nonnull
 	@Override
-	public Optional<SealedEntity> getReferencedEntity() {
-		return Optional.empty();
-	}
-
-	@Nonnull
-	@Override
 	public Optional<GroupEntityReference> getGroup() {
 		return ofNullable(this.groupId)
 			.map(it -> {
 				Assert.isTrue(
 					this.groupType != null,
-					() -> new InvalidMutationException("Group type must be provided when the group type is not yet persisted in the reference schema!")
+					() -> new InvalidMutationException(
+						"Group type must be provided when the group type is not yet persisted in the reference schema!")
 				);
 				return new GroupEntityReference(this.groupType, it, 1, false);
 			});
@@ -288,20 +284,24 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
 		return Stream.concat(
 			Stream.of(
-				      new InsertReferenceMutation(this.referenceKey, this.referenceSchema.getCardinality(), this.referenceSchema.getReferencedEntityType()),
+				      new InsertReferenceMutation(
+					      this.referenceKey, this.referenceSchema.getCardinality(),
+					      this.referenceSchema.getReferencedEntityType()
+				      ),
 				      this.groupId == null ?
 					      null :
 					      new SetReferenceGroupMutation(this.referenceKey, this.groupType, this.groupId)
 			      )
 			      .filter(Objects::nonNull),
-			this.attributesBuilder.getAttributeValues()
-			                      .stream()
-			                      .map(x ->
-				                           new ReferenceAttributeMutation(
-					                           this.referenceKey,
-					                           new UpsertAttributeMutation(x.key(), Objects.requireNonNull(x.value()))
-				                           )
-			                      )
+			this.attributesBuilder
+				.getAttributeValues()
+				.stream()
+				.map(x ->
+					     new ReferenceAttributeMutation(
+						     this.referenceKey,
+						     new UpsertAttributeMutation(x.key(), Objects.requireNonNull(x.value()))
+					     )
+				)
 		);
 	}
 

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -37,6 +38,7 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -59,6 +61,15 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(entitySchema, existingValue, Map.of());
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue, @Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot remove reference " + this.referenceKey + " - reference doesn't exist!")
@@ -81,13 +92,14 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 			existingReferenceGroup
 				.filter(Droppable::exists)
 				.map(it -> new GroupEntityReference(
-						it.getType(),
-						it.getPrimaryKey(),
-						it.version() + 1,
-						true
-					)
+					     it.getType(),
+					     it.getPrimaryKey(),
+					     it.version() + 1,
+					     true
+				     )
 				).orElseThrow(() -> new InvalidMutationException("Cannot remove reference group - no reference group is set on reference " + this.referenceKey + "!")),
 			existingValue.getAttributeValues(),
+			attributeTypes,
 			existingValue.dropped()
 		);
 	}

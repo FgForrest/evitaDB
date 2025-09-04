@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -38,6 +39,7 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Map;
 
 /**
  * This mutation allows to remove {@link Reference} from the {@link Entity}.
@@ -63,6 +65,15 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(entitySchema, existingValue, Map.of());
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue, @Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot remove reference " + this.referenceKey + " - reference doesn't exist!")
@@ -73,10 +84,11 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 			existingValue.version() + 1,
 			existingValue.getReferenceKey(),
 			existingValue.getGroup()
-				.filter(Droppable::exists)
-				.map(it -> new GroupEntityReference(it.referencedEntity(), it.primaryKey(), it.version() + 1, true))
-				.orElse(null),
+			             .filter(Droppable::exists)
+			             .map(it -> new GroupEntityReference(it.referencedEntity(), it.primaryKey(), it.version() + 1, true))
+			             .orElse(null),
 			existingValue.getAttributeValues(),
+			attributeTypes,
 			true
 		);
 	}

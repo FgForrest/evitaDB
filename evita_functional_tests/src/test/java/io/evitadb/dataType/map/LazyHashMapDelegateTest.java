@@ -38,12 +38,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("LazyHashMapDelegate basic Map contract tests")
+@DisplayName("LazyHashMap basic Map contract tests")
 class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldBeEmptyOnCreation")
 	void shouldBeEmptyOnCreation() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(4);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(4);
 		assertEquals(0, map.size());
 		assertTrue(map.isEmpty());
 	}
@@ -51,7 +51,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldPutAndGetEntries")
 	void shouldPutAndGetEntries() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(2);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(2);
 		assertNull(map.put("a", 1));
 		assertEquals(1, map.size());
 		assertEquals(1, map.get("a"));
@@ -65,7 +65,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldSupportContainsKeyAndValue")
 	void shouldSupportContainsKeyAndValue() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(1);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(1);
 		map.put("x", 42);
 		assertTrue(map.containsKey("x"));
 		assertFalse(map.containsKey("y"));
@@ -76,7 +76,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldRemoveEntries")
 	void shouldRemoveEntries() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(3);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(3);
 		map.put("a", 1);
 		map.put("b", 2);
 		map.put("c", 3);
@@ -93,7 +93,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldClearMap")
 	void shouldClearMap() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(2);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(2);
 		map.put("a", 1);
 		map.put("b", 2);
 		map.clear();
@@ -104,7 +104,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldPutAllFromAnotherMap")
 	void shouldPutAllFromAnotherMap() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(2);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(2);
 		final Map<String, Integer> other = new HashMap<>();
 		other.put("a", 1);
 		other.put("b", 2);
@@ -117,7 +117,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldExposeViewsKeySetValuesEntrySet")
 	void shouldExposeViewsKeySetValuesEntrySet() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(4);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(4);
 		map.put("a", 1);
 		map.put("b", 2);
 
@@ -139,7 +139,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldSupportComputeReplaceMerge")
 	void shouldSupportComputeReplaceMerge() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(2);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(2);
 
 		assertEquals(10, map.computeIfAbsent("x", k -> 10));
 		assertEquals(10, map.get("x"));
@@ -161,7 +161,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldBeEqualToHashMapWithSameEntries")
 	void shouldBeEqualToHashMapWithSameEntries() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(3);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(3);
 		map.put("a", 1);
 		map.put("b", 2);
 
@@ -177,7 +177,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldSupportNullKeysAndValuesLikeHashMap")
 	void shouldSupportNullKeysAndValuesLikeHashMap() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(2);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(2);
 		assertNull(map.put(null, null));
 		assertTrue(map.containsKey(null));
 		assertTrue(map.containsValue(null));
@@ -187,7 +187,7 @@ class LazyHashMapDelegateTest {
 	@Test
 	@DisplayName("shouldLazyInitializeOnFirstUseWithoutExceptions")
 	void shouldLazyInitializeOnFirstUseWithoutExceptions() {
-		final LazyHashMapDelegate<String, Integer> map = new LazyHashMapDelegate<>(1);
+		final LazyHashMap<String, Integer> map = new LazyHashMap<>(1);
 		// calling size() on fresh instance should work and not throw
 		assertEquals(0, map.size());
 		// after first mutating operation, structure behaves as normal HashMap

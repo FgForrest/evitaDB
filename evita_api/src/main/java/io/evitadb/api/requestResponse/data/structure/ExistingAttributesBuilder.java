@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -96,20 +96,35 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	Map<String, S> attributeTypes;
 
 	/**
-	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
+	 * Creates a builder over an existing {@link Attributes} container.
+	 *
+	 * - Mutations produced by this builder will be applied on top of the provided base attributes.
+	 * - Only attributes fetched by the query (predicate {@link #attributePredicate}) can be mutated.
+	 *
+	 * @param entitySchema non-null entity schema definition used for validation and evolution checks
+	 * @param baseAttributes non-null existing attributes to be wrapped by the builder
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Attributes<S> baseAttributes
 	) {
 		this.entitySchema = entitySchema;
-		this.attributeMutations = new LazyHashMapDelegate<>(8);
+		this.attributeMutations = new LazyHashMap<>(8);
 		this.baseAttributes = baseAttributes;
 		this.attributePredicate = Droppable::exists;
 	}
 
 	/**
-	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
+	 * Advanced constructor allowing to specify a custom attribute visibility predicate and
+	 * pre-populated local attribute type map.
+	 *
+	 * The predicate is used to ensure that only fetched attributes are mutated. If an attribute is not
+	 * visible by the predicate, attempts to mutate it will fail fast.
+	 *
+	 * @param entitySchema non-null entity schema definition
+	 * @param baseAttributes non-null existing attributes to build on
+	 * @param attributePredicate non-null predicate deciding whether a particular attribute can be seen/changed
+	 * @param attributeTypes non-null local map with implicitly created attribute schemas (may be empty)
 	 */
 	public ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -120,12 +135,20 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 		this.entitySchema = entitySchema;
 		this.baseAttributes = baseAttributes;
 		this.attributePredicate = attributePredicate;
-		this.attributeMutations = new LazyHashMapDelegate<>(8);
+		this.attributeMutations = new LazyHashMap<>(8);
 		this.attributeTypes = attributeTypes;
 	}
 
 	/**
-	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
+	 * Package-private helper used when rehydrating a builder from an existing change set.
+	 *
+	 * The provided mutations are validated and normalized via {@link #addMutation(AttributeMutation)} to ensure
+	 * correct behavior on top of the given base attributes.
+	 *
+	 * @param entitySchema non-null entity schema definition
+	 * @param baseAttributes non-null base attributes
+	 * @param attributeTypes non-null local attribute schema map (may be empty)
+	 * @param attributeMutations non-null collection of mutations to seed this builder with
 	 */
 	ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -144,7 +167,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	}
 
 	/**
-	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
+	 * Package-private constructor that initializes a builder with a local attribute schema map
+	 * but without any pre-seeded mutations.
+	 *
+	 * @param entitySchema non-null entity schema definition
+	 * @param baseAttributes non-null base attributes
+	 * @param attributeTypes non-null local attribute schema map (may be empty)
 	 */
 	ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -152,14 +180,30 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 		@Nonnull Map<String, S> attributeTypes
 	) {
 		this.entitySchema = entitySchema;
-		this.attributeMutations = new LazyHashMapDelegate<>(8);
+		this.attributeMutations = new LazyHashMap<>(8);
 		this.baseAttributes = baseAttributes;
 		this.attributeTypes = attributeTypes;
 		this.attributePredicate = Droppable::exists;
 	}
 
 	/**
-	 * Method allows adding specific mutation on the fly.
+	 * Adds a single attribute {@link AttributeMutation} to this builder.
+	 *
+	 * Behavior:
+	 * - Upsert: validates schema and type, creates implicit schema if allowed, stores mutation only
+	 *   when it changes the current value; otherwise removes a previously stored mutation.
+	 * - Remove: stores removal when there is an existing value or a prior change that would create one;
+	 *   otherwise it is ignored.
+	 * - ApplyDelta: computes new value from the current baseline plus any previously staged mutation and
+	 *   converts it to an upsert if needed so that subsequent reads reflect the newest value.
+	 *
+	 * Fast-fail checks ensure that only attributes present in the attribute context and matching the
+	 * current predicate {@link #attributePredicate} can be mutated.
+	 *
+	 * @param localMutation non-null mutation to apply
+	 * @return this builder for fluent chaining
+	 * @throws InvalidMutationException when mutation attempts to set null value where not allowed or when
+	 *                                  schema evolution rules prohibit implicit attribute creation
 	 */
 	@Nonnull
 	public T addMutation(@Nonnull AttributeMutation localMutation) {
@@ -184,6 +228,8 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 
 			if (isValueDiffers(upsertAttributeMutation)) {
 				this.attributeMutations.put(attributeKey, upsertAttributeMutation);
+			} else {
+				this.attributeMutations.remove(attributeKey);
 			}
 		} else if (localMutation instanceof RemoveAttributeMutation removeAttributeMutation) {
 			final AttributeKey attributeKey = removeAttributeMutation.getAttributeKey();
@@ -192,6 +238,8 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			} else {
 				if (isValueDiffers(removeAttributeMutation)) {
 					this.attributeMutations.put(attributeKey, removeAttributeMutation);
+				} else {
+					this.attributeMutations.remove(attributeKey);
 				}
 			}
 		} else if (localMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
@@ -571,11 +619,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	protected abstract S createImplicitSchema(@Nonnull AttributeValue theAttributeValue);
 
 	/**
-	 * Determines whether there is any change in the existing attribute mutations.
-	 * This method evaluates all original attributes and their associated mutations to check for
-	 * any differences or new attributes introduced by the mutations.
+	 * Returns whether there is at least one staged mutation.
 	 *
-	 * @return true if there is any change in the attribute mutations; false otherwise
+	 * This is a fast-path that does not compute the final values; it only checks if any mutation
+	 * has been registered so far.
+	 *
+	 * @return true when the builder contains any pending mutations, false otherwise
 	 */
 	boolean isThereAnyChangeInMutations() {
 		return !this.attributeMutations.isEmpty();
@@ -599,10 +648,13 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	}
 
 	/**
-	 * Determines if the value of an attribute mutation differs from the corresponding base attribute value.
+	 * Checks whether applying the provided mutation would change the current value.
 	 *
-	 * @param attributeMutation the attribute mutation to check
-	 * @return true if the value differs, false otherwise
+	 * The current value is taken from the base attributes. The mutation is applied locally and the
+	 * result is compared to the original attribute value.
+	 *
+	 * @param attributeMutation non-null mutation to evaluate
+	 * @return true if applying the mutation results in a different {@link AttributeValue}, false otherwise
 	 */
 	private boolean isValueDiffers(@Nonnull AttributeMutation attributeMutation) {
 		final AttributeValue baseAttribute = this.baseAttributes
@@ -613,8 +665,14 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	}
 
 	/**
-	 * Returns either unchanged attribute value, or attribute value with applied mutation or even new attribute value
-	 * that is produced by the mutation.
+	 * Resolves an attribute value by combining the base value with any staged mutation.
+	 *
+	 * - If a base value exists and a mutation is present, the mutation is applied and returned only when it differs.
+	 * - If no base value exists but a mutation produces one, the produced value is returned.
+	 * - The resulting value must also satisfy the {@link #attributePredicate} to be visible.
+	 *
+	 * @param attributeKey non-null attribute key
+	 * @return optional value visible under current predicate after applying staged mutations
 	 */
 	@Nonnull
 	private Optional<AttributeValue> getAttributeValueInternal(AttributeKey attributeKey) {

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -43,6 +44,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -170,6 +172,15 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(entitySchema, existingValue, Map.of());
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue, @Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot set reference group " + this.referenceKey + " - reference doesn't exist!")
@@ -187,21 +198,22 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 				existingValue.getReferenceKey(),
 				existingReferenceGroup
 					.map(it ->
-						new GroupEntityReference(
-							getGroupType(entitySchema),
-							this.groupPrimaryKey,
-							it.version() + 1,
-							false
-						)
+						     new GroupEntityReference(
+							     getGroupType(entitySchema),
+							     this.groupPrimaryKey,
+							     it.version() + 1,
+							     false
+						     )
 					)
 					.orElseGet(() ->
-						new GroupEntityReference(
-							getGroupType(entitySchema),
-							this.groupPrimaryKey,
-							1, false
-						)
+						           new GroupEntityReference(
+							           getGroupType(entitySchema),
+							           this.groupPrimaryKey,
+							           1, false
+						           )
 					),
 				existingValue.getAttributeValues(),
+				attributeTypes,
 				existingValue.dropped()
 			);
 		}

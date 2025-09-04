@@ -258,7 +258,13 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nonnull
 	@Override
 	public T mutateAttribute(@Nonnull AttributeMutation mutation) {
-		throw new UnsupportedOperationException("You cannot apply mutation when entity is just being created!");
+		final AttributeKey attributeKey = mutation.getAttributeKey();
+		final Optional<AttributeValue> existingValue = getAttributeValue(attributeKey);
+		final AttributeValue attributeValue = mutation.mutateLocal(this.entitySchema, existingValue.orElse(null));
+		createImplicitSchemaIfMissing(attributeKey.attributeName(), attributeValue.value(), attributeKey.locale());
+		this.attributeValues.put(attributeKey, attributeValue);
+		//noinspection unchecked
+		return (T) this;
 	}
 
 	@Override

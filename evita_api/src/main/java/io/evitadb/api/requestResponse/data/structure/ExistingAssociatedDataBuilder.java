@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -71,37 +71,47 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Serial private static final long serialVersionUID = 3382748927871753611L;
 
 	/**
-	 * Definition of the entity schema.
+	 * Definition of the entity schema used to validate associated data mutations.
+	 * The schema is consulted to ensure names, types and localization constraints are respected.
 	 */
 	private final EntitySchemaContract entitySchema;
 	/**
-	 * Initial set of associatedDatas that is going to be modified by this builder.
+	 * Snapshot of the original associated data container that this builder mutates virtually.
+	 * The builder never changes this instance directly; instead it records mutations on top of it.
 	 */
 	private final AssociatedData baseAssociatedData;
 	/**
-	 * This predicate filters out associated data that were not fetched in query.
+	 * Predicate that marks which associated data were fetched in the current context.
+	 * Only values matching this predicate can be read/updated; others would cause a context error.
 	 */
 	@Getter private final SerializablePredicate<AssociatedDataValue> associatedDataPredicate;
 	/**
-	 * Contains locale insensitive associatedData values - simple key → value association map.
+	 * Collected mutations keyed by associated data key. When empty, no changes are pending.
 	 */
 	private final Map<AssociatedDataKey, AssociatedDataMutation> associatedDataMutations;
 
 	/**
-	 * AssociatedDataBuilder constructor that will be used for building brand new {@link AssociatedData} container.
+	 * Creates a builder that will apply mutations on an existing associated data container.
+	 *
+	 * @param entitySchema schema used to validate names, types and locales for mutations
+	 * @param baseAssociatedData original container the mutations are virtually applied to
 	 */
 	public ExistingAssociatedDataBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull AssociatedData baseAssociatedData
 	) {
 		this.entitySchema = entitySchema;
-		this.associatedDataMutations = new LazyHashMapDelegate<>(8);
+		this.associatedDataMutations = new LazyHashMap<>(8);
 		this.baseAssociatedData = baseAssociatedData;
 		this.associatedDataPredicate = Droppable::exists;
 	}
 
 	/**
-	 * AssociatedDataBuilder constructor that will be used for building brand new {@link AssociatedData} container.
+	 * Creates a builder with a custom fetch predicate limiting accessible associated data.
+	 *
+	 * @param entitySchema schema used to validate names, types and locales for mutations
+	 * @param baseAssociatedData original container the mutations are virtually applied to
+	 * @param associatedDataPredicate predicate defining which values are considered fetched/accessible
 	 */
 	public ExistingAssociatedDataBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -109,13 +119,21 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		@Nonnull SerializablePredicate<AssociatedDataValue> associatedDataPredicate
 	) {
 		this.entitySchema = entitySchema;
-		this.associatedDataMutations = new LazyHashMapDelegate<>(8);
+		this.associatedDataMutations = new LazyHashMap<>(8);
 		this.baseAssociatedData = baseAssociatedData;
 		this.associatedDataPredicate = associatedDataPredicate;
 	}
 
 	/**
-	 * Method allows adding specific mutation on the fly.
+	 * Adds a single associated data mutation to this builder.
+	 *
+	 * - Validates that the target key is available in the current fetch context
+	 * - For upserts, validates type and locale against the schema
+	 * - Deduplicates no-op mutations by removing them from the pending set
+	 *
+	 * @param localMutation mutation to add (remove or upsert)
+	 * @throws ContextMissingException when the target key wasn't fetched in current context
+	 * @throws IllegalArgumentException when the predicate prohibits updates of the key
 	 */
 	public void addMutation(@Nonnull AssociatedDataMutation localMutation) {
 		final AssociatedDataKey associatedDataKey = localMutation.getAssociatedDataKey();
@@ -130,6 +148,8 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			);
 			if (isValueDiffers(upsertAssociatedDataMutation)) {
 				this.associatedDataMutations.put(associatedDataKey, upsertAssociatedDataMutation);
+			} else {
+				this.associatedDataMutations.remove(associatedDataKey);
 			}
 		} else if (localMutation instanceof RemoveAssociatedDataMutation removeAssociatedDataMutation) {
 			if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
@@ -401,6 +421,13 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			.collect(Collectors.toList());
 	}
 
+	/**
+	 * Returns the set of locales present in the current view of associated data, after applying
+	 * pending mutations and the fetch predicate. This operation iterates all values and may be
+	 * relatively expensive; it should not be called in tight loops.
+	 *
+	 * @return locales for which there is at least one associated data value
+	 */
 	@Nonnull
 	public Set<Locale> getAssociatedDataLocales() {
 		// this is quite expensive, but should not be called frequently
@@ -477,10 +504,10 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 	/**
-	 * Determines if the value of an associated data mutation differs from the corresponding base attribute value.
+	 * Determines if the value produced by the mutation differs from the corresponding base associated data value.
 	 *
 	 * @param associatedDataMutation the associated data mutation to check
-	 * @return true if the value differs, false otherwise
+	 * @return true if the resulting value differs from the base value; false otherwise
 	 */
 	private boolean isValueDiffers(@Nonnull AssociatedDataMutation associatedDataMutation) {
 		final AssociatedDataValue baseAssociatedData = this.baseAssociatedData

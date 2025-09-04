@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -48,7 +48,24 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 	 * Definition of the reference schema.
 	 */
 	private final ReferenceSchemaContract referenceSchema;
-
+	/**
+	 * Creates a builder over an existing set of reference attributes.
+	 *
+	 * The builder wraps provided attribute values and schemas for a particular reference type
+	 * defined by the `referenceSchema`. It allows accumulating attribute mutations and later
+	 * producing immutable {@link ReferenceAttributes} via {@code build()}.
+	 *
+	 * - `entitySchema` identifies the owning entity type the reference belongs to.
+	 * - `referenceSchema` identifies the reference type whose attributes are being modified.
+	 * - `attributes` are the current attribute values of the reference.
+	 * - `attributeTypes` provides known attribute schemas by name for fast lookups; if empty,
+	 *   schemas may be created implicitly when needed.
+	 *
+	 * @param entitySchema entity schema of the owning entity, must be non-null
+	 * @param referenceSchema schema of the reference, must be non-null
+	 * @param attributes existing attribute values of the reference, must be non-null
+	 * @param attributeTypes map of attribute name to schema for the reference, must be non-null
+	 */
 	public ExistingReferenceAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -59,6 +76,19 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 		this.referenceSchema = referenceSchema;
 	}
 
+	/**
+	 * Creates a builder over an existing set of reference attributes with predefined mutations.
+	 *
+	 * Compared to the other constructor, this one also accepts a collection of attribute mutations
+	 * that will be applied on top of the provided `attributes`. The final materialized state can be
+	 * obtained by calling {@code build()}.
+	 *
+	 * @param entitySchema entity schema of the owning entity, must be non-null
+	 * @param referenceSchema schema of the reference, must be non-null
+	 * @param attributes existing attribute values of the reference, must be non-null
+	 * @param attributeTypes map of attribute name to schema for the reference, must be non-null
+	 * @param attributeMutations mutations to apply on attributes, must be non-null
+	 */
 	public ExistingReferenceAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -86,7 +116,7 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 				this.referenceSchema,
 				newAttributeValues,
 				this.attributeTypes == null || this.attributeTypes.isEmpty() ?
-					new LazyHashMapDelegate<>(4) :
+					new LazyHashMap<>(4) :
 					new HashMap<>(this.attributeTypes)
 			);
 		} else {

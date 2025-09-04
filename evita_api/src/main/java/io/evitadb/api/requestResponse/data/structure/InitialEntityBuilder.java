@@ -182,7 +182,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		this.primaryKey = primaryKey;
 		this.scope = Scope.DEFAULT_SCOPE;
 		Assert.isTrue(
-			!schema.isWithGeneratedPrimaryKey() || schema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+			primaryKey == null || !schema.isWithGeneratedPrimaryKey() || schema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
 			() -> new InvalidMutationException(
 				"Schema `" + schema.getName() + "` is configured to generate primary keys." +
 					" Please call the constructor without primary key parameter."

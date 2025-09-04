@@ -27,12 +27,16 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Map;
 
 /**
  * Base mutation class for mutations that work with {@link Reference} of the {@link Entity}.
@@ -74,4 +78,21 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Name
 		return this.referenceKey.referenceName();
 	}
 
+	/**
+	 * Specialized method used in local builders to apply this mutation and keep information about shared attribute
+	 * schema definitions that were created implicitly on the client side and were not yet persisted in the reference
+	 * schema.
+	 *
+	 * @param entitySchema of the entity to which the reference belongs
+	 * @param existingValue current value of the reference - if the reference is not yet created, the value is null
+	 * @param attributeTypes map of attribute types that were created on the client side and are not yet persisted
+	 *                       in the schema
+	 * @return mutated reference
+	 */
+	@Nonnull
+	public abstract ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	);
 }

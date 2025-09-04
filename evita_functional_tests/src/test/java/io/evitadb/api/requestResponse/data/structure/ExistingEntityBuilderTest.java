@@ -25,8 +25,12 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.InvalidDataTypeMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -50,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -65,10 +70,14 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilderTest.assertCardinality;
 import static io.evitadb.test.Entities.BRAND;
@@ -759,7 +768,10 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final Entity modifiedInstance = eb.toInstance();
 
 		assertEquals(0, eb.getReferences(BRAND).size());
-		assertEquals(0, modifiedInstance.getReferences(BRAND).stream().filter(Droppable::exists).count());
+		assertThrows(
+			ReferenceNotFoundException.class,
+			() -> modifiedInstance.getReferences(BRAND)
+		);
 		assertEquals(1, eb.getReferences(PARAMETER).size());
 		assertNotEquals(
 			findRealParameter.getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class),
@@ -787,25 +799,30 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 		final Entity modifiedInstance = eb.toInstance();
 
-		assertEquals(1, eb.getReferences(PARAMETER).size());
-		assertEquals(1, modifiedInstance.getReferences(PARAMETER).stream().filter(Droppable::exists).count());
+		assertEquals(0, eb.getReferences(PARAMETER).size());
+		assertThrows(
+			ReferenceNotFoundException.class,
+			() -> modifiedInstance.getReferences(PARAMETER)
+		);
 		assertEquals(2, eb.getReferences(STORE).size());
 		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
 		assertEquals(
-			"B", eb.getReferences(STORE)
-			       .stream()
-			       .filter(Droppable::exists)
-			       .findFirst()
-			       .orElseThrow()
-			       .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+			Set.of("B"),
+			eb.getReferences(STORE)
+			  .stream()
+			  .filter(Droppable::exists)
+			  .flatMap(it -> it.getAttributeValue(ATTRIBUTE_DISCRIMINATOR).stream())
+			  .map(AttributeValue::value)
+			  .collect(Collectors.toSet())
 		);
 		assertEquals(
-			"B", modifiedInstance.getReferences(STORE)
-			                     .stream()
-			                     .filter(Droppable::exists)
-			                     .findFirst()
-			                     .orElseThrow()
-			                     .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+			Set.of("B"),
+			modifiedInstance.getReferences(STORE)
+			  .stream()
+			  .filter(Droppable::exists)
+			  .flatMap(it -> it.getAttributeValue(ATTRIBUTE_DISCRIMINATOR).stream())
+			  .map(AttributeValue::value)
+			  .collect(Collectors.toSet())
 		);
 	}
 
@@ -827,20 +844,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(2, eb.getReferences(STORE).size());
 		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
 		assertEquals(
-			"B", eb.getReferences(STORE)
-			       .stream()
-			       .filter(Droppable::exists)
-			       .findFirst()
-			       .orElseThrow()
-			       .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+			Set.of("B"),
+			eb.getReferences(STORE)
+			  .stream()
+			  .filter(Droppable::exists)
+			  .flatMap(it -> it.getAttributeValue(ATTRIBUTE_DISCRIMINATOR).stream())
+			  .map(AttributeValue::value)
+			  .collect(Collectors.toSet())
 		);
 		assertEquals(
-			"B", modifiedInstance.getReferences(STORE)
-			                     .stream()
-			                     .filter(Droppable::exists)
-			                     .findFirst()
-			                     .orElseThrow()
-			                     .getAttribute(ATTRIBUTE_DISCRIMINATOR, String.class)
+			Set.of("B"),
+			modifiedInstance.getReferences(STORE)
+			  .stream()
+			  .filter(Droppable::exists)
+			  .flatMap(it -> it.getAttributeValue(ATTRIBUTE_DISCRIMINATOR).stream())
+			  .map(AttributeValue::value)
+			  .collect(Collectors.toSet())
 		);
 	}
 
@@ -936,6 +955,104 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(PriceInnerRecordHandling.SUM, entity.getPriceInnerRecordHandling());
 		assertEquals(1, entity.getPrices().size());
 		assertNotNull(entity.getPrice(new PriceKey(1, "basic", Currency.getInstance("USD"))).orElseThrow());
+	}
+
+	@Test
+	void shouldKeepPreviousDataOnMultipleEditsOfNewReference() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceTo(BRAND, BRAND, Cardinality.ZERO_OR_MORE)
+			.toInstance();
+
+		final ReferenceSchemaContract referenceSchema = schema.getReferenceOrThrowException(BRAND);
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(
+			Entity._internalBuild(
+				1, 1, schema,
+				null,
+				new References(
+					schema,
+					List.of(
+						new Reference(
+							referenceSchema,
+							new ReferenceKey(BRAND, 1, 1),
+							null,
+							new ReferenceAttributes(
+								schema,
+								referenceSchema,
+								Map.of(
+									new AttributeKey("priority"),
+									new AttributeValue(new AttributeKey("priority"), 10)
+								),
+								Map.of()
+							)
+						)
+					),
+					Set.of(BRAND),
+					References.DEFAULT_CHUNK_TRANSFORMER
+				),
+				new EntityAttributes(schema),
+				new AssociatedData(schema),
+				new Prices(schema, PriceInnerRecordHandling.NONE),
+				new HashSet<>(0),
+				Scope.LIVE
+			)
+		);
+		builder.setReference(
+			BRAND, 1,
+			whichIs -> {
+				assertEquals(1, whichIs.getReferenceKey().internalPrimaryKey());
+				assertEquals(BRAND, whichIs.getReferencedEntityType());
+				assertEquals(BRAND, whichIs.getReferenceSchemaOrThrow().getReferencedEntityType());
+				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceCardinality());
+				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceSchemaOrThrow().getCardinality());
+				assertEquals(10, whichIs.getAttribute("priority", Integer.class).intValue());
+				whichIs.setAttribute("priority", 11);
+			}
+		);
+		builder.setReference(
+			BRAND, 1,
+			whichIs -> {
+				assertEquals(1, whichIs.getReferenceKey().internalPrimaryKey());
+				assertEquals(BRAND, whichIs.getReferencedEntityType());
+				assertEquals(BRAND, whichIs.getReferenceSchemaOrThrow().getReferencedEntityType());
+				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceCardinality());
+				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceSchemaOrThrow().getCardinality());
+				assertEquals(11, whichIs.getAttribute("priority", Integer.class).intValue());
+				whichIs.setAttribute("someOtherAttribute", "Y");
+			}
+		);
+		builder.setReference(
+			BRAND, 2,
+			whichIs -> whichIs.setAttribute("priority", 1)
+		);
+		builder.setReference(
+			BRAND, 2,
+			whichIs -> {
+				assertEquals(-1, whichIs.getReferenceKey().internalPrimaryKey());
+				assertEquals(BRAND, whichIs.getReferencedEntityType());
+				assertEquals(BRAND, whichIs.getReferenceSchemaOrThrow().getReferencedEntityType());
+				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceCardinality());
+				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceSchemaOrThrow().getCardinality());
+				assertEquals(1, whichIs.getAttribute("priority", Integer.class).intValue());
+				whichIs.setAttribute("someOtherAttribute", "X");
+			}
+		);
+		assertThrows(
+			InvalidDataTypeMutationException.class,
+			() -> {
+				builder.setReference(
+					BRAND, 2,
+					whichIs -> whichIs.setAttribute("someOtherAttribute", 1)
+				);
+			}
+		);
+		final List<? extends LocalMutation<?, ?>> localMutations = builder
+			.toMutation()
+			.orElseThrow()
+			.getLocalMutations();
+		assertEquals(5, localMutations.size());
 	}
 
 	@Test

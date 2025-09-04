@@ -162,6 +162,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	}
 
 	@Nonnull
+	@Override
 	public ReferenceContract mutateLocal(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceContract existingValue,

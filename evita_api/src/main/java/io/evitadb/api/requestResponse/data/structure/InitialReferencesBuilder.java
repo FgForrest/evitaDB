@@ -47,7 +47,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -103,7 +103,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	/**
 	 * Map of attribute types for the reference shared for all references of the same type.
 	 */
-	private final Map<String, AttributeSchemaContract> attributeTypes = new LazyHashMapDelegate<>(4);
+	private final Map<String, AttributeSchemaContract> attributeTypes = new LazyHashMap<>(4);
 
 	InitialReferencesBuilder(@Nonnull EntitySchemaContract schema) {
 		this.schema = schema;
@@ -403,7 +403,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				getNextReferenceInternalId(),
 				this.attributeTypes
 			);
-			addReferenceInternal(whichIs.apply(builder).build());
+			addOrReplaceReferenceInternal(whichIs.apply(builder).build());
 			return this;
 		} else if (theReference == References.DUPLICATE_REFERENCE) {
 			// existing list of references was found - and we know it's duplicates
@@ -679,7 +679,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 
 	@Override
 	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
-		addReferenceInternal(referenceBuilder.build());
+		addOrReplaceReferenceInternal(referenceBuilder.build());
 	}
 
 	@Nonnull
@@ -889,18 +889,47 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 *
 	 * @param reference the reference to be added; must not be null
 	 */
-	private void addReferenceInternal(@Nonnull ReferenceContract reference) {
+	private void addOrReplaceReferenceInternal(@Nonnull ReferenceContract reference) {
 		if (this.referenceCollection == null || this.references == null) {
 			this.referenceCollection = new ArrayList<>(16);
 			this.references = new LinkedHashMap<>(16);
 		}
 		final ReferenceContract referenceWithAssignedInternalId = getReference(reference);
-		this.referenceCollection.add(referenceWithAssignedInternalId);
 		this.references.compute(
 			referenceWithAssignedInternalId.getReferenceKey(),
-			(key, existingValue) ->
-				existingValue == null ? referenceWithAssignedInternalId : References.DUPLICATE_REFERENCE
+			(key, existingValue) -> {
+				if (existingValue == null) {
+					addNewReference(referenceWithAssignedInternalId, this.referenceCollection);
+					return referenceWithAssignedInternalId;
+				} else {
+					final int existingPk = existingValue.getReferenceKey().internalPrimaryKey();
+					final int newPk = referenceWithAssignedInternalId.getReferenceKey().internalPrimaryKey();
+					if (existingPk == newPk) {
+						replaceReference(referenceWithAssignedInternalId, this.referenceCollection);
+						// replacing existing reference with the same internal id
+						return referenceWithAssignedInternalId;
+					} else {
+						addNewReference(referenceWithAssignedInternalId, this.referenceCollection);
+						// marking as duplicate
+						return References.DUPLICATE_REFERENCE;
+					}
+				}
+			}
 		);
+	}
+
+	/**
+	 * Adds a new reference to the provided reference collection and updates the
+	 * count of references defined for the given reference name.
+	 *
+	 * @param referenceWithAssignedInternalId the reference object with an assigned internal ID
+	 * @param theReferenceCollection the collection to which the reference will be added
+	 */
+	private void addNewReference(
+		@Nonnull ReferenceContract referenceWithAssignedInternalId,
+		@Nonnull List<ReferenceContract> theReferenceCollection
+	) {
+		// update duplicates count
 		if (this.referencesDefinedCount == null) {
 			this.referencesDefinedCount = new HashMap<>(8);
 		}
@@ -908,6 +937,26 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			referenceWithAssignedInternalId.getReferenceName(),
 			(name, count) -> count == null ? 1 : count + 1
 		);
+		theReferenceCollection.add(referenceWithAssignedInternalId);
+	}
+
+	/**
+	 * Replaces an existing reference in the provided collection with the given reference.
+	 * The method removes the reference identified by its internal ID and adds the given
+	 * reference to the collection.
+	 *
+	 * @param referenceWithAssignedInternalId the reference object with an assigned internal ID
+	 *        that will replace an existing reference in the collection
+	 * @param theReferenceCollection the collection of references in which the replacement
+	 *        occurs
+	 */
+	@SuppressWarnings("MethodMayBeStatic")
+	private void replaceReference(
+		@Nonnull ReferenceContract referenceWithAssignedInternalId,
+		@Nonnull List<ReferenceContract> theReferenceCollection
+	) {
+		theReferenceCollection.remove(referenceWithAssignedInternalId);
+		theReferenceCollection.add(referenceWithAssignedInternalId);
 	}
 
 	/**
@@ -1008,7 +1057,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			this.attributeTypes
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
-		addReferenceInternal(builder.build());
+		addOrReplaceReferenceInternal(builder.build());
 		return this;
 	}
 

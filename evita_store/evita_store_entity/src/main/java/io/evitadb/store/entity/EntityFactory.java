@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.References;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -100,8 +100,9 @@ public class EntityFactory {
 				)
 			);
 		return Entity._internalBuild(
+			entityStorageContainer.getPrimaryKey(),
 			entityStorageContainer.getVersion(),
-			entityStorageContainer.getPrimaryKey(), entitySchema,
+			entitySchema,
 			entityStorageContainer.getParent(),
 			// when references storage container is present use it, otherwise init references by empty collection
 			new References(
@@ -118,7 +119,7 @@ public class EntityFactory {
 				entitySchema,
 				// fill all contents of the attributes loaded from storage (may be empty)
 				attributeValues,
-				new LazyHashMapDelegate<>(4)
+				new LazyHashMap<>(4)
 			),
 			// always initialize Associated data container
 			new AssociatedData(
@@ -190,10 +191,9 @@ public class EntityFactory {
 
 		return Entity._internalBuild(
 			entity,
-			ofNullable(entityStoragePart)
+			Objects.requireNonNull(entity.getPrimaryKey()), ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getVersion)
 				.orElse(entity.version()),
-			Objects.requireNonNull(entity.getPrimaryKey()),
 			entitySchema,
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getParent)
@@ -216,7 +216,7 @@ public class EntityFactory {
 				new EntityAttributes(
 					entitySchema,
 					attributeValues,
-					new LazyHashMapDelegate<>(4)
+					new LazyHashMap<>(4)
 				),
 			// when no additional associated data containers were loaded
 			associatedDataStorageContainers.isEmpty() ?

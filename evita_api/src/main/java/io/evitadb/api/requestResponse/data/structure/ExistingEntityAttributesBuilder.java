@@ -25,7 +25,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,8 +41,23 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ExistingEntityAttributesBuilder extends ExistingAttributesBuilder<EntityAttributeSchemaContract, ExistingEntityAttributesBuilder> {
+	/**
+	 * Serialization identifier for {@link java.io.Serializable} support. It ensures compatibility
+	 * across versions of this builder when serialized. The value is stable and must be updated only
+	 * when the serialized form changes in an incompatible way.
+	 */
 	@Serial private static final long serialVersionUID = -9128971033768855164L;
 
+	/**
+	 * Creates a builder for editing existing entity attributes using the provided entity schema and
+	 * the base set of attributes.
+	 *
+	 * - The builder does not duplicate data until a mutation is applied.
+	 * - Resulting attributes instance is created lazily in {@link #build()} when changes exist.
+	 *
+	 * @param entitySchema the schema of the entity whose attributes are being edited; must not be null
+	 * @param baseAttributes the current attributes that serve as the base for modifications; must not be null
+	 */
 	public ExistingEntityAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Attributes<EntityAttributeSchemaContract> baseAttributes
@@ -50,6 +65,19 @@ public class ExistingEntityAttributesBuilder extends ExistingAttributesBuilder<E
 		super(entitySchema, baseAttributes);
 	}
 
+	/**
+	 * Creates a builder for editing existing entity attributes with additional filtering and known
+	 * attribute schemas.
+	 *
+	 * - The {@code attributePredicate} allows the caller to pre-filter visible attribute values.
+	 * - The {@code attributeTypes} map provides explicit schemas for known attributes; if empty, schemas
+	 *   can be created implicitly for unknown attributes when allowed by the entity schema evolution.
+	 *
+	 * @param entitySchema the schema of the entity whose attributes are being edited; must not be null
+	 * @param baseAttributes the current attributes that serve as the base for modifications; must not be null
+	 * @param attributePredicate predicate to filter attribute values considered by this builder; must not be null
+	 * @param attributeTypes map of attribute name to attribute schema available to the builder; must not be null
+	 */
 	public ExistingEntityAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Attributes<EntityAttributeSchemaContract> baseAttributes,
@@ -74,7 +102,7 @@ public class ExistingEntityAttributesBuilder extends ExistingAttributesBuilder<E
 				this.baseAttributes.entitySchema,
 				newAttributeValues,
 				this.attributeTypes == null || this.attributeTypes.isEmpty() ?
-					new LazyHashMapDelegate<>(4) :
+					new LazyHashMap<>(4) :
 					new HashMap<>(this.attributeTypes)
 			);
 		} else {

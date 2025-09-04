@@ -66,17 +66,45 @@ import static java.util.Optional.ofNullable;
 /**
  * Builder that is used to alter existing {@link Reference}.
  *
+ * The builder accumulates attribute and group mutations for an already existing reference and can
+ * produce a new immutable {@link Reference} instance reflecting those changes. If no change is
+ * staged, {@code build()} returns the original reference instance.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable {
 	@Serial private static final long serialVersionUID = 4611697377656713570L;
+	/**
+	 * Reference instance this builder wraps and mutates logically. Acts as the baseline state that
+	 * mutations are applied against when producing the final {@link Reference} in {@code build()}.
+	 */
 
 	@Getter private final ReferenceContract baseReference;
+	/**
+	 * Entity schema of the owning entity. Used to resolve reference schemas and validate mutations.
+	 */
 	@Getter private final EntitySchemaContract entitySchema;
+	/**
+	 * Delegate that handles attribute mutations for this reference. Exposed via {@link AttributesContract}
+	 * through Lombok {@code @Delegate} to provide attribute editing API.
+	 */
 	@Delegate(types = AttributesContract.class)
 	private final ExistingReferenceAttributesBuilder attributesBuilder;
+	/**
+	 * Pending mutation changing the reference group (set/remove). When null, no group change is staged.
+	 */
 	private ReferenceMutation<ReferenceKey> referenceGroupMutation;
 
+ /**
+	 * Creates a builder for an existing reference without any pre-applied mutations.
+	 *
+	 * The provided `attributeTypes` may speed up schema resolution of attributes for this
+	 * reference; if empty, schemas may be created implicitly if allowed by the schema.
+	 *
+	 * @param baseReference reference to wrap and mutate, must be non-null
+	 * @param entitySchema schema of the owning entity, must be non-null
+	 * @param attributeTypes known attribute schemas by name for the reference, must be non-null
+	 */
 	public ExistingReferenceBuilder(
 		@Nonnull ReferenceContract baseReference,
 		@Nonnull EntitySchemaContract entitySchema,
@@ -85,18 +113,32 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		this(baseReference, entitySchema, Collections.emptyList(), attributeTypes);
 	}
 
+ /**
+	 * Creates a builder initialized with an existing set of local mutations.
+	 *
+	 * Supported mutation types are:
+	 * - {@link AttributeMutation} for attribute changes on the reference
+	 * - {@link SetReferenceGroupMutation} and {@link RemoveReferenceMutation} for group changes
+	 *
+	 * Any other mutation type will cause an {@link io.evitadb.exception.EvitaInvalidUsageException}.
+	 *
+	 * @param baseReference reference to wrap and mutate, must be non-null
+	 * @param entitySchema schema of the owning entity, must be non-null
+	 * @param mutations local mutations to apply, must be non-null
+	 * @param attributeTypes known attribute schemas by name for the reference, must be non-null
+	 */
 	public ExistingReferenceBuilder(
 		@Nonnull ReferenceContract baseReference,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull Collection<LocalMutation<?, ?>> mutations,
+		@Nonnull Collection<? extends LocalMutation<?, ?>> mutations,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
 		final List<AttributeMutation> attributeMutations = new ArrayList<>(mutations.size());
 		for (LocalMutation<?, ?> mutation : mutations) {
-			if (mutation instanceof AttributeMutation attributeMutation) {
-				attributeMutations.add(attributeMutation);
+			if (mutation instanceof ReferenceAttributeMutation ram) {
+				attributeMutations.add(ram.getAttributeMutation());
 			} else if (mutation instanceof SetReferenceGroupMutation referenceMutation) {
 				this.referenceGroupMutation = referenceMutation;
 			} else if (mutation instanceof RemoveReferenceMutation referenceMutation) {

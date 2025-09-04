@@ -26,7 +26,6 @@ package io.evitadb.dataType.map;
 
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,15 +38,20 @@ import java.util.Set;
 
 /**
  * A lazy-initialized delegate for a {@link HashMap}, allowing deferred creation of the underlying map
- * until it is actually needed. This class implements the {@link Map} interface and utilizes
- * Lombok's {@link Delegate} annotation to forward method calls to the underlying {@link HashMap}.
+ * until it is actually needed. This class implements the {@link Map} interface and forward method calls
+ * to the underlying {@link HashMap}.
+ *
+ * This implementation is particularly useful in scenarios where the map may not always be used,
+ * thus saving memory and processing time by avoiding unnecessary instantiation.
+ *
+ * The map is initialized with an expected size to optimize memory allocation.
  *
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  *           @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @RequiredArgsConstructor
-public class LazyHashMapDelegate<K, V> implements Map<K, V> {
+public class LazyHashMap<K, V> implements Map<K, V> {
 	private final int expectedSize;
 	private HashMap<K, V> delegate;
 

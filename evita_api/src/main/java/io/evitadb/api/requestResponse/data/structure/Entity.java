@@ -302,8 +302,8 @@ public class Entity implements SealedEntity {
 	 */
 	@Nonnull
 	public static Entity _internalBuild(
-		int version,
 		int primaryKey,
+		int version,
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer parent,
 		@Nonnull References references,
@@ -331,8 +331,8 @@ public class Entity implements SealedEntity {
 	@Nonnull
 	public static Entity _internalBuild(
 		@Nonnull Entity entity,
-		int version,
 		int primaryKey,
+		int version,
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer parent,
 		@Nullable References references,
@@ -794,15 +794,19 @@ public class Entity implements SealedEntity {
 		)
 			// and register it in the map
 			.ifPresent(it -> {
+				final int internalPrimaryKey;
 				if (it.getReferenceKey().isUnknownReference()) {
+					internalPrimaryKey = localPkSequence.decrementAndGet();
 					it = it instanceof Reference r ?
-						new Reference(localPkSequence.decrementAndGet(), r) :
-						new Reference(entitySchema, it.getReferenceSchemaOrThrow(), localPkSequence.decrementAndGet(), it);
+						new Reference(internalPrimaryKey, r) :
+						new Reference(entitySchema, it.getReferenceSchemaOrThrow(), internalPrimaryKey, it);
+				} else {
+					internalPrimaryKey = it.getReferenceKey().internalPrimaryKey();
 				}
 				final ReferenceKey genericReferenceKey = referenceKey.isUnknownReference() ?
 					referenceKey : new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
 				newReferences.computeIfAbsent(genericReferenceKey, k -> new HashMap<>(2))
-				             .put(referenceKey.internalPrimaryKey(), it);
+				             .put(internalPrimaryKey, it);
 			});
 	}
 
@@ -1008,6 +1012,18 @@ public class Entity implements SealedEntity {
 			this.parentAvailable(),
 			() -> new EntityIsNotHierarchicalException(this.schema.getName())
 		);
+		return ofNullable(this.parent)
+			.map(it -> new EntityReferenceWithParent(this.type, it, null));
+	}
+
+	/**
+	 * Retrieves the parent entity without performing any schema validation checks.
+	 *
+	 * @return an Optional containing the parent entity wrapped in an EntityClassifierWithParent object
+	 *         if it exists, or an empty Optional if there is no parent entity.
+	 */
+	@Nonnull
+	public Optional<EntityClassifierWithParent> getParentEntityWithoutSchemaCheck() {
 		return ofNullable(this.parent)
 			.map(it -> new EntityReferenceWithParent(this.type, it, null));
 	}

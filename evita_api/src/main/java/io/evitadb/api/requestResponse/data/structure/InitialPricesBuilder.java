@@ -75,15 +75,43 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 * Entity schema if available.
 	 */
 	private final EntitySchemaContract entitySchema;
+	/**
+	 * In-memory store of all prices keyed by their unique {@link PriceKey}. This builder operates on
+	 * a fresh entity, therefore every price placed here is considered already "touched" and will be
+	 * fully materialized to the resulting {@link Prices} instance without additional change tracking.
+	 */
 	private final Map<PriceKey, PriceContract> prices;
+	/**
+	 * Strategy describing how inner price records are interpreted when multiple prices share
+	 * the same price list and currency. Defaults to {@link PriceInnerRecordHandling#NONE}.
+	 */
 	@Getter private PriceInnerRecordHandling priceInnerRecordHandling;
 
+	/**
+	 * Creates a new builder for a freshly created entity.
+	 *
+	 * - Initializes an empty price map with a small default capacity to minimize allocations.
+	 * - Sets {@link #priceInnerRecordHandling} to {@link PriceInnerRecordHandling#NONE}.
+	 *
+	 * @param entitySchema entity schema of the target entity; required for validation of prices
+	 */
 	InitialPricesBuilder(EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		this.prices = CollectionUtils.createHashMap(16);
 		this.priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
 	}
 
+	/**
+	 * Creates a new builder pre-populated with existing prices.
+	 *
+	 * All provided prices are validated for currency and ambiguity and copied into an internal map. If
+	 * {@code priceInnerRecordHandling} is {@code null}, the handling defaults to
+	 * {@link PriceInnerRecordHandling#NONE}.
+	 *
+	 * @param schema entity schema used to validate that prices and currencies are allowed
+	 * @param priceInnerRecordHandling desired inner record handling or {@code null} for default
+	 * @param prices collection of prices to seed the builder with
+	 */
 	InitialPricesBuilder(
 		@Nonnull EntitySchemaContract schema,
 		@Nullable PriceInnerRecordHandling priceInnerRecordHandling,
@@ -346,7 +374,15 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	/**
-	 * Method throws {@link AmbiguousPriceException} when there is conflict in prices.
+	 * Verifies there is no ambiguity with already added prices.
+	 *
+	 * Two prices are considered ambiguous if they share the same price list and currency, have different
+	 * {@code priceId}, the same {@code innerRecordId} (including both being {@code null}), and their validity
+	 * intervals overlap (or the new price has no validity defined). In such a case, an
+	 * {@link AmbiguousPriceException} is thrown to prevent creating an inconsistent price set.
+	 *
+	 * @param price the price that is about to be added; checked against already present prices
+	 * @throws AmbiguousPriceException when an ambiguous price is detected
 	 */
 	private void assertPriceNotAmbiguousBeforeAdding(@Nonnull Price price) {
 		final PriceContract conflictingPrice = getPrices()

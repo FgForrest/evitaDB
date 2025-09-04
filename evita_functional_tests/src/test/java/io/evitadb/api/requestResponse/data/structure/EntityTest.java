@@ -172,7 +172,6 @@ class EntityTest extends AbstractBuilderTest {
 		assertEquals(2, e.version());
 		assertEquals(321, e.getPrimaryKey());
 		assertTrue(e.getReferenceNames().contains(BRAND));
-		assertTrue(e.getReferenceNames().contains("customRef"));
 		assertTrue(e.parentAvailable());
 		assertTrue(e.dropped());
 	}
@@ -200,8 +199,8 @@ class EntityTest extends AbstractBuilderTest {
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
 
 		final Entity e = Entity._internalBuild(
-			3,
 			777,
+			3,
 			schema,
 			null,
 			references,
@@ -234,8 +233,7 @@ class EntityTest extends AbstractBuilderTest {
 
 		final Entity e = Entity._internalBuild(
 			base,
-			base.version() + 5,
-			888,
+			888, base.version() + 5,
 			schema,
 			99,
 			null,

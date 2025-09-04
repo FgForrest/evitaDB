@@ -34,7 +34,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
+import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Delegate;
 
@@ -167,7 +168,7 @@ public class Reference implements ReferenceContract {
 			reference.getAttributeValues(),
 			reference instanceof Reference ref && !(ref.attributes.attributeTypes.isEmpty()) ?
 				new HashMap<>(ref.attributes.attributeTypes) :
-				new LazyHashMapDelegate<>(4)
+				new LazyHashMap<>(4)
 		);
 		this.dropped = reference.dropped();
 	}
@@ -257,6 +258,7 @@ public class Reference implements ReferenceContract {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group,
 		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
 		boolean dropped
 	) {
 		this.referenceSchema = referenceSchema;
@@ -267,7 +269,7 @@ public class Reference implements ReferenceContract {
 			entitySchema,
 			referenceSchema,
 			attributes,
-			new LazyHashMapDelegate<>(4)
+			attributeTypes
 		);
 		this.dropped = dropped;
 	}
@@ -278,6 +280,10 @@ public class Reference implements ReferenceContract {
 		@Nullable GroupEntityReference group,
 		@Nonnull Attributes<AttributeSchemaContract> attributes
 	) {
+		Assert.isPremiseValid(
+			!referenceKey.isUnknownReference(),
+			"Internal id must be non-zero!"
+		);
 		this.referenceSchema = referenceSchema;
 		this.version = 1;
 		this.referenceKey = referenceKey;

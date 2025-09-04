@@ -766,7 +766,7 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull String referenceName
 	) throws ContextMissingException {
 		this.referencePredicate.checkFetched(referenceName);
-		this.delegate.references.checkReferenceName(referenceName, true);
+		this.delegate.references.checkReferenceNameAndCardinality(referenceName, true);
 		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
 		return chunk == null ?
 				this.delegate.references

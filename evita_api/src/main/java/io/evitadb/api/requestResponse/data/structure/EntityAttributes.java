@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -67,7 +67,7 @@ public class EntityAttributes extends Attributes<EntityAttributeSchemaContract> 
 		super(
 			entitySchema,
 			Collections.emptyList(),
-			new LazyHashMapDelegate<>(4)
+			new LazyHashMap<>(4)
 		);
 	}
 

@@ -64,6 +64,9 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
+	/**
+	 * Stable class version identifier used during Java serialization.
+	 */
 	@Serial private static final long serialVersionUID = 7714436064799237939L;
 	/**
 	 * Entity schema if available.
@@ -75,13 +78,28 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	private final Map<AssociatedDataKey, AssociatedDataValue> associatedDataValues;
 
 	/**
-	 * AssociatedDataBuilder constructor that will be used for building brand new {@link AssociatedData} container.
+	 * Creates a brand new mutable builder for constructing an {@link AssociatedData} container
+	 * from scratch.
+	 *
+	 * - Verifies all written entries against the provided {@link EntitySchemaContract}.
+	 * - Optimized for newly created entities where no change tracking is required.
+	 *
+	 * @param entitySchema non-null entity schema used for validation and locale support
 	 */
 	InitialAssociatedDataBuilder(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		this.associatedDataValues = CollectionUtils.createHashMap(8);
 	}
 
+	/**
+	 * Creates a builder pre-populated with the provided associated data values.
+	 *
+	 * Each value is re-inserted via {@code setAssociatedData(...)} to ensure proper schema/type
+	 * verification and to respect localization.
+	 *
+	 * @param schema non-null entity schema used for validation
+	 * @param associatedDataValues initial values to populate this builder with
+	 */
 	InitialAssociatedDataBuilder(
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull Collection<AssociatedDataValue> associatedDataValues
@@ -312,15 +330,23 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 			);
 	}
 
-	@Nonnull
-	public Set<Locale> getAssociatedDataLocales() {
-		return this.associatedDataValues
-				.keySet()
-				.stream()
-				.map(AssociatedDataKey::locale)
-				.filter(Objects::nonNull)
-				.collect(Collectors.toSet());
-	}
+ @Nonnull
+ /**
+  * Returns the set of all locales that appear on any localized associated data currently
+  * stored in this builder.
+  *
+  * Non-localized entries are ignored.
+  *
+  * @return non-null set of locales present among localized associated data keys
+  */
+ public Set<Locale> getAssociatedDataLocales() {
+ 	return this.associatedDataValues
+ 			.keySet()
+ 			.stream()
+ 			.map(AssociatedDataKey::locale)
+ 			.filter(Objects::nonNull)
+ 			.collect(Collectors.toSet());
+ }
 
 	@Nonnull
 	@Override
@@ -367,7 +393,19 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		);
 	}
 
-	static void verifyAssociatedDataIsInSchemaAndTypeMatch(
+ /**
+ * Verifies that the associated data with the given name exists in the schema (or that evolution allows
+ * adding it) and that the provided value type is compatible with the configured type.
+ *
+ * This variant validates a non-localized value.
+ *
+ * @param entitySchema non-null entity schema used for validation
+ * @param associatedDataName non-null associated data name
+ * @param aClass nullable runtime type of the value to verify; when {@code null} only schema presence is checked
+ * @throws InvalidMutationException when the associated data is not present and evolution does not allow adding it
+ * @throws InvalidDataTypeMutationException when the value type is incompatible with the schema
+ */
+static void verifyAssociatedDataIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass
@@ -378,7 +416,19 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		);
 	}
 
-	static void verifyAssociatedDataIsInSchemaAndTypeMatch(
+ /**
+ * Verifies schema presence and type compatibility for a potentially localized associated data value.
+ *
+ * When {@code locale} is non-null, localization constraints and supported locales are validated.
+ *
+ * @param entitySchema non-null entity schema
+ * @param associatedDataName non-null associated data name
+ * @param aClass nullable runtime type of the value; when {@code null} only schema/localization is checked
+ * @param locale nullable locale; when non-null validates localized schema and locale support
+ * @throws InvalidMutationException when schema/localization constraints are violated
+ * @throws InvalidDataTypeMutationException when the value type is incompatible with the schema
+ */
+static void verifyAssociatedDataIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass,
@@ -391,7 +441,24 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 
-	static void verifyAssociatedDataIsInSchemaAndTypeMatch(
+ /**
+ * Low-level verification routine that performs full validation against an explicit
+ * {@link AssociatedDataSchemaContract} instance (when available).
+ *
+ * It validates:
+ * - presence or evolvability of the associated data in the schema
+ * - value type compatibility (when {@code aClass} provided)
+ * - localization rules and supported locales (when {@code locale} provided)
+ *
+ * @param entitySchema non-null entity schema
+ * @param associatedDataName non-null associated data name
+ * @param aClass nullable runtime type of the value
+ * @param locale nullable locale to validate localization constraints
+ * @param associatedDataSchema nullable explicit schema to validate against
+ * @throws InvalidMutationException on schema or localization violations
+ * @throws InvalidDataTypeMutationException on incompatible value type
+ */
+static void verifyAssociatedDataIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass,

@@ -54,7 +54,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
-import io.evitadb.dataType.map.LazyHashMapDelegate;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -166,7 +166,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.baseEntityDecorator = null;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(
 			this.baseEntity.schema, this.baseEntity.attributes,
-			ExistsPredicate.instance(), new LazyHashMapDelegate<>(4)
+			ExistsPredicate.instance(), new LazyHashMap<>(4)
 		);
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
 			this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance()
@@ -209,7 +209,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.baseEntityDecorator = baseEntity;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(
 			this.baseEntity.schema, this.baseEntity.attributes,
-			baseEntity.getAttributePredicate(), new LazyHashMapDelegate<>(4)
+			baseEntity.getAttributePredicate(), new LazyHashMap<>(4)
 		);
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
 			this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate()
@@ -325,28 +325,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		if (!parentAvailable()) {
 			throw ContextMissingException.hierarchyContextMissing();
 		}
-		return ofNullable(this.hierarchyMutation)
-			.map(it ->
-			     {
-				     final EntitySchemaContract schema = getSchema();
-				     return it.mutateLocal(
-					              schema,
-					              this.baseEntity.parent == null ?
-						              OptionalInt.empty() : OptionalInt.of(this.baseEntity.parent)
-				              )
-				              .stream()
-				              .mapToObj(
-					              pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(
-						              getType(), pId, null
-					              )
-				              )
-				              .findFirst();
-			     }
-			)
-			.orElseGet(
-				() -> this.baseEntityDecorator == null ?
-					this.baseEntity.getParentEntity() : this.baseEntityDecorator.getParentEntity()
-			);
+		return getParentEntityWithoutSchemaCheck();
 	}
 
 	@Nonnull
@@ -414,7 +393,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 				"Entity `" + getType() + "` is not hierarchical and its schema doesn't allow to become hierarchical on first hierarchy mutation!"
 			);
 		}
-		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParentWithoutSchemaCheck(), OptionalInt.of(parentPrimaryKey)) ?
+		this.hierarchyMutation = !Objects.equals(
+			this.baseEntity.getParentWithoutSchemaCheck(), OptionalInt.of(parentPrimaryKey)) ?
 			new SetParentMutation(parentPrimaryKey) : null;
 		return this;
 	}
@@ -912,7 +892,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 				this.getPrimaryKey(),
 				this.version(),
 				this.getSchema(),
-				this.getParentEntity().map(EntityClassifier::getPrimaryKey).orElse(null),
+				this.getParentEntityWithoutSchemaCheck().map(EntityClassifier::getPrimaryKey).orElse(null),
 				this.referencesBuilder.build(),
 				this.attributesBuilder.build(),
 				this.associatedDataBuilder.build(),
@@ -935,6 +915,41 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this.baseEntity.getReference(reference.getReferenceKey())
 		                      .map(Droppable::exists)
 		                      .orElse(false);
+	}
+
+	/**
+	 * Retrieves the parent entity without performing a schema check. This method utilizes the current state of
+	 * the hierarchy mutation, schema, base entity, and optional base entity decorators to compute and return
+	 * the parent entity, if present. If hierarchy-related functionality is not enabled in the schema, the method
+	 * will derive the parent entity from the base entity directly.
+	 *
+	 * @return an Optional containing the parent entity as an {@link EntityClassifierWithParent} if present;
+	 * otherwise, an empty Optional is returned.
+	 */
+	@Nonnull
+	private Optional<EntityClassifierWithParent> getParentEntityWithoutSchemaCheck() {
+		return ofNullable(this.hierarchyMutation)
+			.map(it ->
+			     {
+				     final EntitySchemaContract schema = getSchema();
+				     return it.mutateLocal(
+					              schema,
+					              this.baseEntity.parent == null ?
+						              OptionalInt.empty() : OptionalInt.of(this.baseEntity.parent)
+				              )
+				              .stream()
+				              .mapToObj(
+					              pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(
+						              getType(), pId, null
+					              )
+				              )
+				              .findFirst();
+			     }
+			)
+			.orElseGet(
+				() -> this.baseEntityDecorator == null || !this.getSchema().isWithHierarchy() ?
+					this.baseEntity.getParentEntityWithoutSchemaCheck() : this.baseEntityDecorator.getParentEntity()
+			);
 	}
 
 }

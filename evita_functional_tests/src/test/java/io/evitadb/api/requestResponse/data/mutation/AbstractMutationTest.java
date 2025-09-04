@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -63,7 +64,7 @@ public abstract class AbstractMutationTest {
 		Collections.emptySet(),
 		Collections.emptyMap(),
 		Collections.emptyMap(),
-		Collections.singletonMap(
+		Map.of(
 			"brand",
 			ReferenceSchema._internalBuild(
 				"brand",
@@ -74,6 +75,29 @@ public abstract class AbstractMutationTest {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
 				new Scope[] {Scope.LIVE}
+			),
+			"category",
+			ReferenceSchema._internalBuild(
+				"category",
+				null,
+				null,
+				"category",
+				false,
+				Cardinality.ZERO_OR_MORE,
+				null, false,
+				new ScopedReferenceIndexType[] {
+					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new Scope[] {Scope.LIVE},
+				Map.of(
+					"categoryPriority",
+					AttributeSchema._internalBuild(
+						"categoryPriority",
+						Long.class,
+						false
+					)
+				),
+				Map.of()
 			)
 		),
 		EnumSet.allOf(EvolutionMode.class),

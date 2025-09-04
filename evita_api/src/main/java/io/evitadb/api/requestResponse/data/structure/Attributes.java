@@ -265,7 +265,6 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(attributeValue -> attributeValue.value() != null)
 				.map(attributeValue -> attributeValue.key().attributeName())
-				.filter(key -> this.attributeTypes.get(key) != null)
 				.collect(
 					Collectors.toCollection(
 						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
@@ -287,7 +286,6 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(attributeValue -> attributeValue.value() != null)
 				.map(AttributeValue::key)
-				.filter(key -> this.attributeTypes.get(key.attributeName()) != null)
 				.collect(Collectors.toUnmodifiableSet());
 		}
 		return this.attributeKeys;
@@ -315,7 +313,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		if (this.attributeTypes.get(attributeName) == null) {
+		if (getAttributeSchema(attributeName).isEmpty()) {
 			throw createAttributeNotFoundException(attributeName);
 		} else {
 			return this.attributeValues

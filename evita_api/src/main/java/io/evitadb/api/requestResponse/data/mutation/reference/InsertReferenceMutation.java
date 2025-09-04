@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -49,6 +50,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -154,13 +156,30 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 				);
 			}
 			if (this.referenceCardinality != null) {
-				Assert.isTrue(
-					this.referenceCardinality.equals(referenceSchema.getCardinality()),
-					() -> new InvalidMutationException(
-						"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + this.referenceKey.referenceName() +
-							"` already linked to cardinality `" + referenceSchema.getCardinality() + "`, but passed mutation declares cardinality `" + this.referenceCardinality + "`."
-					)
-				);
+				final boolean cardinalitySame = this.referenceCardinality.equals(referenceSchema.getCardinality());
+				if (cardinalitySame) {
+					// everything is fine
+				} else if (entitySchemaBuilder.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
+					final boolean currentDoesntAllowDuplicates = referenceSchema.getCardinality().allowsDuplicates();
+					final boolean bothAllowDuplicates = this.referenceCardinality.allowsDuplicates() == currentDoesntAllowDuplicates;
+					if (
+						referenceSchema.getCardinality().getMin() >= this.referenceCardinality.getMin() &&
+						referenceSchema.getCardinality().getMax() <= this.referenceCardinality.getMax() &&
+						(!currentDoesntAllowDuplicates || bothAllowDuplicates)
+					) {
+						// we can change the cardinality only in towards less restrictive one
+						entitySchemaBuilder.withReferenceToEntity(
+							referenceSchema.getName(),
+							referenceSchema.getReferencedEntityType(),
+							this.referenceCardinality
+						);
+					} else {
+						throw new InvalidMutationException(
+							"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + this.referenceKey.referenceName() +
+								"` already linked to cardinality `" + referenceSchema.getCardinality() + "`, but passed mutation declares cardinality `" + this.referenceCardinality + "`."
+						);
+					}
+				}
 			}
 		}
 	}
@@ -175,7 +194,37 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(
-		@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue
+	) {
+		return mutateLocal(entitySchema, existingValue, Map.of());
+	}
+
+	@Override
+	public long getPriority() {
+		return PRIORITY_UPSERT;
+	}
+
+	@Override
+	public ReferenceKey getComparableKey() {
+		return this.referenceKey;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new InsertReferenceMutation(
+			this.referenceKey, this.referenceCardinality, this.referencedEntityType, newDecisiveTimestamp
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
 		if (existingValue == null) {
 			return new Reference(
 				entitySchema,
@@ -185,6 +234,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 				null,
 				// attributes are inserted in separate mutation
 				Collections.emptyList(),
+				attributeTypes,
 				false
 			);
 		} else if (existingValue.dropped()) {
@@ -202,6 +252,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 				             .orElse(null),
 				// attributes are inserted in separate mutation
 				Collections.emptyList(),
+				attributeTypes,
 				false
 			);
 		} else {
@@ -210,16 +261,6 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 				"This mutation cannot be used for updating reference."
 			);
 		}
-	}
-
-	@Override
-	public long getPriority() {
-		return PRIORITY_UPSERT;
-	}
-
-	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
 	}
 
 	@Nonnull
@@ -255,7 +296,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	 * while keeping other fields unchanged.
 	 *
 	 * @param referencedEntityType the type of the entity being referenced
-	 * @param cardinality the {@link Cardinality} to be applied to the reference
+	 * @param cardinality          the {@link Cardinality} to be applied to the reference
 	 * @return a new instance of {@code InsertReferenceMutation} with the updated referenced entity type and cardinality
 	 */
 	@Nonnull
@@ -265,14 +306,6 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	) {
 		return new InsertReferenceMutation(
 			this.referenceKey, cardinality, referencedEntityType
-		);
-	}
-
-	@Nonnull
-	@Override
-	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
-		return new InsertReferenceMutation(
-			this.referenceKey, this.referenceCardinality, this.referencedEntityType, newDecisiveTimestamp
 		);
 	}
 

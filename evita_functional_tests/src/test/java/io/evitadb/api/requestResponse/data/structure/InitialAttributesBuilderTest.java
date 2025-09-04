@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.dataType.IntegerNumberRange;
 import org.junit.jupiter.api.Test;
 
@@ -69,10 +69,9 @@ abstract class InitialAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldFailToAddMutationToNewAttributeContainer() {
-		assertThrows(
-			UnsupportedOperationException.class,
-			() -> builder().mutateAttribute(new ApplyDeltaAttributeMutation<>("abc", 1))
-		);
+		final InitialAttributesBuilder<?, ?> builder = builder();
+		builder.mutateAttribute(new UpsertAttributeMutation("abc", 1));
+		assertEquals(1, builder.getAttribute("abc", Integer.class).intValue());
 	}
 
 	@Test
