@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.hierarchy;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
@@ -44,7 +45,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class HierarchyFormula extends AbstractFormula {
+public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
 	private static final long CLASS_ID = -7910610363796304904L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 

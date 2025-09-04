@@ -28,8 +28,8 @@ import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
@@ -55,7 +55,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeFormula extends AbstractFormula implements RequirementsDefiner {
+public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, RequirementsDefiner {
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
@@ -94,14 +94,8 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		if (innerFormulas.length == 0) {
-			// if there is no inner formula, we still need to maintain this formula, but fill it with empty formula
-			// child, so that it produces empty bitmap result when computed
-			return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, EmptyFormula.INSTANCE, this.requestedPredicate);
-		} else {
-			Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-			return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate);
-		}
+		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
+		return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate);
 	}
 
 	/**

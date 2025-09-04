@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra.prefetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
@@ -65,7 +66,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SelectionFormula extends AbstractFormula implements FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
+public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, RequirementsDefiner {
 	private static final long CLASS_ID = 3311110127363103780L;
 	/**
 	 * Contains the alternative computation based on entity contents filtering.

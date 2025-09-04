@@ -131,7 +131,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	/**
 	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
 	 */
-	private int[] memoizedIndexedPriceIds;
+	@Nullable private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceRefIndex(
 		@Nonnull Scope scope,
@@ -197,6 +197,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		assertNotTerminated();
+		Assert.isPremiseValid(entityType != null, "Entity type must be provided!");
 		Assert.isPremiseValid(this.superIndex == null, "Catalog was already attached to this index!");
 		final PriceListAndCurrencyPriceIndex<?, ?> superIndex = catalog.getEntityIndexIfExists(
 			entityType,

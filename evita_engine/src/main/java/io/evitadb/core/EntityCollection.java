@@ -1672,7 +1672,6 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityCollection createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		//noinspection unchecked
 		return new EntityCollection(
 			this.catalog.getVersion(),
 			catalogState,
@@ -1687,6 +1686,19 @@ public final class EntityCollection implements
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
+	}
+
+	/**
+	 * Adds an index to the collection of indexes. If the provided index is catalog-related,
+	 * it will also be attached to the corresponding catalog and entity type.
+	 *
+	 * @param entityIndex the index to be added, must not be null
+	 */
+	public void addIndex(@Nonnull EntityIndex entityIndex) {
+		if (entityIndex instanceof CatalogRelatedDataStructure<?> crds) {
+			crds.attachToCatalog(this.entityType, this.catalog);
+		}
+		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 	}
 
 	/**

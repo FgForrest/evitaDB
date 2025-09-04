@@ -75,8 +75,8 @@ public class ReflectionLookup {
 	private final WeakConcurrentMap<Class<?>, Map<String, PropertyDescriptor>> propertiesCache = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, List<Method>> gettersWithCorrespondingSetterOrConstructor = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, Set<Class<?>>> interfacesCache = new WeakConcurrentMap<>();
-	private final WeakConcurrentMap<MethodAndPackage, Boolean> methodSamePackageAnnotation = new WeakConcurrentMap<>();
-	private final WeakConcurrentMap<FieldAndPackage, Boolean> fieldSamePackageAnnotation = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Method, Boolean> methodSamePackageAnnotation = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<Field, Boolean> fieldSamePackageAnnotation = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, Map<Object, Object>> extractorCache = new WeakConcurrentMap<>();
 	private final ReflectionCachingBehaviour cachingBehaviour;
 
@@ -187,7 +187,7 @@ public class ReflectionLookup {
 		}
 		for (Method method : tmpClass.getDeclaredMethods()) {
 			final Annotation[] someAnnotation = method.getAnnotations();
-			if (someAnnotation != null && someAnnotation.length > 0) {
+			if (someAnnotation.length > 0) {
 				method.setAccessible(true);
 				for (Annotation annotation : someAnnotation) {
 					final MethodAnnotationKey methodAnnotationKey = new MethodAnnotationKey(method.getName(), annotation);
@@ -481,7 +481,7 @@ public class ReflectionLookup {
 		do {
 			for (Field field : examinedClass.getDeclaredFields()) {
 				final Annotation[] someAnnotation = field.getAnnotations();
-				if (someAnnotation != null && someAnnotation.length > 0 && !foundFields.contains(field.getName())) {
+				if (someAnnotation.length > 0 && !foundFields.contains(field.getName())) {
 					field.setAccessible(true);
 					annotations.put(field, expand(someAnnotation));
 					foundFields.add(field.getName());
@@ -880,9 +880,9 @@ public class ReflectionLookup {
 	 */
 	public boolean hasAnnotationInSamePackage(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
 		return this.methodSamePackageAnnotation.computeIfAbsent(
-			new MethodAndPackage(method, annotation.getPackage()),
-			tuple -> Arrays.stream(tuple.method().getAnnotations())
-				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
+			method,
+			theMethod -> Arrays.stream(theMethod.getAnnotations())
+				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), annotation.getPackage()))
 		);
 	}
 
@@ -891,9 +891,9 @@ public class ReflectionLookup {
 	 */
 	public boolean hasAnnotationInSamePackage(@Nonnull Field field, @Nonnull Class<? extends Annotation> annotation) {
 		return this.fieldSamePackageAnnotation.computeIfAbsent(
-			new FieldAndPackage(field, annotation.getPackage()),
-			tuple -> Arrays.stream(tuple.field().getAnnotations())
-				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
+			field,
+			theField -> Arrays.stream(theField.getAnnotations())
+				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), annotation.getPackage()))
 		);
 	}
 
@@ -1437,26 +1437,6 @@ public class ReflectionLookup {
 	public static class ArgumentKey {
 		private final String name;
 		private final Class<?> type;
-	}
-
-	/**
-	 * Cache key for {@link #hasAnnotationInSamePackage(Method, Class)}.
-	 */
-	private record MethodAndPackage(
-		@Nonnull Method method,
-		@Nonnull Package annotationPackage
-	) {
-
-	}
-
-	/**
-	 * Cache key for {@link #hasAnnotationInSamePackage(Field, Class)}.
-	 */
-	private record FieldAndPackage(
-		@Nonnull Field field,
-		@Nonnull Package annotationPackage
-	) {
-
 	}
 
 }

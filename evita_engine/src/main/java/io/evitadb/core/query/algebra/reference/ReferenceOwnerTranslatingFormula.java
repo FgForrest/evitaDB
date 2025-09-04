@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.reference;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
@@ -51,7 +52,7 @@ import java.util.function.IntFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferenceOwnerTranslatingFormula extends AbstractFormula {
+public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements ChildrenDependentFormula {
 	private static final long CLASS_ID = 6841111737856593641L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
