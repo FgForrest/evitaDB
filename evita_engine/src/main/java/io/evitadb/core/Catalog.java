@@ -518,7 +518,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 											globalIndex != null,
 											() -> "Global index must never be null for the entity type `" + entityHeader.entityType() + "`!"
 										);
-										entityIndexes.put(globalIndex.getIndexKey(), globalIndex);
+										collection.addIndex(globalIndex);
 									}
 
 									return collection;
@@ -535,7 +535,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 									.toList(),
 								( theFuture, entityCollection, loadedIndexes) -> {
 									for (EntityIndex entityIndex : loadedIndexes) {
-										entityIndexes.put(entityIndex.getIndexKey(), entityIndex);
+										entityCollection.addIndex(entityIndex);
 									}
 									return entityCollection;
 								},
