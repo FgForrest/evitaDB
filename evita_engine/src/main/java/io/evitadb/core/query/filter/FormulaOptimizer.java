@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.filter;
 
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -93,6 +94,9 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 					formulaToStore = this.mutator.apply(this, formula);
 				} else if (formula instanceof NotFormula && updatedChildren.size() == 1) {
 					formulaToStore = updatedChildren.iterator().next();
+				} else if (updatedChildren.isEmpty() && formula instanceof ChildrenDependentFormula) {
+					// remove the formula if it has no children after optimization
+					formulaToStore = null;
 				} else {
 					// recreate parent formula with new children
 					formulaToStore = this.mutator.apply(
@@ -170,9 +174,22 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 					}
 				}
 			// If this is an OR with a single child, the container is redundant – unwrap it.
-			} else if (formula instanceof OrFormula orFormula &&
-					orFormula.getInnerFormulas().length == 1) {
-				return orFormula.getInnerFormulas()[0];
+			} else if (
+				formula instanceof OrFormula orFormula &&
+					orFormula.getInnerFormulas().length == 1
+			) {
+				Formula impactfulChild = null;
+				for (Formula innerFormula : orFormula.getInnerFormulas()) {
+					if (!(innerFormula instanceof EmptyFormula)) {
+						if (impactfulChild != null) {
+							// more than one non-empty child – cannot optimize
+							return formula;
+						} else {
+							impactfulChild = innerFormula;
+						}
+					}
+				}
+				return impactfulChild;
 			}
 			// No change for other cases – keep the node as is.
 			return formula;
