@@ -220,6 +220,15 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		return new ReferenceAttributeMutation(this.referenceKey, this.attributeMutation, newDecisiveTimestamp);
 	}
 
+	@Nonnull
+	@Override
+	public ReferenceMutation<ReferenceKeyWithAttributeKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new ReferenceAttributeMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.attributeMutation, this.decisiveTimestamp
+		);
+	}
+
 	@Override
 	public String toString() {
 		return "reference `" + this.referenceKey + "` attribute mutation: " + this.attributeMutation;

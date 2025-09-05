@@ -50,6 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static java.util.Optional.of;
@@ -324,13 +325,26 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	}
 
 	/**
-	 * This method allows to lazily set / or reset the referenced entity primary key. This method is considered as
-	 * a part of internal API and should not be used outside of the EvitaDB core.
+	 * Collects a set of reference mutations from the provided {@code referenceBuilder},
+	 * and remaps internal primary keys if necessary. This method ensures that
+	 * locally assigned internal primary keys are correctly handled when there are
+	 * new references with the same business key.
 	 *
-	 * @param referencedEntityPrimaryKey primary key of the referenced entity
+	 * TODO JNO - tohle se musí vynechat, pokud se bude jednat o vkládání referencí v "duplicitním režimu" v proxy implementacích
+	 *
+	 * @param remapper TODO JNO - UPRAVIT POPIS
 	 */
-	public void setReferencedEntityPrimaryKey(int referencedEntityPrimaryKey) {
-		this.referenceKey = new ReferenceKey(this.referenceKey.referenceName(), referencedEntityPrimaryKey);
+	public void remapInternalKeyUsing(@Nonnull UnaryOperator<ReferenceKey> remapper) {
+		final ReferenceKey remappedKey = remapper.apply(this.referenceKey);
+		if (remappedKey != null) {
+			Assert.isPremiseValid(
+				this.referenceKey.equals(remappedKey),
+				"Business key of the reference cannot be changed!"
+			);
+			if (this.referenceKey.internalPrimaryKey() != remappedKey.internalPrimaryKey()) {
+				this.referenceKey = remappedKey;
+			}
+		}
 	}
 
 }

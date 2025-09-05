@@ -200,14 +200,18 @@ public class EntityFactory {
 				.orElse(null),
 			// when references storage container is present use it
 			// otherwise use original references from previous entity contents
-			new References(
-				entitySchema,
-				ofNullable(referencesStorageContainer)
-					.map(ReferencesStoragePart::getReferencesAsCollection)
-					.orElse(null),
-				entity.getSchema().getReferences().keySet(),
-				entity.getReferenceChunkTransformer()
-			),
+			referencesStorageContainer == null ?
+				// use original references when no new container is available
+				null :
+				// otherwise combine
+				new References(
+					entitySchema,
+					ofNullable(referencesStorageContainer)
+						.map(ReferencesStoragePart::getReferencesAsCollection)
+						.orElseGet(Collections::emptyList),
+					entity.getSchema().getReferences().keySet(),
+					entity.getReferenceChunkTransformer()
+				),
 			// when no additional attribute containers were loaded
 			attributesStorageContainers.isEmpty() ?
 				// use original attributes from the entity contents

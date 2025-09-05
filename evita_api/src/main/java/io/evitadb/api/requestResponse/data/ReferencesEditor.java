@@ -351,10 +351,10 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		int getNextReferenceInternalId();
 
 		/**
-		 * Adds new set of reference mutations for particular `referenceKey`, if some set is already present for that key,
-		 * it is replaced by a new set.
+		 * Adds new set of reference mutations for particular `referenceKey`, if some set is already present for that
+		 * key, it is replaced by a new set.
 		 *
-		 * This method is considered to be a part of private API.
+		 * This method is considered to be a part of private API and is used only from generated Proxies.
 		 *
 		 * @param referenceBuilder reference builder wrapping the changes in the reference contract
 		 */

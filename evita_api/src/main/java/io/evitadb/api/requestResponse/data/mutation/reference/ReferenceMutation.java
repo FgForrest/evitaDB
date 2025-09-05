@@ -46,7 +46,7 @@ import java.util.Map;
 @EqualsAndHashCode
 public abstract class ReferenceMutation<T extends Comparable<T>> implements NamedLocalMutation<ReferenceContract, T> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
-	@Getter private final long decisiveTimestamp;
+	@Getter protected final long decisiveTimestamp;
 	/**
 	 * Identification of the reference that is being manipulated by this mutation.
 	 */
@@ -77,6 +77,16 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Name
 	public String containerName() {
 		return this.referenceKey.referenceName();
 	}
+
+	/**
+	 * Creates a new mutation instance that is identical to the current one but contains also the internal primary key
+	 * of the referenced entity.
+	 *
+	 * @param internalPrimaryKey - internal primary key of the referenced entity
+	 * @return new mutation instance with the internal primary key set
+	 */
+	@Nonnull
+	public abstract ReferenceMutation<T> withInternalPrimaryKey(int internalPrimaryKey);
 
 	/**
 	 * Specialized method used in local builders to apply this mutation and keep information about shared attribute

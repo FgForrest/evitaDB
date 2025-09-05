@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
@@ -58,7 +59,6 @@ import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
-import one.edee.oss.proxycian.trait.ProxyStateAccessor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -893,8 +893,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
-				//noinspection CastToIncompatibleInterface
-				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				final Optional<ReferenceContract> firstReference = sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
@@ -902,7 +900,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return firstReference.map(
 						referenceContract -> proxyReferenceFactory.createEntityReferenceProxy(
 							mainType, itemType, sealedEntity, referencedEntitySchemas, referenceContract,
-							proxyState.getAttributeTypesForReference(referenceName)
+							new LazyHashMap<>(4)
 						)
 					)
 					.orElse(null);
@@ -979,7 +977,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				//noinspection CastToIncompatibleInterface
-				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
@@ -990,7 +987,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 							sealedEntity,
 							referencedEntitySchemas,
 							it,
-							proxyState.getAttributeTypesForReference(referenceName)
+							new LazyHashMap<>(4)
 						)
 					)
 					.toList();
@@ -1059,15 +1056,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
-				//noinspection CastToIncompatibleInterface
-				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
 					.map(
 						it -> proxyReferenceFactory.createEntityReferenceProxy(
 							mainType, itemType, sealedEntity, referencedEntitySchemas, it,
-							proxyState.getAttributeTypesForReference(referenceName)
+							new LazyHashMap<>(4)
 						)
 					)
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
@@ -1113,15 +1108,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
-				//noinspection CastToIncompatibleInterface
-				final SealedEntityProxyState proxyState = (SealedEntityProxyState) ((ProxyStateAccessor) sealedEntity).getProxyState();
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
 					.map(
 						it -> proxyReferenceFactory.createEntityReferenceProxy(
 							mainType, itemType, sealedEntity, referencedEntitySchemas, it,
-							proxyState.getAttributeTypesForReference(referenceName)
+							new LazyHashMap<>(4)
 						)
 					)
 					.toArray(count -> (Object[]) Array.newInstance(itemType, count));

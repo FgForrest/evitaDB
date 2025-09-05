@@ -606,6 +606,25 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			throw ContextMissingException.referenceContextMissing(referenceBuilder.getReferenceName());
 		}
 
+		// if the reference is new - we need to adapt its internal key to the one assigned here
+		/* TODO JNO - tohle bude nutné ještě upravit kvůli duplicitám v proxies */
+		if (referenceBuilder instanceof InitialReferenceBuilder irb) {
+			irb.remapInternalKeyUsing(referenceKey -> {
+				// try to find new reference with the same business key in this builder
+				final Map<Integer, List<ReferenceMutation<?>>> existingMutations = this.referenceMutations == null ?
+					null : this.referenceMutations.get(referenceKey);
+				if (existingMutations != null && existingMutations.size() == 1) {
+					return new ReferenceKey(
+						referenceKey.referenceName(),
+						referenceKey.primaryKey(),
+						existingMutations.keySet().iterator().next()
+					);
+				} else {
+					return null;
+				}
+			});
+		}
+
 		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
 		final int internalReferenceKey = referenceKey.internalPrimaryKey();
 		Assert.isPremiseValid(
@@ -1479,5 +1498,24 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 
 	}
+
+	/**
+	 * Represents a set of data that includes an internal primary key and a list of reference mutations.
+	 *
+	 * This record is designed to encapsulate a remapped set of changes, where each mutation represents a reference change
+	 * associated with a specific primary key. The primary key serves as an identifier for the context of the mutations.
+	 *
+	 * Thread safety is not guaranteed for instances of this class. If concurrent access is required, ensure proper
+	 * synchronization or use thread-safe structures.
+	 *
+	 * Fields:
+	 * - referenceKey: An instance of referenced key with corrected internal primary key
+	 * - mutations: A list of reference mutations that describe changes related to the primary key. This field is nonnull and
+	 *   must always contain a valid list of mutations.
+	 */
+	private record RemappedSet(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull List<ReferenceMutation<?>> mutations
+	) {}
 
 }

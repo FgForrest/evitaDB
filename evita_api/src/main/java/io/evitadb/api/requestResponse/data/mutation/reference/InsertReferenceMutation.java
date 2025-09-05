@@ -220,6 +220,48 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 
 	@Nonnull
 	@Override
+	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new InsertReferenceMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.referenceCardinality, this.referencedEntityType, this.decisiveTimestamp
+		);
+	}
+
+	/**
+	 * Creates a new instance of {@code InsertReferenceMutation} with the updated cardinality.
+	 * This method is used to modify the cardinality of a reference mutation while keeping other fields unchanged.
+	 *
+	 * @param newCardinality the new {@link Cardinality} to be applied for this reference mutation
+	 * @return a new instance of {@code InsertReferenceMutation} with the specified cardinality
+	 */
+	@Nonnull
+	public InsertReferenceMutation withCardinality(@Nonnull Cardinality newCardinality) {
+		return new InsertReferenceMutation(
+			this.referenceKey, newCardinality, this.referencedEntityType
+		);
+	}
+
+	/**
+	 * Creates a new instance of {@code InsertReferenceMutation} with the specified referenced entity type
+	 * and cardinality. This method allows updating the associated entity type and cardinality for a reference mutation,
+	 * while keeping other fields unchanged.
+	 *
+	 * @param referencedEntityType the type of the entity being referenced
+	 * @param cardinality          the {@link Cardinality} to be applied to the reference
+	 * @return a new instance of {@code InsertReferenceMutation} with the updated referenced entity type and cardinality
+	 */
+	@Nonnull
+	public InsertReferenceMutation withReferenceTo(
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality
+	) {
+		return new InsertReferenceMutation(
+			this.referenceKey, cardinality, referencedEntityType
+		);
+	}
+
+	@Nonnull
+	@Override
 	public ReferenceContract mutateLocal(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceContract existingValue,
@@ -274,39 +316,6 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 		return "insert reference `" + this.referenceKey + "` " +
 			(this.referenceCardinality == null ? "" : " with cardinality `" + this.referenceCardinality + "`") +
 			(this.referencedEntityType == null ? "" : " referencing type `" + this.referencedEntityType + "`");
-	}
-
-	/**
-	 * Creates a new instance of {@code InsertReferenceMutation} with the updated cardinality.
-	 * This method is used to modify the cardinality of a reference mutation while keeping other fields unchanged.
-	 *
-	 * @param newCardinality the new {@link Cardinality} to be applied for this reference mutation
-	 * @return a new instance of {@code InsertReferenceMutation} with the specified cardinality
-	 */
-	@Nonnull
-	public InsertReferenceMutation withCardinality(@Nonnull Cardinality newCardinality) {
-		return new InsertReferenceMutation(
-			this.referenceKey, newCardinality, this.referencedEntityType
-		);
-	}
-
-	/**
-	 * Creates a new instance of {@code InsertReferenceMutation} with the specified referenced entity type
-	 * and cardinality. This method allows updating the associated entity type and cardinality for a reference mutation,
-	 * while keeping other fields unchanged.
-	 *
-	 * @param referencedEntityType the type of the entity being referenced
-	 * @param cardinality          the {@link Cardinality} to be applied to the reference
-	 * @return a new instance of {@code InsertReferenceMutation} with the updated referenced entity type and cardinality
-	 */
-	@Nonnull
-	public InsertReferenceMutation withReferenceTo(
-		@Nonnull String referencedEntityType,
-		@Nonnull Cardinality cardinality
-	) {
-		return new InsertReferenceMutation(
-			this.referenceKey, cardinality, referencedEntityType
-		);
 	}
 
 	/**

@@ -456,7 +456,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newCategory.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(7, mutation.get().getLocalMutations().size());
+				assertEquals(6, mutation.get().getLocalMutations().size());
 
 				final CategoryInterface modifiedInstance = newCategory.toInstance();
 				assertEquals("root-category", modifiedInstance.getCode());
@@ -959,7 +959,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(16, mutation.get().getLocalMutations().size());
+				assertEquals(15, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(brandId, modifiedInstance.getBrandId());
@@ -1004,7 +1004,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(16, mutation.get().getLocalMutations().size());
+				assertEquals(15, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(brandId, modifiedInstance.getBrandId());
@@ -1045,7 +1045,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals("consumer-created-brand", modifiedInstance.getBrand().getCode());
@@ -1113,7 +1113,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(19, mutation.get().getLocalMutations().size());
+				assertEquals(18, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals("getorcreate-created-brand", newProduct.getBrand().getCode());
@@ -1356,6 +1356,72 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	@DisplayName("Should modify attribute on reference but store in single upsert deeply call")
+	@Order(21)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldIsolateMutationsInSeparatedEditorsButStoreAllByUpsertDeeply(EvitaContract evita) {
+		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+			.orElseGet(() -> {
+				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
+				return getProductByCode(evita, "product-6").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor product6 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final List<Long> originalPriorities = product6
+					.getProductCategoriesAsList()
+					.stream()
+					.map(ProductCategoryInterface::getOrderInCategory)
+					.toList();
+
+				final List<ProductCategoryInterfaceEditor> editors = product6
+					.getProductCategoriesAsList()
+					.stream()
+					.map(it -> {
+						final ProductCategoryInterfaceEditor editor = it.openForWrite();
+						editor.setOrderInCategory(it.getOrderInCategory() << 1);
+						return editor;
+					})
+					.toList();
+
+				final Optional<EntityMutation> mutation = product6.toMutation();
+				assertFalse(mutation.isPresent());
+
+				for (ProductCategoryInterfaceEditor editor : editors) {
+					final Optional<EntityMutation> editorMutation = editor.toMutation();
+					assertTrue(editorMutation.isPresent());
+					assertEquals(1, editorMutation.get().getLocalMutations().size());
+				}
+
+				final ProductInterface modifiedInstance = product6.toInstance();
+				final Iterator<Long> priorityIt = originalPriorities.iterator();
+
+				modifiedInstance.getProductCategories()
+				                .forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
+
+				product6.upsertDeeplyVia(evitaSession);
+
+				final SealedEntity storedProduct = evitaSession.getEntity(
+					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Iterator<Long> priorityItAgainAndAgain = originalPriorities.iterator();
+				for (ReferenceContract reference : storedProduct.getReferences(Entities.CATEGORY)) {
+					assertEquals(
+						priorityItAgainAndAgain.next() << 1,
+						reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+					);
+				}
+			}
+		);
+	}
+
 	@DisplayName("Should modify attribute on reference in isolated editor")
 	@Order(21)
 	@Test
@@ -1403,7 +1469,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				modifiedInstance.getProductCategories()
 					.forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
 
-				product6.upsertDeeplyVia(evitaSession);
+				product6.upsertVia(evitaSession);
 
 				final SealedEntity storedProduct = evitaSession.getEntity(
 					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
@@ -1466,7 +1532,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final ProductInterface modifiedInstance = product6.toInstance();
 				assertEquals(80L, modifiedInstance.getParameter().getPriority());
 
-				product6.upsertDeeplyVia(evitaSession);
+				product6.upsertVia(evitaSession);
 
 				final SealedEntity storedProduct = evitaSession.getEntity(
 					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
@@ -2344,7 +2410,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
@@ -2422,7 +2488,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
@@ -2484,7 +2550,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
@@ -2808,10 +2874,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldRepeatedlyRemoveAllReferencesAndReturnTheirBodies(EvitaContract evita) {
-		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
-		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
-		final int categoryId3 = createCategoryEntityIfMissing(evita, 3);
-		final int categoryId4 = createCategoryEntityIfMissing(evita, 4);
+		createCategoryEntityIfMissing(evita, 3);
+		createCategoryEntityIfMissing(evita, 4);
 
 		getProductByCode(evita, "product-1")
 			.ifPresent(it -> evita.updateCatalog(
@@ -2830,12 +2894,15 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
-				product1.removeAllProductCategoriesAndReturnTheirBodies();
+				final List<ProductCategoryInterfaceEditor> categories = product1.removeAllProductCategoriesAndReturnTheirBodies();
+				assertEquals(Set.of(2001, 2002), categories.stream().map(ProductCategoryInterface::getPrimaryKey).collect(Collectors.toSet()));
 				product1.addProductCategory(3, catEd -> { catEd.setLabel(CZECH_LOCALE, "a"); catEd.setShadow(false); });
 				assertEquals(1, product1.getProductCategoriesAsList().size());
 				assertEquals(3, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
 
-				product1.removeAllProductCategoriesAndReturnTheirIds();
+				final List<Integer> removedCategories = product1.removeAllProductCategoriesAndReturnTheirIds();
+				assertEquals(1, removedCategories.size());
+				assertEquals(3, removedCategories.get(0).intValue());
 				product1.addProductCategory(4, catEd -> { catEd.setLabel(CZECH_LOCALE, "a"); catEd.setShadow(false); });
 				assertEquals(1, product1.getProductCategoriesAsList().size());
 				assertEquals(4, product1.getProductCategoriesAsList().get(0).getPrimaryKey());

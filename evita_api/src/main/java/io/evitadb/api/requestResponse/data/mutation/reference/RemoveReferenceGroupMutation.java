@@ -122,6 +122,15 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 		return new RemoveReferenceGroupMutation(this.referenceKey, newDecisiveTimestamp);
 	}
 
+	@Nonnull
+	@Override
+	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new RemoveReferenceGroupMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.decisiveTimestamp
+		);
+	}
+
 	@Override
 	public ReferenceKey getComparableKey() {
 		return this.referenceKey;

@@ -96,7 +96,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	}
 
 	private SetReferenceGroupMutation(
-		@Nonnull ReferenceKey referenceKey, long decisiveTimestamp, @Nullable String groupType, int groupPrimaryKey) {
+		@Nonnull ReferenceKey referenceKey, @Nullable String groupType, int groupPrimaryKey, long decisiveTimestamp) {
 		super(referenceKey, decisiveTimestamp);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
@@ -257,7 +257,18 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	@Nonnull
 	@Override
 	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
-		return new SetReferenceGroupMutation(this.referenceKey, newDecisiveTimestamp, this.groupType, this.groupPrimaryKey);
+		return new SetReferenceGroupMutation(this.referenceKey, this.groupType, this.groupPrimaryKey,
+		                                     newDecisiveTimestamp
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new SetReferenceGroupMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.groupType, this.groupPrimaryKey, this.decisiveTimestamp
+		);
 	}
 
 	@Override

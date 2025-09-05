@@ -160,7 +160,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 					);
 				}
 				// assign primary keys to references that don't have it yet
-				if (reference.getReferenceKey().isNewReference()) {
+				if (!reference.getReferenceKey().isKnownInternalPrimaryKey()) {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					this.references[i] = reference;
 					this.dirty = true;

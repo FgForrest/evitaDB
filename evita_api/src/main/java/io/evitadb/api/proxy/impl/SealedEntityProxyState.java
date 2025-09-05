@@ -44,7 +44,6 @@ import io.evitadb.api.requestResponse.data.structure.InternalEntityBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -120,32 +119,33 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback() {
-		propagateReferenceMutations();
-		return Optional.ofNullable(this.entityBuilder)
-		               .map(
-			               it -> new EntityBuilderWithCallback(
-				               it,
-				               entityReference -> {
-					               this.entityReference = entityReference;
-					               this.entityBuilder = new ExistingEntityBuilder(
-						               // we can cast it here, since we know that both InitialEntityBuilder and ExistingEntityBuilder
-						               // fabricate Entity instances
-						               (Entity) this.entityBuilder.toInstance()
-					               );
-					               // we need to mark all references as upserted, since they were persisted along with the entity
-					               this.generatedProxyObjects
-						               .entrySet()
-						               .stream()
-						               .filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
-						               .flatMap(goEntry -> goEntry.getValue().proxies().stream())
-						               .forEach(
-							               refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
-								               .notifyBuilderUpserted()
-						               );
-				               }
-			               )
-		               );
+	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback(@Nonnull Propagation propagation) {
+		propagateReferenceMutations(propagation);
+		return Optional
+			.ofNullable(this.entityBuilder)
+			.map(
+				it -> new EntityBuilderWithCallback(
+					it,
+					entityReference -> {
+						this.entityReference = entityReference;
+						this.entityBuilder = new ExistingEntityBuilder(
+							// we can cast it here, since we know that both InitialEntityBuilder and ExistingEntityBuilder
+							// fabricate Entity instances
+							(Entity) this.entityBuilder.toInstance()
+						);
+						// we need to mark all references as upserted, since they were persisted along with the entity
+						this.generatedProxyObjects
+							.entrySet()
+							.stream()
+							.filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
+							.flatMap(goEntry -> goEntry.getValue().proxies(propagation).stream())
+							.forEach(
+								refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
+									.notifyBuilderUpserted()
+							);
+					}
+				)
+			);
 	}
 
 	@Nonnull
@@ -292,7 +292,7 @@ public class SealedEntityProxyState
 	/**
 	 * Method propagates all mutations in reference proxies to the {@link #entityBuilder()}.
 	 */
-	public void propagateReferenceMutations() {
+	public void propagateReferenceMutations(@Nonnull Propagation propagation) {
 		final InternalEntityBuilder theEntityBuilder = entityBuilder();
 		this.generatedProxyObjects
 			.entrySet()
@@ -300,14 +300,10 @@ public class SealedEntityProxyState
 			.filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
 			.flatMap(
 				it -> it.getValue()
-				        .proxy(
-					        SealedEntityReferenceProxy.class,
-					        () -> {
-						        throw new EvitaInvalidUsageException("Unexpected proxy type!");
-					        }
-				        )
-				        .getReferenceBuilderIfPresent()
-				        .stream()
+				        .getSealedEntityReferenceProxies(propagation)
+				        .map(SealedEntityReferenceProxy::getReferenceBuilderIfPresent)
+				        .filter(Optional::isPresent)
+				        .map(Optional::get)
 			)
 			.forEach(theEntityBuilder::addOrReplaceReferenceMutations);
 	}

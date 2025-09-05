@@ -28,7 +28,9 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ReferencedEntityBuilderProvider;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityProxy.EntityBuilderWithCallback;
+import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
+import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -509,7 +511,7 @@ abstract class AbstractEntityProxyState implements
 
 	@Override
 	@Nonnull
-	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback() {
+	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback(@Nonnull Propagation propagation) {
 		return this.generatedProxyObjects.entrySet().stream()
 			.filter(
 				it -> it.getKey().proxyType() == ProxyType.PARENT ||
@@ -519,10 +521,10 @@ abstract class AbstractEntityProxyState implements
 				it -> Stream.concat(
 					// we need first store the referenced entities of referenced entity (depth wise)
 					it.getValue().getSealedEntityProxies()
-						.flatMap(SealedEntityProxy::getReferencedEntityBuildersWithCallback),
+						.flatMap(proxy -> proxy.getReferencedEntityBuildersWithCallback(propagation)),
 					// and then the referenced entity itself
 					it.getValue().getSealedEntityProxies()
-						.map(SealedEntityProxy::getEntityBuilderWithCallback)
+						.map(proxy -> proxy.getEntityBuilderWithCallback(propagation))
 						.filter(Optional::isPresent)
 						.map(Optional::get)
 						.map(
@@ -535,7 +537,7 @@ abstract class AbstractEntityProxyState implements
 									mutationCallback == null ?
 										externalCallback :
 										entityReference1 -> {
-											mutation.updateEntityReference(entityReference1);
+											mutation.entityUpserted(entityReference1);
 											externalCallback.accept(entityReference1);
 										}
 								);
@@ -641,13 +643,25 @@ abstract class AbstractEntityProxyState implements
 		}
 
 		@Nonnull
-		public Collection<Object> proxies() {
-			return this.proxies;
+		public Collection<Object> proxies(@Nonnull Propagation propagation) {
+			if (propagation == Propagation.SHALLOW) {
+				return this.proxies.isEmpty() ? List.of() : List.of(this.proxies.get(0));
+			} else {
+				return this.proxies;
+			}
 		}
 
 		@Nonnull
 		public Stream<SealedEntityProxy> getSealedEntityProxies() {
 			return this.proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
+		}
+
+		@Nonnull
+		public Stream<SealedEntityReferenceProxy> getSealedEntityReferenceProxies(@Nonnull Propagation propagation) {
+			return switch (propagation) {
+				case DEEP -> this.proxies.stream().filter(SealedEntityReferenceProxy.class::isInstance).map(SealedEntityReferenceProxy.class::cast);
+				case SHALLOW -> this.proxies.stream().filter(SealedEntityReferenceProxy.class::isInstance).map(SealedEntityReferenceProxy.class::cast).findFirst().stream();
+			};
 		}
 
 	}
