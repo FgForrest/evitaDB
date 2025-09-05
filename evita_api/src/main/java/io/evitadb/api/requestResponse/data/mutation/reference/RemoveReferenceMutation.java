@@ -46,12 +46,18 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
-public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
-	@Serial private static final long serialVersionUID = 5452632579216311397L;
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
+public class RemoveReferenceMutation extends ReferenceMutation<ComparableReferenceKey> {
+	@Serial private static final long serialVersionUID = 6043892124186555883L;
+	/**
+	 * Full identification of the mutation that is used for sorting mutations.
+	 */
+	@Nonnull
+	private final ComparableReferenceKey comparableKey;
 
 	public RemoveReferenceMutation(@Nonnull ReferenceKey referenceKey) {
 		super(referenceKey);
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	public RemoveReferenceMutation(@Nonnull String referenceName, int primaryKey) {
@@ -60,6 +66,7 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 
 	private RemoveReferenceMutation(@Nonnull ReferenceKey referenceKey, long decisiveTimestamp) {
 		super(referenceKey, decisiveTimestamp);
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	@Nonnull
@@ -98,9 +105,10 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 		return LocalMutation.PRIORITY_REMOVAL;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
+	public ComparableReferenceKey getComparableKey() {
+		return this.comparableKey;
 	}
 
 	@Nonnull
@@ -117,7 +125,7 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 
 	@Nonnull
 	@Override
-	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
 		return new RemoveReferenceMutation(
 			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
 			this.decisiveTimestamp

@@ -94,7 +94,7 @@ public class RemovePriceMutation extends PriceMutation {
 	@Nonnull
 	@Override
 	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
-		return null;
+		return new RemovePriceMutation(this.priceKey, newDecisiveTimestamp);
 	}
 
 	@Override

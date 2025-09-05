@@ -45,7 +45,7 @@ import java.util.OptionalInt;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class ParentMutation implements SchemaEvolvingLocalMutation<OptionalInt, Integer> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
 	@Getter private final long decisiveTimestamp;

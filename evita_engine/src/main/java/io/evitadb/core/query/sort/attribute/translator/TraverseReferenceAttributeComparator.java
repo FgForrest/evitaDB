@@ -111,7 +111,7 @@ public class TraverseReferenceAttributeComparator
 				return result;
 			}
 		} else if (bothAttributesSpecified) {
-			return attribute1.referencedKey().compareTo(attribute2.referencedKey());
+			return ReferenceKey.FULL_COMPARATOR.compare(attribute1.referencedKey(), attribute2.referencedKey());
 		} else if (attribute1 == null && attribute2 != null) {
 			return 1;
 		} else if (attribute1 != null) {

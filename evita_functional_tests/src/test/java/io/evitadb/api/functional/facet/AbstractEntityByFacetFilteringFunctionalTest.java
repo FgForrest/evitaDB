@@ -264,7 +264,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					// compute facet count
 					groupingBy(
 						ReferenceContract::getReferenceKey,
-						TreeMap::new,
+						() -> new TreeMap<>(ReferenceKey.GENERIC_COMPARATOR),
 						summingInt(facet -> 1)
 					)
 				)

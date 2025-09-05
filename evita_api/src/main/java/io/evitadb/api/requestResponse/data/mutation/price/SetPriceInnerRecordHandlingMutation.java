@@ -50,7 +50,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalMutation<PricesContract, PriceInnerRecordHandling> {
 	@Serial private static final long serialVersionUID = -2047915704875849615L;
 	@Getter private final long decisiveTimestamp;
@@ -93,6 +93,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 		return UpsertPriceMutation.PRICE_UPSERT_PRIORITY + 1;
 	}
 
+	@Nonnull
 	@Override
 	public PriceInnerRecordHandling getComparableKey() {
 		return this.priceInnerRecordHandling;

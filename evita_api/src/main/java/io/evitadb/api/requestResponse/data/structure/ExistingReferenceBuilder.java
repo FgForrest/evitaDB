@@ -93,7 +93,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	/**
 	 * Pending mutation changing the reference group (set/remove). When null, no group change is staged.
 	 */
-	private ReferenceMutation<ReferenceKey> referenceGroupMutation;
+	private ReferenceMutation<?> referenceGroupMutation;
 
  /**
 	 * Creates a builder for an existing reference without any pre-applied mutations.

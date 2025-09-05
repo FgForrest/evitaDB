@@ -52,7 +52,6 @@ import java.util.Locale;
 @EqualsAndHashCode(callSuper = true)
 public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSchemaEvolvingMutation {
 	@Serial private static final long serialVersionUID = -107926476337012921L;
-	@Getter private final long decisiveTimestamp;
 	/**
 	 * Delta value that should be applied to the existing attribute.
 	 * Delta is added to the existing number, negative delta decreases it, positive delta increases it.
@@ -70,42 +69,36 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		super(attributeKey);
 		this.delta = delta;
 		this.requiredRangeAfterApplication = null;
-		this.decisiveTimestamp = System.nanoTime();
 	}
 
 	public ApplyDeltaAttributeMutation(@Nonnull String attributeName, @Nonnull T delta) {
 		super(new AttributeKey(attributeName));
 		this.delta = delta;
 		this.requiredRangeAfterApplication = null;
-		this.decisiveTimestamp = System.nanoTime();
 	}
 
 	public ApplyDeltaAttributeMutation(@Nonnull String attributeName, @Nullable Locale locale, @Nonnull T delta) {
 		super(new AttributeKey(attributeName, locale));
 		this.delta = delta;
 		this.requiredRangeAfterApplication = null;
-		this.decisiveTimestamp = System.nanoTime();
 	}
 
 	public ApplyDeltaAttributeMutation(@Nonnull AttributeKey attributeKey, @Nonnull T delta, @Nullable NumberRange<T> requiredRangeAfterApplication) {
 		super(attributeKey);
 		this.delta = delta;
 		this.requiredRangeAfterApplication = requiredRangeAfterApplication;
-		this.decisiveTimestamp = System.nanoTime();
 	}
 
 	public ApplyDeltaAttributeMutation(@Nonnull String attributeName, @Nonnull T delta, @Nullable NumberRange<T> requiredRangeAfterApplication) {
 		super(new AttributeKey(attributeName));
 		this.delta = delta;
 		this.requiredRangeAfterApplication = requiredRangeAfterApplication;
-		this.decisiveTimestamp = System.nanoTime();
 	}
 
 	public ApplyDeltaAttributeMutation(@Nonnull String attributeName, @Nullable Locale locale, @Nonnull T delta, @Nullable NumberRange<T> requiredRangeAfterApplication) {
 		super(new AttributeKey(attributeName, locale));
 		this.delta = delta;
 		this.requiredRangeAfterApplication = requiredRangeAfterApplication;
-		this.decisiveTimestamp = System.nanoTime();
 	}
 
 	private ApplyDeltaAttributeMutation(
@@ -114,10 +107,9 @@ public class ApplyDeltaAttributeMutation<T extends Number> extends AttributeSche
 		@Nullable NumberRange<T> requiredRangeAfterApplication,
 		long decisiveTimestamp
 	) {
-		super(attributeKey);
+		super(attributeKey, decisiveTimestamp);
 		this.delta = delta;
 		this.requiredRangeAfterApplication = requiredRangeAfterApplication;
-		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
 	@Override

@@ -136,14 +136,14 @@ class EntityConverterTest {
 			Entities.PRODUCT,
 			"Lorem ipsum dolor sit amet.",
 			"Alert! Deprecated!",
-			true,
+			false,
 			false,
 			Scope.NO_SCOPE,
 			true,
 			new Scope[] { Scope.LIVE },
 			2,
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
-			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
+			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD"), Currency.getInstance("CZK")),
 			Map.of(
 				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true),
 				"test2", EntityAttributeSchema._internalBuild("test2", Boolean[].class, true)

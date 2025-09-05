@@ -21,42 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.wal.data.reference;
+package io.evitadb.store.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import lombok.RequiredArgsConstructor;
 
 /**
- * Serializer for {@link ReferenceAttributeMutation}.
+ * This {@link Serializer} implementation reads/writes {@link ReferenceKey} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated This serializer is deprecated and should not be used.
  */
-public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAttributeMutation> {
+@Deprecated(since = "2025.6", forRemoval = true)
+@RequiredArgsConstructor
+public class ReferenceKeySerializer_2025_6 extends Serializer<ReferenceKey> {
 
 	@Override
-	public void write(Kryo kryo, Output output, ReferenceAttributeMutation mutation) {
-		final ReferenceKey referenceKey = mutation.getReferenceKey();
-		output.writeString(referenceKey.referenceName());
-		output.writeInt(referenceKey.primaryKey());
-		output.writeInt(referenceKey.internalPrimaryKey());
-		kryo.writeClassAndObject(output, mutation.getAttributeMutation());
+	public void write(Kryo kryo, Output output, ReferenceKey entityReference) {
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
-	public ReferenceAttributeMutation read(Kryo kryo, Input input, Class<? extends ReferenceAttributeMutation> type) {
-		return new ReferenceAttributeMutation(
-			new ReferenceKey(
-				input.readString(),
-				input.readInt(),
-				input.readInt()
-			),
-			(AttributeMutation) kryo.readClassAndObject(input)
-		);
+	public ReferenceKey read(Kryo kryo, Input input, Class<? extends ReferenceKey> type) {
+		final String referenceName = input.readString();
+		final int primaryKey = input.readInt();
+		return new ReferenceKey(referenceName, primaryKey);
 	}
 
 }

@@ -63,6 +63,7 @@ class ReferencesStoragePartTest {
 	private static EntitySchemaContract mockEntitySchema() {
 		final EntitySchemaContract schema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(schema.getReference(ArgumentMatchers.anyString())).thenReturn(Optional.empty());
+		Mockito.when(schema.allows(ArgumentMatchers.any())).thenReturn(true);
 		return schema;
 	}
 
@@ -141,7 +142,7 @@ class ReferencesStoragePartTest {
 			final ReferenceContract ref = arr[i];
 			assertTrue(ref.getReferenceKey().isKnownInternalPrimaryKey());
 			if (i > 0) {
-				assertTrue(arr[i - 1].getReferenceKey().compareTo(ref.getReferenceKey()) < 0);
+				assertTrue(ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), ref.getReferenceKey()) < 0);
 			}
 		}
 	}
@@ -171,10 +172,10 @@ class ReferencesStoragePartTest {
 		part.assignMissingIdsAndSort();
 
 		// now we know the internal id - use it to replace the record
-		final int r1AssignedId = part.findReferenceOrThrowException(r1.getReferenceKey())
+		final int r1AssignedId = part.findReferenceOrThrowException(new ReferenceKey("A", 10))
 		                             .getReferenceKey()
 		                             .internalPrimaryKey();
-		final int r2AssignedId = part.findReferenceOrThrowException(r2.getReferenceKey())
+		final int r2AssignedId = part.findReferenceOrThrowException(new ReferenceKey("D", 10))
 		                             .getReferenceKey()
 		                             .internalPrimaryKey();
 
@@ -206,7 +207,7 @@ class ReferencesStoragePartTest {
 		// verify the order is still kept
 		final ReferenceContract[] arr = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
 		for (int i = 1; i < arr.length; i++) {
-			assertTrue(arr[i - 1].getReferenceKey().compareTo(arr[i].getReferenceKey()) < 0);
+			assertTrue(ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
 		}
 	}
 

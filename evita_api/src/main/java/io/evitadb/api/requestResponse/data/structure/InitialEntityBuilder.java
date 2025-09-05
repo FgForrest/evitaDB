@@ -594,8 +594,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	}
 
 	@Override
-	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
-		getReferencesBuilder().addOrReplaceReferenceMutations(referenceBuilder);
+	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder, boolean methodAllowsDuplicates) {
+		getReferencesBuilder().addOrReplaceReferenceMutations(referenceBuilder, methodAllowsDuplicates);
 	}
 
 	@Override

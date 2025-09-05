@@ -57,11 +57,12 @@ public class RemoveReferenceMutationConverter implements LocalMutationConverter<
 	@Nonnull
 	@Override
 	public GrpcRemoveReferenceMutation convert(@Nonnull RemoveReferenceMutation mutation) {
+		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		return GrpcRemoveReferenceMutation
 			.newBuilder()
-			.setReferenceName(mutation.getComparableKey().referenceName())
-			.setReferencePrimaryKey(mutation.getComparableKey().primaryKey())
-			.setInternalPrimaryKey(mutation.getReferenceKey().internalPrimaryKey())
+			.setReferenceName(referenceKey.referenceName())
+			.setReferencePrimaryKey(referenceKey.primaryKey())
+			.setInternalPrimaryKey(referenceKey.internalPrimaryKey())
 			.build();
 	}
 }

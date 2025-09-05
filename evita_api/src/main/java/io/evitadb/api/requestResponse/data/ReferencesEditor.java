@@ -357,8 +357,15 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		 * This method is considered to be a part of private API and is used only from generated Proxies.
 		 *
 		 * @param referenceBuilder reference builder wrapping the changes in the reference contract
+		 * @param methodAllowsDuplicates true when called in context, where duplicates are expected and reference in
+		 *                               the reference builder should be respected as it is, otherwise its internal
+		 *                               primary key might be aligned to already assigned internal primary key of this
+		 *                               editor
 		 */
-		void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder);
+		void addOrReplaceReferenceMutations(
+			@Nonnull ReferenceBuilder referenceBuilder,
+			boolean methodAllowsDuplicates
+		);
 
 		/**
 		 * Creates new reference with given parameters. This method is used only as a temporal schema until it's created.

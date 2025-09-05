@@ -52,9 +52,10 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
-public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKey> {
-	@Serial private static final long serialVersionUID = -8894714389485857588L;
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
+public class SetReferenceGroupMutation extends ReferenceMutation<ComparableReferenceKey>
+	implements SchemaEvolvingLocalMutation<ReferenceContract, ComparableReferenceKey> {
+	@Serial private static final long serialVersionUID = 7138410321528617748L;
 	/**
 	 * Group type is mandatory only when {@link EntitySchemaContract} hasn't yet known the group type, but can learn it due
 	 * to {@link EvolutionMode#ADDING_REFERENCES}. For the first time the group is set for the reference the group
@@ -70,29 +71,38 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	 * the current {@link EntitySchemaContract} definition.
 	 */
 	@Nullable private String resolvedGroupType;
+	/**
+	 * Full identification of the mutation that is used for sorting mutations.
+	 */
+	@Nonnull
+	private final ComparableReferenceKey comparableKey;
 
 	public SetReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, int groupPrimaryKey) {
 		super(referenceKey);
 		this.groupType = null;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	public SetReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, @Nullable String groupType, int groupPrimaryKey) {
 		super(referenceKey);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	public SetReferenceGroupMutation(@Nonnull String referenceName, int referencedEntityPrimaryKey, int groupPrimaryKey) {
 		super(referenceName, referencedEntityPrimaryKey);
 		this.groupType = null;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
 	}
 
 	public SetReferenceGroupMutation(@Nonnull String referenceName, int referencedEntityPrimaryKey, @Nullable String groupType, int groupPrimaryKey) {
 		super(referenceName, referencedEntityPrimaryKey);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
 	}
 
 	private SetReferenceGroupMutation(
@@ -100,6 +110,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		super(referenceKey, decisiveTimestamp);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	@Nonnull
@@ -179,7 +190,8 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	@Override
 	public ReferenceContract mutateLocal(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceContract existingValue, @Nonnull Map<String, AttributeSchemaContract> attributeTypes
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
@@ -243,9 +255,10 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		return PRIORITY_UPSERT;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
+	public ComparableReferenceKey getComparableKey() {
+		return this.comparableKey;
 	}
 
 	@Nonnull
@@ -264,7 +277,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 
 	@Nonnull
 	@Override
-	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
 		return new SetReferenceGroupMutation(
 			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
 			this.groupType, this.groupPrimaryKey, this.decisiveTimestamp

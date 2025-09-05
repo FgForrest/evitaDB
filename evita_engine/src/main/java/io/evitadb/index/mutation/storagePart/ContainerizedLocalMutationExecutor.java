@@ -406,6 +406,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	@Override
+	public void prepare(@Nullable Integer entityPrimaryKey, @Nonnull EntityExistence expectation) {
+		// do nothing
+	}
+
+	@Override
 	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
 		final EntitySchema entitySchema = this.schemaAccessor.get();
 		if (localMutation instanceof SetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation) {

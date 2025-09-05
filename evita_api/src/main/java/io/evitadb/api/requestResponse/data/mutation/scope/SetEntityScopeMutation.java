@@ -41,7 +41,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Serial private static final long serialVersionUID = -8465670492875977978L;
 	@Getter private final long decisiveTimestamp;
@@ -71,6 +71,7 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 		return 1L;
 	}
 
+	@Nonnull
 	@Override
 	public Scope getComparableKey() {
 		return this.scope;

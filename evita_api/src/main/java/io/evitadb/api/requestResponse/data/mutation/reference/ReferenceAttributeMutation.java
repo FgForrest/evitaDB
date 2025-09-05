@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation.ReferenceKeyWithAttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
@@ -52,7 +51,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -60,9 +58,9 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
 public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey> implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKeyWithAttributeKey> {
-	@Serial private static final long serialVersionUID = -1403540167469945561L;
+	@Serial private static final long serialVersionUID = -5135310891814031602L;
 	/**
 	 * Contains wrapped attribute mutation that affects the attribute of the reference.
 	 */
@@ -238,55 +236,6 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Override
 	public ReferenceKeyWithAttributeKey getComparableKey() {
 		return this.comparableKey;
-	}
-
-	/**
-	 * Represents a composite key combining a reference key and an attribute key.
-	 * This class facilitates operations that require both the {@link ReferenceKey} and the {@link AttributeKey}.
-	 * The class ensures proper ordering and comparison for its instances by implementing the {@link Comparable} interface.
-	 * Additionally, it provides equality checks and a hash code implementation based on its constituent keys.
-	 *
-	 * This class is immutable and thread-safe.
-	 *
-	 * Implements methods to:
-	 * - Compare instances based on their reference key and attribute key.
-	 * - Evaluate equality and generate hash codes consistently.
-	 *
-	 * Suitable for usage in scenarios where entities with associated attribute keys need to be ordered, filtered, or stored in collections requiring
-	 * comparison or uniqueness constraints.
-	 */
-	public static class ReferenceKeyWithAttributeKey implements Comparable<ReferenceKeyWithAttributeKey>, Serializable {
-		@Serial private static final long serialVersionUID = 773755868610382953L;
-		private final ReferenceKey referenceKey;
-		private final AttributeKey attributeKey;
-
-		public ReferenceKeyWithAttributeKey(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
-			this.referenceKey = referenceKey;
-			this.attributeKey = attributeKey;
-		}
-
-		@Override
-		public int compareTo(ReferenceKeyWithAttributeKey o) {
-			final int entityReferenceComparison = this.referenceKey.compareTo(o.referenceKey);
-			if (entityReferenceComparison == 0) {
-				return this.attributeKey.compareTo(o.attributeKey);
-			} else {
-				return entityReferenceComparison;
-			}
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(this.referenceKey, this.attributeKey);
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
-			ReferenceKeyWithAttributeKey that = (ReferenceKeyWithAttributeKey) o;
-			return Objects.equals(this.referenceKey, that.referenceKey) && Objects.equals(this.attributeKey, that.attributeKey);
-		}
 	}
 
 }

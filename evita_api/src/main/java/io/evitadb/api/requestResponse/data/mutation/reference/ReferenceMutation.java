@@ -43,7 +43,7 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class ReferenceMutation<T extends Comparable<T>> implements NamedLocalMutation<ReferenceContract, T> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
 	@Getter protected final long decisiveTimestamp;

@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -47,7 +48,18 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface ReferenceContract extends AttributesContract<AttributeSchemaContract>, Droppable, Comparable<ReferenceContract>, ContentComparator<ReferenceContract> {
+public interface ReferenceContract extends AttributesContract<AttributeSchemaContract>, Droppable, ContentComparator<ReferenceContract> {
+	/**
+	 * Use this comparator when you need to sort references in generic order - i.e. by reference name and referenced entity primary key.
+	 */
+	@Nonnull
+	Comparator<ReferenceContract> GENERIC_COMPARATOR = new GenericReferenceComparator();
+	/**
+	 * Use this comparator when you need to sort references in full order - i.e. by reference name, referenced entity primary key,
+	 * and internal primary key.
+	 */
+	@Nonnull
+	Comparator<ReferenceContract> FULL_COMPARATOR = new FullReferenceComparator();
 
 	/**
 	 * Method allows to access unique and primary identifier of the ReferenceContract within {@link EntityContract}.
@@ -118,14 +130,6 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 	 */
 	@Nonnull
 	ReferenceSchemaContract getReferenceSchemaOrThrow();
-
-	/**
-	 * Referenced entity is a business key - we can compare according it.
-	 */
-	@Override
-	default int compareTo(ReferenceContract o) {
-		return getReferenceKey().compareTo(o.getReferenceKey());
-	}
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
@@ -235,6 +239,35 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 			return (this.dropped ? "❌ " : "") +
 				"`" + this.referencedEntity + "`" + " with key " + getPrimaryKey();
 		}
+	}
+
+	/**
+	 * A comparator implementation for comparing two instances of {@link ReferenceContract}.
+	 * The comparison is based on the generic ordering of their {@link ReferenceKey} values - i.e. comparing only
+	 * by reference name and referenced entity primary key.
+	 */
+	class GenericReferenceComparator implements Comparator<ReferenceContract>, Serializable {
+		@Serial private static final long serialVersionUID = -146990155014983687L;
+
+		@Override
+		public int compare(ReferenceContract o1, ReferenceContract o2) {
+			return ReferenceKey.GENERIC_COMPARATOR.compare(o1.getReferenceKey(), o2.getReferenceKey());
+		}
+
+	}
+
+	/**
+	 * A comparator implementation for comparing two instances of {@link ReferenceContract}.
+	 * The comparison is based on the full ordering of their {@link ReferenceKey} values including internal primary key.
+	 */
+	class FullReferenceComparator implements Comparator<ReferenceContract>, Serializable {
+		@Serial private static final long serialVersionUID = 3357522966949186255L;
+
+		@Override
+		public int compare(ReferenceContract o1, ReferenceContract o2) {
+			return ReferenceKey.FULL_COMPARATOR.compare(o1.getReferenceKey(), o2.getReferenceKey());
+		}
+
 	}
 
 }

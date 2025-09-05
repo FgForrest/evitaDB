@@ -678,10 +678,13 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	}
 
 	@Override
-	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+	public void addOrReplaceReferenceMutations(
+		@Nonnull ReferenceBuilder referenceBuilder,
+		boolean methodAllowsDuplicates
+	) {
 		// if the reference is new - we need to adapt its internal key to the one assigned here
 		/* TODO JNO - tohle bude nutné ještě upravit kvůli duplicitám v proxies */
-		if (referenceBuilder instanceof InitialReferenceBuilder irb) {
+		if (!methodAllowsDuplicates && referenceBuilder instanceof InitialReferenceBuilder irb) {
 			irb.remapInternalKeyUsing(referenceKey -> {
 				// try to find new reference with the same business key in this builder
 				final ReferenceContract existingContract = this.references == null ?
@@ -769,7 +772,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			theReferences = Collections.emptyList();
 		} else {
 			theReferences = new ArrayList<>(this.referenceCollection);
-			Collections.sort(theReferences);
+			theReferences.sort(ReferenceContract.FULL_COMPARATOR);
 		}
 		return new References(
 			this.schema,

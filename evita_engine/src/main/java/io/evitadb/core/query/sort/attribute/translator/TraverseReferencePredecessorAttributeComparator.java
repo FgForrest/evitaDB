@@ -209,15 +209,17 @@ public class TraverseReferencePredecessorAttributeComparator
 				}
 			} else {
 				// if they don't share a ref-key we compare them by position of their sorted record providers
-				final OffsetAndLimit offsetAndLimit1 = this.sortedRecordsOffsets.get(attribute1.referencedKey());
-				final OffsetAndLimit offsetAndLimit2 = this.sortedRecordsOffsets.get(attribute2.referencedKey());
+				final OffsetAndLimit offsetAndLimit1 = this.sortedRecordsOffsets == null ?
+					null : this.sortedRecordsOffsets.get(attribute1.referencedKey());
+				final OffsetAndLimit offsetAndLimit2 = this.sortedRecordsOffsets == null ?
+					null : this.sortedRecordsOffsets.get(attribute2.referencedKey());
 				if (offsetAndLimit1 != null && offsetAndLimit2 != null) {
 					return Integer.compare(offsetAndLimit1.offset(), offsetAndLimit2.offset());
 				}
 			}
 			return 0;
 		} else if (bothAttributesSpecified) {
-			return attribute1.referencedKey().compareTo(attribute2.referencedKey());
+			return ReferenceKey.FULL_COMPARATOR.compare(attribute1.referencedKey(), attribute2.referencedKey());
 		} else if (attribute1 == null && attribute2 != null) {
 			return 1;
 		} else if (attribute1 != null) {

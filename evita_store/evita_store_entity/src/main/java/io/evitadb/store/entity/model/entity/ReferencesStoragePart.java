@@ -151,7 +151,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				if (previousReference != null) {
 					final ReferenceKey previousKeyWithId = previousReference.getReferenceKey();
 					Assert.isPremiseValid(
-						previousKeyWithId.compareTo(reference.getReferenceKey()) < 0,
+						ReferenceKey.FULL_COMPARATOR.compare(previousKeyWithId, reference.getReferenceKey()) < 0,
 						() -> "References must be sorted in ascending order according to their business key: "
 							+ Arrays.stream(this.references)
 							        .map(Reference::getReferenceKey)
@@ -190,14 +190,14 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				referenceKey,
 				this.references,
 				(ToIntBiFunction<ReferenceContract, ReferenceKey>)
-					(examinedReference, rk) -> examinedReference.getReferenceKey().compareTo(rk)
+					(examinedReference, rk) -> ReferenceKey.FULL_COMPARATOR.compare(examinedReference.getReferenceKey(), rk)
 			);
 		} else {
 			insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 				new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey(), Integer.MIN_VALUE),
 				this.references,
 				(ToIntBiFunction<ReferenceContract, ReferenceKey>)
-					(examinedReference, rk) -> examinedReference.getReferenceKey().compareTo(rk)
+					(examinedReference, rk) -> ReferenceKey.GENERIC_COMPARATOR.compare(examinedReference.getReferenceKey(), rk)
 			);
 			if (referenceKey.isUnknownReference()) {
 				// we are adding a new reference-verify that we are not duplicating existing reference
@@ -340,7 +340,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	public ReferenceContract findReferenceOrThrowException(@Nonnull ReferenceKey referenceKey) {
 		final int index = ArrayUtils.binarySearch(
 			this.references, referenceKey,
-			(referenceContract, theReferenceKey) -> referenceContract.getReferenceKey().compareTo(theReferenceKey)
+			(referenceContract, theReferenceKey) -> ReferenceKey.FULL_COMPARATOR.compare(referenceContract.getReferenceKey(), theReferenceKey)
 		);
 		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!");
 		final ReferenceContract reference = this.references[index];
@@ -362,7 +362,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	public boolean contains(@Nonnull ReferenceKey referenceKey) {
 		return ArrayUtils.binarySearch(
 			this.references, referenceKey,
-			(referenceContract, theReferenceKey) -> referenceContract.getReferenceKey().compareTo(theReferenceKey)
+			(referenceContract, theReferenceKey) -> ReferenceKey.FULL_COMPARATOR.compare(referenceContract.getReferenceKey(), theReferenceKey)
 		) >= 0;
 	}
 

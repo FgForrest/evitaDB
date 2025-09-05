@@ -86,6 +86,7 @@ public non-sealed interface LocalMutation<T, S extends Comparable<S>> extends Ca
 	 * Returns any {@link Comparable} business key allowing to sort mutations in a sensible and repeatable way we can
 	 * rely on in tests.
 	 */
+	@Nonnull
 	S getComparableKey();
 
 	/**

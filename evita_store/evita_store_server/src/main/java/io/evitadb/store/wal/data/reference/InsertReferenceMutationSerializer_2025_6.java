@@ -27,36 +27,34 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 
 /**
- * Serializer for {@link ReferenceAttributeMutation}.
+ * Serializer for {@link RemoveParentMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated This serializer is deprecated and should not be used.
  */
-public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAttributeMutation> {
+@Deprecated(since = "2025.6", forRemoval = true)
+public class InsertReferenceMutationSerializer_2025_6 extends Serializer<InsertReferenceMutation> {
 
 	@Override
-	public void write(Kryo kryo, Output output, ReferenceAttributeMutation mutation) {
-		final ReferenceKey referenceKey = mutation.getReferenceKey();
-		output.writeString(referenceKey.referenceName());
-		output.writeInt(referenceKey.primaryKey());
-		output.writeInt(referenceKey.internalPrimaryKey());
-		kryo.writeClassAndObject(output, mutation.getAttributeMutation());
+	public void write(Kryo kryo, Output output, InsertReferenceMutation mutation) {
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
-	public ReferenceAttributeMutation read(Kryo kryo, Input input, Class<? extends ReferenceAttributeMutation> type) {
-		return new ReferenceAttributeMutation(
+	public InsertReferenceMutation read(Kryo kryo, Input input, Class<? extends InsertReferenceMutation> type) {
+		return new InsertReferenceMutation(
 			new ReferenceKey(
 				input.readString(),
-				input.readInt(),
 				input.readInt()
 			),
-			(AttributeMutation) kryo.readClassAndObject(input)
+			kryo.readObjectOrNull(input, Cardinality.class),
+			input.readString()
 		);
 	}
-
 }

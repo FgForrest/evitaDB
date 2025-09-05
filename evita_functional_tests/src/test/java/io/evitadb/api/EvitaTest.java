@@ -3652,7 +3652,7 @@ class EvitaTest implements EvitaTestSupport {
 			final CatalogStatistics statistics2 = Arrays.stream(catalogStatistics).filter(
 				it -> (TEST_CATALOG + "_2").equals(it.catalogName())).findFirst().orElseThrow();
 			assertTrue(
-				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1700L,
+				statistics2.sizeOnDiskInBytes() > 1000L && statistics2.sizeOnDiskInBytes() < 1800L,
 				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
 			);
 			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
@@ -3995,7 +3995,11 @@ class EvitaTest implements EvitaTestSupport {
 
 				session.createNewEntity(Entities.PRODUCT, 1)
 				       .setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
-				       .setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(1))
+				       .setReference(
+						   Entities.PARAMETER,
+						   1,
+						   whichIs -> whichIs.setGroup(1)
+				       )
 				       .upsertVia(session);
 
 				final SealedEntity product = session.queryOneSealedEntity(

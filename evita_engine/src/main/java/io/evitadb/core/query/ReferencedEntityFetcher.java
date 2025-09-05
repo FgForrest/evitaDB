@@ -912,7 +912,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull QueryExecutionContext queryExecutionContext,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable RoaringBitmapWriter<RoaringBitmap> allReferencedParents,
-		@Nonnull IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences, int[] parentIds
+		@Nonnull IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences,
+		int[] parentIds
 	) {
 		final Optional<GlobalEntityIndex> globalIndexRef = queryPlanningContext.getGlobalEntityIndexIfExists(entityType, scope);
 		if (globalIndexRef.isPresent()) {
@@ -937,9 +938,19 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				)
 				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 
+			// sort parents first
+			Arrays.sort(parentIds);
+			final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
+			Integer previousParent = null;
 			// first, construct EntityReferenceWithParent for each requested parent id
 			for (int parentId : parentIds) {
-				final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
+				if (previousParent == null || previousParent != parentId) {
+					previousParent = parentId;
+				} else {
+					// skip duplicates
+					continue;
+				}
+				theParent.set(null);
 				if (allReferencedParents != null) {
 					allReferencedParents.add(parentId);
 				}
@@ -959,7 +970,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					},
 					parentId
 				);
-				parentEntityReferences.put(parentId, theParent.get());
+				// register the parent and also all its parents recursively, there is high chance other entities
+				// will share the same parents
+				EntityReferenceWithParent parent = theParent.get();
+				parentEntityReferences.put(parentId, parent);
+				while (parent != null) {
+					final EntityClassifierWithParent parentEntity = parent.getParentEntity().orElse(null);
+					if (parentEntity == null) {
+						parent = null;
+					} else {
+						parent = new EntityReferenceWithParent(
+							parentEntity.getType(),
+							parentEntity.getPrimaryKeyOrThrowException(),
+							parentEntity.getParentEntity().orElse(null)
+						);
+						parentEntityReferences.put(parent.primaryKey(), parent);
+					}
+				}
 			}
 		}
 	}

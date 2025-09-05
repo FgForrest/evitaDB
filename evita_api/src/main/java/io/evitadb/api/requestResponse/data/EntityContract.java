@@ -185,8 +185,7 @@ public interface EntityContract extends EntityClassifierWithParent,
 		}
 		if (AttributesContract.anyAttributeDifferBetween(this, otherEntity)) return true;
 		if (AssociatedDataContract.anyAssociatedDataDifferBetween(this, otherEntity)) return true;
-		if (getPriceInnerRecordHandling() != otherEntity.getPriceInnerRecordHandling()) return true;
-		if (PricesContract.anyPriceDifferBetween(this, otherEntity)) return true;
+		if (PricesContract.anyPriceOrStrategyDifferBetween(this, otherEntity)) return true;
 		if (!getLocales().equals(otherEntity.getLocales())) return true;
 
 		final Collection<ReferenceContract> thisReferences = referencesAvailable() ? getReferences() : Collections.emptyList();

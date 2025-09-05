@@ -27,36 +27,34 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import lombok.EqualsAndHashCode;
 
 /**
- * Serializer for {@link ReferenceAttributeMutation}.
+ * Serializer for {@link SetReferenceGroupMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated This serializer is deprecated and should not be used.
  */
-public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAttributeMutation> {
+@Deprecated(since = "2025.6", forRemoval = true)
+@EqualsAndHashCode(callSuper = true)
+public class SetReferenceGroupMutationSerializer_2025_6 extends Serializer<SetReferenceGroupMutation> {
 
 	@Override
-	public void write(Kryo kryo, Output output, ReferenceAttributeMutation mutation) {
-		final ReferenceKey referenceKey = mutation.getReferenceKey();
-		output.writeString(referenceKey.referenceName());
-		output.writeInt(referenceKey.primaryKey());
-		output.writeInt(referenceKey.internalPrimaryKey());
-		kryo.writeClassAndObject(output, mutation.getAttributeMutation());
+	public void write(Kryo kryo, Output output, SetReferenceGroupMutation mutation) {
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
-	public ReferenceAttributeMutation read(Kryo kryo, Input input, Class<? extends ReferenceAttributeMutation> type) {
-		return new ReferenceAttributeMutation(
+	public SetReferenceGroupMutation read(Kryo kryo, Input input, Class<? extends SetReferenceGroupMutation> type) {
+		return new SetReferenceGroupMutation(
 			new ReferenceKey(
 				input.readString(),
-				input.readInt(),
 				input.readInt()
 			),
-			(AttributeMutation) kryo.readClassAndObject(input)
+			input.readString(),
+			input.readInt()
 		);
 	}
-
 }

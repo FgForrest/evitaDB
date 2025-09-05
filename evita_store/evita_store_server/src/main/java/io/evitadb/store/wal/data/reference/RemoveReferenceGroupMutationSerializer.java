@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ public class RemoveReferenceGroupMutationSerializer extends Serializer<RemoveRef
 		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		output.writeString(referenceKey.referenceName());
 		output.writeInt(referenceKey.primaryKey());
+		output.writeInt(referenceKey.internalPrimaryKey());
 	}
 
 	@Override
@@ -51,6 +52,7 @@ public class RemoveReferenceGroupMutationSerializer extends Serializer<RemoveRef
 		return new RemoveReferenceGroupMutation(
 			new ReferenceKey(
 				input.readString(),
+				input.readInt(),
 				input.readInt()
 			)
 		);

@@ -46,16 +46,23 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
-public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey> {
-	@Serial private static final long serialVersionUID = -564814790916765844L;
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
+public class RemoveReferenceGroupMutation extends ReferenceMutation<ComparableReferenceKey> {
+	@Serial private static final long serialVersionUID = -3127011415344111902L;
+	/**
+	 * Full identification of the mutation that is used for sorting mutations.
+	 */
+	@Nonnull
+	private final ComparableReferenceKey comparableKey;
 
 	public RemoveReferenceGroupMutation(@Nonnull ReferenceKey referenceKey) {
 		super(referenceKey);
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	private RemoveReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, long decisiveTimestamp) {
 		super(referenceKey, decisiveTimestamp);
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	@Nonnull
@@ -124,16 +131,17 @@ public class RemoveReferenceGroupMutation extends ReferenceMutation<ReferenceKey
 
 	@Nonnull
 	@Override
-	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
 		return new RemoveReferenceGroupMutation(
 			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
 			this.decisiveTimestamp
 		);
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
+	public ComparableReferenceKey getComparableKey() {
+		return this.comparableKey;
 	}
 
 	@Override

@@ -305,7 +305,7 @@ public class SealedEntityProxyState
 				        .filter(Optional::isPresent)
 				        .map(Optional::get)
 			)
-			.forEach(theEntityBuilder::addOrReplaceReferenceMutations);
+			.forEach(refBuilder -> theEntityBuilder.addOrReplaceReferenceMutations(refBuilder, false));
 	}
 
 	@Override

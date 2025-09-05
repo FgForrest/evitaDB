@@ -60,7 +60,7 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class AssociatedDataMutation implements NamedLocalMutation<AssociatedDataValue, AssociatedDataKey> {
 	@Serial private static final long serialVersionUID = 2877681453791825337L;
 	@Getter private final long decisiveTimestamp;
@@ -94,6 +94,7 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 		return ContainerType.ASSOCIATED_DATA;
 	}
 
+	@Nonnull
 	@Override
 	public AssociatedDataKey getComparableKey() {
 		return this.associatedDataKey;

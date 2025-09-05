@@ -840,8 +840,11 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	}
 
 	@Override
-	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
-		this.referencesBuilder.addOrReplaceReferenceMutations(referenceBuilder);
+	public void addOrReplaceReferenceMutations(
+		@Nonnull ReferenceBuilder referenceBuilder,
+		boolean methodAllowsDuplicates
+	) {
+		this.referencesBuilder.addOrReplaceReferenceMutations(referenceBuilder, methodAllowsDuplicates);
 	}
 
 	@Nonnull

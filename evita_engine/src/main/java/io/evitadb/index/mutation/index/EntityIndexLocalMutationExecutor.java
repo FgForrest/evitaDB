@@ -156,11 +156,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
-	private Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(12);
+	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(12);
 	/**
 	 * Memoized scope of the current entity.
 	 */
 	private Scope memoizedScope;
+	/**
+	 * Flag indicating that processed entity is newly created.
+	 */
+	private boolean created;
 
 	/**
 	 * Constructs an {@link EntityIndexKey} for a referenced entity type using the specified reference name.
@@ -213,15 +217,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	@Override
-	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
+	public void prepare(@Nullable Integer entityPrimaryKey, @Nonnull EntityExistence expectation) {
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		final int recordId = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
-
-		final boolean created = globalIndex.insertPrimaryKeyIfMissing(recordId);
-		if (created) {
+		this.created = globalIndex.insertPrimaryKeyIfMissing(recordId);
+		if (this.created) {
 			if (this.undoActions != null) {
 				this.undoActions.add(() -> globalIndex.removePrimaryKey(recordId));
 			}
+
 			// we need to set-up all the entity compounds that rely on non-localized attributes
 			// they will exist even if the attributes are not present (i.e. compounds contain only NULL values)
 			final EntitySchema entitySchema = getEntitySchema();
@@ -234,17 +238,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				getStoragePartExistingDataFactory().getEntityAttributeValueSupplier(),
 				this.undoActionsAppender
 			);
-		}
 
-		if (created && this.schemaAccessor.get().isWithHierarchy()) {
-			setParent(
-				this, globalIndex,
-				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
-				null,
-				this.undoActionsAppender
-			);
+			if (this.schemaAccessor.get().isWithHierarchy()) {
+				setParent(
+					this, globalIndex,
+					getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
+					null,
+					this.undoActionsAppender
+				);
+			}
 		}
+	}
 
+	@Override
+	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
+		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		if (localMutation instanceof SetPriceInnerRecordHandlingMutation priceHandlingMutation) {
 			updatePriceHandlingForEntity(priceHandlingMutation, globalIndex);
 		} else if (localMutation instanceof PriceMutation priceMutation) {
@@ -278,12 +286,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
 			final ExistingAttributeValueSupplier entityAttributeValueSupplier = getStoragePartExistingDataFactory().getEntityAttributeValueSupplier();
-			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updateGlobalIndex, targetIndex) -> updateAttribute(
+			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updateglobalIndex, targetIndex) -> updateAttribute(
 				attributeMutation,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(getEntitySchema()),
 				entityAttributeValueSupplier,
 				targetIndex,
-				updateGlobalIndex,
+				updateglobalIndex,
 				true
 			);
 			attributeUpdateApplicator.accept(true, globalIndex);
@@ -437,7 +445,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex index,
-		boolean updateGlobalIndex,
+		boolean updateglobalIndex,
 		boolean updateCompounds
 	) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
@@ -446,13 +454,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
 			AttributeIndexMutator.executeAttributeUpsert(
 				this, attributeSchemaProvider, existingValueSupplier,
-				index, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds,
+				index, affectedAttribute, attributeValue, updateglobalIndex, updateCompounds,
 				this.undoActionsAppender
 			);
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			AttributeIndexMutator.executeAttributeRemoval(
 				this, attributeSchemaProvider, existingValueSupplier,
-				index, affectedAttribute, updateGlobalIndex, updateCompounds,
+				index, affectedAttribute, updateglobalIndex, updateCompounds,
 				this.undoActionsAppender
 			);
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
@@ -694,6 +702,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param scope            The scope indicating the context in which the method is called.
 	 * @param globalIndex      The global entity index from which the primary key is to be removed.
 	 */
+	@SuppressWarnings("MethodMayBeStatic")
 	private void unindexPrimaryKey(
 		int entityPrimaryKey,
 		@Nonnull Scope scope,

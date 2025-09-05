@@ -3334,7 +3334,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			.stream()
 			.filter(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class) >= secondCategoryPriority)
 			.map(it -> new ReferenceKey(Entities.PARAMETER, it.getReferencedPrimaryKey()))
-			.sorted()
+			.sorted(ReferenceKey.GENERIC_COMPARATOR)
 			.toList();
 
 		evita.queryCatalog(
@@ -3378,7 +3378,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					.getReferences(Entities.PARAMETER)
 					.stream()
 					.map(ReferenceContract::getReferenceKey)
-					.sorted()
+					.sorted(ReferenceKey.FULL_COMPARATOR)
 					.toList();
 
 				assertEquals(expectedReferenceKeys, fetchedReferenceIds);

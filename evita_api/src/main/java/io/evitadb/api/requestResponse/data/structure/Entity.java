@@ -589,7 +589,7 @@ public class Entity implements SealedEntity {
 			}
 
 			// references needs to be always sorted by their natural ordering
-			Collections.sort(list);
+			list.sort(ReferenceContract.FULL_COMPARATOR);
 			mergedReferences = list;
 		}
 

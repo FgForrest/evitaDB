@@ -35,16 +35,14 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
  * Serializer for {@link ReferenceAttributeMutation}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated This serializer is deprecated and should not be used.
  */
-public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAttributeMutation> {
+@Deprecated(since = "2025.6", forRemoval = true)
+public class ReferenceAttributeMutationSerializer_2025_6 extends Serializer<ReferenceAttributeMutation> {
 
 	@Override
 	public void write(Kryo kryo, Output output, ReferenceAttributeMutation mutation) {
-		final ReferenceKey referenceKey = mutation.getReferenceKey();
-		output.writeString(referenceKey.referenceName());
-		output.writeInt(referenceKey.primaryKey());
-		output.writeInt(referenceKey.internalPrimaryKey());
-		kryo.writeClassAndObject(output, mutation.getAttributeMutation());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -52,7 +50,6 @@ public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAt
 		return new ReferenceAttributeMutation(
 			new ReferenceKey(
 				input.readString(),
-				input.readInt(),
 				input.readInt()
 			),
 			(AttributeMutation) kryo.readClassAndObject(input)

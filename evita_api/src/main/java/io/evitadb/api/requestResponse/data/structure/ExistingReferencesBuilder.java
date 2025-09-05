@@ -399,7 +399,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 					this.entitySchema,
 					this.attributeTypes
 				);
-				addOrReplaceReferenceMutations(whichIs.apply(builder));
+				addOrReplaceReferenceMutations(whichIs.apply(builder), true);
 			}
 		}
 		return this;
@@ -531,7 +531,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				)
 			);
 		}
-		addOrReplaceReferenceMutations(referenceBuilder);
+		addOrReplaceReferenceMutations(referenceBuilder, true);
 		return this;
 	}
 
@@ -600,7 +600,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	}
 
 	@Override
-	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+	public void addOrReplaceReferenceMutations(
+		@Nonnull ReferenceBuilder referenceBuilder,
+		boolean methodAllowsDuplicates
+	) {
 		// Preconditions
 		if (!referencesAvailable(referenceBuilder.getReferenceName())) {
 			throw ContextMissingException.referenceContextMissing(referenceBuilder.getReferenceName());
@@ -608,7 +611,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		// if the reference is new - we need to adapt its internal key to the one assigned here
 		/* TODO JNO - tohle bude nutné ještě upravit kvůli duplicitám v proxies */
-		if (referenceBuilder instanceof InitialReferenceBuilder irb) {
+		if (!methodAllowsDuplicates && referenceBuilder instanceof InitialReferenceBuilder irb) {
 			irb.remapInternalKeyUsing(referenceKey -> {
 				// try to find new reference with the same business key in this builder
 				final Map<Integer, List<ReferenceMutation<?>>> existingMutations = this.referenceMutations == null ?
@@ -981,7 +984,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				}
 			);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
-		addOrReplaceReferenceMutations(referenceBuilder);
+		addOrReplaceReferenceMutations(referenceBuilder, false);
 		return this;
 	}
 

@@ -58,10 +58,10 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
-public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
-	implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKey> {
-	@Serial private static final long serialVersionUID = 6295749367283283232L;
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
+public class InsertReferenceMutation extends ReferenceMutation<ComparableReferenceKey>
+	implements SchemaEvolvingLocalMutation<ReferenceContract, ComparableReferenceKey> {
+	@Serial private static final long serialVersionUID = 246683161519656910L;
 
 	/**
 	 * Contains information about reference cardinality. This value is usually NULL except the case when the reference
@@ -77,11 +77,17 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 	@Getter
 	@Nullable
 	private final String referencedEntityType;
+	/**
+	 * Full identification of the mutation that is used for sorting mutations.
+	 */
+	@Nonnull
+	private final ComparableReferenceKey comparableKey;
 
 	public InsertReferenceMutation(@Nonnull ReferenceKey referenceKey) {
 		super(referenceKey);
 		this.referenceCardinality = null;
 		this.referencedEntityType = null;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
 	}
 
 	public InsertReferenceMutation(
@@ -92,6 +98,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 		super(referenceKey);
 		this.referenceCardinality = referenceCardinality;
 		this.referencedEntityType = referencedEntityType;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
 	}
 
 	public InsertReferenceMutation(
@@ -103,6 +110,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 		super(referenceKey, decisiveTimestamp);
 		this.referenceCardinality = referenceCardinality;
 		this.referencedEntityType = referencedEntityType;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
 	}
 
 	@Override
@@ -205,9 +213,10 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 		return PRIORITY_UPSERT;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
+	public ComparableReferenceKey getComparableKey() {
+		return this.comparableKey;
 	}
 
 	@Nonnull
@@ -220,7 +229,7 @@ public class InsertReferenceMutation extends ReferenceMutation<ReferenceKey>
 
 	@Nonnull
 	@Override
-	public ReferenceMutation<ReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
 		return new InsertReferenceMutation(
 			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
 			this.referenceCardinality, this.referencedEntityType, this.decisiveTimestamp

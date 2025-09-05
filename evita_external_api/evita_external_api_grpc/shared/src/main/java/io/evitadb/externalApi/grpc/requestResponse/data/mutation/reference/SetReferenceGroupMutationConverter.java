@@ -60,11 +60,12 @@ public class SetReferenceGroupMutationConverter implements LocalMutationConverte
 	@Nonnull
 	@Override
 	public GrpcSetReferenceGroupMutation convert(@Nonnull SetReferenceGroupMutation mutation) {
+		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		final GrpcSetReferenceGroupMutation.Builder builder = GrpcSetReferenceGroupMutation
 			.newBuilder()
-			.setReferenceName(mutation.getComparableKey().referenceName())
-			.setReferencePrimaryKey(mutation.getComparableKey().primaryKey())
-			.setInternalPrimaryKey(mutation.getReferenceKey().internalPrimaryKey())
+			.setReferenceName(referenceKey.referenceName())
+			.setReferencePrimaryKey(referenceKey.primaryKey())
+			.setInternalPrimaryKey(referenceKey.internalPrimaryKey())
 			.setGroupPrimaryKey(mutation.getGroupPrimaryKey());
 
 		if (mutation.getGroupType() != null) {

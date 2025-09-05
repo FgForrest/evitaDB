@@ -1605,7 +1605,13 @@ public class DataGenerator {
 			);
 
 			// randomly delete references
-			final Collection<ReferenceKey> references = detachedBuilder.getReferences().stream().map(ReferenceContract::getReferenceKey).sorted().collect(Collectors.toList());
+			final Collection<ReferenceKey> references =
+				detachedBuilder
+					.getReferences()
+					.stream()
+					.map(ReferenceContract::getReferenceKey)
+					.sorted(ReferenceKey.FULL_COMPARATOR)
+					.collect(Collectors.toList());
 			for (ReferenceKey reference : references) {
 				if (genericFaker.random().nextInt(4) == 0) {
 					detachedBuilder.removeReference(reference.referenceName(), reference.primaryKey());

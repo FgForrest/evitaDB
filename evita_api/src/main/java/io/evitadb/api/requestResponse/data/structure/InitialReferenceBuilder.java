@@ -151,12 +151,25 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	public Optional<GroupEntityReference> getGroup() {
 		return ofNullable(this.groupId)
 			.map(it -> {
+				final String schemaReferencedGroupType = this.referenceSchema.getReferencedGroupType();
 				Assert.isTrue(
-					this.groupType != null,
+					schemaReferencedGroupType != null || this.groupType != null,
 					() -> new InvalidMutationException(
-						"Group type must be provided when the group type is not yet persisted in the reference schema!")
+						"Group type must be provided when the group type has not yet been persisted in the reference schema!"
+					)
 				);
-				return new GroupEntityReference(this.groupType, it, 1, false);
+				Assert.isTrue(
+					schemaReferencedGroupType == null || this.groupType == null || Objects.equals(this.groupType, schemaReferencedGroupType),
+					() -> new InvalidMutationException(
+						"Provided group type '" + this.groupType + "' is not matching the group type in schema '" + schemaReferencedGroupType + "'!"
+					)
+				);
+				return new GroupEntityReference(
+					schemaReferencedGroupType == null ? this.groupType : schemaReferencedGroupType,
+					it,
+					1,
+					false
+				);
 			});
 	}
 

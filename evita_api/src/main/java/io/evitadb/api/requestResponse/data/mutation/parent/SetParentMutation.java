@@ -68,6 +68,7 @@ public class SetParentMutation extends ParentMutation {
 		return PRIORITY_UPSERT;
 	}
 
+	@Nonnull
 	@Override
 	public Integer getComparableKey() {
 		return this.parentPrimaryKey;

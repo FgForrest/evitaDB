@@ -40,7 +40,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class PriceMutation implements LocalMutation<PriceContract, PriceKey> {
 	@Serial private static final long serialVersionUID = 2424285135744614172L;
 	@Getter private final long decisiveTimestamp;
@@ -60,6 +60,7 @@ public abstract class PriceMutation implements LocalMutation<PriceContract, Pric
 		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
+	@Nonnull
 	@Override
 	public PriceKey getComparableKey() {
 		return this.priceKey;

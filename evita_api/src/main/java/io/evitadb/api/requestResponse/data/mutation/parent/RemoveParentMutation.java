@@ -67,6 +67,7 @@ public class RemoveParentMutation extends ParentMutation {
 		return PRIORITY_REMOVAL;
 	}
 
+	@Nonnull
 	@Override
 	public Integer getComparableKey() {
 		return Integer.MIN_VALUE;
