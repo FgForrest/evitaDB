@@ -28,6 +28,8 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException.Operation;
+import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
+import io.evitadb.api.exception.ReferenceCardinalityViolatedException.CardinalityViolation;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -526,8 +528,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				if (referenceKey.isUnknownReference()) {
 					this.references.put(referenceKey, References.DUPLICATE_REFERENCE);
 					// removing duplicates this way is not supported - caller must use filter variant
-					throw new ReferenceAllowsDuplicatesException(
-						referenceName, this.schema, Operation.WRITE);
+					throw new ReferenceAllowsDuplicatesException(referenceName, this.schema, Operation.WRITE);
 				} else {
 					int duplicateCounter = 0;
 					ReferenceContract remainingOccurence = null;
@@ -1042,9 +1043,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			if (this.schema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
 				referenceSchema = promoteUniqueCardinality(referenceSchema, referenceKey);
 			} else {
-				throw new InvalidMutationException(
-					"The reference `" + referenceName + "` is already defined to have `" +
-						referenceSchema.getCardinality() + "` cardinality, cannot add another reference to it!"
+				throw new ReferenceCardinalityViolatedException(
+					this.schema.getName(),
+					List.of(new CardinalityViolation(referenceName, schemaCardinality, this.referencesDefinedCount.get(referenceName) + 1))
 				);
 			}
 		}

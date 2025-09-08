@@ -2578,12 +2578,16 @@ public final class EntityCollection implements
 							final EntityIndex entityIndex;
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
-								entityIndex = new GlobalEntityIndex(EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain);
+								entityIndex = new GlobalEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.entityType,
+									eikAgain
+								);
 							} else {
 								final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 								Assert.isPremiseValid(
 									globalIndex instanceof GlobalEntityIndex,
-									"When reduced index is created global one must already exist!"
+									"When a reduced index is created global one must already exist!"
 								);
 								final Serializable discriminator = eikAgain.discriminator();
 								if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
@@ -2599,10 +2603,15 @@ public final class EntityCollection implements
 										discriminator instanceof ReferenceKey,
 										"Reduced index must have discriminator of type ReferenceKey, but got " + (discriminator == null ? "NULL" : discriminator.getClass().getName())
 									);
-									final ReferenceSchemaContract referenceSchema = EntityCollection.this.getSchema()
-										.getReferenceOrThrowException(((ReferenceKey) discriminator).referenceName());
+									// check that the reference exists in the schema
+									final ReferenceKey refKey = (ReferenceKey) discriminator;
+									EntityCollection.this
+										.getSchema()
+										.getReferenceOrThrowException(refKey.referenceName());
 									entityIndex = new ReducedEntityIndex(
-										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
+										EntityCollection.this.indexPkSequence.incrementAndGet(),
+										EntityCollection.this.entityType,
+										eikAgain
 									);
 								}
 							}

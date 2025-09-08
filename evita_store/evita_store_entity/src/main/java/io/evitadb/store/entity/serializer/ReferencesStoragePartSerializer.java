@@ -39,8 +39,6 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 
 	@Override
 	public void write(Kryo kryo, Output output, ReferencesStoragePart object) {
-		// first assign missing reference internal primary keys
-		object.assignMissingIdsAndSort();
 		// then continue with serialization
 		output.writeInt(object.getEntityPrimaryKey());
 		output.writeVarInt(object.getLastUsedPrimaryKey(), true);

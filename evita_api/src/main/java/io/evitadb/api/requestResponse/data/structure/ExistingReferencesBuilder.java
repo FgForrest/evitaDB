@@ -28,6 +28,8 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
 import io.evitadb.api.exception.ReferenceAllowsDuplicatesException.Operation;
+import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
+import io.evitadb.api.exception.ReferenceCardinalityViolatedException.CardinalityViolation;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -55,6 +57,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
@@ -605,8 +608,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		boolean methodAllowsDuplicates
 	) {
 		// Preconditions
-		if (!referencesAvailable(referenceBuilder.getReferenceName())) {
-			throw ContextMissingException.referenceContextMissing(referenceBuilder.getReferenceName());
+		final String referenceName = referenceBuilder.getReferenceName();
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
 		}
 
 		// if the reference is new - we need to adapt its internal key to the one assigned here
@@ -631,7 +635,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
 		final int internalReferenceKey = referenceKey.internalPrimaryKey();
 		Assert.isPremiseValid(
-			internalReferenceKey != 0,
+			internalReferenceKey != 0 ||
+			    // TOBEDONE #538 - due to backward compatibility with 2025.6 we need to relax this condition
+				// until all reflected references gets reassigned to proper internal PKs gradually
+				getReferenceSchemaOrThrowException(referenceName) instanceof ReflectedReferenceSchemaContract,
 			"Internal primary key must be known or locally assigned here!"
 		);
 
@@ -1067,9 +1074,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				referenceSchema.getCardinality().getMax() <= 1 &&
 				!entitySchema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)
 		) {
-			throw new InvalidMutationException(
-				"The reference `" + referenceName + "` is already defined to have `" +
-					referenceSchema.getCardinality() + "` cardinality, cannot add another reference to it!"
+			throw new ReferenceCardinalityViolatedException(
+				entitySchema.getName(),
+				List.of(new CardinalityViolation(referenceName, referenceSchema.getCardinality(), existingInternalPkCount + 1))
 			);
 		} else {
 			refBuilder = new InitialReferenceBuilder(
@@ -1126,16 +1133,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 
 		// register a new reference
-		final Integer currentReferenceCount = this.referencesDefinedCount.merge(referenceName, 1, Integer::sum);
+		final int currentReferenceCount = this.referencesDefinedCount.merge(referenceName, 1, Integer::sum);
 		final Cardinality schemaCardinality = referenceSchema.getCardinality();
 		final boolean lowCardinality = schemaCardinality.getMax() < currentReferenceCount;
 		final boolean hasDuplicates = referenceMutationIndex.size() > 1;
 		final boolean duplicateMismatch = hasDuplicates && !schemaCardinality.allowsDuplicates();
 		if (lowCardinality || duplicateMismatch) {
 			if (!this.entitySchema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
-				throw new InvalidMutationException(
-					"The reference `" + referenceName + "` is already defined to have `" +
-						schemaCardinality + "` cardinality, cannot add another reference to it!"
+				throw new ReferenceCardinalityViolatedException(
+					this.entitySchema.getName(),
+					List.of(new CardinalityViolation(referenceName, schemaCardinality, currentReferenceCount))
 				);
 			} else {
 				// we need to promote the cardinality in all insert reference mutations

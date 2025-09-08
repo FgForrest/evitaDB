@@ -143,9 +143,9 @@ public class TraverseReferencePredecessorAttributeComparator
 		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
 		// to correctly compare the references we need to compare only attributes on the same reference
 		final boolean bothAttributesSpecified = attribute1 != null && attribute2 != null;
-		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedKey().equals(attribute2.referencedKey());
+		final boolean attributesExistOnSameReference = bothAttributesSpecified && attribute1.referencedKey().equalsInGeneral(attribute2.referencedKey());
 		if (attributesExistOnSameReference) {
-			if (attribute1.referencedKey().equals(attribute2.referencedKey())) {
+			if (attribute1.referencedKey().equalsInGeneral(attribute2.referencedKey())) {
 				// if the offset is null, the sorted record provider was not found for the given reference key
 				final OffsetAndLimit offsetAndLimit = this.sortedRecordsOffsets == null ?
 					null : this.sortedRecordsOffsets.get(attribute1.referencedKey());
@@ -219,7 +219,7 @@ public class TraverseReferencePredecessorAttributeComparator
 			}
 			return 0;
 		} else if (bothAttributesSpecified) {
-			return ReferenceKey.FULL_COMPARATOR.compare(attribute1.referencedKey(), attribute2.referencedKey());
+			return ReferenceKey.GENERIC_COMPARATOR.compare(attribute1.referencedKey(), attribute2.referencedKey());
 		} else if (attribute1 == null && attribute2 != null) {
 			return 1;
 		} else if (attribute1 != null) {

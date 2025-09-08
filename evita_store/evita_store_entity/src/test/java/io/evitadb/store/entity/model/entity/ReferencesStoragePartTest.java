@@ -342,11 +342,12 @@ class ReferencesStoragePartTest {
 	void shouldReturnReferencedIdsAndDistinctIdsAndGroupIdsAndIgnoreDropped() {
 		final ReferencesStoragePart part = new ReferencesStoragePart(
 			6, 0, new Reference[]{
-			newRef("A", 1, 10, group(1), false),
+			newRef("A", 1, 10, group(2), false),
 			newRef("A", 1, 11, group(1), true), // dropped, ignored
-			newRef("A", 2, 12, group(2), false),
+			newRef("A", 2, 12, group(1), false),
 			newRef("B", 1, 13, group(2), false),
-			newRef("B", 1, 14, group(3), false)
+			newRef("B", 1, 14, group(3), false),
+			newRef("C", 1, 14, group(4), true) // dropped, ignored
 		}, -1
 		);
 
@@ -356,6 +357,15 @@ class ReferencesStoragePartTest {
 		assertArrayEquals(new int[]{1, 1}, part.getReferencedIds("B"));
 		assertArrayEquals(new int[]{1}, part.getDistinctReferencedIds("B"));
 		assertArrayEquals(new int[]{2, 3}, part.getDistinctReferencedGroupIds("B"));
+		assertArrayEquals(new int[]{}, part.getReferencedIds("C"));
+		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("C"));
+		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("C"));
+		assertArrayEquals(new int[]{}, part.getReferencedIds("D"));
+		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("D"));
+		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("D"));
+		assertArrayEquals(new int[]{}, part.getReferencedIds("1"));
+		assertArrayEquals(new int[]{}, part.getDistinctReferencedIds("1"));
+		assertArrayEquals(new int[]{}, part.getDistinctReferencedGroupIds("1"));
 	}
 
 	@Test

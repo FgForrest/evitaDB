@@ -139,7 +139,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Scope entityIndexScope = kryo.readObject(input, Scope.class);
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType, entityIndexScope) : new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
+			new EntityIndexKey(entityIndexType, entityIndexScope, null) :
+			new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 

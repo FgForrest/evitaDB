@@ -23,11 +23,8 @@
 
 package io.evitadb.store.entity.model.entity;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -49,7 +46,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.ToIntBiFunction;
 import java.util.function.UnaryOperator;
@@ -70,6 +66,8 @@ import java.util.stream.Collectors;
 public class ReferencesStoragePart implements EntityStoragePart {
 	@Serial private static final long serialVersionUID = -8694125339226376099L;
 	private static final Reference[] EMPTY_REFERENCES = new Reference[0];
+	private static final ToIntBiFunction<ReferenceContract, ReferenceKey> FULL_COMPARISON_FUNCTION =
+		(examinedReference, rk) -> ReferenceKey.FULL_COMPARATOR.compare(examinedReference.getReferenceKey(), rk);
 
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
@@ -188,16 +186,16 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		if (referenceKey.isKnownInternalPrimaryKey()) {
 			insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 				referenceKey,
-				this.references,
-				(ToIntBiFunction<ReferenceContract, ReferenceKey>)
-					(examinedReference, rk) -> ReferenceKey.FULL_COMPARATOR.compare(examinedReference.getReferenceKey(), rk)
+				this.references, FULL_COMPARISON_FUNCTION
 			);
+			// adapt to the already assigned primary key, if our counter is lower
+			if (referenceKey.internalPrimaryKey() > this.lastUsedPrimaryKey) {
+				this.lastUsedPrimaryKey = referenceKey.internalPrimaryKey();
+			}
 		} else {
 			insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 				new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey(), Integer.MIN_VALUE),
-				this.references,
-				(ToIntBiFunction<ReferenceContract, ReferenceKey>)
-					(examinedReference, rk) -> ReferenceKey.GENERIC_COMPARATOR.compare(examinedReference.getReferenceKey(), rk)
+				this.references, FULL_COMPARISON_FUNCTION
 			);
 			if (referenceKey.isUnknownReference()) {
 				// we are adding a new reference-verify that we are not duplicating existing reference
@@ -268,24 +266,29 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			return ArrayUtils.EMPTY_INT_ARRAY;
 		}
 
-		int[] tmp = new int[refs.length];
-		int size = 0;
-		Reference previousRef = null;
-		for (final Reference ref : refs) {
-			if (ref.exists() &&
-				referenceName.equals(ref.getReferenceName()) &&
-				(previousRef == null || previousRef.getReferencedPrimaryKey() != ref.getReferencedPrimaryKey())
-			) {
-				tmp[size++] = ref.getReferenceKey().primaryKey();
-				previousRef = ref;
+		final int startPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			new ReferenceKey(referenceName, Integer.MIN_VALUE, Integer.MIN_VALUE),
+			refs, FULL_COMPARISON_FUNCTION
+		).position();
+		final int endPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			new ReferenceKey(referenceName, Integer.MAX_VALUE, Integer.MAX_VALUE),
+			refs, FULL_COMPARISON_FUNCTION
+		).position();
+
+		final int[] refIds = new int[Math.max(endPosition - startPosition, 0)];
+		int index = 0;
+		for (int i = startPosition; i < refs.length && i < endPosition; i++) {
+			final Reference ref = refs[i];
+			if (referenceName.equals(ref.getReferenceName())) {
+				if (ref.exists() && (index == 0 || refIds[index - 1] != ref.getReferencedPrimaryKey())) {
+					refIds[index++] = ref.getReferencedPrimaryKey();
+				}
+			} else {
+				break;
 			}
 		}
 
-		if (size == 0) {
-			return ArrayUtils.EMPTY_INT_ARRAY;
-		}
-
-		return size == tmp.length ? tmp : Arrays.copyOf(tmp, size);
+		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
 	}
 
 	/**
@@ -298,25 +301,37 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			return ArrayUtils.EMPTY_INT_ARRAY;
 		}
 
-		Reference previousRef = null;
-		final IntSet groupIds = new IntHashSet(refs.length);
-		for (final Reference ref : refs) {
-			if (ref.exists() && referenceName.equals(ref.getReferenceName())) {
-				final Optional<GroupEntityReference> group = ref.getGroup();
-				if (group.isPresent()) {
-					final int groupPk = group.get().getPrimaryKeyOrThrowException();
-					if (previousRef == null ||
-						!referenceName.equals(previousRef.getReferenceName()) ||
-						!groupIds.contains(groupPk)
-					) {
-						groupIds.add(groupPk);
+		final int startPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			new ReferenceKey(referenceName, Integer.MIN_VALUE, Integer.MIN_VALUE),
+			refs, FULL_COMPARISON_FUNCTION
+		).position();
+		final int endPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			new ReferenceKey(referenceName, Integer.MAX_VALUE, Integer.MAX_VALUE),
+			refs, FULL_COMPARISON_FUNCTION
+		).position();
+
+		final int[] refIds = new int[Math.max(endPosition - startPosition, 0)];
+		int index = 0;
+		for (int i = startPosition; i < refs.length && i < endPosition; i++) {
+			final Reference ref = refs[i];
+			if (referenceName.equals(ref.getReferenceName())) {
+				if (ref.exists() && ref.getGroup().isPresent()) {
+					final int groupId = ref.getGroup().get().getPrimaryKeyOrThrowException();
+					final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
+						groupId, refIds, 0, index);
+					if (!position.alreadyPresent()) {
+						System.arraycopy(
+							refIds, position.position(), refIds, position.position() + 1, index - position.position());
+						refIds[position.position()] = groupId;
+						index++;
 					}
 				}
-				previousRef = ref;
+			} else {
+				break;
 			}
 		}
 
-		return groupIds.toArray();
+		return refIds.length == index ? refIds : Arrays.copyOf(refIds, index);
 	}
 
 	/**
@@ -339,8 +354,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Nonnull
 	public ReferenceContract findReferenceOrThrowException(@Nonnull ReferenceKey referenceKey) {
 		final int index = ArrayUtils.binarySearch(
-			this.references, referenceKey,
-			(referenceContract, theReferenceKey) -> ReferenceKey.FULL_COMPARATOR.compare(referenceContract.getReferenceKey(), theReferenceKey)
+			this.references, referenceKey, FULL_COMPARISON_FUNCTION
 		);
 		Assert.isPremiseValid(index >= 0, () -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!");
 		final ReferenceContract reference = this.references[index];
@@ -361,8 +375,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	public boolean contains(@Nonnull ReferenceKey referenceKey) {
 		return ArrayUtils.binarySearch(
-			this.references, referenceKey,
-			(referenceContract, theReferenceKey) -> ReferenceKey.FULL_COMPARATOR.compare(referenceContract.getReferenceKey(), theReferenceKey)
+			this.references, referenceKey, FULL_COMPARISON_FUNCTION
 		) >= 0;
 	}
 

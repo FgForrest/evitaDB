@@ -1985,6 +1985,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+						.verifySchemaStrictly()
 						.updateVia(session);
 
 					session.createNewEntity(Entities.PRODUCT, 1)
@@ -2013,6 +2014,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+					.verifySchemaStrictly()
 					.updateVia(session);
 
 				final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1)
@@ -2053,6 +2055,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+						.verifySchemaStrictly()
 						.updateVia(session);
 
 					final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1);
@@ -2079,6 +2082,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+					.verifySchemaStrictly()
 					.updateVia(session);
 
 				final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1)

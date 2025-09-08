@@ -156,15 +156,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
-	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(12);
+	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(32);
 	/**
 	 * Memoized scope of the current entity.
 	 */
 	private Scope memoizedScope;
-	/**
-	 * Flag indicating that processed entity is newly created.
-	 */
-	private boolean created;
 
 	/**
 	 * Constructs an {@link EntityIndexKey} for a referenced entity type using the specified reference name.
@@ -220,8 +216,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	public void prepare(@Nullable Integer entityPrimaryKey, @Nonnull EntityExistence expectation) {
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		final int recordId = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
-		this.created = globalIndex.insertPrimaryKeyIfMissing(recordId);
-		if (this.created) {
+		final boolean created = globalIndex.insertPrimaryKeyIfMissing(recordId);
+		if (created) {
 			if (this.undoActions != null) {
 				this.undoActions.add(() -> globalIndex.removePrimaryKey(recordId));
 			}

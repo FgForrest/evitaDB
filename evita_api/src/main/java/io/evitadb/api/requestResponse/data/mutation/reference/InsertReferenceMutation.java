@@ -176,11 +176,19 @@ public class InsertReferenceMutation extends ReferenceMutation<ComparableReferen
 						(!currentDoesntAllowDuplicates || bothAllowDuplicates)
 					) {
 						// we can change the cardinality only in towards less restrictive one
-						entitySchemaBuilder.withReferenceToEntity(
-							referenceSchema.getName(),
-							referenceSchema.getReferencedEntityType(),
-							this.referenceCardinality
-						);
+						if (referenceSchema.isReferencedEntityTypeManaged()) {
+							entitySchemaBuilder.withReferenceToEntity(
+								referenceSchema.getName(),
+								referenceSchema.getReferencedEntityType(),
+								this.referenceCardinality
+							);
+						} else {
+							entitySchemaBuilder.withReferenceTo(
+								referenceSchema.getName(),
+								referenceSchema.getReferencedEntityType(),
+								this.referenceCardinality
+							);
+						}
 					} else {
 						throw new InvalidMutationException(
 							"Entity `" + entitySchemaBuilder.getName() + "` has got the reference of type `" + this.referenceKey.referenceName() +

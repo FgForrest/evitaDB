@@ -105,6 +105,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.*;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
@@ -251,16 +252,21 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	/**
-	 * Creates and registers insert reference mutation for currently processed entity into mutation collector.
+	 * Creates and registers insert reference mutation for all references in external entities that are primary
+	 * references to the entity being created and that do not yet have reflected reference to this entity.
+	 * This can be particularly demanding, because we need to fetch external entities reference storage container
+	 * content to read internal primary keys of those entities.
 	 *
+	 * @param entityPrimaryKey                    the primary key of the entity to which the references should point
 	 * @param referenceSchema                     the reference schema, must not be {@code null}
 	 * @param referenceIndexWithPrimaryReferences the index containing primary references
 	 * @param referencesStorageContainer          the references storage container if exists
 	 * @param mutationCollector                   the mutation collector, must not be {@code null}
 	 * @param eachReferenceConsumer               consumer that is invoked with each created reference
 	 */
-	private static void createAndRegisterReferencePropagationMutation(
-		@Nonnull ReferenceSchema referenceSchema,
+	private void createAndRegisterReferencePropagationMutation(
+		int entityPrimaryKey,
+		@Nonnull ReflectedReferenceSchema referenceSchema,
 		@Nonnull ReducedEntityIndex referenceIndexWithPrimaryReferences,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nonnull MutationCollector mutationCollector,
@@ -268,14 +274,28 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	) {
 		// for each such entity create internal (reflected) reference to it (if it doesn't exist)
 		final Bitmap referencingEntities = referenceIndexWithPrimaryReferences.getAllPrimaryKeys();
+		final DataStoreReader dataStoreReader = ofNullable(
+			this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType()))
+			.orElseThrow(
+				() -> new GenericEvitaInternalError(
+				"Data store reader for entity `" + referenceSchema.getReferencedEntityType() +
+					"` unexpectedly not found!"
+				)
+			);
 		final List<ReferenceKey> referenceKeys = new ArrayList<>(referencingEntities.size());
 		final OfInt it = referencingEntities.iterator();
 		while (it.hasNext()) {
 			int epk = it.nextInt();
-			final ReferenceKey refKey = new ReferenceKey(referenceSchema.getName(), epk);
-			if (referencesStorageContainer == null || !referencesStorageContainer.contains(refKey)) {
-				mutationCollector.addLocalMutation(new InsertReferenceMutation(refKey));
-				referenceKeys.add(refKey);
+			final ReferenceKey primaryRefKeyWithInternalPk = findPrimaryReferenceKeyOrThrow(
+				referenceSchema, dataStoreReader, epk,
+				new ReferenceKey(referenceSchema.getReflectedReferenceName(), entityPrimaryKey)
+			);
+			final ReferenceKey insertedRefKey = new ReferenceKey(
+				referenceSchema.getName(), epk, primaryRefKeyWithInternalPk.internalPrimaryKey()
+			);
+			if (referencesStorageContainer == null || !referencesStorageContainer.contains(insertedRefKey)) {
+				mutationCollector.addLocalMutation(new InsertReferenceMutation(insertedRefKey));
+				referenceKeys.add(insertedRefKey);
 			}
 		}
 
@@ -285,12 +305,95 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	/**
+	 * Finds the primary reference key associated with the given {@code genericReferenceKey}.
+	 * Validates that the reference has a known internal primary key and is present in the reference storage.
+	 *
+	 * @param referenceSchema The schema defining the structure of the reference.
+	 * @param dataStoreReader The data store reader instance to fetch reference storage part data.
+	 * @param entityPrimaryKey The primary key of the entity to which the reference belongs.
+	 * @param genericReferenceKey The generic reference key whose associated primary reference key is to be found.
+	 * @return The primary reference key with a known internal primary key.
+	 * @throws EntityMissingException If the reference storage part is not found for the given entity primary key.
+	 * @throws AssertionError If the primary reference key does not have a known internal primary key.
+	 */
+	@Nonnull
+	private ReferenceKey findPrimaryReferenceKeyOrThrow(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull DataStoreReader dataStoreReader,
+		int entityPrimaryKey,
+		@Nonnull ReferenceKey genericReferenceKey
+	) {
+		final ReferencesStoragePart otherReferenceStoragePart = dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class);
+		Assert.notNull(
+			otherReferenceStoragePart,
+			() -> new EntityMissingException(
+				referenceSchema.getReferencedEntityType(),
+				new int[] {entityPrimaryKey},
+				"The reference storage part isn't found, but there is a reference in the index!"
+			)
+		);
+		final ReferenceKey primaryRefKeyWithInternalPk = otherReferenceStoragePart
+			.findReferenceOrThrowException(genericReferenceKey)
+			.getReferenceKey();
+
+		Assert.isPremiseValid(
+			primaryRefKeyWithInternalPk.isKnownInternalPrimaryKey(),
+			"The primary reference must have known an internal primary key!"
+		);
+
+		return primaryRefKeyWithInternalPk;
+	}
+
+	/**
+	 * Finds the primary reference key associated with the given {@code genericReferenceKey}.
+	 * Validates that the reference has a known internal primary key and is present in the reference storage.
+	 *
+	 * @param dataStoreReader The data store reader instance to fetch reference storage part data.
+	 * @param entityPrimaryKey The primary key of the entity to which the reference belongs.
+	 * @param genericReferenceKey The generic reference key whose associated primary reference key is to be found.
+	 * @param defaultValueProvider The function that provides a default value if the reference or reference storage part
+	 *                             is not found - must never return null value.
+	 * @return The primary reference key with a known internal primary key or empty value
+	 */
+	@Nonnull
+	private ReferenceKey findPrimaryReferenceKey(
+		@Nonnull DataStoreReader dataStoreReader,
+		int entityPrimaryKey,
+		@Nonnull ReferenceKey genericReferenceKey,
+		@Nonnull Function<ReferencesStoragePart, ReferenceKey> defaultValueProvider
+	) {
+		final Optional<ReferencesStoragePart> otherReferenceStoragePart = ofNullable(
+			dataStoreReader.fetch(
+				this.catalogVersion,
+				entityPrimaryKey,
+				ReferencesStoragePart.class
+			)
+		);
+		final ReferenceKey primaryRefKeyWithInternalPk = otherReferenceStoragePart
+			.map(it -> it.findReferenceOrThrowException(genericReferenceKey))
+			.map(ReferenceContract::getReferenceKey)
+			.orElseGet(
+				() -> otherReferenceStoragePart
+					.map(defaultValueProvider)
+					.orElseGet(() -> defaultValueProvider.apply(null))
+			);
+
+		Assert.isPremiseValid(
+			primaryRefKeyWithInternalPk.isKnownInternalPrimaryKey(),
+			"The primary reference must have known an internal primary key!"
+		);
+
+		return primaryRefKeyWithInternalPk;
+	}
+
+	/**
 	 * Generates missing references for entities by verifying the existence of referenced entities
 	 * and creating the necessary references if they are absent. This method ensures that the
 	 * entities conform to the expected reference structure within the schema.
 	 *
 	 * @param entityPrimaryKey           The primary key of the entity for which the missing references need to be generated.
 	 * @param mutationCollector          Collector used to store the generated mutations for processing.
+	 * @param dataStoreReader            Resolved data reader for the referenced entity type.
 	 * @param existingEntityPks          Bitmap of existing entity primary keys used for iterating and identifying existing entities.
 	 * @param referenceSchema			 The reference schema used to generate the missing references.
 	 * @param referencedSchemaName       The name of the schema in which the references are being created.
@@ -298,9 +401,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param referenceAttributeSupplier Supplier providing an array of reference attribute mutations to be applied to the missing references.
 	 * @param entityPrimaryKeyPredicate  A predicate that determines if the entity primary key matches the criteria for insertion.
 	 */
-	private static void generateMissing(
+	private void generateMissing(
 		int entityPrimaryKey,
 		@Nonnull MutationCollector mutationCollector,
+		@Nonnull DataStoreReader dataStoreReader,
 		@Nonnull RoaringBitmap existingEntityPks,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String referencedSchemaName,
@@ -308,12 +412,40 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull Function<ReferenceKey, ReferenceAttributeMutation[]> referenceAttributeSupplier,
 		@Nonnull IntPredicate entityPrimaryKeyPredicate
 	) {
-		// and for all of those create missing references
 		final PeekableIntIterator existingPrimaryKeysIterator = existingEntityPks.getIntIterator();
+		final AtomicInteger nonExistentRefCounter = new AtomicInteger(0);
 		while (existingPrimaryKeysIterator.hasNext()) {
+			// this is the primary key of the referenced entity - the owner of a newly created reference
 			final int ownerEntityPrimaryKey = existingPrimaryKeysIterator.next();
 			// but we need to match only those, our entity refers to via this reference and doesn't exist
 			if (entityPrimaryKeyPredicate.test(ownerEntityPrimaryKey)) {
+				final ReferenceKey primaryReferenceKey;
+				if (referenceSchema instanceof ReflectedReferenceSchema rrs) {
+					// if we work with the reflected reference schema
+					// we need to look up for reference internal PKs in external referenceStoragePart (fetch)
+					primaryReferenceKey = findPrimaryReferenceKey(
+						dataStoreReader, ownerEntityPrimaryKey,
+						new ReferenceKey(rrs.getReflectedReferenceName(), entityPrimaryKey),
+						referencesStoragePart ->
+						    // make up new internal primary key from the known last used primary key
+							// target container will adapt the key we assign here
+							new ReferenceKey(
+								rrs.getReflectedReferenceName(),
+								entityPrimaryKey,
+								// if the reference storage part is not present, we will start from 1
+								// (created reference will be the first one)
+								(referencesStoragePart == null ? 0 : referencesStoragePart.getLastUsedPrimaryKey()) +
+									nonExistentRefCounter.incrementAndGet()
+							)
+					);
+				} else {
+					// if we work with the standard reference schema,
+					// we will look up for reference internal PKs in the current referenceStoragePart
+					primaryReferenceKey = this.referencesStorageContainer
+						.findReferenceOrThrowException(
+							new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey)
+						).getReferenceKey();
+				}
 				// if the reference is not present, we need to create it
 				mutationCollector.addExternalMutation(
 					new ServerEntityUpsertMutation(
@@ -324,11 +456,20 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						ArrayUtils.mergeArrays(
 							new LocalMutation[]{
 								new InsertReferenceMutation(
-									new ReferenceKey(referencedSchemaName, entityPrimaryKey)
+									// reflected references copy internal PK of the reference they reflect
+									new ReferenceKey(
+										referencedSchemaName,
+										entityPrimaryKey,
+										primaryReferenceKey.internalPrimaryKey()
+									)
 								)
 							},
 							referenceAttributeSupplier.apply(
-								new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey)
+								new ReferenceKey(
+									referenceSchema.getName(),
+									ownerEntityPrimaryKey,
+									primaryReferenceKey.internalPrimaryKey()
+								)
 							)
 						)
 					)
@@ -433,6 +574,21 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		}
 	}
 
+	/**
+	 * Completes the local mutation execution phase by ensuring all necessary IDs are assigned and
+	 * the references storage container is sorted, if applicable.
+	 *
+	 * This method primarily checks whether the `referencesStorageContainer` is initialized. If it is,
+	 * the method delegates the tasks of assigning missing IDs and sorting to the container. This step
+	 * ensures the integrity and order of the data within the storage container after mutations have
+	 * been executed.
+	 */
+	public void finishLocalMutationExecutionPhase() {
+		if (this.referencesStorageContainer != null) {
+			this.referencesStorageContainer.assignMissingIdsAndSort();
+		}
+	}
+
 	@Override
 	public void commit() {
 		if (this.entityRemovedEntirely) {
@@ -480,7 +636,6 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				verifyReferenceCardinalities(this.referencesStorageContainer);
 			} else {
 				verifyRemovedMandatoryAssociatedData();
-
 				ofNullable(this.referencesStorageContainer)
 					.filter(ReferencesStoragePart::isDirty)
 					.ifPresent(this::verifyReferenceCardinalities);
@@ -966,9 +1121,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
 
 		setupReferencesOnEntityCreation(
+			entityPrimaryKey,
 			referencesStorageContainer,
-			targetEntityScope, catalogSchema, entitySchema,
-			missingMandatedAttributes, mutationCollector
+			targetEntityScope,
+			catalogSchema,
+			entitySchema,
+			missingMandatedAttributes,
+			mutationCollector
 		);
 
 		if (referencesStorageContainer != null) {
@@ -984,6 +1143,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	/**
 	 * Updates all entities that are entangled with the provided {@link CatalogSchema} and {@link EntitySchema}.
 	 *
+	 * @param entityPrimaryKey           the primary key of the entity for which the reflected references need to be generated
 	 * @param referencesStorageContainer container with existing references if exists
 	 * @param catalogSchema              the catalog schema, must not be null
 	 * @param entitySchema               the entity schema, must not be null
@@ -991,6 +1151,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param mutationCollector          the collector for mutations, must not be null
 	 */
 	private void setupReferencesOnEntityCreation(
+		int entityPrimaryKey,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nonnull Scope scope,
 		@Nonnull CatalogSchema catalogSchema,
@@ -1002,7 +1163,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final Collection<ReferenceSchemaContract> referenceSchemas = entitySchema.getReferences().values();
 		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
 			final String referencedEntityType = referenceSchema.getReferencedEntityType();
-			// find reflected schema definition (if any)
+			// if the schema is reflected reference, we need to find the target entity and its index
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
 				// access the data store reader of referenced collection
 				final Optional<DataStoreReader> referenceIndexDataStoreReader = ofNullable(this.dataStoreReaderAccessor.apply(referencedEntityType));
@@ -1026,6 +1187,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				referenceIndexWithPrimaryReferences
 					.ifPresent(
 						referenceIndex -> createAndRegisterReferencePropagationMutation(
+							entityPrimaryKey,
 							reflectedReferenceSchema,
 							referenceIndex,
 							referencesStorageContainer,
@@ -1348,7 +1510,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								);
 							} else if (existingEntityPks != null) {
 								generateMissing(
-									entityPrimaryKey, mutationCollector,
+									entityPrimaryKey,
+									mutationCollector,
+									dataStoreReader,
 									existingEntityPks,
 									referenceSchema,
 									referencedSchemaName, referencedEntityType,
@@ -1616,7 +1780,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	/**
 	 * Method verifies that all references keep the specified cardinality.
 	 */
-	private void verifyReferenceCardinalities(@Nullable ReferencesStoragePart referencesStorageContainer) throws ReferenceCardinalityViolatedException {
+	private void verifyReferenceCardinalities(
+		@Nullable ReferencesStoragePart referencesStorageContainer
+	) throws ReferenceCardinalityViolatedException {
 		final EntitySchemaContract entitySchema = this.schemaAccessor.get();
 		/* TODO JNO - handle duplicate cardinality */
 		final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();

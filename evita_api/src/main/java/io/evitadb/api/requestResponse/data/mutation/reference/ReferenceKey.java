@@ -31,6 +31,7 @@ import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Comparator;
@@ -141,6 +142,22 @@ public record ReferenceKey(
 		}
 	}
 
+	/**
+	 * Performs equality check ignoring the internal primary key.
+	 * @param o object to compare with
+	 * @return true if the objects are equal in general, false otherwise
+	 */
+	public boolean equalsInGeneral(@Nullable Object o) {
+		if (!(o instanceof final ReferenceKey that)) return false;
+
+		if (!(this.primaryKey == that.primaryKey &&
+			this.referenceName.equals(that.referenceName))) {
+			return false;
+		}
+
+		return true;
+	}
+
 	@Override
 	public int hashCode() {
 		int result = this.referenceName.hashCode();
@@ -153,7 +170,7 @@ public record ReferenceKey(
 	public String toString() {
 		return this.referenceName + ": " + this.primaryKey +
 			(this.internalPrimaryKey == 0 ?
-				" (unknown)" :
+				" (generic)" :
 				(this.internalPrimaryKey > 0 ?
 					"/" + this.internalPrimaryKey :
 					"/" + this.internalPrimaryKey + " (non-persistent)")

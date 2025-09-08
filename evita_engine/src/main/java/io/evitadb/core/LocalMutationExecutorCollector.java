@@ -231,6 +231,8 @@ class LocalMutationExecutorCollector {
 				changeCollector.applyMutation(localMutation);
 			}
 
+			changeCollector.finishLocalMutationExecutionPhase();
+
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(
 					localMutations, generateImplicitMutations
