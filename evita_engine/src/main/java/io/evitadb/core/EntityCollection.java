@@ -81,6 +81,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
@@ -2246,13 +2247,22 @@ public final class EntityCollection implements
 		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), this.emptyOnStart && isEmpty())
 			.ifPresent(
 				it -> {
+					Assert.isPremiseValid(
+						session != null,
+						"Implicit schema evolution cannot happen during transactional replay without user session. " +
+							"In this phase the implicit schema is converted to explicit schema change, " +
+							"that is ought to be written in the WAL before the operations requiring such schema change."
+					);
 					// we need to call apply mutation on the catalog level in order to insert the mutations to the WAL
 					final ModifyEntitySchemaMutation modifyEntitySchemaMutation = new ModifyEntitySchemaMutation(getEntityType(), it);
-					if (session == null) {
-						this.catalog.applyMutation(modifyEntitySchemaMutation);
-					} else {
-						this.catalog.applyMutation(session, modifyEntitySchemaMutation);
-					}
+					session.getEvita().applyMutation(
+						new ModifyCatalogSchemaMutation(catalogSchema.getName(), session.getId(), modifyEntitySchemaMutation)
+					)
+					       // we to actively wait for the result here because the schema must be changed before
+					       // we proceed with the entity upsert
+					       .onCompletion()
+					       .toCompletableFuture()
+					       .join();
 				}
 			);
 
