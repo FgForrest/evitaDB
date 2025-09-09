@@ -37,7 +37,10 @@ import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.progress.ProgressRecord;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -47,15 +50,19 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.executor.ImmediateExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.sequence.SequenceService;
@@ -769,11 +776,13 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	@Nonnull
 	private EntityCollection constructEntityCollectionWithSomeEntities(@Nonnull CatalogPersistenceService ioService, @Nonnull SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema entitySchema, int entityTypePrimaryKey) {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
+		Mockito.when(mockCatalog.getTrafficRecordingEngine()).thenReturn(Mockito.mock(TrafficRecordingEngine.class));
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
 		final String entityType = entitySchema.getName();
 		final EntityCollectionPersistenceService entityCollectionPersistenceService = ioService.getOrCreateEntityCollectionPersistenceService(
 			0L, entityType, entityTypePrimaryKey
 		);
+
 		final EntityCollection entityCollection = new EntityCollection(
 			catalogSchema.getName(),
 			0L,
@@ -789,16 +798,28 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 		entityCollection.attachToCatalog(null, mockCatalog);
 
-		final ArgumentCaptor<Mutation> mutationCaptor = ArgumentCaptor.forClass(Mutation.class);
-
 		// Use the captor when defining the mock behavior
+		@SuppressWarnings("unchecked")
+		final ArgumentCaptor<EngineMutation<?>> mutationCaptor = ArgumentCaptor.forClass(EngineMutation.class);
+		final Evita mockEvita = mock(Evita.class);
 		Mockito.doAnswer(invocation -> {
-			if (mutationCaptor.getValue() instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-				return entityCollection.updateSchema(catalogSchemaContract, modifyEntitySchemaMutation.getSchemaMutations());
-			} else {
-				return null;
+			final ModifyCatalogSchemaMutation mutation = invocation.getArgument(0);
+			for (LocalCatalogSchemaMutation schemaMutation : mutation.getSchemaMutations()) {
+				if (schemaMutation instanceof ModifyEntitySchemaMutation mesm && mesm.getEntityType().equals(entityType)) {
+					entityCollection.updateSchema(catalogSchemaContract, mesm.getSchemaMutations());
+				}
 			}
-		}).when(mockCatalog).applyMutation(mutationCaptor.capture());
+			return new ProgressRecord<>(
+				"mock",
+				null,
+				new ProgressingFuture<Void>(0, __ -> null),
+				new ImmediateExecutorService()
+			);
+		}).when(mockEvita).applyMutation(mutationCaptor.capture());
+
+		final EvitaSession session = mock(EvitaSession.class);
+		when(session.getEvita()).thenReturn(mockEvita);
+		when(session.getCatalogSchema()).thenReturn(catalogSchema);
 
 		this.dataGenerator.generateEntities(
 				entitySchema,
@@ -806,7 +827,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				40
 			)
 			.limit(10)
-			.forEach(it -> it.toMutation().ifPresent(entityCollection::upsertEntity));
+			.forEach(it -> it.toMutation().ifPresent(mut -> entityCollection.upsertEntity(session, mut)));
 
 		return entityCollection;
 	}

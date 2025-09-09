@@ -136,7 +136,7 @@ public class EntityUpsertMutation implements EntityMutation {
 		boolean entityCollectionEmpty
 	) {
 		final Optional<LocalEntitySchemaMutation> pkMutation;
-		// when the collection is empty - we may redefine primary key behaviour in schema (this is the only moment to do so)
+		// when the collection is empty - we may redefine primary key behavior in schema (this is the only moment to do so)
 		if (entityCollectionEmpty) {
 			if (this.entityPrimaryKey == null && !entitySchema.isWithGeneratedPrimaryKey()) {
 				// if primary key in first entity is not present switch schema to automatically assign new ids

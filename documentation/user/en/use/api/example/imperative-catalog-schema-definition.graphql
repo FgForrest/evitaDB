@@ -163,7 +163,12 @@ mutation {
                 referencedEntityType: "Category"
                 referencedEntityTypeManaged: true
                 cardinality: ZERO_OR_MORE
-                indexedInScopes: [LIVE]
+                indexedInScopes: [
+                  {
+                    scope: LIVE,
+                    indexType: FOR_FILTERING
+                  }
+                ]
               }
             },
             {
@@ -185,7 +190,12 @@ mutation {
                 referencedEntityType: "Brand"
                 referencedEntityTypeManaged: true
                 cardinality: ZERO_OR_ONE
-                indexedInScopes: [LIVE]
+                indexedInScopes: [
+                  {
+                    scope: LIVE,
+                    indexType: FOR_FILTERING
+                  }
+                ]
                 facetedInScopes: [LIVE]
               }
             },
@@ -196,7 +206,12 @@ mutation {
                 referencedEntityType: "Stock"
                 referencedEntityTypeManaged: true
                 cardinality: ZERO_OR_MORE
-                indexedInScopes: [LIVE]
+                indexedInScopes: [
+                  {
+                    scope: LIVE,
+                    indexType: FOR_FILTERING
+                  }
+                ]
                 facetedInScopes: [LIVE]
               }
             }
