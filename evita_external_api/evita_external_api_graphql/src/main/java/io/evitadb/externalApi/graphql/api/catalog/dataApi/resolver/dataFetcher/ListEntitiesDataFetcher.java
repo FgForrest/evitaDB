@@ -259,11 +259,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             .orElse(null);
 
         return new EntityQueryContext(
-            desiredLocale,
-            desiredPriceInCurrency,
-            desiredPriceInPriceLists,
-            desiredPriceValidIn == OffsetDateTime.MIN ? null : desiredPriceValidIn,
-            desiredPriceValidIn == OffsetDateTime.MIN
+            desiredLocale
         );
     }
 
