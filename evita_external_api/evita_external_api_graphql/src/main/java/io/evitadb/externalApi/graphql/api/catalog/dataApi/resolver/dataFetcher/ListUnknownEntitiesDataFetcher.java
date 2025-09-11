@@ -310,7 +310,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
 
     @Nonnull
     private static EntityQueryContext buildResultContext(@Nonnull Arguments arguments) {
-        return new EntityQueryContext(arguments.locale(), null, null, null, false);
+        return new EntityQueryContext(arguments.locale());
     }
 
     /**
