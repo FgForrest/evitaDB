@@ -99,8 +99,6 @@ module evita.engine {
 
 	requires jdk.jfr;
 	requires net.bytebuddy;
-	requires java.sql;
-	requires jdk.jdi;
 	requires proxycian.bytebuddy;
 
 	opens io.evitadb.core.metric.event to evita.common;

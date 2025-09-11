@@ -33,12 +33,16 @@ import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityPrimaryKeyExact;
+import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
+import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
@@ -141,6 +145,8 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
 import static java.util.Optional.ofNullable;
 
@@ -264,12 +270,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static FilterBy unwrapFilterBy(@Nullable FilterBy entityFilterBy) {
 		final FilterBy unwrappedEntityFilterBy;
 		if (entityFilterBy != null) {
-			final Constraint<?> entityHavingConstraint = FinderVisitor.findConstraint(entityFilterBy, EntityHaving.class::isInstance, EntityHaving.class::isInstance);
-			if (entityHavingConstraint instanceof EntityHaving eh) {
-				unwrappedEntityFilterBy = new FilterBy(eh.getChildren());
-			} else {
-				unwrappedEntityFilterBy = null;
-			}
+			final List<FilterConstraint> entityConstraints = FinderVisitor.findConstraints(
+				entityFilterBy,
+				it -> it instanceof EntityHaving || it instanceof EntityPrimaryKeyInSet || it instanceof EntityLocaleEquals,
+				EntityHaving.class::isInstance
+			);
+			unwrappedEntityFilterBy = filterBy(
+				entityConstraints
+					.stream()
+					.flatMap(it -> it instanceof EntityHaving eh ? Arrays.stream(eh.getChildren()) : Stream.of(it))
+					.toArray(FilterConstraint[]::new)
+			);
 		} else {
 			unwrappedEntityFilterBy = null;
 		}
@@ -288,12 +299,20 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static OrderBy unwrapOrderBy(@Nullable OrderBy entityOrderBy) {
 		final OrderBy unwrappedEntityFilterBy;
 		if (entityOrderBy != null) {
-			final Constraint<?> entityProperty = FinderVisitor.findConstraint(entityOrderBy, EntityProperty.class::isInstance, EntityProperty.class::isInstance);
-			if (entityProperty instanceof EntityProperty ep) {
-				unwrappedEntityFilterBy = new OrderBy(ep.getChildren());
-			} else {
-				unwrappedEntityFilterBy = null;
-			}
+			final List<OrderConstraint> entityConstraints = FinderVisitor.findConstraints(
+				entityOrderBy,
+				it -> it instanceof EntityProperty ||
+					it instanceof EntityPrimaryKeyExact ||
+					it instanceof EntityPrimaryKeyNatural ||
+					it instanceof EntityPrimaryKeyInFilter,
+				EntityProperty.class::isInstance
+			);
+			unwrappedEntityFilterBy = orderBy(
+				entityConstraints
+					.stream()
+					.flatMap(it -> it instanceof EntityProperty eh ? Arrays.stream(eh.getChildren()) : Stream.of(it))
+					.toArray(OrderConstraint[]::new)
+			);
 		} else {
 			unwrappedEntityFilterBy = null;
 		}

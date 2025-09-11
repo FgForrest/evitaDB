@@ -333,6 +333,7 @@ public class EvitaRequest {
 				"Query can not contain more than one price in price lists filter constraints!"
 			);
 			if (priceInPriceLists.isEmpty()) {
+				this.priceLists = evitaRequest.priceLists;
 				this.requiresPriceLists = evitaRequest.requiresPriceLists;
 			} else {
 				final Optional<PriceInPriceLists> pricesInPriceList = Optional.of(priceInPriceLists.get(0));
