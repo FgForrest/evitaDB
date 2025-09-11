@@ -2255,6 +2255,8 @@ public final class EntityCollection implements
 					);
 					// we need to call apply mutation on the catalog level in order to insert the mutations to the WAL
 					final ModifyEntitySchemaMutation modifyEntitySchemaMutation = new ModifyEntitySchemaMutation(getEntityType(), it);
+					/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
+					/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
 					session.getEvita().applyMutation(
 						new ModifyCatalogSchemaMutation(catalogSchema.getName(), session.getId(), modifyEntitySchemaMutation)
 					)

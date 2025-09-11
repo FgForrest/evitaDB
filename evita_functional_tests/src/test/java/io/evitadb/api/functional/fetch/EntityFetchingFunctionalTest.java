@@ -3299,7 +3299,10 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final String[] receivedOrderedNames = references.stream()
 					.map(it -> it.getReferencedEntity().orElseThrow())
 					.map(it -> it.getAttribute(ATTRIBUTE_NAME, String.class))
+					.filter(Objects::nonNull)
 					.toArray(String[]::new);
+
+				assertEquals(references.size(), receivedOrderedNames.length);
 
 				final Collator collator = Collator.getInstance(CZECH_LOCALE);
 				assertArrayEquals(

@@ -134,12 +134,12 @@
 		<maven.compiler.version>3.10.1</maven.compiler.version>
 		<maven.toolchains.version>3.2.0</maven.toolchains.version>
 		<lombok.version>1.18.38</lombok.version>
-		<grpc.version>1.74.0</grpc.version>
+		<grpc.version>1.75.0</grpc.version>
 		<bouncyCastle.version>1.81</bouncyCastle.version>
 		<swagger.version>2.2.36</swagger.version>
 		<armeria.version>1.33.1</armeria.version>
 		<!-- we should keep this in sync with armeria -->
-		<netty.version>4.2.4.Final</netty.version>
+		<netty.version>4.2.6.Final</netty.version>
 		<prometheus.version>1.4.1</prometheus.version>
 		<byteBuddy.version>1.17.7</byteBuddy.version>
 		<graphql.version>22.3</graphql.version>

@@ -771,6 +771,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(
 			session ->
 				unwrapCompletionException(
+					/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
+					/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
 					() -> this.evita.applyMutation(
 						          new ModifyCatalogSchemaMutation(
 							          this.getCatalogName(),
@@ -799,6 +801,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			session ->
 				unwrapCompletionException(
 					() -> {
+						/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
+						/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
 						this.evita.applyMutation(
 							    new ModifyCatalogSchemaMutation(
 								    this.getCatalogName(),
@@ -833,6 +837,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			session ->
 				unwrapCompletionException(
 					() -> {
+						/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
+						/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
 						this.evita.applyMutation(
 							    new ModifyCatalogSchemaMutation(
 								    this.getCatalogName(),
