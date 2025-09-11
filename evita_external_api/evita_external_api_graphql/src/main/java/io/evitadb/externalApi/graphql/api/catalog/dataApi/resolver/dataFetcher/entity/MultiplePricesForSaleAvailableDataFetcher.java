@@ -66,11 +66,17 @@ public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Bo
     @Override
     public Boolean get(DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
+        if (entity == null) {
+            throw new GraphQLInternalError("Missing entity");
+        }
         final EntityQueryContext context = environment.getLocalContext();
+        if (context == null) {
+            throw new GraphQLInternalError("Missing context");
+        }
 
-        final String[] priceLists = resolveDesiredPricesLists(environment, context);
-        final Currency currency = resolveDesiredCurrency(environment, context);
-        final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
+        final String[] priceLists = resolveDesiredPricesLists(environment, entity);
+        final Currency currency = resolveDesiredCurrency(environment, entity);
+        final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity);
 
         final List<PriceContract> allPricesForSale = entity.getAllPricesForSale(currency, validIn, priceLists);
         if (allPricesForSale.size() <= 1) {
@@ -107,31 +113,29 @@ public class MultiplePricesForSaleAvailableDataFetcher implements DataFetcher<Bo
 
     @Nonnull
     protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
-                                                 @Nonnull EntityQueryContext context) {
+                                                 @Nonnull EntityDecorator entity) {
+        //noinspection unchecked
         return Optional.ofNullable((List<String>) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS.name()))
             .map(it -> it.toArray(String[]::new))
-            .or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
+            .or(() -> Optional.ofNullable(entity.getPricePredicate().getPriceLists()))
             .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing price list argument. You can use `" + MultiplePricesForSaleAvailableFieldHeaderDescriptor.PRICE_LISTS.name() + "` parameter for specifying custom price list."));
     }
 
     @Nonnull
     protected Currency resolveDesiredCurrency(@Nonnull DataFetchingEnvironment environment,
-                                              @Nonnull EntityQueryContext context) {
+                                              @Nonnull EntityDecorator entity) {
         return Optional.ofNullable((Currency) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY.name()))
-            .or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
+            .or(() -> Optional.ofNullable(entity.getPricePredicate().getCurrency()))
             .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + MultiplePricesForSaleAvailableFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
     }
 
     @Nullable
     protected OffsetDateTime resolveDesiredValidIn(@Nonnull DataFetchingEnvironment environment,
-                                                   @Nonnull EntityDecorator entity,
-                                                   @Nonnull EntityQueryContext context) {
+                                                   @Nonnull EntityDecorator entity) {
         return Optional.ofNullable((OffsetDateTime) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_IN.name()))
             .or(() -> Optional.ofNullable((Boolean) environment.getArgument(MultiplePricesForSaleAvailableFieldHeaderDescriptor.VALID_NOW.name()))
                 .map(validNow -> validNow ? entity.getAlignedNow() : null))
-            .or(() -> Optional.ofNullable(context.getDesiredPriceValidIn()))
-            .or(() -> Optional.of(context.isDesiredPriceValidInNow())
-                .map(validNow -> validNow ? entity.getAlignedNow() : null))
+            .or(() -> Optional.ofNullable(entity.getPricePredicate().getValidIn()))
             .orElse(null);
     }
 }

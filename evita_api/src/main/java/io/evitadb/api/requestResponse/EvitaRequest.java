@@ -286,9 +286,70 @@ public class EvitaRequest {
 			this.requiredLocaleSet = this.locale == null ?
 				evitaRequest.requiredLocaleSet : Set.of(this.locale);
 		}
-		this.queryPriceMode = evitaRequest.queryPriceMode;
-		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
-		this.priceValidInTime = evitaRequest.priceValidInTime;
+		this.queryPriceMode = ofNullable(QueryUtils.findRequire(this.query, PriceType.class))
+			.map(PriceType::getQueryPriceMode)
+			.orElse(evitaRequest.queryPriceMode);
+		if (filterBy != null) {
+			// prefer valid in from the current filter
+			final List<OffsetDateTime> validitySpan = QueryUtils.findConstraints(filterBy, PriceValidIn.class)
+				.stream()
+				.map(it -> it.getTheMoment(this::getAlignedNow))
+				.distinct()
+				.toList();
+			Assert.isTrue(
+				validitySpan.size() <= 1,
+				"Query can not contain more than one price validity constraints!"
+			);
+			if (validitySpan.isEmpty()) {
+				this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
+				this.priceValidInTime = evitaRequest.priceValidInTime;
+			} else {
+				this.priceValidInTimeSet = true;
+				this.priceValidInTime = validitySpan.get(0);
+			}
+
+			// prefer currencies from the current filter
+			final List<Currency> currenciesFound = QueryUtils.findConstraints(filterBy, PriceInCurrency.class)
+				.stream()
+				.map(PriceInCurrency::getCurrency)
+				.distinct()
+				.toList();
+			Assert.isTrue(
+				currenciesFound.size() <= 1,
+				"Query can not contain more than one currency filtering constraints!"
+			);
+			if (currenciesFound.isEmpty()) {
+				this.currencySet = evitaRequest.currencySet;
+				this.currency = evitaRequest.currency;
+			} else {
+				this.currency = currenciesFound.get(0);
+				this.currencySet = true;
+			}
+
+			// prefer price lists from the current filter
+			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findConstraints(filterBy, PriceInPriceLists.class);
+			Assert.isTrue(
+				priceInPriceLists.size() <= 1,
+				"Query can not contain more than one price in price lists filter constraints!"
+			);
+			if (priceInPriceLists.isEmpty()) {
+				this.priceLists = evitaRequest.priceLists;
+				this.requiresPriceLists = evitaRequest.requiresPriceLists;
+			} else {
+				final Optional<PriceInPriceLists> pricesInPriceList = Optional.of(priceInPriceLists.get(0));
+				this.priceLists = pricesInPriceList
+					.map(PriceInPriceLists::getPriceLists)
+					.orElse(new String[0]);
+				this.requiresPriceLists = true;
+			}
+		} else {
+			this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
+			this.priceValidInTime = evitaRequest.priceValidInTime;
+			this.currencySet = evitaRequest.currencySet;
+			this.currency = evitaRequest.currency;
+			this.priceLists = evitaRequest.priceLists;
+			this.requiresPriceLists = evitaRequest.requiresPriceLists;
+		}
 		this.requiresParent = null;
 		this.parentContent = null;
 		this.entityAttributes = null;
@@ -299,13 +360,9 @@ public class EvitaRequest {
 		this.entityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
 		this.entityPrices = null;
-		this.currencySet = evitaRequest.currencySet;
-		this.currency = evitaRequest.currency;
-		this.requiresPriceLists = evitaRequest.requiresPriceLists;
-		this.additionalPriceLists = evitaRequest.additionalPriceLists;
-		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
 		this.accompanyingPrices = null;
-		this.priceLists = evitaRequest.priceLists;
+		this.defaultAccompanyingPricePriceLists = evitaRequest.defaultAccompanyingPricePriceLists;
+		this.additionalPriceLists = evitaRequest.additionalPriceLists;
 		this.start = evitaRequest.start;
 		this.conditionalGaps = evitaRequest.conditionalGaps;
 		this.hierarchyWithin = evitaRequest.hierarchyWithin;

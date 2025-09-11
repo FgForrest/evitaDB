@@ -223,11 +223,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
     @Nonnull
     private static EntityQueryContext buildResultContext(@Nonnull Arguments arguments) {
         return new EntityQueryContext(
-            arguments.locale(),
-            arguments.priceInCurrency(),
-            arguments.priceInPriceLists(),
-            arguments.priceValidIn(),
-            arguments.priceValidInNow()
+            arguments.locale()
         );
     }
 

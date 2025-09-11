@@ -341,25 +341,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			.map(EntityLocaleEquals::getLocale)
 			.orElse(null);
 
-		final Currency desiredPriceInCurrency = Optional.ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
-			.map(PriceInCurrency::getCurrency)
-			.orElse(null);
-
-		final Optional<PriceValidIn> priceValidInConstraint = Optional.ofNullable(QueryUtils.findFilter(query, PriceValidIn.class));
-		final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
-			.map(it -> it.getTheMoment(() -> OffsetDateTime.MIN))
-			.orElse(null);
-
-		final String[] desiredPriceInPriceLists = Optional.ofNullable(QueryUtils.findFilter(query, PriceInPriceLists.class))
-			.map(PriceInPriceLists::getPriceLists)
-			.orElse(null);
-
 		return new EntityQueryContext(
-			desiredLocale,
-			desiredPriceInCurrency,
-			desiredPriceInPriceLists,
-			desiredPriceValidIn == OffsetDateTime.MIN ? null : desiredPriceValidIn,
-			desiredPriceValidIn == OffsetDateTime.MIN
+			desiredLocale
 		);
 	}
 

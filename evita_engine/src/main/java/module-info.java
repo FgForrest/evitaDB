@@ -100,8 +100,6 @@ module evita.engine {
 
 	requires jdk.jfr;
 	requires net.bytebuddy;
-	requires java.sql;
-	requires jdk.jdi;
 	requires proxycian.bytebuddy;
 	requires jdk.xml.dom;
 	requires jdk.compiler;

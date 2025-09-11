@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -74,10 +75,16 @@ public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceCont
         final String priceList = environment.getArgument(PriceFieldHeaderDescriptor.PRICE_LIST.name());
         final Currency customCurrency = environment.getArgument(PriceFieldHeaderDescriptor.CURRENCY.name());
         final EntityQueryContext context = environment.getLocalContext();
+        if (context == null) {
+            throw new GraphQLInternalError("Missing context");
+        }
 
         final EntityDecorator entity = environment.getSource();
+        if (entity == null) {
+            throw new GraphQLInternalError("Missing entity");
+        }
         final Currency currency = Optional.ofNullable(customCurrency)
-            .or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
+            .or(() -> Optional.ofNullable(entity.getPricePredicate().getCurrency()))
             .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + PriceFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
         final Collection<PriceContract> possiblePrices = entity.getPrices(currency, priceList);
 
@@ -85,7 +92,7 @@ public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceCont
         if (possiblePrices.size() == 1) {
             pickedPrice = possiblePrices.iterator().next();
         } else if (possiblePrices.size() > 1) {
-            final OffsetDateTime priceValidIn = Optional.ofNullable(context.getDesiredPriceValidIn())
+            final OffsetDateTime priceValidIn = Optional.ofNullable(entity.getPricePredicate().getValidIn())
                 .orElse(entity.getAlignedNow());
 
             pickedPrice = possiblePrices.stream()

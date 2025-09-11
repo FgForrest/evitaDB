@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,8 +30,6 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
-import java.util.Currency;
 import java.util.Locale;
 
 /**
@@ -49,17 +47,10 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public final class EntityQueryContext {
 
-	private static final EntityQueryContext EMPTY = new EntityQueryContext(null, null, null, null, false);
+	private static final EntityQueryContext EMPTY = new EntityQueryContext(null);
 
 	@Nullable
 	private final Locale desiredLocale;
-	@Nullable
-	private final Currency desiredPriceInCurrency;
-	@Nullable
-	private final String[] desiredPriceInPriceLists;
-	@Nullable
-	private final OffsetDateTime desiredPriceValidIn;
-	private final boolean desiredPriceValidInNow;
 
 	@Nonnull
 	public static EntityQueryContext empty() {
