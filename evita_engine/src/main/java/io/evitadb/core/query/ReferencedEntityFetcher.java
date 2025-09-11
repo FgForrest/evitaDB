@@ -33,10 +33,13 @@ import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityFetch;
@@ -45,6 +48,7 @@ import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Strip;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
@@ -230,7 +234,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			return Collections.emptyMap();
 		} else {
 			// finally, create the fetch request, get the collection and fetch the referenced entity bodies
-			final EvitaRequest fetchRequest = executionContext.getEvitaRequest().deriveCopyWith(entityType, entityFilterBy, entityOrderBy, entityFetch);
+			final EvitaRequest fetchRequest = executionContext.getEvitaRequest().deriveCopyWith(
+				entityType,
+				unwrapFilterBy(entityFilterBy),
+				unwrapOrderBy(entityOrderBy),
+				entityFetch
+			);
 			final EntityCollection referencedCollection = executionContext.getEntityCollectionOrThrowException(
 				entityType, "fetch references"
 			);
@@ -239,6 +248,56 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				referencedCollection, existingEntityRetriever
 			);
 		}
+	}
+
+	/**
+	 * Unwraps the provided {@code entityFilterBy} object to extract its nested filter criteria.
+	 * If the {@code entityFilterBy} contains an {@code EntityHaving} constraint,
+	 * the method creates a new {@code FilterBy} instance with the child constraints of {@code EntityHaving}.
+	 * If no {@code EntityHaving} constraint is found or {@code entityFilterBy} is null, the method returns null.
+	 *
+	 * @param entityFilterBy the {@code FilterBy} object potentially containing an {@code EntityHaving} constraint
+	 * @return a new {@code FilterBy} instance with the child constraints of {@code EntityHaving},
+	 *         or null if the {@code entityFilterBy} is null or does not contain an {@code EntityHaving} constraint
+	 */
+	@Nullable
+	private static FilterBy unwrapFilterBy(@Nullable FilterBy entityFilterBy) {
+		final FilterBy unwrappedEntityFilterBy;
+		if (entityFilterBy != null) {
+			final Constraint<?> entityHavingConstraint = FinderVisitor.findConstraint(entityFilterBy, EntityHaving.class::isInstance, EntityHaving.class::isInstance);
+			if (entityHavingConstraint instanceof EntityHaving eh) {
+				unwrappedEntityFilterBy = new FilterBy(eh.getChildren());
+			} else {
+				unwrappedEntityFilterBy = null;
+			}
+		} else {
+			unwrappedEntityFilterBy = null;
+		}
+		return unwrappedEntityFilterBy;
+	}
+
+	/**
+	 * Unwraps the provided {@code OrderBy} object by extracting its relevant constraints and
+	 * constructing a new {@code OrderBy} instance based on its children.
+	 *
+	 * @param entityOrderBy the {@code OrderBy} object to be unwrapped; may be null
+	 * @return a new {@code OrderBy} instance derived from the provided {@code OrderBy},
+	 *         or null if the input is null or its constraints do not meet the expected criteria
+	 */
+	@Nullable
+	private static OrderBy unwrapOrderBy(@Nullable OrderBy entityOrderBy) {
+		final OrderBy unwrappedEntityFilterBy;
+		if (entityOrderBy != null) {
+			final Constraint<?> entityProperty = FinderVisitor.findConstraint(entityOrderBy, EntityProperty.class::isInstance, EntityProperty.class::isInstance);
+			if (entityProperty instanceof EntityProperty ep) {
+				unwrappedEntityFilterBy = new OrderBy(ep.getChildren());
+			} else {
+				unwrappedEntityFilterBy = null;
+			}
+		} else {
+			unwrappedEntityFilterBy = null;
+		}
+		return unwrappedEntityFilterBy;
 	}
 
 	/**
