@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 import java.util.OptionalLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * Implementations of this interface provide access to storage parts of particular entity collection stored on the disk.
@@ -87,5 +88,12 @@ public interface DataStoreReader {
 	 */
 	@Nullable
 	<IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing);
+
+	/**
+	 * Returns {@link EntityIndex} by primary key if it already exists in change set. If the index is no present there
+	 * `accessorWhenMissing` is executed to retrieve primary read-only index from the origin collection.
+	 */
+	@Nullable
+	<IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(int entityIndexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing);
 
 }

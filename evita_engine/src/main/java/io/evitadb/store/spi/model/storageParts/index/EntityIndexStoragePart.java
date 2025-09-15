@@ -56,7 +56,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @ToString(of = "entityIndexKey")
 public class EntityIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = 6028764096012501468L;
+	@Serial private static final long serialVersionUID = 5424554446828324138L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -103,7 +103,36 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * This field is initialized only by {@link io.evitadb.index.ReferencedTypeEntityIndex} - for other indexes it is
 	 * empty.
 	 */
-	@Getter private final CardinalityIndex primaryKeyCardinality;
+	@Getter private final CardinalityIndex indexPrimaryKeyCardinality;
+	/**
+	 * This field is initialized only by {@link io.evitadb.index.ReferencedTypeEntityIndex} - for other indexes it is
+	 * empty.
+	 */
+	@Getter private final Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
+
+	public EntityIndexStoragePart(
+		int primaryKey,
+		int version,
+		@Nonnull EntityIndexKey entityIndexKey,
+		@Nonnull Bitmap entityIds,
+		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
+		@Nonnull Set<AttributeIndexStorageKey> attributeIndexes,
+		@Nonnull Set<PriceIndexKey> priceIndexes,
+		boolean hierarchyIndex,
+		@Nonnull Set<String> facetIndexes
+	) {
+		this.primaryKey = primaryKey;
+		this.version = version;
+		this.entityIndexKey = entityIndexKey;
+		this.entityIds = entityIds;
+		this.entityIdsByLanguage = entityIdsByLanguage;
+		this.attributeIndexes = attributeIndexes;
+		this.priceIndexes = priceIndexes;
+		this.hierarchyIndex = hierarchyIndex;
+		this.facetIndexes = facetIndexes;
+		this.indexPrimaryKeyCardinality = null;
+		this.referencedPrimaryKeysIndex = null;
+	}
 
 	@Nullable
 	@Override

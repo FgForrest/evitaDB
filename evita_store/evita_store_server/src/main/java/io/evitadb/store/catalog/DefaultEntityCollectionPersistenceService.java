@@ -68,6 +68,7 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -1162,7 +1163,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				referenceKey = null;
 				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
-				referenceKey = Objects.requireNonNull((ReferenceKey) entityIndexKey.discriminator());
+				referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) entityIndexKey.discriminator()).referenceKey();
 				referenceName = referenceKey.referenceName();
 			}
 			final ReferenceSchema referenceSchema = entitySchema
@@ -1228,8 +1229,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				),
 				hierarchyIndex,
 				facetIndex,
-				entityIndexCnt.getPrimaryKeyCardinality(),
-				cardinalityIndexes
+				entityIndexCnt.getIndexPrimaryKeyCardinality(),
+				cardinalityIndexes,
+				entityIndexCnt.getReferencedPrimaryKeysIndex()
 			);
 		} else {
 			final Scope scope = entityIndexKey.scope();
@@ -1439,9 +1441,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			headerInfoSupplier.getLastAssignedInternalPriceId(),
 			getStoragePartPersistenceService().offsetIndex.getActiveRecordShare(collectionFileReference.toFilePath(catalogStoragePath).toFile().length()),
 			newDescriptor,
-			headerInfoSupplier.getGlobalIndexKey().isPresent() ?
-				headerInfoSupplier.getGlobalIndexKey().getAsInt() : null,
-			headerInfoSupplier.getIndexKeys()
+			headerInfoSupplier.getGlobalIndexPrimaryKey().isPresent() ?
+				headerInfoSupplier.getGlobalIndexPrimaryKey().getAsInt() : null,
+			headerInfoSupplier.getIndexPrimaryKeys()
 		);
 	}
 
@@ -1656,15 +1658,15 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		@Nonnull
 		@Override
-		public OptionalInt getGlobalIndexKey() {
-			return this.currentHeader.globalEntityIndexId() == null ?
-				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexId());
+		public OptionalInt getGlobalIndexPrimaryKey() {
+			return this.currentHeader.globalEntityIndexPrimaryKey() == null ?
+				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexPrimaryKey());
 		}
 
 		@Nonnull
 		@Override
-		public List<Integer> getIndexKeys() {
-			return this.currentHeader.usedEntityIndexIds();
+		public List<Integer> getIndexPrimaryKeys() {
+			return this.currentHeader.usedEntityIndexPrimaryKeys();
 		}
 	}
 }

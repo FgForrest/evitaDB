@@ -27,12 +27,10 @@ package io.evitadb.index.mutation.index;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -43,9 +41,6 @@ import java.util.stream.Stream;
  * It delegates schema lookups to the underlying {@link EntitySchemaContract} and provides access to:
  * - Entity attribute schemas for validation and indexing purposes
  * - Sortable attribute compound schemas that involve entity attributes
- *
- * Since this provider operates in an entity context (not a reference context), the
- * {@link #getReferenceSchema()} method always returns {@code null}.
  *
  * This class is typically instantiated and used by {@link EntityIndexLocalMutationExecutor}
  * and related components when processing entity attribute mutations.
@@ -60,22 +55,6 @@ public final class EntitySchemaAttributeAndCompoundSchemaProvider implements Att
 	private final EntitySchemaContract entitySchema;
 
 	/**
-	 * {@inheritDoc}
-	 *
-	 * This implementation always returns {@code null} since this provider operates in an entity context,
-	 * not a reference context.
-	 *
-	 * @return always {@code null} for entity-level providers
-	 */
-	@Nullable
-	@Override
-	public ReferenceSchema getReferenceSchema() {
-		return null;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
 	 * This implementation retrieves the attribute schema from the entity schema using
 	 * {@link EntitySchemaContract#getAttribute(String)}. If the attribute is not found,
 	 * an {@link AttributeNotFoundException} is thrown with context information about the entity schema.

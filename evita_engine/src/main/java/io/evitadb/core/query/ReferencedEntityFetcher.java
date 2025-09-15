@@ -107,7 +107,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -123,6 +123,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.roaringbitmap.PeekableIntIterator;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
@@ -497,21 +498,25 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable ValidEntityToReferenceMapping validityMapping
 	) {
 		// aggregate all referenced primary keys into one sorted distinct array
-		return FormulaFactory.or(
+		return FormulaFactory
+			.or(
 				entityPrimaryKeys
 					.values()
 					.stream()
 					.flatMap(
 						epks -> Arrays.stream(epks)
-							.mapToObj(it -> {
-								final Formula referencedEntityIds = referencedEntityResolver.apply(it);
-								// Initializes starting validity relations in `validityMapping` where each entity sees
-								// all its referenced entities. This initial visibility setup will be refined during fetch process.
-								ofNullable(validityMapping)
-									.ifPresent(vm -> vm.setInitialVisibilityForEntity(it, referencedEntityIds.compute()));
-								// return the referenced entity primary keys
-								return referencedEntityIds;
-							})
+						              .mapToObj(it -> {
+							              final Formula referencedEntityIds = referencedEntityResolver.apply(it);
+							              // Initializes starting validity relations in `validityMapping` where each entity sees
+							              // all its referenced entities. This initial visibility setup will be refined during fetch process.
+							              ofNullable(validityMapping)
+								              .ifPresent(vm -> vm.setInitialVisibilityForEntity(
+									              it,
+									              referencedEntityIds.compute()
+								              ));
+							              // return the referenced entity primary keys
+							              return referencedEntityIds;
+						              })
 					)
 					.toArray(Formula[]::new)
 			)
@@ -552,6 +557,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	) {
 		// initialize the main data-structures we'll be working later in this method
 		final Optional<ValidEntityToReferenceMapping> validityMappingOptional = ofNullable(validityMapping);
+		final Bitmap result;
 
 		// we need to gather all referenced entity ids and initialize validity mapping for all the passed entity PKs
 		final Bitmap allReferencedEntityIds = getAllReferencedEntityIds(
@@ -562,167 +568,186 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		if (allReferencedEntityIds.isEmpty()) {
 			// if nothing was found, quickly finish
-			return EmptyBitmap.INSTANCE;
+			validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
+			result = EmptyBitmap.INSTANCE;
 		} else {
+			final RoaringBitmap referencedPrimaryKeys;
 			final QueryPlanningContext queryContext = executionContext.getQueryContext();
+			final Set<Scope> scopes = executionContext.getQueryContext().getScopes();
 			if (filterBy == null) {
-				final Bitmap result;
+				final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
 				if (managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING) {
 					if (targetEntityManaged) {
 						// we need to filter the referenced entity ids to only those that really exist
 						final Optional<EntityCollection> targetEntityCollection = queryContext
 							.getEntityCollection(targetEntityType);
-						if (targetEntityCollection.isEmpty()) {
-							validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
-							result = EmptyBitmap.INSTANCE;
-						} else {
-							final Formula existingOnlyReferencedIds = FormulaFactory.and(
-								toFormula(allReferencedEntityIds),
-								FormulaFactory.or(
-									queryContext.getScopes()
-										.stream()
-										.map(scope -> targetEntityCollection.get().getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
-										.filter(Objects::nonNull)
-										.map(EntityIndex::getAllPrimaryKeysFormula)
-										.toArray(Formula[]::new)
-								)
-							);
-							result = existingOnlyReferencedIds.compute();
-							validityMappingOptional.ifPresent(it -> it.restrictTo(result));
+						if (targetEntityCollection.isPresent()) {
+							for (Scope scope : scopes) {
+								final EntityIndex indexByKeyIfExists = targetEntityCollection
+									.get()
+									.getIndexByKeyIfExists(
+										new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+									);
+								if (indexByKeyIfExists != null) {
+									final RoaringBitmap matchingPrimaryKeys = RoaringBitmap.and(
+										RoaringBitmapBackedBitmap.getRoaringBitmap(indexByKeyIfExists.getAllPrimaryKeys()),
+										RoaringBitmapBackedBitmap.getRoaringBitmap(allReferencedEntityIds)
+									);
+									final PeekableIntIterator it = matchingPrimaryKeys.getIntIterator();
+									while (it.hasNext()) {
+										referencedPrimaryKeysWriter.add(it.next());
+									}
+								}
+							}
 						}
 					} else {
 						// target entity is not managed - we may allow all referenced entity ids
 						// this is not necessary to be done here - it's the initial setup:
 						// validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
-						result = allReferencedEntityIds;
+						writeAllReferencedPrimaryKeys(allReferencedEntityIds, referencedPrimaryKeysWriter);
 					}
 				} else {
 					// we may allow all referenced entity ids
 					// this is not necessary to be done here - it's the initial setup:
 					// validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
-					result = allReferencedEntityIds;
+					writeAllReferencedPrimaryKeys(allReferencedEntityIds, referencedPrimaryKeysWriter);
 				}
+
 				initNestedQueryComparator(
 					entityNestedQueryComparator,
 					referenceSchema,
 					queryContext
 				);
-				return result;
+
+				referencedPrimaryKeys = referencedPrimaryKeysWriter.get();
+				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
+
+				validityMappingOptional.ifPresent(it -> it.restrictTo(result));
+
 			} else {
 				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
-				final List<ReducedEntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
-					new ReferenceHaving(
-						referenceSchema.getName(),
-						and(
-							ArrayUtils.mergeArrays(
-								new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
-								filterBy.getChildren()
-							)
-						)
-					),
-					executionContext.getQueryContext().getScopes(),
-					(es, eik) -> {
-						if (referenceSchema.isIndexedInScope(eik.scope())) {
-							return null;
-						} else {
-							return ReferencedTypeEntityIndex.createThrowingStub(es, eik, allReferencedEntityIds);
-						}
-					},
-					(es, eik) -> {
-						final int[] epks = entityPrimaryKeys.get(eik.scope());
-						if (referenceSchema.isIndexedInScope(eik.scope())) {
-							return null;
-						} else {
-							return ReducedEntityIndex.createThrowingStub(
-								es, eik, epks == null ? ArrayUtils.EMPTY_INT_ARRAY : epks
+
+				final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+				final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityIds.size());
+				for (Scope scope : scopes) {
+					if (referenceSchema.isIndexedInScope(scope)) {
+						final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
+							Collections.emptyList() :
+							theFilterByVisitor.getReferencedRecordEntityIndexes(
+								new ReferenceHaving(
+									referenceSchema.getName(),
+									and(
+										ArrayUtils.mergeArrays(
+											new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
+											filterBy.getChildren()
+										)
+									)
+								),
+								Set.of(scope),
+								(es, eik) -> null
 							);
-						}
-					}
-				);
 
-				if (referencedEntityIndexes.isEmpty()) {
-					validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
-					return EmptyBitmap.INSTANCE;
-				} else {
-					final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeys = RoaringBitmapBackedBitmap.buildWriter();
-					final EnumMap<Scope, Formula> entityPrimaryKeyFormula = new EnumMap<>(Scope.class);
-					for (Entry<Scope, int[]> inputScope : entityPrimaryKeys.entrySet()) {
-						entityPrimaryKeyFormula.put(inputScope.getKey(), toFormula(inputScope.getValue()));
-					}
-					final IntSet foundReferencedIds = new IntHashSet(referencedEntityIndexes.size());
-					Formula lastIndexFormula = null;
-					Integer lastReferencedPrimaryKey = null;
-					for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-						final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-						final ReferenceKey indexDiscriminator = Objects.requireNonNull((ReferenceKey) indexKey.discriminator());
-						final int referencedPrimaryKey = indexDiscriminator.primaryKey();
-						foundReferencedIds.add(referencedPrimaryKey);
+						Formula lastIndexFormula = null;
+						Integer lastReferencedPrimaryKey = null;
+						for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
+							final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
+							final ReferenceKey indexDiscriminator = Objects.requireNonNull((RepresentativeReferenceKey) indexKey.discriminator()).referenceKey();
+							final int referencedPrimaryKey = indexDiscriminator.primaryKey();
+							foundReferencedIds.add(referencedPrimaryKey);
 
-						final Formula resultFormula = computeResultWithPassedIndex(
-							referencedEntityIndex,
-							entitySchema,
-							referenceSchema,
-							theFilterByVisitor,
-							filterBy,
-							entityNestedQueryComparator,
-							EntityPrimaryKeyInSet.class
-						);
+							final Formula resultFormula = computeResultWithPassedIndex(
+								referencedEntityIndex,
+								entitySchema,
+								referenceSchema,
+								theFilterByVisitor,
+								filterBy,
+								entityNestedQueryComparator,
+								EntityPrimaryKeyInSet.class
+							);
 
-						if (lastReferencedPrimaryKey == null) {
-							lastReferencedPrimaryKey = referencedPrimaryKey;
-							lastIndexFormula = resultFormula;
-						} else if (Objects.equals(lastReferencedPrimaryKey, referencedPrimaryKey)) {
-							if (lastIndexFormula != resultFormula) {
-								final Formula epkFormula = entityPrimaryKeyFormula.get(indexKey.scope());
-								if (epkFormula != null) {
+							if (lastReferencedPrimaryKey == null) {
+								lastReferencedPrimaryKey = referencedPrimaryKey;
+								lastIndexFormula = resultFormula;
+							} else if (Objects.equals(lastReferencedPrimaryKey, referencedPrimaryKey)) {
+								if (lastIndexFormula != resultFormula) {
+									final Formula epkFormula = toFormula(entityPrimaryKeys.get(scope));
 									lastIndexFormula = FormulaFactory.or(
 										lastIndexFormula,
 										resultFormula,
 										epkFormula
 									);
 								}
-							}
-						} else {
-							Assert.isPremiseValid(
-								lastIndexFormula != null,
-								"Last index formula must be initialized!"
-							);
-							lastIndexFormula.initialize(executionContext);
-							final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-							final int finalLastReferencedPrimaryKey = lastReferencedPrimaryKey;
-							if (matchingPrimaryKeys.isEmpty()) {
-								validityMappingOptional.ifPresent(it -> it.forbid(finalLastReferencedPrimaryKey));
 							} else {
-								validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastReferencedPrimaryKey, matchingPrimaryKeys));
-								referencedPrimaryKeys.add(finalLastReferencedPrimaryKey);
+								Assert.isPremiseValid(
+									lastIndexFormula != null,
+									"Last index formula must be initialized!"
+								);
+								lastIndexFormula.initialize(executionContext);
+								final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
+								final int finalLastReferencedPrimaryKey = lastReferencedPrimaryKey;
+								if (matchingPrimaryKeys.isEmpty()) {
+									validityMappingOptional.ifPresent(it -> it.forbid(finalLastReferencedPrimaryKey));
+								} else {
+									validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastReferencedPrimaryKey, matchingPrimaryKeys));
+									referencedPrimaryKeysWriter.add(finalLastReferencedPrimaryKey);
+								}
+
+								lastIndexFormula = resultFormula;
+								lastReferencedPrimaryKey = referencedPrimaryKey;
 							}
-
-							lastIndexFormula = resultFormula;
-							lastReferencedPrimaryKey = referencedPrimaryKey;
+						}
+						if (lastReferencedPrimaryKey != null && lastIndexFormula != null) {
+							lastIndexFormula.initialize(executionContext);
+							final int referencedPrimaryKey = lastReferencedPrimaryKey;
+							final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
+							if (matchingPrimaryKeys.isEmpty()) {
+								validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
+							} else {
+								validityMappingOptional.ifPresent(it -> it.restrictTo(referencedPrimaryKey, matchingPrimaryKeys));
+								referencedPrimaryKeysWriter.add(lastReferencedPrimaryKey);
+							}
+						}
+					} else {
+						final OfInt it = allReferencedEntityIds.iterator();
+						while (it.hasNext()) {
+							final int pkInScope = it.nextInt();
+							foundReferencedIds.add(pkInScope);
+							referencedPrimaryKeysWriter.add(pkInScope);
 						}
 					}
-					if (lastReferencedPrimaryKey != null && lastIndexFormula != null) {
-						lastIndexFormula.initialize(executionContext);
-						final int referencedPrimaryKey = lastReferencedPrimaryKey;
-						final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-						if (matchingPrimaryKeys.isEmpty()) {
-							validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
-						} else {
-							validityMappingOptional.ifPresent(it -> it.restrictTo(referencedPrimaryKey, matchingPrimaryKeys));
-							referencedPrimaryKeys.add(lastReferencedPrimaryKey);
-						}
-					}
-					validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
 
-					initNestedQueryComparator(
-						entityNestedQueryComparator,
-						referenceSchema,
-						theFilterByVisitor.getQueryContext()
-					);
-
-					return new BaseBitmap(referencedPrimaryKeys.get());
 				}
+
+				referencedPrimaryKeys = referencedPrimaryKeysWriter.get();
+				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
+
+				validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
+
+				initNestedQueryComparator(
+					entityNestedQueryComparator,
+					referenceSchema,
+					theFilterByVisitor.getQueryContext()
+				);
 			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Writes all referenced primary keys from the provided bitmap of entity IDs
+	 * into the specified bitmap writer.
+	 *
+	 * @param allReferencedEntityIds the bitmap containing all referenced entity IDs to be written
+	 * @param referencedPrimaryKeysWriter the bitmap writer where the primary keys will be added
+	 */
+	private static void writeAllReferencedPrimaryKeys(
+		@Nonnull Bitmap allReferencedEntityIds,
+		@Nonnull RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter
+	) {
+		final OfInt it = allReferencedEntityIds.iterator();
+		while (it.hasNext()) {
+			referencedPrimaryKeysWriter.add(it.nextInt());
 		}
 	}
 

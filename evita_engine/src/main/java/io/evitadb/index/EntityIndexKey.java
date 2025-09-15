@@ -23,9 +23,10 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -59,18 +60,34 @@ public record EntityIndexKey(
 		this(type, scope, null);
 	}
 
-	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Serializable discriminator) {
-		this(type, Scope.DEFAULT_SCOPE, discriminator);
-	}
-
 	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope, @Nullable Serializable discriminator) {
 		this.type = type;
 		this.scope = scope;
-		if (discriminator instanceof ReferenceKey rk) {
-			this.discriminator = rk.isUnknownReference() ?
-				rk : new ReferenceKey(rk.referenceName(), rk.primaryKey());
+		if (discriminator instanceof RepresentativeReferenceKey rrk) {
+			Assert.isPremiseValid(
+				type == EntityIndexType.REFERENCED_ENTITY,
+				() -> "When using `" + rrk + "` (RepresentativeReferenceKey) as discriminator, " +
+					"the index type must be " + EntityIndexType.REFERENCED_ENTITY + "!"
+			);
+			this.discriminator = rrk;
+		} else if (discriminator instanceof String str) {
+			Assert.isPremiseValid(
+				type == EntityIndexType.REFERENCED_ENTITY_TYPE,
+				() -> "When using " + RepresentativeReferenceKey.class.getSimpleName() + " (String) as discriminator, " +
+					"the index type must be " + EntityIndexType.REFERENCED_ENTITY_TYPE + "!"
+			);
+			this.discriminator = str;
+		} else if (discriminator == null) {
+			Assert.isPremiseValid(
+				type == EntityIndexType.GLOBAL,
+				() -> "When no discriminator is used, the index type must be " + EntityIndexType.GLOBAL + "!"
+			);
+			this.discriminator = null;
 		} else {
-			this.discriminator = discriminator;
+			throw new GenericEvitaInternalError(
+				"Discriminator must be either String (for " + EntityIndexType.REFERENCED_ENTITY_TYPE + ") " +
+					"or ReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY + ")!"
+			);
 		}
 	}
 
@@ -86,20 +103,14 @@ public record EntityIndexKey(
 			return switch (this.type) {
 				case GLOBAL -> Integer.compare(this.scope.ordinal(), o.scope.ordinal());
 				case REFERENCED_ENTITY_TYPE -> {
-					final String thisDiscriminator = (String) Objects.requireNonNull(this.discriminator);
-					final String thatDiscriminator = (String) Objects.requireNonNull(o.discriminator);
-					yield thisDiscriminator.compareTo(thatDiscriminator);
+					final String thisDis = (String) Objects.requireNonNull(this.discriminator);
+					final String thatDis = (String) Objects.requireNonNull(o.discriminator);
+					yield thisDis.compareTo(thatDis);
 				}
 				case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> {
-					final ReferenceKey thisDiscriminator = (ReferenceKey) Objects.requireNonNull(this.discriminator);
-					final ReferenceKey thatDiscriminator = (ReferenceKey) Objects.requireNonNull(o.discriminator);
-					final int nameComparison = thisDiscriminator.referenceName().compareTo(
-						thatDiscriminator.referenceName());
-					if (nameComparison == 0) {
-						yield Integer.compare(thisDiscriminator.primaryKey(), thatDiscriminator.primaryKey());
-					} else {
-						yield nameComparison;
-					}
+					final RepresentativeReferenceKey thisDis = (RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator);
+					final RepresentativeReferenceKey thatDis = (RepresentativeReferenceKey) Objects.requireNonNull(o.discriminator);
+					yield thisDis.compareTo(thatDis);
 				}
 			};
 		} else {

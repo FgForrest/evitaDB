@@ -81,6 +81,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -1176,7 +1177,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									EntityIndexType.REFERENCED_ENTITY,
 									scope,
 									// we need to use this reflected reference name
-									new ReferenceKey(reflectedReferenceSchema.getReflectedReferenceName(), this.entityPrimaryKey)
+									new RepresentativeReferenceKey(
+										reflectedReferenceSchema.getReflectedReferenceName(),
+										this.entityPrimaryKey
+									)
 								),
 								entityIndexKey -> null
 							)
@@ -1481,7 +1485,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								new EntityIndexKey(
 									EntityIndexType.REFERENCED_ENTITY,
 									createMode == CreateMode.INSERT_MISSING ? targetEntityScope : sourceEntityScope,
-									new ReferenceKey(referencedSchemaName, epk)
+									new RepresentativeReferenceKey(referencedSchemaName, epk)
 								),
 								entityIndexKey -> null
 							);
@@ -1494,7 +1498,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							new EntityIndexKey(
 								EntityIndexType.REFERENCED_ENTITY,
 								createMode == CreateMode.INSERT_MISSING ? targetEntityScope : sourceEntityScope,
-								new ReferenceKey(referencedSchemaName, entityPrimaryKey)
+								new RepresentativeReferenceKey(referencedSchemaName, entityPrimaryKey)
 							),
 							entityIndexKey -> null
 						);

@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -60,6 +61,7 @@ public class ArrayUtils {
 	public static final String[] EMPTY_STRING_ARRAY = new String[0];
 	public static final int[] EMPTY_INT_ARRAY = new int[0];
 	public static final long[] EMPTY_LONG_ARRAY = new long[0];
+	public static final Serializable[] EMPTY_SERIALIZABLE_ARRAY = new Serializable[0];
 
 	/**
 	 * Returns true if array is either null or has no items in it

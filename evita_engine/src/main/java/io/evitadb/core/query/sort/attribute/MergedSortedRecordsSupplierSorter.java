@@ -85,7 +85,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 		for (int i = 0; i < srpCount; i++) {
 			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
 			if (sortedRecordsProvider instanceof ReferenceSortedRecordsProvider rssp) {
-				if (!rssp.getReferenceKey().equals(referenceKey)) {
+				if (!rssp.getReferenceKey().equalsInGeneral(referenceKey)) {
 					if (oal != null) {
 						referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), i, srpCount));
 					}

@@ -227,6 +227,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final EntitySchema entitySchema = getEntitySchema();
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 				this,
+				null,
 				globalIndex,
 				null,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
@@ -277,25 +278,28 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					this,
 					(theReferenceSchema, referenceIndex) -> updateReferencesInReferenceIndex(referenceMutation, referenceIndex),
 					// avoid indexing the referenced index that got updated by updateReferences method
-					referenceContract -> !referenceKey.equals(referenceContract.getReferenceKey())
+					referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey())
 				);
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
 			final ExistingAttributeValueSupplier entityAttributeValueSupplier = getStoragePartExistingDataFactory().getEntityAttributeValueSupplier();
-			final BiConsumer<Boolean, EntityIndex> attributeUpdateApplicator = (updateglobalIndex, targetIndex) -> updateAttribute(
+			final TriConsumer<Boolean, EntityIndex, ReferenceSchemaContract> attributeUpdateApplicator =
+				(updateGlobalIndex, targetIndex, theReferenceSchema) -> updateAttribute(
+					theReferenceSchema,
 				attributeMutation,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(getEntitySchema()),
 				entityAttributeValueSupplier,
 				targetIndex,
-				updateglobalIndex,
+				updateGlobalIndex,
 				true
 			);
-			attributeUpdateApplicator.accept(true, globalIndex);
+			//noinspection DataFlowIssue
+			attributeUpdateApplicator.accept(true, globalIndex, null);
 			ReferenceIndexMutator.executeWithReferenceIndexes(
 				this.entityType,
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 				this,
-				(theReferenceSchema,entityIndex) -> attributeUpdateApplicator.accept(false, entityIndex),
+				(theReferenceSchema,entityIndex) -> attributeUpdateApplicator.accept(false, entityIndex, theReferenceSchema),
 				Droppable::exists
 			);
 		} else if (localMutation instanceof AssociatedDataMutation) {
@@ -437,11 +441,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}.
 	 */
 	void updateAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeMutation attributeMutation,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
 		@Nonnull EntityIndex index,
-		boolean updateglobalIndex,
+		boolean updateGlobalIndex,
 		boolean updateCompounds
 	) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
@@ -449,20 +454,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (attributeMutation instanceof UpsertAttributeMutation) {
 			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
 			AttributeIndexMutator.executeAttributeUpsert(
-				this, attributeSchemaProvider, existingValueSupplier,
-				index, affectedAttribute, attributeValue, updateglobalIndex, updateCompounds,
+				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
+				index, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds,
 				this.undoActionsAppender
 			);
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			AttributeIndexMutator.executeAttributeRemoval(
-				this, attributeSchemaProvider, existingValueSupplier,
-				index, affectedAttribute, updateglobalIndex, updateCompounds,
+				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
+				index, affectedAttribute, updateGlobalIndex, updateCompounds,
 				this.undoActionsAppender
 			);
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
 			AttributeIndexMutator.executeAttributeDelta(
-				this, attributeSchemaProvider, existingValueSupplier,
+				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
 				index, affectedAttribute, attributeValue, this.undoActionsAppender
 			);
 		} else {
@@ -485,6 +490,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Locale locale,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -494,7 +500,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				undoActionConsumer.accept(
 					() -> removeEntityLanguageInTargetIndex(
 						recordId, locale, targetIndex,
-						entitySchema, existingDataSupplierFactory,
+						entitySchema, referenceSchema,
+						existingDataSupplierFactory,
 						null
 					)
 				);
@@ -516,6 +523,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Locale locale,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -524,7 +532,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> upsertEntityLanguageInTargetIndex(
-						recordId, locale, targetIndex, entitySchema, existingDataSupplierFactory, null
+						recordId, locale, targetIndex, entitySchema, referenceSchema, existingDataSupplierFactory, null
 					)
 				);
 			}
@@ -558,10 +566,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = getEntitySchema();
-		if (targetIndex instanceof ReducedEntityIndex reducedEntityIndex && targetIndex.getIndexKey().discriminator() instanceof ReferenceKey referenceKey) {
+		ReferenceSchemaContract referenceSchema = null;
+		if (targetIndex instanceof ReducedEntityIndex reducedEntityIndex &&
+			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey referenceKey) {
 			final String referenceName = referenceKey.referenceName();
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
-				.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
+			referenceSchema = entitySchema.getReference(referenceName)
+			                              .orElseThrow(() -> new ReferenceNotFoundException(
+				                              referenceName, entitySchema));
 			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
 				ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 					this,
@@ -575,6 +586,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else {
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 				this,
+				referenceSchema,
 				targetIndex,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
@@ -600,10 +612,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = getEntitySchema();
-		if (targetIndex instanceof ReducedEntityIndex reducedEntityIndex && targetIndex.getIndexKey().discriminator() instanceof ReferenceKey referenceKey) {
+		ReferenceSchemaContract referenceSchema = null;
+		if (targetIndex instanceof ReducedEntityIndex reducedEntityIndex &&
+			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey referenceKey) {
 			final String referenceName = referenceKey.referenceName();
-			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
-				.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
+			referenceSchema = entitySchema.getReference(referenceName)
+			                              .orElseThrow(() -> new ReferenceNotFoundException(
+				                              referenceName, entitySchema));
 			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
 				ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 					this,
@@ -616,6 +631,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else {
 			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 				this,
+				referenceSchema,
 				targetIndex,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
@@ -655,6 +671,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final EntitySchema entitySchema = getEntitySchema();
 			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 				this,
+				null,
 				globalIndex,
 				null,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
@@ -730,7 +747,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = entity.getPrimaryKeyOrThrowException();
 		for (Locale locale : entity.getLocales()) {
 			removeEntityLanguageInTargetIndex(
-				epk, locale, globalIndex, entitySchema, existingDataSupplierFactory, this.undoActionsAppender
+				epk, locale, globalIndex,
+				entitySchema, null,
+				existingDataSupplierFactory, this.undoActionsAppender
 			);
 		}
 	}
@@ -787,6 +806,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final AttributeKey key = attributeValue.key();
 					AttributeIndexMutator.executeAttributeRemoval(
 						this,
+						null,
 						new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 						existingDataSupplierFactory.getEntityAttributeValueSupplier(),
 						globalIndex,
@@ -949,7 +969,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = entity.getPrimaryKeyOrThrowException();
 		for (Locale locale : entity.getLocales()) {
 			upsertEntityLanguageInTargetIndex(
-				epk, locale, globalIndex, entitySchema, existingDataSupplierFactory, this.undoActionsAppender
+				epk, locale, globalIndex, entitySchema, null, existingDataSupplierFactory, this.undoActionsAppender
 			);
 		}
 	}
@@ -980,6 +1000,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					final AttributeKey key = attributeValue.key();
 					AttributeIndexMutator.executeAttributeUpsert(
 						this,
+						null,
 						new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 						ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER,
 						globalIndex,
@@ -1108,7 +1129,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					);
 					if (ReferenceIndexMutator.isFacetedReference(scope, referenceKey, this)) {
 						for (ReferenceContract otherReferences : entity.getReferences()) {
-							if (!referenceKey.equals(otherReferences.getReferenceKey())) {
+							if (!referenceKey.equalsInGeneral(otherReferences.getReferenceKey())) {
 								final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, referenceKey, scope);
 								ReferenceIndexMutator.addFacetToIndex(
 									referenceIndex,
@@ -1145,7 +1166,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					theReferenceSchema = entitySchema.getReferenceOrThrowException(refKey.referenceName());
 					referenceSchema.set(theReferenceSchema);
 				}
-				final EntityIndex index = getOrCreateIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, refKey));
+				final EntityIndex index = getOrCreateIndex(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, new RepresentativeReferenceKey(refKey))
+				);
 				entityIndexConsumer.accept(theReferenceSchema, index);
 			});
 	}
@@ -1247,12 +1270,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
-		upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, entitySchema, existingDataSupplierFactory, this.undoActionsAppender);
+		upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, entitySchema, null, existingDataSupplierFactory, this.undoActionsAppender);
 		applyOnReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
 			(referenceSchema, index) -> upsertEntityLanguageInTargetIndex(
-				epk, locale, index, entitySchema, existingDataSupplierFactory, this.undoActionsAppender
+				epk, locale, index, entitySchema, referenceSchema, existingDataSupplierFactory, this.undoActionsAppender
 			)
 		);
 	}
@@ -1270,6 +1293,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		removeEntityLanguageInTargetIndex(
 			epk, locale, globalIndex,
 			entitySchema,
+			null,
 			existingDataSupplierFactory,
 			this.undoActionsAppender
 		);
@@ -1279,11 +1303,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			(referenceSchema, index) -> {
 				// removal mutations happen before indexes are created and thus the created indexes will not have
 				// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-				final ReferenceKey referenceKey = (ReferenceKey) index.getIndexKey().discriminator();
+				final ReferenceKey referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) index.getIndexKey().discriminator()).referenceKey();
 				if (this.createdReferences == null || !this.createdReferences.contains(referenceKey)) {
 					removeEntityLanguageInTargetIndex(
 						epk, locale, index,
-						entitySchema, existingDataSupplierFactory,
+						entitySchema,
+						referenceSchema,
+						existingDataSupplierFactory,
 						this.undoActionsAppender
 					);
 				}

@@ -152,6 +152,7 @@ public class SetAttributeSchemaLocalizedMutation
 				attributeSchema.getSortableInScopes(),
 				this.localized,
 				attributeSchema.isNullable(),
+				attributeSchema.isRepresentative(),
 				(Class) attributeSchema.getType(),
 				attributeSchema.getDefaultValue(),
 				attributeSchema.getIndexedDecimalPlaces()

@@ -200,10 +200,6 @@ public class AttributeIndex implements AttributeIndexContract,
 		}
 	}
 
-	public AttributeIndex(@Nonnull String entityType) {
-		this(entityType, null);
-	}
-
 	public AttributeIndex(@Nonnull String entityType, @Nullable ReferenceKey referenceKey) {
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;

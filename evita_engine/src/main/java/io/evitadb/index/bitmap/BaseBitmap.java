@@ -58,7 +58,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		this.memoizedCardinality = theRoaringBitmap.getCardinality();
 	}
 
-	public BaseBitmap(Bitmap bitmap) {
+	public BaseBitmap(@Nonnull Bitmap bitmap) {
 		final RoaringBitmap theRoaringBitmap;
 		if (bitmap instanceof RoaringBitmapBackedBitmap) {
 			theRoaringBitmap = ((RoaringBitmapBackedBitmap) bitmap).getRoaringBitmap().clone();
@@ -69,7 +69,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 		this.memoizedCardinality = bitmap.size();
 	}
 
-	public BaseBitmap(RoaringBitmap bitmap) {
+	public BaseBitmap(@Nonnull RoaringBitmap bitmap) {
 		this.roaringBitmap = bitmap;
 		this.memoizedCardinality = bitmap.getCardinality();
 	}

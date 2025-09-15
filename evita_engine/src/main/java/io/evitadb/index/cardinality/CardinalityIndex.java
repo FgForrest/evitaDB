@@ -32,13 +32,13 @@ import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -49,6 +49,8 @@ import java.util.Map;
  * the record in the index. In order to correctly remove the key from the index, we need to know how many times
  * the key is present in the index and remove it only when the last occurrence is evicted. This is where the cardinality
  * index comes in.
+ *
+ * TODO JNO - zjednodušit klíče na jednoduchý objekt - viz použití v ReferenceTypeIndexu
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -74,7 +76,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	public CardinalityIndex(@Nonnull Class<? extends Serializable> valueType) {
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new TransactionalMap<>(new HashMap<>());
+		this.cardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(16));
 	}
 
 	public CardinalityIndex(

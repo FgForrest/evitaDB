@@ -148,14 +148,12 @@ public record ReferenceKey(
 	 * @return true if the objects are equal in general, false otherwise
 	 */
 	public boolean equalsInGeneral(@Nullable Object o) {
-		if (!(o instanceof final ReferenceKey that)) return false;
-
-		if (!(this.primaryKey == that.primaryKey &&
-			this.referenceName.equals(that.referenceName))) {
+		if (!(o instanceof final ReferenceKey that)) {
 			return false;
 		}
 
-		return true;
+		return this.primaryKey == that.primaryKey &&
+			this.referenceName.equals(that.referenceName);
 	}
 
 	@Override
@@ -201,7 +199,8 @@ public record ReferenceKey(
 
 	/**
 	 * A comparator class for ordering instances of {@link ReferenceKey}, primarily based on their reference name,
-	 * and secondarily on their primary key and internal primary key.
+	 * and secondarily on their primary key and internal primary key (but only if the internal primary key is known,
+	 * which means it was already assigned).
 	 *
 	 * This class implements a comparison logic to ensure consistent ordering of {@link ReferenceKey} objects:
 	 * 1. The comparison first evaluates the {@code referenceName} of the keys. The names are compared lexicographically.
@@ -209,7 +208,7 @@ public record ReferenceKey(
 	 *    The primary keys are compared numerically.
 	 * 3. If both the {@code referenceName} and {@code primaryKey} are equal, the comparison checks the
 	 *    {@code internalPrimaryKey}. The {@code internalPrimaryKey} is taken into account only if both objects
-	 *    represent references that are not marked as "unknown".
+	 *    represent references that are not marked as "unknown" or "new".
 	 *
 	 * The comparator is Serializable, enabling its use in distributed or persistence contexts.
 	 *
@@ -228,7 +227,7 @@ public record ReferenceKey(
 			final int primaryComparison = o1.referenceName().compareTo(o2.referenceName());
 			if (primaryComparison == 0) {
 				final int secondaryComparison = Integer.compare(o1.primaryKey(), o2.primaryKey());
-				if (secondaryComparison == 0 && o1.isKnownInternalPrimaryKey() && o2.isKnownInternalPrimaryKey()) {
+				if (secondaryComparison == 0 && !(o1.isUnknownReference() || o2.isUnknownReference())) {
 					return Integer.compare(o1.internalPrimaryKey(), o2.internalPrimaryKey());
 				} else {
 					return secondaryComparison;

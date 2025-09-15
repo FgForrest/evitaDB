@@ -301,12 +301,17 @@ class ReferencesStoragePartTest {
 		assertTrue(part.contains(new ReferenceKey("D", 1, 6)));
 		assertTrue(part.contains(new ReferenceKey("E", 1, 7)));
 		assertTrue(part.contains(new ReferenceKey("B", 1, 0)));
-		assertTrue(part.contains(new ReferenceKey("D", 1, 0)));
 		assertTrue(part.contains(new ReferenceKey("E", 1, 0)));
 
 		assertFalse(part.contains(new ReferenceKey("A", 1, 0)));
 		assertFalse(part.contains(new ReferenceKey("B", 2, 0)));
 		assertFalse(part.contains(new ReferenceKey("B", 1, 456)));
+
+		// we throw generic exception, because this situation should not happen on such deep level
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> part.contains(new ReferenceKey("D", 1, 0))
+		);
 	}
 
 	@Test

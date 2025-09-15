@@ -152,6 +152,7 @@ public class SetAttributeSchemaNullableMutation
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				this.nullable,
+				attributeSchema.isRepresentative(),
 				(Class) attributeSchema.getType(),
 				attributeSchema.getDefaultValue(),
 				attributeSchema.getIndexedDecimalPlaces()

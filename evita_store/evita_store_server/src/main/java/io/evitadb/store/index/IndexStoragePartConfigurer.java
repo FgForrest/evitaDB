@@ -28,6 +28,7 @@ import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -73,7 +74,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			EntityIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(this.keyCompressor), EntityIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(this.keyCompressor))
+				.addBackwardCompatibleSerializer(6028764096012501468L, new EntityIndexStoragePartSerializer_2025_6(this.keyCompressor)),
 			index++
 		);
 		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(this.keyCompressor), UniqueIndexStoragePart.class), index++);
@@ -120,6 +122,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(ComparableLocale.class, new SerialVersionBasedSerializer<>(new ComparableLocaleSerializer(), ComparableLocale.class), index++);
 		kryo.register(ComparableCurrency.class, new SerialVersionBasedSerializer<>(new ComparableCurrencySerializer(), ComparableCurrency.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
+		kryo.register(RepresentativeReferenceKey.class, new SerialVersionBasedSerializer<>(new RepresentativeReferenceKeySerializer(), RepresentativeReferenceKey.class), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

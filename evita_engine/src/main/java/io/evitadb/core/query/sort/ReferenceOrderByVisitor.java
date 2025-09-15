@@ -65,6 +65,8 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -80,6 +82,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static java.util.Optional.ofNullable;
@@ -337,19 +340,32 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 			} else {
 				// else we have to retrieve the chain and cache it
 				Assert.notNull(entityPrimaryKey, "Entity primary key must not be null for reflected reference schema.");
-				final ReferenceKey theLookupReferenceKey = new ReferenceKey(reflectedReferenceSchema.getReflectedReferenceName(), entityPrimaryKey);
+				final RepresentativeReferenceKey theLookupReferenceKey = new RepresentativeReferenceKey(
+					reflectedReferenceSchema.getReflectedReferenceName(),
+					entityPrimaryKey
+				);
+				final Set<Scope> scopes = this.getScopes();
+				Assert.isTrue(
+					scopes.isEmpty() || scopes.size() == 1,
+					() -> "Chain sort cannot be executed in multiple scopes (" +
+						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
+				);
 				// get the index from the referenced entity collection using inverted key specification
-				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
+				final Optional<ChainIndex> chainIndex = this.queryContext.getEntityIndex(
 					this.referenceSchema.getReferencedEntityType(),
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
+						scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
 						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
 						theLookupReferenceKey
 					),
 					EntityIndex.class
 				).map(it -> it.getChainIndex(attributeKey));
 				// cache the result for future use
-				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(theLookupReferenceKey, attributeKey);
+				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(
+					theLookupReferenceKey.referenceKey(),
+					attributeKey
+				);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);
 				return chainIndex;
 			}
@@ -361,14 +377,23 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				this.lastRetrievedChainIndexKey.attributeKey().equals(attributeKey)) {
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
+				final Set<Scope> scopes = this.getScopes();
+				Assert.isTrue(
+					scopes.isEmpty() || scopes.size() == 1,
+					() -> "Chain sort cannot be executed in multiple scopes (" +
+						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
+				);
 				// else we have to retrieve the chain and cache it
 				// get the index from this entity collection using the reference key
-				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
+				/* TODO JNO - jak si tohle sedne s duplicates? */
+				final Optional<ChainIndex> chainIndex = this.queryContext.getIndexIfExists(
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
-						referenceKey
-					)
-				).map(it -> ((EntityIndex) it).getChainIndex(attributeKey));
+						scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
+						new RepresentativeReferenceKey(referenceKey)
+					),
+					ReducedEntityIndex.class
+				).map(it -> it.getChainIndex(attributeKey));
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(referenceKey, attributeKey);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);

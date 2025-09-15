@@ -118,6 +118,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldInsertNewAttribute() {
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_CODE), "A",
@@ -125,6 +126,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_EAN), "EAN-001",
@@ -132,6 +134,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_GLOBAL_CODE), "GA",
@@ -170,6 +173,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldInsertNewAttributeWithAutomaticConversion() {
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_VARIANT_COUNT), "115",
@@ -198,6 +202,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, codeAttributeKey, "B",
@@ -211,6 +216,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, eanAttributeKey, "EAN-002",
@@ -224,6 +230,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, globalCodeAttributeKey, "GB",
@@ -270,6 +277,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, 'A',
@@ -282,6 +290,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, new Character[]{'C', 'D'},
@@ -307,6 +316,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, new Character[]{'A', 'B'},
@@ -320,6 +330,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, charArrayAttr, new Character[]{'C', 'D'},
@@ -366,6 +377,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						false,
 						UNSUPPORTED_OPERATION
 					),
+					null,
 					this.productAttributeSchemaProvider,
 					getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 					this.productIndex, attrCode, "A",
@@ -388,6 +400,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						false,
 						UNSUPPORTED_OPERATION
 					),
+					null,
 					this.productAttributeSchemaProvider,
 					getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 					this.productIndex, attrGlobalCode, "GA",
@@ -414,6 +427,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				false,
 				UNSUPPORTED_OPERATION
 			),
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 			this.productIndex, attrCode, "A",
@@ -431,6 +445,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				false,
 				UNSUPPORTED_OPERATION
 			),
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 			this.productIndex, attrGlobalCode, "GA",
@@ -477,6 +492,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeRemoval(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attributeCode,
@@ -491,6 +507,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeRemoval(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attributeGlobalCode,
@@ -521,6 +538,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeUpsert(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attrVariantCount, 10,
@@ -536,6 +554,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				false,
 				UNSUPPORTED_OPERATION
 			),
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
 			this.productIndex, attrVariantCount, 9,
@@ -553,6 +572,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 		executeAttributeDelta(
 			this.executor,
+			null,
 			this.productAttributeSchemaProvider,
 			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
 			this.productIndex, attrVariantCount, -3, DO_NOTHING_CONSUMER

@@ -296,6 +296,7 @@ public class EntitySchemaConverter {
 			)
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
+			.setRepresentative(attributeSchema.isRepresentative())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
 			.setInherited(inheritedPredicate.test(attributeSchema.getName()));
@@ -306,11 +307,6 @@ public class EntitySchemaConverter {
 			.ifPresent(it -> builder.setDescription(StringValue.newBuilder().setValue(it).build()));
 		ofNullable(attributeSchema.getDeprecationNotice())
 			.ifPresent(it -> builder.setDeprecationNotice(StringValue.newBuilder().setValue(it).build()));
-
-		if (isEntity) {
-			final EntityAttributeSchemaContract globalAttributeSchema = (EntityAttributeSchemaContract) attributeSchema;
-			builder.setRepresentative(globalAttributeSchema.isRepresentative());
-		}
 
 		if (isGlobal) {
 			final GlobalAttributeSchemaContract globalAttributeSchema = (GlobalAttributeSchemaContract) attributeSchema;
@@ -665,6 +661,7 @@ public class EntitySchemaConverter {
 					sortableInScopes,
 					attributeSchema.getLocalized(),
 					attributeSchema.getNullable(),
+					attributeSchema.getRepresentative(),
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces()

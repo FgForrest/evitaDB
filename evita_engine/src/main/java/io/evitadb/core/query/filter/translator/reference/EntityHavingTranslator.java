@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
+import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -192,7 +193,21 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					.stream()
 					.map(nestedResult -> {
 						if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-							return nestedResult.filter();
+							return FormulaFactory.or(
+								processingScope
+									.getIndexStream()
+									.map(ReferencedTypeEntityIndex.class::cast)
+									.map(
+										it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
+										     referenceSchema,
+										     filterByVisitor::getGlobalEntityIndexIfExists,
+										     it,
+										     nestedResult.filter(),
+										     processingScope.getScopes()
+									     )
+									)
+									.toArray(Formula[]::new)
+							);
 						} else {
 							return filterByVisitor.computeOnlyOnce(
 								processingScope.getIndexes(),

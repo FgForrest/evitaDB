@@ -30,7 +30,6 @@ import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -52,6 +51,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -74,7 +74,12 @@ public class HierarchyOfReferenceTranslator
 
 	@Nonnull
 	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, @Nonnull Scope scope, int hierarchyNodeId) {
-		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, new ReferenceKey(referenceName, hierarchyNodeId));
+		/* TODO JNO - toto transformovat na volání logiky podobné `io.evitadb.core.query.filter.FilterByVisitor.getReferencedEntityIndex(io.evitadb.api.requestResponse.schema.EntitySchemaContract, java.lang.String, int, java.util.function.BiFunction<io.evitadb.api.requestResponse.schema.EntitySchemaContract,io.evitadb.index.EntityIndexKey,io.evitadb.index.ReducedEntityIndex>)` */
+		return new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY,
+			scope,
+			new RepresentativeReferenceKey(referenceName, hierarchyNodeId)
+		);
 	}
 
 	@Nullable
@@ -148,7 +153,7 @@ public class HierarchyOfReferenceTranslator
 					// entity primary keys that are referencing the hierarchy entity
 					(nodeId, statisticsBase) -> {
 						final FilterBy filter = extraResultPlanner.getFilterByForStatisticsBase(statisticsBase, referenceSchema);
-						return extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, scope, nodeId), ReducedEntityIndex.class)
+						return extraResultPlanner.getEntityIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, scope, nodeId), ReducedEntityIndex.class)
 							.map(reducedIndex -> {
 								if (filter == null || !filter.isApplicable()) {
 									return reducedIndex.getAllPrimaryKeysFormula();

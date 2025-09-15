@@ -58,9 +58,9 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -110,7 +110,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				final List<ReducedEntityIndex> reducedIndexes = (List<ReducedEntityIndex>) targetIndex.getIndexes();
 				if (
 					!reducedIndexes.isEmpty() &&
-						reducedIndexes.get(0).getIndexKey().discriminator() instanceof ReferenceKey rk &&
+						reducedIndexes.get(0).getIndexKey().discriminator() instanceof RepresentativeReferenceKey rk &&
 						referenceName.equals(rk.referenceName())
 				) {
 					return reducedIndexes;
@@ -133,24 +133,23 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		Stream<ReducedEntityIndex> indexes = Stream.empty();
 		for (Scope scope : Scope.values()) {
 			if (allowedScopes.contains(scope)) {
-				final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName);
-				final Optional<Index<EntityIndexKey>> referencedEntityTypeIndex = orderByVisitor.getIndex(entityIndexKey);
+				final EntityIndexKey entityIndexKey = new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY_TYPE,
+					scope,
+					referenceName
+				);
+				final Optional<ReferencedTypeEntityIndex> referencedEntityTypeIndex = orderByVisitor.getIndexIfExists(
+					entityIndexKey, ReferencedTypeEntityIndex.class
+				);
 
 				indexes = Stream.concat(
 					indexes,
-					referencedEntityTypeIndex.map(
-							it -> ((ReferencedTypeEntityIndex) it).getAllPrimaryKeys()
+					referencedEntityTypeIndex
+						.map(
+							it -> it
+								.getAllPrimaryKeys()
 								.stream()
-								.mapToObj(
-									refPk -> orderByVisitor.getIndex(
-											new EntityIndexKey(
-												EntityIndexType.REFERENCED_ENTITY,
-												new ReferenceKey(referenceName, refPk)
-											)
-										)
-										.orElse(null)
-								)
-								.map(ReducedEntityIndex.class::cast)
+								.mapToObj(indexPk -> orderByVisitor.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class).orElse(null))
 								.filter(Objects::nonNull)
 						)
 						.orElse(Stream.empty())
@@ -358,7 +357,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			final IntObjectMap<Stream<ReducedEntityIndex>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			for (ReducedEntityIndex referenceIndex : referenceIndexes) {
-				final ReferenceKey discriminator = (ReferenceKey) Objects.requireNonNull(referenceIndex.getIndexKey().discriminator());
+				final ReferenceKey discriminator = Objects.requireNonNull((RepresentativeReferenceKey) referenceIndex.getIndexKey().discriminator()).referenceKey();
 				final int referencedPk = discriminator.primaryKey();
 				writer.add(referencedPk);
 				final Stream<ReducedEntityIndex> existingValue = reducedIndexesMap.get(referencedPk);
@@ -406,7 +405,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				for (int i = 0; i < sortedReducedIndexes.length; i++) {
 					final ReducedEntityIndex sortedReducedIndex = sortedReducedIndexes[i];
 					final ReferenceKey srpReferenceKey = sortedReducedIndex.getReferenceKey();
-					if (referenceKey != null && !referenceKey.equals(srpReferenceKey)) {
+					if (referenceKey != null && !referenceKey.equalsInGeneral(srpReferenceKey)) {
 						atomicBlocks[index++] = Arrays.copyOfRange(sortedReducedIndexes, start, i);
 						start = i;
 					}

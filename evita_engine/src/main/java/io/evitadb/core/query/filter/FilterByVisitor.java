@@ -36,7 +36,6 @@ import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -52,6 +51,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
@@ -83,29 +83,26 @@ import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.Index;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
+import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -718,8 +715,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		return getReferencedRecordEntityIndexes(
 			referenceHaving,
 			scopes,
-			THROWING_MISSING_RTEI_SUPPLIER,
-			NO_OP_MISSING_REI_SUPPLIER
+			THROWING_MISSING_RTEI_SUPPLIER
 		);
 	}
 
@@ -731,9 +727,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	@Nonnull
 	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
 		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull Set<Scope> scopes,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingReducedIndexSupplier
+		@Nonnull Set<Scope> scope,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
 	) {
 		final String referenceName = referenceHaving.getReferenceName();
 		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
@@ -742,9 +737,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			.flatMap(it -> it.getReference(referenceName))
 			.orElseThrow(() -> entitySchema == null ? new ReferenceNotFoundException(referenceName) : new ReferenceNotFoundException(referenceName, entitySchema));
 
-		final Formula referencedRecordIdFormula = processingScope.doWithScope(
-			scopes,
-			() -> getReferencedRecordIdFormula(
+		final Formula reducedIndexPksFormula = processingScope.doWithScope(
+			scope,
+			() -> getReducedEntityIndexPrimaryKeyFormula(
 				entitySchema,
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
@@ -752,11 +747,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			)
 		);
 
-		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
-		final List<ReducedEntityIndex> result = new ArrayList<>(referencedRecordIds.size());
-		for (Integer referencedRecordId : referencedRecordIds) {
-			getReferencedEntityIndex(entitySchema, referenceName, referencedRecordId, missingReducedIndexSupplier)
-				.forEach(result::add);
+		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
+		final List<ReducedEntityIndex> result = new ArrayList<>(reducedIndexPks.size());
+		final OfInt it = reducedIndexPks.iterator();
+		while (it.hasNext()) {
+			int reducedIndexPk = it.nextInt();
+			getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class)
+				.ifPresentOrElse(
+					result::add,
+					() -> {
+						throw new GenericEvitaInternalError(
+							"Reduced entity index with primary key " + reducedIndexPk + " was referenced in the formula but is missing in the index set!"
+						);
+					}
+				);
 		}
 		return result;
 	}
@@ -776,7 +780,36 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
-		return getReferencedRecordIdFormula(
+		final Formula reducedEntityIndexPrimaryKeys = getReducedEntityIndexPrimaryKeyFormula(
+			entitySchema, referenceSchema, filterBy
+		);
+		// we need to translate entity index primary keys to referenced entity primary keys
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (Integer integer : reducedEntityIndexPrimaryKeys.compute()) {
+			this.getEntityIndexByPrimaryKey(integer, ReducedEntityIndex.class)
+			    .ifPresent(index -> writer.add(index.getReferenceKey().primaryKey()));
+		}
+		return new ConstantFormula(
+			new BaseBitmap(writer.get())
+		);
+	}
+
+	/**
+	 * Returns bitmap of entity index primary keys ({@link EntityIndex#getPrimaryKey()}) that satisfy
+	 * the passed filtering constraint.
+	 *
+	 * @param entitySchema    that identifies the examined entities
+	 * @param referenceSchema that identifies the examined entities
+	 * @param filterBy        the filtering constraint to satisfy
+	 * @return bitmap with referenced entity ids
+	 */
+	@Nonnull
+	public Formula getReducedEntityIndexPrimaryKeyFormula(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FilterBy filterBy
+	) {
+		return getReducedEntityIndexPrimaryKeyFormula(
 			entitySchema,
 			referenceSchema,
 			filterBy,
@@ -785,7 +818,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
+	 * Returns bitmap of entity index primary keys ({@link EntityIndex#getPrimaryKey()}) that satisfy
 	 * the passed filtering constraint.
 	 *
 	 * @param entitySchema                       that identifies the examined entities
@@ -796,7 +829,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull
-	public Formula getReferencedRecordIdFormula(
+	public Formula getReducedEntityIndexPrimaryKeyFormula(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
@@ -811,7 +844,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					final EntityIndexKey entityIndexKey = new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
 					);
-					final Optional<ReferencedTypeEntityIndex> entityIndex = getIndex(
+					final Optional<ReferencedTypeEntityIndex> entityIndex = getEntityIndex(
 						entitySchema.getName(),
 						entityIndexKey,
 						ReferencedTypeEntityIndex.class
@@ -849,33 +882,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 								.map(it -> it.getAttributeValue(attributeName, locale)),
 						() -> {
 							filterBy.accept(this);
-							final Formula formula = getFormulaAndClear();
-							// when target entity type is managed
-							if (referenceSchema.isReferencedEntityTypeManaged()) {
-								// we must match the result with the existence of the primary keys in the global entity index in allowed scopes
-								return FormulaFactory.and(
-									formula,
-									FormulaFactory.or(
-										// here we use all scopes targeted by the query
-										this.queryContext.getScopes()
-											.stream()
-											.map(theScope -> {
-												if (referenceSchema.isIndexedInScope(theScope)) {
-													return getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), theScope)
-														.map(EntityIndex::getAllPrimaryKeysFormula)
-														.orElse(EmptyFormula.INSTANCE);
-												} else {
-													// if the schema is not indexed in particular scope, we must keep original formula results in place
-													// to avoid their removal from the final result
-													return formula;
-												}
-											})
-											.toArray(Formula[]::new)
-									)
-								);
-							} else {
-								return formula;
-							}
+							return getFormulaAndClear();
 						},
 						FacetIncludingChildren.class,
 						FacetIncludingChildrenExcept.class
@@ -958,9 +965,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					final EntityIndexKey entityIndexKey = new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
 						scope,
-						new ReferenceKey(referenceName, referencedEntityId)
+						new RepresentativeReferenceKey(referenceName, referencedEntityId)
 					);
-					return getQueryContext().getIndex(
+					return getQueryContext().getEntityIndex(
 						entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class
 					)
 					.orElseGet(
@@ -1149,9 +1156,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
 		if (allowedScopes.size() == 1) {
-			return getIndex(new CatalogIndexKey(allowedScopes.iterator().next()))
-				.map(index -> {
-					final CatalogIndex catalogIndex = (CatalogIndex) index;
+			return getIndexIfExists(new CatalogIndexKey(allowedScopes.iterator().next()), CatalogIndex.class)
+				.map(catalogIndex -> {
 					final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
 					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
 				})
@@ -1161,10 +1167,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
 					.filter(allowedScopes::contains)
 					.map(CatalogIndexKey::new)
-					.map(this::getIndex)
+					.map(ixKey -> getIndexIfExists(ixKey, CatalogIndex.class))
 					.filter(Optional::isPresent)
 					.map(Optional::get)
-					.map(CatalogIndex.class::cast)
 					.map(index -> {
 						final GlobalUniqueIndex globalUniqueIndex = index.getGlobalUniqueIndex(attributeDefinition, getLocale());
 						return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
@@ -1184,9 +1189,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	) {
 		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
 		if (allowedScopes.size() == 1) {
-			return getIndex(new CatalogIndexKey(allowedScopes.iterator().next()))
-				.map(index -> {
-					final CatalogIndex catalogIndex = (CatalogIndex) index;
+			return getIndexIfExists(new CatalogIndexKey(allowedScopes.iterator().next()), CatalogIndex.class)
+				.map(catalogIndex -> {
 					final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale());
 					return globalUniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(globalUniqueIndex);
 				})
@@ -1195,10 +1199,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			return Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
 				.filter(allowedScopes::contains)
 				.map(CatalogIndexKey::new)
-				.map(this::getIndex)
+				.map(ixKey -> this.getIndexIfExists(ixKey, CatalogIndex.class))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
-				.map(CatalogIndex.class::cast)
 				.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(attributeDefinition, getLocale()))
 				.filter(Objects::nonNull)
 				.map(formulaFunction)

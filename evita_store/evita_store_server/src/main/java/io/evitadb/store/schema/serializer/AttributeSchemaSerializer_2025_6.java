@@ -38,58 +38,20 @@ import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated in current version the attribute schema contains representative flag
  */
+@Deprecated(since = "2025.6", forRemoval = true)
 @RequiredArgsConstructor
-public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
+public class AttributeSchemaSerializer_2025_6 extends Serializer<AttributeSchema> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeSchema attributeSchema) {
-		output.writeString(attributeSchema.getName());
-		output.writeVarInt(attributeSchema.getNameVariants().size(), true);
-		for (Entry<NamingConvention, String> entry : attributeSchema.getNameVariants().entrySet()) {
-			output.writeVarInt(entry.getKey().ordinal(), true);
-			output.writeString(entry.getValue());
-		}
-		kryo.writeClass(output, attributeSchema.getType());
-		if (attributeSchema.getDefaultValue() == null) {
-			output.writeBoolean(false);
-		} else {
-			output.writeBoolean(true);
-			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
-		}
-
-		final Map<Scope, AttributeUniquenessType> uniqueness = attributeSchema.getUniquenessTypeInScopes();
-		output.writeVarInt(uniqueness.size(), true);
-		for (Entry<Scope, AttributeUniquenessType> entry : uniqueness.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			kryo.writeObject(output, entry.getValue());
-		}
-
-		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getFilterableInScopes());
-		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSortableInScopes());
-
-		output.writeBoolean(attributeSchema.isLocalized());
-		output.writeBoolean(attributeSchema.isNullable());
-		output.writeBoolean(attributeSchema.isRepresentative());
-		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
-		if (attributeSchema.getDescription() != null) {
-			output.writeBoolean(true);
-			output.writeString(attributeSchema.getDescription());
-		} else {
-			output.writeBoolean(false);
-		}
-		if (attributeSchema.getDeprecationNotice() != null) {
-			output.writeBoolean(true);
-			output.writeString(attributeSchema.getDeprecationNotice());
-		} else {
-			output.writeBoolean(false);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -120,13 +82,12 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();
-		final boolean representative = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable, representative,
+			unique, filterable, sortable, localized, nullable, false,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}
