@@ -168,7 +168,7 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceCarrier) {
-		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
+		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey, referenceCarrier.getReferenceKey().internalPrimaryKey());
 	}
 
 	@Nonnull

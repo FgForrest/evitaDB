@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.index.RepresentativeReferenceKey;
 
 import javax.annotation.Nonnull;
 
@@ -61,7 +61,7 @@ public sealed interface ExistingDataSupplierFactory
 	 *         attribute values of the reference.
 	 */
 	@Nonnull
-	ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey);
+	ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey);
 
 	/**
 	 * Provides an {@link ExistingPriceSupplier} instance for retrieving prices on a particular reference.

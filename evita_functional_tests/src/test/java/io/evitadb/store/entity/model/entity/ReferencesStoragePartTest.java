@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for ReferencesStoragePart focusing on sorted order of references and key operations.
@@ -86,6 +87,14 @@ class ReferencesStoragePartTest {
 			group,
 			dropped
 		);
+	}
+
+	@Nonnull
+	private static Reference newRef(@Nonnull ReferenceKey key) {
+		final Reference ref = Mockito.mock(Reference.class);
+		when(ref.getReferenceKey()).thenReturn(key);
+		when(ref.exists()).thenReturn(true);
+		return ref;
 	}
 
 	@Nonnull
@@ -142,7 +151,8 @@ class ReferencesStoragePartTest {
 			final ReferenceContract ref = arr[i];
 			assertTrue(ref.getReferenceKey().isKnownInternalPrimaryKey());
 			if (i > 0) {
-				assertTrue(ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), ref.getReferenceKey()) < 0);
+				assertTrue(
+					ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), ref.getReferenceKey()) < 0);
 			}
 		}
 	}
@@ -160,11 +170,11 @@ class ReferencesStoragePartTest {
 			},
 			128
 		);
-		final ReferenceContract r1 = part.replaceOrAddReference(
+		part.replaceOrAddReference(
 			new ReferenceKey("A", 10, -1),
 			existing -> newRef("A", 10, -1, null, false)
 		);
-		final ReferenceContract r2 = part.replaceOrAddReference(
+		part.replaceOrAddReference(
 			new ReferenceKey("D", 10, -1),
 			existing -> newRef("D", 10, -1, null, false)
 		);
@@ -207,7 +217,8 @@ class ReferencesStoragePartTest {
 		// verify the order is still kept
 		final ReferenceContract[] arr = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
 		for (int i = 1; i < arr.length; i++) {
-			assertTrue(ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
+			assertTrue(
+				ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
 		}
 	}
 
@@ -243,9 +254,9 @@ class ReferencesStoragePartTest {
 		assertEquals(
 			7,
 			part.findReferenceOrThrowException(new ReferenceKey("B", 1, 0))
-			       .getGroup()
-			       .orElseThrow()
-			       .primaryKey()
+			    .getGroup()
+			    .orElseThrow()
+			    .primaryKey()
 		);
 
 		// this fails - multiple business keys exist
@@ -328,18 +339,46 @@ class ReferencesStoragePartTest {
 			128
 		);
 
-		assertEquals(1, part.findReferenceOrThrowException(new ReferenceKey("B", 1, 1)).getReferenceKey().internalPrimaryKey());
-		assertEquals(4, part.findReferenceOrThrowException(new ReferenceKey("D", 1, 4)).getReferenceKey().internalPrimaryKey());
-		assertEquals(6, part.findReferenceOrThrowException(new ReferenceKey("D", 1, 6)).getReferenceKey().internalPrimaryKey());
-		assertEquals(7, part.findReferenceOrThrowException(new ReferenceKey("E", 1, 7)).getReferenceKey().internalPrimaryKey());
+		assertEquals(
+			1, part.findReferenceOrThrowException(new ReferenceKey("B", 1, 1))
+			       .getReferenceKey()
+			       .internalPrimaryKey()
+		);
+		assertEquals(
+			4, part.findReferenceOrThrowException(new ReferenceKey("D", 1, 4))
+			       .getReferenceKey()
+			       .internalPrimaryKey()
+		);
+		assertEquals(
+			6, part.findReferenceOrThrowException(new ReferenceKey("D", 1, 6))
+			       .getReferenceKey()
+			       .internalPrimaryKey()
+		);
+		assertEquals(
+			7, part.findReferenceOrThrowException(new ReferenceKey("E", 1, 7))
+			       .getReferenceKey()
+			       .internalPrimaryKey()
+		);
 
-		assertEquals(1, part.findReferenceOrThrowException(new ReferenceKey("B", 1, 0)).getReferenceKey().internalPrimaryKey());
-		assertThrows(GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("D", 1, 0)));
-		assertEquals(7, part.findReferenceOrThrowException(new ReferenceKey("E", 1, 0)).getReferenceKey().internalPrimaryKey());
+		assertEquals(
+			1, part.findReferenceOrThrowException(new ReferenceKey("B", 1, 0))
+			       .getReferenceKey()
+			       .internalPrimaryKey()
+		);
+		assertThrows(
+			GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("D", 1, 0)));
+		assertEquals(
+			7, part.findReferenceOrThrowException(new ReferenceKey("E", 1, 0))
+			       .getReferenceKey()
+			       .internalPrimaryKey()
+		);
 
-		assertThrows(GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("A", 1, 0)));
-		assertThrows(GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("B", 2, 0)));
-		assertThrows(GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("B", 1, 456)));
+		assertThrows(
+			GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("A", 1, 0)));
+		assertThrows(
+			GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("B", 2, 0)));
+		assertThrows(
+			GenericEvitaInternalError.class, () -> part.findReferenceOrThrowException(new ReferenceKey("B", 1, 456)));
 	}
 
 	@Test
@@ -429,10 +468,10 @@ class ReferencesStoragePartTest {
 	void shouldBeEmptyAndReturnNoIdsWhenAllReferencesAreDropped() {
 		final ReferencesStoragePart part = new ReferencesStoragePart(
 			10, 0, new Reference[]{
-				newRef("A", 1, 100, group(1), true),
-				newRef("A", 2, 101, group(2), true),
-				newRef("B", 3, 102, group(3), true)
-			}, -1
+			newRef("A", 1, 100, group(1), true),
+			newRef("A", 2, 101, group(2), true),
+			newRef("B", 3, 102, group(3), true)
+		}, -1
 		);
 
 		// isEmpty must report true when only dropped references are present
@@ -446,4 +485,63 @@ class ReferencesStoragePartTest {
 		assertArrayEquals(new int[0], part.getDistinctReferencedGroupIds("A"));
 		assertArrayEquals(new int[0], part.getDistinctReferencedGroupIds("B"));
 	}
+
+	@Test
+	@DisplayName("shouldThrowExceptionWhenReferenceNotFound")
+	void shouldThrowExceptionWhenReferenceNotFound() {
+		final Reference[] refs = new Reference[]{
+			newRef(new ReferenceKey("brand", 1, 5)),
+			newRef(new ReferenceKey("brand", 2, 6))
+		};
+		final ReferencesStoragePart part = new ReferencesStoragePart(123, 6, refs, -1);
+
+		final ReferenceKey missing = new ReferenceKey("category", 1);
+
+		final RuntimeException ex = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> part.findReferencesOrThrowException(missing)
+		);
+		assertTrue(ex.getMessage().contains("was not found"));
+	}
+
+	@Test
+	@DisplayName("shouldReturnSingleReferenceWhenExactlyOneMatch")
+	void shouldReturnSingleReferenceWhenExactlyOneMatch() {
+		final ReferenceKey keyA = new ReferenceKey("brand", 1, 5);
+		final ReferenceKey keyB = new ReferenceKey("brand", 1, 6);
+		final ReferenceKey keyC = new ReferenceKey("brand", 2, 8);
+		final Reference refA = newRef(keyA);
+		final Reference refB = newRef(keyB);
+		final Reference refC = newRef(keyC);
+		final Reference[] refs = new Reference[]{refA, refB, refC};
+		final ReferencesStoragePart part = new ReferencesStoragePart(123, 8, refs, -1);
+
+		final List<ReferenceContract> result = part.findReferencesOrThrowException(new ReferenceKey("brand", 2));
+
+		assertEquals(1, result.size());
+		assertSame(refC, result.get(0));
+	}
+
+	@Test
+	@DisplayName("shouldReturnAllReferencesWhenMultipleMatchesExist")
+	void shouldReturnAllReferencesWhenMultipleMatchesExist() {
+		// Prepare duplicated generic key (same referenceName + primaryKey, different internal PKs)
+		final ReferenceKey key1 = new ReferenceKey("brand", 1, 5);
+		final ReferenceKey key2 = new ReferenceKey("brand", 1, 6);
+		final ReferenceKey key3 = new ReferenceKey("brand", 2, 8);
+		final Reference ref1 = newRef(key1);
+		final Reference ref2 = newRef(key2);
+		final Reference ref3 = newRef(key3);
+		// Array must be sorted by FULL comparator: brand:1/5, brand:1/6, brand:2/8
+		final Reference[] refs = new Reference[]{ref1, ref2, ref3};
+		final ReferencesStoragePart part = new ReferencesStoragePart(123, 8, refs, -1);
+
+		// Search with generic key (internal PK unknown) should return both brand:1 references
+		final List<ReferenceContract> result = part.findReferencesOrThrowException(new ReferenceKey("brand", 1));
+
+		assertEquals(2, result.size());
+		assertSame(ref1, result.get(0));
+		assertSame(ref2, result.get(1));
+	}
+
 }

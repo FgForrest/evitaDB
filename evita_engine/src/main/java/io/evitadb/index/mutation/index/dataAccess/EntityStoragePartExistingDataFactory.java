@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -42,19 +43,19 @@ import java.util.Map;
 @RequiredArgsConstructor
 public final class EntityStoragePartExistingDataFactory implements ExistingDataSupplierFactory {
 	private final WritableEntityStorageContainerAccessor containerAccessor;
-	private final String entityType;
+	private final EntitySchema entitySchema;
 	private final int entityPrimaryKey;
 	private EntityStoragePartAccessorAttributeValueSupplier entityAttributeValueSupplier;
 	private PriceStoragePartSupplier priceStoragePartSupplier;
 	private ReferencesStoragePartSupplier referenceStoragePartSupplier;
-	private Map<ReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueSupplier> referenceAttributeValueSuppliers;
+	private Map<RepresentativeReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueSupplier> referenceAttributeValueSuppliers;
 
 	@Nonnull
 	@Override
 	public ExistingAttributeValueSupplier getEntityAttributeValueSupplier() {
 		if (this.entityAttributeValueSupplier == null) {
 			this.entityAttributeValueSupplier = new EntityStoragePartAccessorAttributeValueSupplier(
-				this.containerAccessor, this.entityType, this.entityPrimaryKey
+				this.containerAccessor, this.entitySchema.getName(), this.entityPrimaryKey
 			);
 		}
 		return this.entityAttributeValueSupplier;
@@ -65,7 +66,7 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 	public ReferenceSupplier getReferenceSupplier() {
 		if (this.referenceStoragePartSupplier == null) {
 			this.referenceStoragePartSupplier = new ReferencesStoragePartSupplier(
-				this.containerAccessor.getReferencesStoragePart(this.entityType, this.entityPrimaryKey)
+				this.containerAccessor.getReferencesStoragePart(this.entitySchema.getName(), this.entityPrimaryKey)
 			);
 		}
 		return this.referenceStoragePartSupplier;
@@ -73,14 +74,18 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 
 	@Nonnull
 	@Override
-	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey) {
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
 			this.referenceAttributeValueSuppliers;
 		return this.referenceAttributeValueSuppliers.computeIfAbsent(
 			referenceKey,
-			theRefKey -> new ReferenceEntityStoragePartAccessorAttributeValueSupplier(
-				this.containerAccessor, theRefKey, this.entityType, this.entityPrimaryKey
+			rrk -> new ReferenceEntityStoragePartAccessorAttributeValueSupplier(
+				this.containerAccessor,
+				this.entitySchema.getReferenceOrThrowException(rrk.referenceName()),
+				rrk,
+				this.entitySchema.getName(),
+				this.entityPrimaryKey
 			)
 		);
 	}
@@ -90,7 +95,7 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 	public ExistingPriceSupplier getPriceSupplier() {
 		if (this.priceStoragePartSupplier == null) {
 			this.priceStoragePartSupplier = new PriceStoragePartSupplier(
-				this.containerAccessor.getPriceStoragePart(this.entityType, this.entityPrimaryKey)
+				this.containerAccessor.getPriceStoragePart(this.entitySchema.getName(), this.entityPrimaryKey)
 			);
 		}
 		return this.priceStoragePartSupplier;

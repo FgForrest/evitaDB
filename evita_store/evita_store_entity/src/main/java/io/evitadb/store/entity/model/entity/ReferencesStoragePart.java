@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.ArrayUtils;
@@ -42,10 +43,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.ToIntBiFunction;
 import java.util.function.UnaryOperator;
@@ -146,13 +151,12 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	public void assignMissingIdsAndSort() {
 		if (this.unassignedPrimaryKeys) {
-			Reference previousReference = null;
+			ReferenceKey previousReferenceKey = null;
 			for (int i = 0; i < this.references.length; i++) {
 				Reference reference = this.references[i];
-				if (previousReference != null) {
-					final ReferenceKey previousKeyWithId = previousReference.getReferenceKey();
+				if (previousReferenceKey != null) {
 					Assert.isPremiseValid(
-						ReferenceKey.FULL_COMPARATOR.compare(previousKeyWithId, reference.getReferenceKey()) < 0,
+						ReferenceKey.FULL_COMPARATOR.compare(previousReferenceKey, reference.getReferenceKey()) < 0,
 						() -> "References must be sorted in ascending order according to their business key: "
 							+ Arrays.stream(this.references)
 							        .map(Reference::getReferenceKey)
@@ -160,13 +164,14 @@ public class ReferencesStoragePart implements EntityStoragePart {
 							        .collect(Collectors.joining(", "))
 					);
 				}
-				// assign primary keys to references that don't have it yet
+				// remember the previous key for the next iteration
+				previousReferenceKey = reference.getReferenceKey();
+				// assign primary keys to references that don't have it yet (update the key)
 				if (!reference.getReferenceKey().isKnownInternalPrimaryKey()) {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					this.references[i] = reference;
 					this.dirty = true;
 				}
-				previousReference = reference;
 			}
 
 			this.unassignedPrimaryKeys = false;
@@ -187,9 +192,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	) {
 		InsertionPosition insertionPosition;
 		if (referenceKey.isUnknownReference()) {
-			insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-				referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
-			);
+			insertionPosition = findPositionInGeneralManner(referenceKey);
 			// we are adding a new reference-verify that we are not duplicating the existing reference
 			assertNoConflictingReferencePresent(referenceKey, insertionPosition);
 		} else {
@@ -203,9 +206,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				}
 			} else if (referenceKey.isNewReference()) {
 				// try to find nonsingle reference matching generic part of the key
-				final InsertionPosition genericSearchResult = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-					referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
-				);
+				final InsertionPosition genericSearchResult = findPositionInGeneralManner(referenceKey);
 				// but verify there is no conflicting reference present
 				assertNoConflictingReferencePresent(referenceKey, insertionPosition);
 				// but we can accept this position, only if an internal primary key is not known
@@ -364,33 +365,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	@Nonnull
 	public ReferenceContract findReferenceOrThrowException(@Nonnull ReferenceKey referenceKey) {
-		final int index;
-		if (referenceKey.isKnownInternalPrimaryKey()) {
-			index = ArrayUtils.binarySearch(this.references, referenceKey, FULL_COMPARISON_FUNCTION);
-		} else if (referenceKey.isNewReference()) {
-			final int exactIndex = ArrayUtils.binarySearch(this.references, referenceKey, FULL_COMPARISON_FUNCTION);
-			if (exactIndex >= 0) {
-				index = exactIndex;
-			} else {
-				// try to find nonsingle reference matching generic part of the key
-				final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-					referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
-				);
-				/* TOBEDONE #538 - due to backward compatibility with 2025.6, we may simplify later */
-				index = position.alreadyPresent() &&
-					this.references[position.position()]
-						.getReferenceKey()
-						.isUnknownReference() ?
-					position.position() : -1;
-			}
-		} else {
-			final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-				referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
-			);
-			assertNoConflictingReferencePresent(referenceKey, position);
-			// we can accept this position, only if an internal primary key is not known
-			index = position.alreadyPresent() ? position.position() : -1;
-		}
+		final int index = findReferenceIndex(referenceKey);
 		Assert.isPremiseValid(
 			index >= 0,
 			() -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
@@ -409,6 +384,128 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
+	 * Finds all references associated with the provided {@code referenceKey} in the current container.
+	 * If no references matching the key are found, an exception is thrown.
+	 *
+	 * @param referenceKey the reference key to locate in the references array, must not be null
+	 * @return a list of {@link ReferenceContract} objects associated with the provided {@code referenceKey}, never null
+	 * @throws IllegalStateException if no matching references are found
+	 */
+	@Nonnull
+	public List<ReferenceContract> findReferencesOrThrowException(@Nonnull ReferenceKey referenceKey) {
+		Assert.isPremiseValid(
+			referenceKey.isUnknownReference(),
+			() -> "This method makes sense only with generic reference key!"
+		);
+		final InsertionPosition startPosition = findPositionInGeneralManner(referenceKey);
+		if (startPosition.alreadyPresent()) {
+			int index = startPosition.position();
+			Assert.isPremiseValid(
+				index >= 0,
+				() -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
+			);
+			if (index + 1 < this.references.length && this.references[index + 1].getReferenceKey().equals(
+				referenceKey)) {
+				final List<ReferenceContract> references = new ArrayList<>(Math.min(8, this.references.length - index));
+				while (
+					index < this.references.length &&
+						this.references[index].getReferenceKey().equals(referenceKey)) {
+					references.add(this.references[index++]);
+				}
+				return references;
+			} else {
+				return Collections.singletonList(this.references[index]);
+			}
+		} else {
+			throw new GenericEvitaInternalError(
+				"Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
+			);
+		}
+	}
+
+	/**
+	 * Finds reference to target entity specified by `referenceKey` in current container or returns empty result.
+	 *
+	 * @return found reference or empty result
+	 */
+	@Nonnull
+	public Optional<ReferenceContract> findReference(@Nonnull ReferenceKey referenceKey) {
+		final int index = findReferenceIndex(referenceKey);
+		if (index < 0 || !this.references[index].exists()) {
+			return Optional.empty();
+		} else {
+			Assert.isPremiseValid(
+				index + 1 == this.references.length ||
+					!this.references[index + 1].getReferenceKey().equals(referenceKey),
+				() -> "There is more than one reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "`!"
+			);
+			return Optional.of(this.references[index]);
+		}
+	}
+
+	/**
+	 * Finds the index of a given {@link ReferenceKey} in the references array. The method determines the index
+	 * based on various conditions, including whether the reference is a known internal primary key,
+	 * a new reference, or an unknown reference. If the reference is not found, the method may return -1.
+	 *
+	 * @param referenceKey the reference key to find in the references array
+	 * @return the index of the reference key in the references array, or -1 if the reference is not found
+	 */
+	private int findReferenceIndex(@Nonnull ReferenceKey referenceKey) {
+		final int index;
+		if (referenceKey.isKnownInternalPrimaryKey()) {
+			index = ArrayUtils.binarySearch(this.references, referenceKey, FULL_COMPARISON_FUNCTION);
+		} else if (referenceKey.isNewReference()) {
+			final int exactIndex = ArrayUtils.binarySearch(this.references, referenceKey, FULL_COMPARISON_FUNCTION);
+			if (exactIndex >= 0) {
+				index = exactIndex;
+			} else {
+				// try to find nonsingle reference matching generic part of the key
+				final InsertionPosition position = findPositionInGeneralManner(referenceKey);
+				/* TOBEDONE #538 - due to backward compatibility with 2025.6, we may simplify later */
+				index = position.alreadyPresent() &&
+					this.references[position.position()]
+						.getReferenceKey()
+						.isUnknownReference() ?
+					position.position() : -1;
+			}
+		} else {
+			final InsertionPosition position = findPositionInGeneralManner(referenceKey);
+			assertNoConflictingReferencePresent(referenceKey, position);
+			// we can accept this position, only if an internal primary key is not known
+			index = position.alreadyPresent() ? position.position() : -1;
+		}
+		return index;
+	}
+
+	/**
+	 * Finds the position of the provided {@link ReferenceKey} in the references array in a general manner.
+	 * If the reference is already present in the array, the method adjusts the position to the first occurrence
+	 * of the same generic key. Otherwise, it determines where the reference should be inserted while maintaining
+	 * order.
+	 *
+	 * @param referenceKey The reference key to locate or determine the insertion position for; must not be null.
+	 * @return The {@link InsertionPosition} object that contains the calculated position and whether the reference
+	 *         key was already present in the array.
+	 */
+	@Nonnull
+	private InsertionPosition findPositionInGeneralManner(@Nonnull ReferenceKey referenceKey) {
+		final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
+		);
+		if (position.alreadyPresent()) {
+			int index = position.position();
+			while (index > 0 && this.references[index - 1].getReferenceKey().equalsInGeneral(this.references[index].getReferenceKey())) {
+				// move to the first occurrence of the same generic key
+				index--;
+			}
+			return new InsertionPosition(index, true);
+		} else {
+			return position;
+		}
+	}
+
+	/**
 	 * Checks if the provided {@link ReferenceKey} is present in the references.
 	 *
 	 * @param referenceKey the key to be checked for presence in the references
@@ -423,17 +520,13 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				return true;
 			} else {
 				// try to find nonsingle reference matching generic part of the key
-				final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-					referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
-				);
+				final InsertionPosition position = findPositionInGeneralManner(referenceKey);
 				/* TOBEDONE #538 - due to backward compatibility with 2025.6, we may simplify later */
 				return position.alreadyPresent() &&
 					this.references[position.position()].getReferenceKey().isUnknownReference();
 			}
 		} else {
-			final InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
-				referenceKey, this.references, GENERIC_COMPARISON_FUNCTION
-			);
+			final InsertionPosition position = findPositionInGeneralManner(referenceKey);
 			assertNoConflictingReferencePresent(referenceKey, position);
 			return position.alreadyPresent();
 		}

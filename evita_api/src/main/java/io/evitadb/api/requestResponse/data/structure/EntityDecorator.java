@@ -25,6 +25,8 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
+import io.evitadb.api.exception.ReferenceAllowsDuplicatesException.Operation;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -475,7 +477,7 @@ public class EntityDecorator implements SealedEntity {
 				)
 			).orElseGet(() -> new ReferenceDecorator(
 				referenceContract,
-			                                         referencePredicate.getAttributePredicate(thisReferenceName)
+				referencePredicate.getAttributePredicate(thisReferenceName)
 			));
 		}
 		if (referenceSchema != null && fetchedReferenceComparator != null) {
@@ -534,7 +536,8 @@ public class EntityDecorator implements SealedEntity {
 			} else {
 				// entity decorator wraps entity with up-to-date schema, so having duplicate reference which is not
 				// allowed by the schema is a sign of an invalid state
-				final ReferenceContract previous = this.filteredReferences.putIfAbsent(reference.getReferenceKey(), reference);
+				final ReferenceContract previous = this.filteredReferences.putIfAbsent(
+					reference.getReferenceKey(), reference);
 				Assert.isPremiseValid(
 					previous == null,
 					"Unexpected duplicate reference " + reference.getReferenceKey() + " in entity " + entityPrimaryKey + "!"
@@ -698,84 +701,6 @@ public class EntityDecorator implements SealedEntity {
 		}
 	}
 
-	@Override
-	public boolean referencesAvailable() {
-		return this.referencePredicate.wasFetched();
-	}
-
-	@Override
-	public boolean referencesAvailable(@Nonnull String referenceName) {
-		return this.referencePredicate.wasFetched(referenceName);
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences() {
-		this.referencePredicate.checkFetched();
-		return getFilteredReferences().values();
-	}
-
-	@Nonnull
-	@Override
-	public Set<String> getReferenceNames() {
-		this.referencePredicate.checkFetched();
-		return getFilteredReferencesByName().keySet();
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		return getReferenceChunk(referenceName).getData();
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		this.referencePredicate.checkFetched(referenceName);
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(
-		@Nonnull ReferenceKey referenceKey
-	) throws ContextMissingException, ReferenceNotFoundException {
-		this.referencePredicate.checkFetched(referenceKey.referenceName());
-		return ofNullable(getFilteredReferences().get(referenceKey));
-	}
-
-	@Nonnull
-	@Override
-	public List<ReferenceContract> getReferences(
-		@Nonnull ReferenceKey referenceKey
-	) throws ContextMissingException, ReferenceNotFoundException {
-		this.referencePredicate.checkFetched(referenceKey.referenceName());
-		final ReferenceContract reference = getFilteredReferences().get(referenceKey);
-		if (reference == null) {
-			return Collections.emptyList();
-		} else if (reference == References.DUPLICATE_REFERENCE) {
-			return Collections.singletonList(reference);
-		} else {
-			return this.filteredDuplicateReferences.get(referenceKey);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public DataChunk<ReferenceContract> getReferenceChunk(
-		@Nonnull String referenceName
-	) throws ContextMissingException {
-		this.referencePredicate.checkFetched(referenceName);
-		this.delegate.references.checkReferenceNameAndCardinality(referenceName, true);
-		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
-		return chunk == null ?
-				this.delegate.references
-					.getReferenceChunkTransformer()
-					.apply(referenceName)
-					.createChunk(Collections.emptyList()) :
-				chunk;
-	}
-
 	@Nonnull
 	@Override
 	public Set<Locale> getAllLocales() {
@@ -798,6 +723,99 @@ public class EntityDecorator implements SealedEntity {
 		return this.delegate.getScope();
 	}
 
+	@Override
+	public boolean referencesAvailable() {
+		return this.referencePredicate.wasFetched();
+	}
+
+	@Override
+	public boolean referencesAvailable(@Nonnull String referenceName) {
+		return this.referencePredicate.wasFetched(referenceName);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<ReferenceContract> getReferences() {
+		this.referencePredicate.checkFetched();
+		final Map<ReferenceKey, ReferenceContract> theFilteredReferences = getFilteredReferences();
+		if (this.filteredDuplicateReferences == null || this.filteredDuplicateReferences.isEmpty()) {
+			return theFilteredReferences.values();
+		} else {
+			// need to expand duplicates
+			return Stream.concat(
+					theFilteredReferences
+						.values()
+						.stream()
+					    .filter(it -> it != References.DUPLICATE_REFERENCE),
+					this.filteredDuplicateReferences.values().stream().flatMap(Collection::stream)
+				)
+				.collect(Collectors.toList());
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Set<String> getReferenceNames() {
+		this.referencePredicate.checkFetched();
+		return getFilteredReferencesByName().keySet();
+	}
+
+	@Nonnull
+	@Override
+	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
+		return getReferenceChunk(referenceName).getData();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
+		this.referencePredicate.checkFetched(referenceName);
+		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)))
+			.map(it -> avoidDuplicates(referenceName, it));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceContract> getReference(
+		@Nonnull ReferenceKey referenceKey
+	) throws ContextMissingException, ReferenceNotFoundException {
+		this.referencePredicate.checkFetched(referenceKey.referenceName());
+		return ofNullable(getFilteredReferences().get(referenceKey))
+			.map(it -> avoidDuplicates(referenceKey.referenceName(), it));
+	}
+
+	@Nonnull
+	@Override
+	public List<ReferenceContract> getReferences(
+		@Nonnull ReferenceKey referenceKey
+	) throws ContextMissingException, ReferenceNotFoundException {
+		this.referencePredicate.checkFetched(referenceKey.referenceName());
+		final ReferenceContract reference = getFilteredReferences().get(referenceKey);
+		if (reference == null) {
+			return Collections.emptyList();
+		} else if (reference == References.DUPLICATE_REFERENCE) {
+			return this.filteredDuplicateReferences.get(referenceKey);
+		} else {
+			return Collections.singletonList(reference);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public DataChunk<ReferenceContract> getReferenceChunk(
+		@Nonnull String referenceName
+	) throws ContextMissingException {
+		this.referencePredicate.checkFetched(referenceName);
+		this.delegate.references.checkReferenceNameAndCardinality(referenceName, true);
+		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
+		return chunk == null ?
+			this.delegate.references
+				.getReferenceChunkTransformer()
+				.apply(referenceName)
+				.createChunk(Collections.emptyList()) :
+			chunk;
+	}
+
 	/**
 	 * Returns parent entity without checking the predicate.
 	 * Part of the PRIVATE API.
@@ -809,8 +827,10 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(
-		@Nonnull String referenceName, int referencedEntityId) {
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
+		@Nonnull String referenceName, int referencedEntityId
+	) {
+		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)))
+			.map(it -> avoidDuplicates(referenceName, it));
 	}
 
 	@Nullable
@@ -1489,6 +1509,24 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	public boolean isLocaleRequested(@Nonnull Locale locale) {
 		return this.localePredicate.test(locale);
+	}
+
+	/**
+	 * Ensures that the provided reference is not a duplicate. If the reference is marked as a duplicate,
+	 * an exception is thrown. Otherwise, the original reference is returned.
+	 *
+	 * @param referenceName the name of the reference being checked
+	 * @param reference     the reference to verify for duplicates
+	 * @return the provided reference if no duplicates are detected
+	 * @throws ReferenceAllowsDuplicatesException if the reference is marked as a duplicate
+	 */
+	@Nonnull
+	private ReferenceContract avoidDuplicates(@Nonnull String referenceName, @Nonnull ReferenceContract reference) {
+		if (reference == References.DUPLICATE_REFERENCE) {
+			throw new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.READ);
+		} else {
+			return reference;
+		}
 	}
 
 	/**

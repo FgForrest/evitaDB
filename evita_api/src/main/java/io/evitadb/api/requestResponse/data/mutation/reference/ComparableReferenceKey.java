@@ -49,4 +49,18 @@ public record ComparableReferenceKey(
 		return ReferenceKey.FULL_COMPARATOR.compare(this.referenceKey, o.referenceKey);
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final ComparableReferenceKey that)) return false;
+
+		return ReferenceKey.FULL_COMPARATOR.compare(this.referenceKey, that.referenceKey) == 0;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = this.referenceKey.referenceName().hashCode();
+		result = 31 * result + this.referenceKey().primaryKey();
+		result = 31 * result + this.referenceKey().internalPrimaryKey();
+		return result;
+	}
 }

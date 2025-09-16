@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.index.attribute.FilterIndex;
@@ -120,7 +121,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_CODE), "A",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -128,7 +129,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_EAN), "EAN-001",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -136,7 +137,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_GLOBAL_CODE), "GA",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -175,7 +176,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, new AttributeKey(ATTRIBUTE_VARIANT_COUNT), "115",
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -204,7 +205,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, codeAttributeKey, "B",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -218,7 +219,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, eanAttributeKey, "EAN-002",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -232,7 +233,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, globalCodeAttributeKey, "GB",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -279,7 +280,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, charArrayAttr, 'A',
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -292,7 +293,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, charArrayAttr, new Character[]{'C', 'D'},
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -318,7 +319,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, charArrayAttr, new Character[]{'A', 'B'},
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -332,7 +333,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, charArrayAttr, new Character[]{'C', 'D'},
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -352,10 +353,10 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 
 	@Nonnull
 	ExistingAttributeValueSupplier getEntityAttributeValueSupplier(
-		@Nonnull String entityType,
+		@Nonnull EntitySchema entitySchema,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingDataFactory(this.executor.getContainerAccessor(), entityType, entityPrimaryKey)
+		return new EntityStoragePartExistingDataFactory(this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey)
 			.getEntityAttributeValueSupplier();
 	}
 
@@ -379,7 +380,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 					),
 					null,
 					this.productAttributeSchemaProvider,
-					getEntityAttributeValueSupplier(ENTITY_NAME, 2),
+					getEntityAttributeValueSupplier(this.productSchema, 2),
 					this.productIndex, attrCode, "A",
 					false, true, DO_NOTHING_CONSUMER
 				);
@@ -402,7 +403,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 					),
 					null,
 					this.productAttributeSchemaProvider,
-					getEntityAttributeValueSupplier(ENTITY_NAME, 2),
+					getEntityAttributeValueSupplier(this.productSchema, 2),
 					this.productIndex, attrGlobalCode, "GA",
 					false, true, DO_NOTHING_CONSUMER
 				);
@@ -429,7 +430,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			),
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
+			getEntityAttributeValueSupplier(this.productSchema, 2),
 			this.productIndex, attrCode, "A",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -447,7 +448,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			),
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
+			getEntityAttributeValueSupplier(this.productSchema, 2),
 			this.productIndex, attrGlobalCode, "GA",
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -494,7 +495,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, attributeCode,
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -509,7 +510,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, attributeGlobalCode,
 			true, true, DO_NOTHING_CONSUMER
 		);
@@ -540,7 +541,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, attrVariantCount, 10,
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -556,7 +557,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			),
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 2),
+			getEntityAttributeValueSupplier(this.productSchema, 2),
 			this.productIndex, attrVariantCount, 9,
 			false, true, DO_NOTHING_CONSUMER
 		);
@@ -574,7 +575,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.executor,
 			null,
 			this.productAttributeSchemaProvider,
-			getEntityAttributeValueSupplier(ENTITY_NAME, 1),
+			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex, attrVariantCount, -3, DO_NOTHING_CONSUMER
 		);
 

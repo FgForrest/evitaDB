@@ -23,10 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.mutation;
 
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
-
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Mutation executor applies local mutations on entity contents. Entity contents can be organized in different way than
@@ -35,15 +32,6 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface LocalMutationExecutor {
-
-	/**
-	 * Method is called before any mutation is applied on entity instance. It allows the executor to prepare
-	 * itself for the upcoming mutations.
-	 *
-	 * @param entityPrimaryKey primary key of the entity that will be mutated
-	 * @param expectation expectation of the entity existence
-	 */
-	void prepare(@Nullable Integer entityPrimaryKey, @Nonnull EntityExistence expectation);
 
 	/**
 	 * Method is called when {@link LocalMutation} is applied on entity instance.

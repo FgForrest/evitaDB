@@ -26,11 +26,13 @@ package io.evitadb.index.mutation.storagePart;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -58,7 +60,7 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	/**
 	 * The array of references present in the initial version of the entity.
 	 */
-	private final Map<ReferenceKey, ReferenceContract> referenceContracts;
+	private final Map<ComparableReferenceKey, ReferenceContract> referenceContracts;
 
 	/**
 	 * Constructs a ReferenceAttributeValueProvider instance with the provided primary key and reference contracts.
@@ -72,7 +74,12 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.referenceContracts = Arrays.stream(referenceContracts)
-			.collect(Collectors.toMap(ReferenceContract::getReferenceKey, Function.identity()));
+			.collect(
+				Collectors.toMap(
+					it -> new ComparableReferenceKey(it.getReferenceKey()),
+					Function.identity()
+				)
+			);
 	}
 
 	@Nonnull
@@ -109,13 +116,17 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceContract referenceCarrier) {
-		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
+		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey, referenceCarrier.getReferenceKey().internalPrimaryKey());
 	}
 
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
-		return Optional.ofNullable(this.referenceContracts.get(referenceKey));
+		Assert.isPremiseValid(
+			!referenceKey.isUnknownReference(),
+			"Only non-unknown references are supported in this context!"
+		);
+		return Optional.ofNullable(this.referenceContracts.get(new ComparableReferenceKey(referenceKey)));
 	}
 
 	@Nonnull

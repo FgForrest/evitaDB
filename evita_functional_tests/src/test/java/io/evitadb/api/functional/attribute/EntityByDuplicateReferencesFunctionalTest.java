@@ -25,6 +25,7 @@ package io.evitadb.api.functional.attribute;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.EntityReferenceDTO;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -45,10 +46,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -56,9 +59,11 @@ import static graphql.Assert.assertNotNull;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.collectProductIndex;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.sortProductsInByReferenceAttributeOfChainableType;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.updateReferenceAttributeInProduct;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies the behavior related to the duplicate references of the same type in entities and reflected
@@ -90,24 +95,23 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		return evita.updateCatalog(
 			TEST_CATALOG, session -> {
 				// we need to create category schema first
-				final SealedEntitySchema categorySchema = session
+				session
 					.defineEntitySchema(Entities.CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.withHierarchy()
 					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-
 					.withReflectedReferenceToEntity(
 						REFERENCE_CATEGORY_PRODUCTS,
 						Entities.PRODUCT,
 						REFERENCE_CATEGORIES,
-						whichIs -> whichIs.indexedForFiltering()
-						                  .withAttributesInherited(
-							                  ATTRIBUTE_COUNTRY)
+						whichIs ->
+							whichIs.indexedForFiltering()
+							       .withAttributesInherited(ATTRIBUTE_COUNTRY)
 					)
 					.updateAndFetchVia(session);
 
 				// we need to create brand schema first
-				final SealedEntitySchema brandSchema = session
+				session
 					.defineEntitySchema(Entities.BRAND)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(Locale.ENGLISH, Locale.GERMAN)
@@ -125,8 +129,11 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					       whichIs -> whichIs
 						       .indexedForFiltering()
 						       .withAttribute(
+							       ATTRIBUTE_COUNTRY, String.class,
+							       thatIs -> thatIs.sortable().filterable().representative()
+						       )
+						       .withAttribute(
 							       ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
-						       .withAttribute(ATTRIBUTE_COUNTRY, String.class, thatIs -> thatIs.sortable().filterable())
 				       )
 				       .withReferenceToEntity(
 					       REFERENCE_BRAND,
@@ -134,8 +141,11 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					       Cardinality.ONE_OR_MORE_WITH_DUPLICATES,
 					       whichIs -> whichIs
 						       .indexedForFilteringAndPartitioning()
+						       .withAttribute(
+							       ATTRIBUTE_COUNTRY, String.class,
+							       thatIs -> thatIs.sortable().filterable().representative()
+						       )
 						       .withAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
-						       .withAttribute(ATTRIBUTE_COUNTRY, String.class, thatIs -> thatIs.sortable().filterable())
 				       )
 				       .updateAndFetchVia(session);
 
@@ -339,21 +349,21 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Sony GmbH")
 					.upsertVia(session);
 
-				final EntityReference category1 = session
+				final EntityReference categoryRef1 = session
 					.createNewEntity(Entities.CATEGORY, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Cameras")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Kameras")
 					.upsertVia(session);
 
-				final EntityReference category2 = session
+				final EntityReference categoryRef2 = session
 					.createNewEntity(Entities.CATEGORY, 2)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TVs")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Fernseher")
 					.upsertVia(session);
 
 				assertNotNull(brand);
-				assertNotNull(category1);
-				assertNotNull(category2);
+				assertNotNull(categoryRef1);
+				assertNotNull(categoryRef2);
 
 				// now create a product that references the same brand and category twice
 				final EntityReference product = session
@@ -411,6 +421,88 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.upsertVia(session);
 
 				assertNotNull(product);
+
+				// create helper record for reference identity that combines reference key with country attribute
+				record ReferenceIdentity(String referenceName, int referencedPrimaryKey, String country) {
+					static ReferenceIdentity from(@Nonnull ReferenceContract reference) {
+						return new ReferenceIdentity(
+							reference.getReferenceName(),
+							reference.getReferencedPrimaryKey(),
+							reference.getAttribute(ATTRIBUTE_COUNTRY)
+						);
+					}
+				}
+
+				// verify product was stored correctly
+				final SealedEntity storedProduct = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+				                                          .orElseThrow();
+				assertEquals("Bravia TV", storedProduct.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals("Bravia Fernseher", storedProduct.getAttribute(ATTRIBUTE_NAME, Locale.GERMAN));
+
+				// verify brand references
+				final Set<ReferenceIdentity> brandReferences = storedProduct
+					.getReferences(REFERENCE_BRAND)
+					.stream()
+					.map(ReferenceIdentity::from)
+					.collect(Collectors.toSet());
+
+				// brand reference was updated twice, so the country attribute was overwritten with the latter value
+				assertEquals(
+					Set.of(
+						new ReferenceIdentity(REFERENCE_BRAND, 1, "US")
+					),
+					brandReferences
+				);
+
+				// verify category references
+				final Set<ReferenceIdentity> categoryReferences = storedProduct
+					.getReferences(REFERENCE_CATEGORIES)
+					.stream()
+					.map(ReferenceIdentity::from)
+					.collect(Collectors.toSet());
+
+				assertEquals(
+					Set.of(
+						new ReferenceIdentity(REFERENCE_CATEGORIES, 1, "DE"),
+						new ReferenceIdentity(REFERENCE_CATEGORIES, 1, "US"),
+						new ReferenceIdentity(REFERENCE_CATEGORIES, 2, "DE"),
+						new ReferenceIdentity(REFERENCE_CATEGORIES, 2, "US")
+					),
+					categoryReferences
+				);
+
+				// verify reflected references in categories
+				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+				                                      .orElseThrow();
+				final Set<ReferenceIdentity> category1Products = category1
+					.getReferences(REFERENCE_CATEGORY_PRODUCTS)
+					.stream()
+					.map(ReferenceIdentity::from)
+					.collect(Collectors.toSet());
+
+				assertEquals(
+					Set.of(
+						new ReferenceIdentity(REFERENCE_CATEGORY_PRODUCTS, 1, "DE"),
+						new ReferenceIdentity(REFERENCE_CATEGORY_PRODUCTS, 1, "US")
+					),
+					category1Products
+				);
+
+				final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+				                                      .orElseThrow();
+				final Set<ReferenceIdentity> category2Products = category2
+					.getReferences(REFERENCE_CATEGORY_PRODUCTS)
+					.stream()
+					.map(ReferenceIdentity::from)
+					.collect(Collectors.toSet());
+
+				assertEquals(
+					Set.of(
+						new ReferenceIdentity(REFERENCE_CATEGORY_PRODUCTS, 1, "DE"),
+						new ReferenceIdentity(REFERENCE_CATEGORY_PRODUCTS, 1, "US")
+					),
+					category2Products
+				);
 			}
 		);
 	}

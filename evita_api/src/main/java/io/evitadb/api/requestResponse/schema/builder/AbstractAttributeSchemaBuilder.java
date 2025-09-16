@@ -373,6 +373,36 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Override
 	@Nonnull
+	public T representative() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaRepresentativeMutation(
+					this.baseSchema.getName(),
+					true
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T representative(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaRepresentativeMutation(
+					this.baseSchema.getName(),
+					decider.getAsBoolean()
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
 	public T withDescription(@Nullable String description) {
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,

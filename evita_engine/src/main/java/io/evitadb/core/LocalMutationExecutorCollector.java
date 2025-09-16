@@ -218,12 +218,13 @@ class LocalMutationExecutorCollector {
 			if (entityMutation instanceof EntityRemoveMutation) {
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
-			} else if (entityMutation instanceof EntityUpsertMutation eum) {
-				entityIndexUpdater.prepare(eum.getEntityPrimaryKey(), eum.expects());
-				changeCollector.prepare(eum.getEntityPrimaryKey(), eum.expects());
+			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
+				entityIndexUpdater.prepare(localMutations);
 			} else {
-				localMutations = entityMutation.getLocalMutations();
+				throw new GenericEvitaInternalError(
+					"Unsupported entity mutation type: " + entityMutation.getClass().getName()
+				);
 			}
 
 			for (LocalMutation<?, ?> localMutation : localMutations) {

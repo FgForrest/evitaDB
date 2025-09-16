@@ -82,6 +82,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	@Getter @Nullable protected final String referencedGroupType;
 	@Nonnull protected final Map<NamingConvention, String> groupTypeNameVariants;
 	@Getter protected final boolean referencedGroupTypeManaged;
+	@Getter private final RepresentativeAttributeDefinition representativeAttributeDefinition;
 	/**
 	 * Contains index of all {@link SortableAttributeCompoundSchema} that could be used as sortable attribute compounds
 	 * of reference of this type.
@@ -410,6 +411,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					)
 				)
 		);
+		this.representativeAttributeDefinition = new RepresentativeAttributeDefinition(this.attributes);
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(
 			this.attributes.values(), AttributeSchemaContract::getNameVariants
 		);
