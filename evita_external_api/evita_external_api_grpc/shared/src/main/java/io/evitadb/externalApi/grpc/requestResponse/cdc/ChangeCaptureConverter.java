@@ -39,6 +39,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntit
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -192,9 +193,17 @@ public class ChangeCaptureConverter {
 		} else {
 			mutation = null;
 		}
+		Assert.isPremiseValid(
+			changeCatalogCapture.hasVersion(),
+			"Change catalog capture must have version!"
+		);
+		Assert.isPremiseValid(
+			changeCatalogCapture.hasIndex(),
+			"Change catalog capture must have index!"
+		);
 		return new ChangeCatalogCapture(
-			changeCatalogCapture.getVersion(),
-			changeCatalogCapture.getIndex(),
+			changeCatalogCapture.getVersion().getValue(),
+			changeCatalogCapture.getIndex().getValue(),
 			EvitaEnumConverter.toCaptureArea(changeCatalogCapture.getArea()),
 			changeCatalogCapture.hasEntityType() ? changeCatalogCapture.getEntityType().getValue() : null,
 			changeCatalogCapture.hasEntityPrimaryKey() ? changeCatalogCapture.getEntityPrimaryKey().getValue() : null,
@@ -215,8 +224,8 @@ public class ChangeCaptureConverter {
 	) {
 		final Builder builder = GrpcChangeCatalogCapture
 			.newBuilder()
-			.setVersion(changeCatalogCapture.version())
-			.setIndex(changeCatalogCapture.index())
+			.setVersion(Int64Value.of(changeCatalogCapture.version()))
+			.setIndex(Int32Value.of(changeCatalogCapture.index()))
 			.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(
 				changeCatalogCapture.area()))
 			.setOperation(EvitaEnumConverter.toGrpcOperation(

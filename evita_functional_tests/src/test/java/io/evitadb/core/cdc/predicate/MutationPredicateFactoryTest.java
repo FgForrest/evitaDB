@@ -93,6 +93,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should accept mutations with version > 100
+	    predicate.getContext().setVersion(mutation.getVersion(), mutation.getMutationCount());
         assertTrue(predicate.test(mutation));
 
         // Create a transaction mutation with version 99
@@ -101,6 +102,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should reject mutations with version < 100
+	    predicate.getContext().setVersion(olderMutation.getVersion(), olderMutation.getMutationCount());
         assertFalse(predicate.test(olderMutation));
     }
 
@@ -150,14 +152,17 @@ class MutationPredicateFactoryTest {
         );
 
 	    // The predicate should reject transaction mutation with correct version (bad index)
+	    predicate.getContext().setVersion(correctTransaction.getVersion(), correctTransaction.getMutationCount());
 	    assertFalse(predicate.test(correctTransaction));
         for (int i = 0; i < 4; i++) {
 	        // The predicate should reject mutations with version = 100 and index < 5
+	        predicate.getContext().advance();
 	        assertFalse(predicate.test(entityMutation));
         }
 
 		// but the fifth and subsequent mutations should be accepted
 	    for (int i = 0; i < 5; i++) {
+		    predicate.getContext().advance();
 		    assertTrue(predicate.test(entityMutation));
 	    }
 
@@ -167,6 +172,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should accept mutations with version > 100 regardless of index
+	    predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount());
         assertTrue(predicate.test(newerMutation));
     }
 
@@ -201,8 +207,11 @@ class MutationPredicateFactoryTest {
 		);
 
 		// The predicate should reject mutations with version > 100 regardless of index
+		predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount());
 		assertFalse(predicate.test(newerMutation));
 		for (int i = 0; i < 10; i++) {
+			predicate.getContext().advance();
+			// The predicate should reject all mutations in this transaction
 			assertFalse(predicate.test(entityMutation));
 		}
 
@@ -212,12 +221,16 @@ class MutationPredicateFactoryTest {
 		);
 
 		// The predicate should accept transaction mutation with correct version
+		predicate.getContext().setVersion(correctTransaction.getVersion(), correctTransaction.getMutationCount());
 		assertTrue(predicate.test(correctTransaction));
 		for (int i = 0; i < 5; i++) {
+			predicate.getContext().advance();
+			// The predicate should reject mutations with version = 100 and index < 5
 			assertFalse(predicate.test(entityMutation));
 		}
 		// but the fifth and subsequent mutations should be rejected
 		for (int i = 0; i < 5; i++) {
+			predicate.getContext().advance();
 			assertTrue(predicate.test(entityMutation));
 		}
 
@@ -228,8 +241,11 @@ class MutationPredicateFactoryTest {
 		);
 
 		// The predicate should accept mutations with version < 100 regardless of index
+		predicate.getContext().setVersion(olderMutation.getVersion(), olderMutation.getMutationCount());
 		assertTrue(predicate.test(olderMutation));
 		for (int i = 0; i < 10; i++) {
+			predicate.getContext().advance();
+			// The predicate should accept all mutations in this transaction
 			assertTrue(predicate.test(entityMutation));
 		}
 	}
@@ -269,6 +285,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should reject mutations with version > 100 in reverse order
+	    predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount());
         assertFalse(predicate.test(newerMutation));
     }
 

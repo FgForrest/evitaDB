@@ -70,6 +70,8 @@ public non-sealed interface EngineMutation<T> extends Mutation {
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
+		final MutationPredicateContext context = predicate.getContext();
+		prepareContext(context);
 		if (predicate.test(this)) {
 			return Stream.of(
 				ChangeSystemCapture.systemCapture(
@@ -81,6 +83,16 @@ public non-sealed interface EngineMutation<T> extends Mutation {
 		} else {
 			return Stream.empty();
 		}
+	}
+
+	/**
+	 * Prepares the context for mutation processing by advancing its internal state,
+	 * such as updating the index or other tracking properties, based on the stream direction.
+	 *
+	 * @param context the {@link MutationPredicateContext} whose state needs to be advanced
+	 */
+	default void prepareContext(@Nonnull MutationPredicateContext context) {
+		context.advance();
 	}
 
 	/**

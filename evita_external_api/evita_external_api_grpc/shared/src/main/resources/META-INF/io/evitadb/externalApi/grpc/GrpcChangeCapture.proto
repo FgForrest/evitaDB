@@ -51,9 +51,9 @@ message GrpcChangeCaptureDataSite {
 // Record represents a catalog CDC event that is sent to the subscriber if it matches to the request he made.
 message GrpcChangeCatalogCapture {
   // the version of the catalog where the operation was performed
-  int64 version = 1;
+  google.protobuf.Int64Value version = 1;
   // the index of the event within the enclosed transaction, index 0 is the transaction lead event
-  int32 index = 2;
+  google.protobuf.Int32Value index = 2;
   // the area of the operation
   GrpcChangeCaptureArea area = 3;
   // the name of the entity type or its schema that was affected by the operation

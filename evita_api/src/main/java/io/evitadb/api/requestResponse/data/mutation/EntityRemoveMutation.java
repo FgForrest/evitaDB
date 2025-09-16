@@ -180,11 +180,11 @@ public class EntityRemoveMutation implements EntityMutation {
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.setEntityType(this.entityType);
+		context.setEntityPrimaryKey(this.entityPrimaryKey);
+		context.advance();
 		if (predicate.test(this)) {
-			final MutationPredicateContext context = predicate.getContext();
-			context.setEntityType(this.entityType);
-			context.setEntityPrimaryKey(this.entityPrimaryKey);
-			context.advance();
 			return Stream.of(
 				ChangeCatalogCapture.dataCapture(
 					context,

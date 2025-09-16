@@ -114,33 +114,79 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int VERSION_FIELD_NUMBER = 1;
-  private long version_ = 0L;
+  private com.google.protobuf.Int64Value version_;
   /**
    * <pre>
    * the version of the catalog where the operation was performed
    * </pre>
    *
-   * <code>int64 version = 1;</code>
+   * <code>.google.protobuf.Int64Value version = 1;</code>
+   * @return Whether the version field is set.
+   */
+  @java.lang.Override
+  public boolean hasVersion() {
+    return ((bitField0_ & 0x00000001) != 0);
+  }
+  /**
+   * <pre>
+   * the version of the catalog where the operation was performed
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value version = 1;</code>
    * @return The version.
    */
   @java.lang.Override
-  public long getVersion() {
-    return version_;
+  public com.google.protobuf.Int64Value getVersion() {
+    return version_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : version_;
+  }
+  /**
+   * <pre>
+   * the version of the catalog where the operation was performed
+   * </pre>
+   *
+   * <code>.google.protobuf.Int64Value version = 1;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int64ValueOrBuilder getVersionOrBuilder() {
+    return version_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : version_;
   }
 
   public static final int INDEX_FIELD_NUMBER = 2;
-  private int index_ = 0;
+  private com.google.protobuf.Int32Value index_;
   /**
    * <pre>
    * the index of the event within the enclosed transaction, index 0 is the transaction lead event
    * </pre>
    *
-   * <code>int32 index = 2;</code>
+   * <code>.google.protobuf.Int32Value index = 2;</code>
+   * @return Whether the index field is set.
+   */
+  @java.lang.Override
+  public boolean hasIndex() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value index = 2;</code>
    * @return The index.
    */
   @java.lang.Override
-  public int getIndex() {
-    return index_;
+  public com.google.protobuf.Int32Value getIndex() {
+    return index_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : index_;
+  }
+  /**
+   * <pre>
+   * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value index = 2;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getIndexOrBuilder() {
+    return index_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : index_;
   }
 
   public static final int AREA_FIELD_NUMBER = 3;
@@ -182,7 +228,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntityType() {
-    return ((bitField0_ & 0x00000001) != 0);
+    return ((bitField0_ & 0x00000004) != 0);
   }
   /**
    * <pre>
@@ -223,7 +269,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   public boolean hasEntityPrimaryKey() {
-    return ((bitField0_ & 0x00000002) != 0);
+    return ((bitField0_ & 0x00000008) != 0);
   }
   /**
    * <pre>
@@ -384,19 +430,19 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (version_ != 0L) {
-      output.writeInt64(1, version_);
+    if (((bitField0_ & 0x00000001) != 0)) {
+      output.writeMessage(1, getVersion());
     }
-    if (index_ != 0) {
-      output.writeInt32(2, index_);
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(2, getIndex());
     }
     if (area_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.SCHEMA.getNumber()) {
       output.writeEnum(3, area_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((bitField0_ & 0x00000004) != 0)) {
       output.writeMessage(4, getEntityType());
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000008) != 0)) {
       output.writeMessage(5, getEntityPrimaryKey());
     }
     if (operation_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation.UPSERT.getNumber()) {
@@ -420,23 +466,23 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (version_ != 0L) {
+    if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, version_);
+        .computeMessageSize(1, getVersion());
     }
-    if (index_ != 0) {
+    if (((bitField0_ & 0x00000002) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(2, index_);
+        .computeMessageSize(2, getIndex());
     }
     if (area_ != io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureArea.SCHEMA.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, area_);
     }
-    if (((bitField0_ & 0x00000001) != 0)) {
+    if (((bitField0_ & 0x00000004) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getEntityType());
     }
-    if (((bitField0_ & 0x00000002) != 0)) {
+    if (((bitField0_ & 0x00000008) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getEntityPrimaryKey());
     }
@@ -471,10 +517,16 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture other = (io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture) obj;
 
-    if (getVersion()
-        != other.getVersion()) return false;
-    if (getIndex()
-        != other.getIndex()) return false;
+    if (hasVersion() != other.hasVersion()) return false;
+    if (hasVersion()) {
+      if (!getVersion()
+          .equals(other.getVersion())) return false;
+    }
+    if (hasIndex() != other.hasIndex()) return false;
+    if (hasIndex()) {
+      if (!getIndex()
+          .equals(other.getIndex())) return false;
+    }
     if (area_ != other.area_) return false;
     if (hasEntityType() != other.hasEntityType()) return false;
     if (hasEntityType()) {
@@ -515,11 +567,14 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + VERSION_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getVersion());
-    hash = (37 * hash) + INDEX_FIELD_NUMBER;
-    hash = (53 * hash) + getIndex();
+    if (hasVersion()) {
+      hash = (37 * hash) + VERSION_FIELD_NUMBER;
+      hash = (53 * hash) + getVersion().hashCode();
+    }
+    if (hasIndex()) {
+      hash = (37 * hash) + INDEX_FIELD_NUMBER;
+      hash = (53 * hash) + getIndex().hashCode();
+    }
     hash = (37 * hash) + AREA_FIELD_NUMBER;
     hash = (53 * hash) + area_;
     if (hasEntityType()) {
@@ -682,6 +737,8 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getVersionFieldBuilder();
+        getIndexFieldBuilder();
         getEntityTypeFieldBuilder();
         getEntityPrimaryKeyFieldBuilder();
       }
@@ -690,8 +747,16 @@ private static final long serialVersionUID = 0L;
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
-      version_ = 0L;
-      index_ = 0;
+      version_ = null;
+      if (versionBuilder_ != null) {
+        versionBuilder_.dispose();
+        versionBuilder_ = null;
+      }
+      index_ = null;
+      if (indexBuilder_ != null) {
+        indexBuilder_.dispose();
+        indexBuilder_ = null;
+      }
       area_ = 0;
       entityType_ = null;
       if (entityTypeBuilder_ != null) {
@@ -749,27 +814,33 @@ private static final long serialVersionUID = 0L;
 
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture result) {
       int from_bitField0_ = bitField0_;
+      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000001) != 0)) {
-        result.version_ = version_;
+        result.version_ = versionBuilder_ == null
+            ? version_
+            : versionBuilder_.build();
+        to_bitField0_ |= 0x00000001;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
-        result.index_ = index_;
+        result.index_ = indexBuilder_ == null
+            ? index_
+            : indexBuilder_.build();
+        to_bitField0_ |= 0x00000002;
       }
       if (((from_bitField0_ & 0x00000004) != 0)) {
         result.area_ = area_;
       }
-      int to_bitField0_ = 0;
       if (((from_bitField0_ & 0x00000008) != 0)) {
         result.entityType_ = entityTypeBuilder_ == null
             ? entityType_
             : entityTypeBuilder_.build();
-        to_bitField0_ |= 0x00000001;
+        to_bitField0_ |= 0x00000004;
       }
       if (((from_bitField0_ & 0x00000010) != 0)) {
         result.entityPrimaryKey_ = entityPrimaryKeyBuilder_ == null
             ? entityPrimaryKey_
             : entityPrimaryKeyBuilder_.build();
-        to_bitField0_ |= 0x00000002;
+        to_bitField0_ |= 0x00000008;
       }
       if (((from_bitField0_ & 0x00000020) != 0)) {
         result.operation_ = operation_;
@@ -838,11 +909,11 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.getDefaultInstance()) return this;
-      if (other.getVersion() != 0L) {
-        setVersion(other.getVersion());
+      if (other.hasVersion()) {
+        mergeVersion(other.getVersion());
       }
-      if (other.getIndex() != 0) {
-        setIndex(other.getIndex());
+      if (other.hasIndex()) {
+        mergeIndex(other.getIndex());
       }
       if (other.area_ != 0) {
         setAreaValue(other.getAreaValue());
@@ -899,16 +970,20 @@ private static final long serialVersionUID = 0L;
             case 0:
               done = true;
               break;
-            case 8: {
-              version_ = input.readInt64();
+            case 10: {
+              input.readMessage(
+                  getVersionFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00000001;
               break;
-            } // case 8
-            case 16: {
-              index_ = input.readInt32();
+            } // case 10
+            case 18: {
+              input.readMessage(
+                  getIndexFieldBuilder().getBuilder(),
+                  extensionRegistry);
               bitField0_ |= 0x00000002;
               break;
-            } // case 16
+            } // case 18
             case 24: {
               area_ = input.readEnum();
               bitField0_ |= 0x00000004;
@@ -986,31 +1061,51 @@ private static final long serialVersionUID = 0L;
 
     private int bitField0_;
 
-    private long version_ ;
+    private com.google.protobuf.Int64Value version_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> versionBuilder_;
     /**
      * <pre>
      * the version of the catalog where the operation was performed
      * </pre>
      *
-     * <code>int64 version = 1;</code>
-     * @return The version.
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     * @return Whether the version field is set.
      */
-    @java.lang.Override
-    public long getVersion() {
-      return version_;
+    public boolean hasVersion() {
+      return ((bitField0_ & 0x00000001) != 0);
     }
     /**
      * <pre>
      * the version of the catalog where the operation was performed
      * </pre>
      *
-     * <code>int64 version = 1;</code>
-     * @param value The version to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     * @return The version.
      */
-    public Builder setVersion(long value) {
-
-      version_ = value;
+    public com.google.protobuf.Int64Value getVersion() {
+      if (versionBuilder_ == null) {
+        return version_ == null ? com.google.protobuf.Int64Value.getDefaultInstance() : version_;
+      } else {
+        return versionBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * the version of the catalog where the operation was performed
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     */
+    public Builder setVersion(com.google.protobuf.Int64Value value) {
+      if (versionBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        version_ = value;
+      } else {
+        versionBuilder_.setMessage(value);
+      }
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
@@ -1020,41 +1115,154 @@ private static final long serialVersionUID = 0L;
      * the version of the catalog where the operation was performed
      * </pre>
      *
-     * <code>int64 version = 1;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int64Value version = 1;</code>
      */
-    public Builder clearVersion() {
-      bitField0_ = (bitField0_ & ~0x00000001);
-      version_ = 0L;
+    public Builder setVersion(
+        com.google.protobuf.Int64Value.Builder builderForValue) {
+      if (versionBuilder_ == null) {
+        version_ = builderForValue.build();
+      } else {
+        versionBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
+    /**
+     * <pre>
+     * the version of the catalog where the operation was performed
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     */
+    public Builder mergeVersion(com.google.protobuf.Int64Value value) {
+      if (versionBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0) &&
+          version_ != null &&
+          version_ != com.google.protobuf.Int64Value.getDefaultInstance()) {
+          getVersionBuilder().mergeFrom(value);
+        } else {
+          version_ = value;
+        }
+      } else {
+        versionBuilder_.mergeFrom(value);
+      }
+      if (version_ != null) {
+        bitField0_ |= 0x00000001;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * the version of the catalog where the operation was performed
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     */
+    public Builder clearVersion() {
+      bitField0_ = (bitField0_ & ~0x00000001);
+      version_ = null;
+      if (versionBuilder_ != null) {
+        versionBuilder_.dispose();
+        versionBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * the version of the catalog where the operation was performed
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     */
+    public com.google.protobuf.Int64Value.Builder getVersionBuilder() {
+      bitField0_ |= 0x00000001;
+      onChanged();
+      return getVersionFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * the version of the catalog where the operation was performed
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     */
+    public com.google.protobuf.Int64ValueOrBuilder getVersionOrBuilder() {
+      if (versionBuilder_ != null) {
+        return versionBuilder_.getMessageOrBuilder();
+      } else {
+        return version_ == null ?
+            com.google.protobuf.Int64Value.getDefaultInstance() : version_;
+      }
+    }
+    /**
+     * <pre>
+     * the version of the catalog where the operation was performed
+     * </pre>
+     *
+     * <code>.google.protobuf.Int64Value version = 1;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        getVersionFieldBuilder() {
+      if (versionBuilder_ == null) {
+        versionBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>(
+                getVersion(),
+                getParentForChildren(),
+                isClean());
+        version_ = null;
+      }
+      return versionBuilder_;
+    }
 
-    private int index_ ;
+    private com.google.protobuf.Int32Value index_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> indexBuilder_;
     /**
      * <pre>
      * the index of the event within the enclosed transaction, index 0 is the transaction lead event
      * </pre>
      *
-     * <code>int32 index = 2;</code>
-     * @return The index.
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     * @return Whether the index field is set.
      */
-    @java.lang.Override
-    public int getIndex() {
-      return index_;
+    public boolean hasIndex() {
+      return ((bitField0_ & 0x00000002) != 0);
     }
     /**
      * <pre>
      * the index of the event within the enclosed transaction, index 0 is the transaction lead event
      * </pre>
      *
-     * <code>int32 index = 2;</code>
-     * @param value The index to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     * @return The index.
      */
-    public Builder setIndex(int value) {
-
-      index_ = value;
+    public com.google.protobuf.Int32Value getIndex() {
+      if (indexBuilder_ == null) {
+        return index_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : index_;
+      } else {
+        return indexBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     */
+    public Builder setIndex(com.google.protobuf.Int32Value value) {
+      if (indexBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        index_ = value;
+      } else {
+        indexBuilder_.setMessage(value);
+      }
       bitField0_ |= 0x00000002;
       onChanged();
       return this;
@@ -1064,14 +1272,107 @@ private static final long serialVersionUID = 0L;
      * the index of the event within the enclosed transaction, index 0 is the transaction lead event
      * </pre>
      *
-     * <code>int32 index = 2;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     */
+    public Builder setIndex(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (indexBuilder_ == null) {
+        index_ = builderForValue.build();
+      } else {
+        indexBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     */
+    public Builder mergeIndex(com.google.protobuf.Int32Value value) {
+      if (indexBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0) &&
+          index_ != null &&
+          index_ != com.google.protobuf.Int32Value.getDefaultInstance()) {
+          getIndexBuilder().mergeFrom(value);
+        } else {
+          index_ = value;
+        }
+      } else {
+        indexBuilder_.mergeFrom(value);
+      }
+      if (index_ != null) {
+        bitField0_ |= 0x00000002;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value index = 2;</code>
      */
     public Builder clearIndex() {
       bitField0_ = (bitField0_ & ~0x00000002);
-      index_ = 0;
+      index_ = null;
+      if (indexBuilder_ != null) {
+        indexBuilder_.dispose();
+        indexBuilder_ = null;
+      }
       onChanged();
       return this;
+    }
+    /**
+     * <pre>
+     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getIndexBuilder() {
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return getIndexFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getIndexOrBuilder() {
+      if (indexBuilder_ != null) {
+        return indexBuilder_.getMessageOrBuilder();
+      } else {
+        return index_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : index_;
+      }
+    }
+    /**
+     * <pre>
+     * the index of the event within the enclosed transaction, index 0 is the transaction lead event
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value index = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getIndexFieldBuilder() {
+      if (indexBuilder_ == null) {
+        indexBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getIndex(),
+                getParentForChildren(),
+                isClean());
+        index_ = null;
+      }
+      return indexBuilder_;
     }
 
     private int area_ = 0;
