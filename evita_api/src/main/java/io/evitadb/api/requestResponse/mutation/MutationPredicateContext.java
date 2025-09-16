@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.mutation;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -130,11 +131,15 @@ public class MutationPredicateContext {
 	public void advance() {
 		if (this.direction == StreamDirection.FORWARD) {
 			this.index++;
-		} else if (this.index == 0) {
+		} else if (this.index == 0 && this.direction == StreamDirection.REVERSE) {
 			this.index = this.mutationCount;
 		} else {
 			this.index--;
 		}
+		Assert.isPremiseValid(
+			this.index >= 0 && this.index <= this.mutationCount,
+			"Index " + this.index + " is out of bounds <0," + this.mutationCount + ">!"
+		);
 	}
 
 }

@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory.TruePredicate;
-import io.evitadb.core.cdc.predicate.VersionAndIndexInitializingPredicate;
 import io.evitadb.core.cdc.predicate.VersionAndIndexPredicate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -169,8 +168,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		);
 		this.subscriberBufferSize = subscriberBufferSize;
 		// Create a shared predicate that will be used to filter mutations
-		final MutationPredicate realPredicate = new TruePredicate(new MutationPredicateContext(StreamDirection.FORWARD));
-		this.sharedPredicate = new VersionAndIndexInitializingPredicate(realPredicate.getContext()).and(realPredicate);
+		this.sharedPredicate = new TruePredicate(new MutationPredicateContext(StreamDirection.FORWARD));
 	}
 
 	/**

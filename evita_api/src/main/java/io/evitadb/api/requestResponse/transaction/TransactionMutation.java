@@ -104,16 +104,20 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 		return Stream.empty();
 	}
 
+	@Override
+	public void prepareContext(@Nonnull MutationPredicateContext context) {
+		context.setVersion(this.version, this.mutationCount);
+	}
+
 	@Nonnull
 	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.setVersion(this.version, this.mutationCount);
 		if (predicate.test(this)) {
-			final MutationPredicateContext context = predicate.getContext();
-			context.setVersion(this.version, this.mutationCount);
-
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == ChangeCaptureContent.BODY ? this : null)
 			);

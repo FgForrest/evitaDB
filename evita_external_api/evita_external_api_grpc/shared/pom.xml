@@ -51,9 +51,9 @@
 				<artifactId>protobuf-maven-plugin</artifactId>
 				<version>0.6.1</version>
 				<configuration>
-					<protocArtifact>com.google.protobuf:protoc:3.19.2:exe:${os.detected.classifier}</protocArtifact>
+					<protocArtifact>com.google.protobuf:protoc:3.25.8:exe:${os.detected.classifier}</protocArtifact>
 					<pluginId>grpc-java</pluginId>
-					<pluginArtifact>io.grpc:protoc-gen-grpc-java:1.47.0:exe:${os.detected.classifier}</pluginArtifact>
+					<pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
 					<protoSourceRoot>src/main/resources/META-INF/io/evitadb/externalApi/grpc</protoSourceRoot>
 				</configuration>
 				<executions>
@@ -102,8 +102,8 @@
 					<regexFlags>MULTILINE</regexFlags>
 					<replacements>
 						<replacement>
-							<token>@javax.annotation.Generated\([\S\s]*?\)$</token>
-							<value />
+							<token>@com\.google\.protobuf\.Generated.*$</token>
+							<value/>
 						</replacement>
 						<replacement>
 							<token>(// Generated.*[\S\s]*?)?package io.evitadb.externalApi.grpc.generated;</token>

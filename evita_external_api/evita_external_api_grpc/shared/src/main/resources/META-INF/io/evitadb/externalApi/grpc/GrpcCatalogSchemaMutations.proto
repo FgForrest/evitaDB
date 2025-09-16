@@ -5,7 +5,6 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "GrpcEnums.proto";
-import "GrpcEntitySchemaMutation.proto";
 import "google/protobuf/wrappers.proto";
 
 // Mutation is responsible for setting value to a `CatalogSchema.description` in `CatalogSchema`.
@@ -29,12 +28,4 @@ message GrpcDisallowEvolutionModeInCatalogSchemaMutation {
   // presented to her for the first time. When no evolution mode is set, each violation of the `CatalogSchema` is
   // reported by an error. This behaviour can be changed by this evolution mode, however.
   repeated GrpcCatalogEvolutionMode evolutionModes = 1;
-}
-
-// Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within the `CatalogSchema`.
-message GrpcModifyEntitySchemaMutation {
-  // Entity type of entity schema that will be affected by passed mutations.
-  string entityType = 1;
-  // Collection of mutations that should be applied on current version of the schema.
-  repeated GrpcEntitySchemaMutation entitySchemaMutations = 2;
 }

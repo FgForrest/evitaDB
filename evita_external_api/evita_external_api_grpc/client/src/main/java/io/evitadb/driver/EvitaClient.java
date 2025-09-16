@@ -700,16 +700,20 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public Optional<Progress<Void>> deleteCatalogIfExistsWithProgress(@Nonnull String catalogName) {
 		assertActive();
-		return Optional.of(
-			applyMutation(
-				new RemoveCatalogSchemaMutation(catalogName),
-				progress -> {
-					if (progress == 100) {
-						this.entitySchemaCache.remove(catalogName);
+		if (getCatalogNames().contains(catalogName)) {
+			return Optional.of(
+				applyMutation(
+					new RemoveCatalogSchemaMutation(catalogName),
+					progress -> {
+						if (progress == 100) {
+							this.entitySchemaCache.remove(catalogName);
+						}
 					}
-				}
-			)
-		);
+				)
+			);
+		} else {
+			return Optional.empty();
+		}
 	}
 
 	@Nonnull

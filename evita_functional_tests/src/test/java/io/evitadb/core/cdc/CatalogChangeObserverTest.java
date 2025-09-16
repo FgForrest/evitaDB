@@ -227,11 +227,11 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		// This is required for the observer to start reading mutations
 		tested.notifyCatalogPresentInLiveView(catalog);
 
-		// Create a request to capture mutations since version 2 and index 100
+		// Create a request to capture mutations since version 2 and index 14
 		// with specific filtering criteria
 		final ChangeCatalogCaptureRequest catchAllRequest = ChangeCatalogCaptureRequest.builder()
 			.sinceVersion(2L)
-			.sinceIndex(100)
+			.sinceIndex(14)
 			.content(ChangeCaptureContent.BODY)
 			.criteria(
 				ChangeCatalogCaptureCriteria.builder()
@@ -393,7 +393,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		// 2. Subscriber that consumes part of existing WAL (since version 2)
 		final ChangeCatalogCaptureRequest partialWalRequest = ChangeCatalogCaptureRequest.builder()
 			.sinceVersion(2L)
-			.sinceIndex(95)
+			.sinceIndex(13)
 			.content(ChangeCaptureContent.BODY)
 			.criteria(sharedCriteria)
 			.build();
@@ -438,7 +438,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			// 3. Subscriber that is registered after new mutations and consumes part of old WAL and all new mutations
 			final ChangeCatalogCaptureRequest partialOldAndNewRequest = ChangeCatalogCaptureRequest.builder()
 				.sinceVersion(2L)
-				.sinceIndex(95)
+				.sinceIndex(13)
 				.content(ChangeCaptureContent.BODY)
 				.criteria(sharedCriteria)
 				.build();

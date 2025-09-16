@@ -26,7 +26,6 @@ package io.evitadb.core.cdc.predicate;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 
 import javax.annotation.Nonnull;
 import java.util.Comparator;
@@ -51,12 +50,6 @@ public class VersionPredicate extends MutationPredicate {
 
 	@Override
 	public boolean test(Mutation mutation) {
-		if (mutation instanceof TransactionMutation transactionMutation) {
-			this.context.setVersion(transactionMutation.getVersion(), transactionMutation.getMutationCount());
-		} else {
-			this.context.advance();
-		}
-
 		return this.versionComparator.compare(this.context.getVersion(), this.sinceVersion) >= 0;
 	}
 

@@ -68,6 +68,8 @@ public class TransactionMutationWithLocation extends TransactionMutation {
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
+		final MutationPredicateContext context = predicate.getContext();
+		prepareContext(context);
 		if (predicate.test(this)) {
 			return Stream.of(
 				ChangeSystemCapture.systemCapture(
@@ -99,10 +101,9 @@ public class TransactionMutationWithLocation extends TransactionMutation {
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
+		final MutationPredicateContext context = predicate.getContext();
+		context.setVersion(this.version, this.mutationCount);
 		if (predicate.test(this)) {
-			final MutationPredicateContext context = predicate.getContext();
-			context.setVersion(this.version, this.mutationCount);
-
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(
 					context,

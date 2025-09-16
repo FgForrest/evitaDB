@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
-import io.evitadb.core.cdc.predicate.VersionAndIndexInitializingPredicate;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -176,8 +175,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.subscriberBufferSize = subscriberBufferSize;
 		this.criteria = criteria;
 		// Create a shared predicate that will be used to filter mutations
-		final MutationPredicate realPredicate = this.criteria.createPredicate(null, null);
-		this.sharedPredicate = new VersionAndIndexInitializingPredicate(realPredicate.getContext()).and(realPredicate);
+		this.sharedPredicate = this.criteria.createPredicate(null, null);
 	}
 
 	/**

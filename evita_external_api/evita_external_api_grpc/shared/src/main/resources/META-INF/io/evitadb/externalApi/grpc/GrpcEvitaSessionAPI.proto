@@ -17,6 +17,7 @@ import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
 import "GrpcChangeCapture.proto";
+import "GrpcEntitySchemaMutation.proto";
 
 // Response to GetCatalogState request.
 message GrpcCatalogStateResponse {
@@ -41,13 +42,13 @@ message GrpcCatalogVersionAtResponse {
 // Request to GetMutationsHistoryPage request.
 message GetMutationsHistoryPageRequest {
   // The page number starting with 1
-  int32 page = 1;
+  google.protobuf.Int32Value page = 1;
   // The size of the page to return
-  int32 pageSize = 2;
+  google.protobuf.Int32Value pageSize = 2;
   // Starting point for the search (catalog version)
-  int64 sinceVersion = 3;
+  google.protobuf.Int64Value sinceVersion = 3;
   // Starting point for the search (index of the mutation within catalog version)
-  int32 sinceIndex = 4;
+  google.protobuf.Int32Value sinceIndex = 4;
   // The criteria of the capture, allows to define constraints on the returned mutations
   repeated GrpcChangeCaptureCriteria criteria = 5;
   // The scope of the returned data - either header of the mutation, or the whole mutation
