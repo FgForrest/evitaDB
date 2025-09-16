@@ -57,10 +57,13 @@ public class ChangeCaptureConverter {
 	 * @return the converted request
 	 */
 	@Nonnull
-	public static ChangeCatalogCaptureRequest toChangeCaptureRequest(@Nonnull GetMutationsHistoryPageRequest request) {
+	public static ChangeCatalogCaptureRequest toChangeCaptureRequest(
+		@Nonnull GetMutationsHistoryPageRequest request,
+		long currentCatalogVersion
+	) {
 		return new ChangeCatalogCaptureRequest(
-			request.getSinceVersion(),
-			request.getSinceIndex(),
+			request.hasSinceVersion() ? request.getSinceVersion().getValue() : currentCatalogVersion,
+			request.hasSinceVersion() ? request.getSinceIndex().getValue() : 0,
 			request.getCriteriaList()
 			       .stream()
 			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)

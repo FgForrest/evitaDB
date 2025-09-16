@@ -7,6 +7,7 @@ option csharp_namespace = "EvitaDB";
 import "GrpcAttributeSchemaMutations.proto";
 import "GrpcCatalogSchemaMutations.proto";
 import "GrpcEntitySchemaMutations.proto";
+import "GrpcEntitySchemaMutation.proto";
 
 // Contains all possible catalog schema mutations.
 message GrpcLocalCatalogSchemaMutation {

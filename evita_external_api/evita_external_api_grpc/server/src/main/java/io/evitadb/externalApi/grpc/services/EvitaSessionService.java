@@ -678,14 +678,22 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		executeWithClientContext(
 			session -> {
 				final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
-					ChangeCaptureConverter.toChangeCaptureRequest(request)
+					ChangeCaptureConverter.toChangeCaptureRequest(request, session.getCatalogVersion())
 				);
 				final GetMutationsHistoryPageResponse.Builder builder = GetMutationsHistoryPageResponse.newBuilder();
+				final int page = request.hasPage() ? request.getPage().getValue() : 1;
+				final int pageSize = request.hasPageSize() ? request.getPageSize().getValue() : 20;
 				mutationsHistoryStream
-					.skip(PaginatedList.getFirstItemNumberForPage(request.getPage(), request.getPageSize()))
-					.limit(request.getPageSize())
+					.skip(
+						PaginatedList.getFirstItemNumberForPage(
+							page,
+							pageSize
+						)
+					)
+					.limit(pageSize)
 					.forEach(cdcEvent -> builder.addChangeCapture(
-						ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent)));
+						ChangeCaptureConverter.toGrpcChangeCatalogCapture(cdcEvent))
+					);
 				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
