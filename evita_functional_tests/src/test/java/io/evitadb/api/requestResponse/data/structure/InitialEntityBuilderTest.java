@@ -53,6 +53,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.dataType.Scope;
+import io.evitadb.function.Functions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 import org.junit.jupiter.api.DisplayName;
@@ -65,7 +66,6 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.test.Entities.STORE;
 import static org.junit.jupiter.api.Assertions.*;
@@ -123,11 +123,11 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
 
 		builder.setReference(STORE, 1);
-		builder.setReference(BRAND, 1, ref -> false, UnaryOperator.identity());
-		builder.setReference(BRAND, 1, ref -> false, UnaryOperator.identity());
-		builder.setReference(GROUP, 1, ref -> false, UnaryOperator.identity());
-		builder.setReference(GROUP, 1, ref -> false, UnaryOperator.identity());
-		builder.setReference(GROUP, 1, ref -> false, UnaryOperator.identity());
+		builder.setReference(BRAND, 1, ref -> false, Functions.noOpConsumer());
+		builder.setReference(BRAND, 1, ref -> false, Functions.noOpConsumer());
+		builder.setReference(GROUP, 1, ref -> false, Functions.noOpConsumer());
+		builder.setReference(GROUP, 1, ref -> false, Functions.noOpConsumer());
+		builder.setReference(GROUP, 1, ref -> false, Functions.noOpConsumer());
 
 		return builder;
 	}
@@ -679,7 +679,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			ref -> BRAND.equals(ref.getReferenceName()) && ref.getReferencedPrimaryKey() == 1,
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 11L);
-				return rb;
 			}
 		);
 		final List<ReferenceContract> updatedUniqueReference = builder.getReferences(new ReferenceKey(BRAND, 1));
@@ -694,7 +693,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			ref -> false,
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 12L);
-				return rb;
 			}
 		);
 		final List<ReferenceContract> duplicatedReferences = builder.getReferences(new ReferenceKey(BRAND, 1));
@@ -715,7 +713,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				Long.valueOf(12L).equals(ref.getAttribute(BRAND_PRIORITY)),
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 13L);
-				return rb;
 			}
 		);
 		final List<ReferenceContract> afterUpdateOnce = builder.getReferences(new ReferenceKey(BRAND, 1));
@@ -736,7 +733,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			ref -> false,
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 14L);
-				return rb;
 			}
 		);
 		final List<ReferenceContract> threeDuplicates = builder.getReferences(new ReferenceKey(BRAND, 1));
@@ -750,7 +746,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			ref -> Long.valueOf(11L).equals(ref.getAttribute(BRAND_PRIORITY)),
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 15L);
-				return rb;
 			}
 		);
 		final List<ReferenceContract> finalRefs = builder.getReferences(new ReferenceKey(BRAND, 1));
@@ -798,7 +793,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			ref -> Entities.BRAND.equals(ref.getReferenceName()),
 			refb -> {
 				refb.setAttribute(attributeLoc, Locale.ENGLISH, "EN");
-				return refb;
 			}
 		);
 
@@ -853,7 +847,6 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				attributePriority, Integer.class) >= 2,
 			refb -> {
 				refb.setAttribute(attributePriority, 100);
-				return refb;
 			}
 		);
 
@@ -1086,7 +1079,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			BRAND,
 			2,
 			ref -> false,
-			UnaryOperator.identity()
+			Functions.noOpConsumer()
 		);
 		/* cannot change referenced entity type this way */
 		assertThrows(
@@ -1097,7 +1090,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 				2,
 				ref -> false,
-				UnaryOperator.identity()
+				Functions.noOpConsumer()
 			)
 		);
 		/* cannot change cardinality this way */
@@ -1110,7 +1103,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 					Cardinality.ONE_OR_MORE,
 					2,
 					ref -> false,
-					UnaryOperator.identity()
+					Functions.noOpConsumer()
 				);
 			}
 		);
@@ -1133,7 +1126,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			BRAND,
 			3,
 			ref -> false,
-			UnaryOperator.identity()
+			Functions.noOpConsumer()
 		);
 
 		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);

@@ -24,15 +24,21 @@
 package io.evitadb.api.functional.attribute;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.EntityReferenceDTO;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -51,14 +57,13 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static graphql.Assert.assertNotNull;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.collectProductIndex;
-import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.sortProductsInByReferenceAttributeOfChainableType;
-import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.updateReferenceAttributeInProduct;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -89,65 +94,168 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int CATEGORY_COUNT = 10;
 	private final static int BRAND_COUNT = 10;
 
+	/**
+	 * Sorts the products in a category based on the reference order attribute.
+	 *
+	 * @param productsInCategory     a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
+	 * @param referenceName          the name of the reference to sort by (non-null).
+	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
+	 */
+	static void sortProductsInByReferenceAttributeOfChainableType(
+		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull String referenceName,
+		@Nonnull String referenceAttributeName
+	) {
+		productsInCategory.forEach((key, value) -> {
+			if (value != null) {
+				// we rely on ChainIndex correctness - it's tested elsewhere
+				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(referenceAttributeName));
+				for (SealedEntity entity : value) {
+					entity.getReferences(
+						      new ReferenceKey(referenceName, key.entityPrimaryKey())
+					      )
+					      .stream()
+					      .filter(
+						      ref -> ref.getReferencedPrimaryKey() == key.entityPrimaryKey() &&
+							      key.country().equals(ref.getAttribute(ATTRIBUTE_COUNTRY))
+					      )
+					      .findFirst()
+					      .ifPresent(reference -> {
+						      final ChainableType attribute = reference.getAttribute(referenceAttributeName);
+						      if (attribute != null) {
+							      chainIndex.upsertPredecessor(
+								      attribute,
+								      entity.getPrimaryKeyOrThrowException()
+							      );
+						      }
+					      });
+				}
+				// this is not much effective, but enough for a test
+				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+				value.sort(
+					(a, b) -> {
+						final int aPos = ArrayUtils.indexOf(a.getPrimaryKeyOrThrowException(), sortedRecordIds);
+						final int bPos = ArrayUtils.indexOf(b.getPrimaryKeyOrThrowException(), sortedRecordIds);
+						return Integer.compare(aPos, bPos);
+					}
+				);
+			}
+		});
+	}
+
+	private static void createSchema(@Nonnull EvitaSessionContract session) {
+		// we need to create category schema first
+		session
+			.defineEntitySchema(Entities.CATEGORY)
+			.withoutGeneratedPrimaryKey()
+			.withHierarchy()
+			.withLocale(Locale.ENGLISH, Locale.GERMAN)
+			.withReflectedReferenceToEntity(
+				REFERENCE_CATEGORY_PRODUCTS,
+				Entities.PRODUCT,
+				REFERENCE_CATEGORIES,
+				whichIs ->
+					whichIs.indexedForFiltering()
+					       .withAttributesInherited(ATTRIBUTE_COUNTRY)
+			)
+			.updateAndFetchVia(session);
+
+		// we need to create brand schema first
+		session
+			.defineEntitySchema(Entities.BRAND)
+			.withoutGeneratedPrimaryKey()
+			.withLocale(Locale.ENGLISH, Locale.GERMAN)
+			.updateAndFetchVia(session);
+
+		// then the product schema
+		session.defineEntitySchema(Entities.PRODUCT)
+		       .withLocale(Locale.ENGLISH, Locale.GERMAN)
+		       .withAttribute(
+			       ATTRIBUTE_NAME, String.class, thatIs -> thatIs.sortable().filterable().localized())
+		       .withReferenceToEntity(
+			       REFERENCE_CATEGORIES,
+			       Entities.CATEGORY,
+			       Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+			       whichIs -> whichIs
+				       .indexedForFiltering()
+				       .withAttribute(
+					       ATTRIBUTE_COUNTRY, String.class,
+					       thatIs -> thatIs.filterable().representative()
+				       )
+				       .withAttribute(
+					       ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
+		       )
+		       .withReferenceToEntity(
+			       REFERENCE_BRAND,
+			       Entities.CATEGORY,
+			       Cardinality.ONE_OR_MORE_WITH_DUPLICATES,
+			       whichIs -> whichIs
+				       .indexedForFilteringAndPartitioning()
+				       .withAttribute(
+					       ATTRIBUTE_COUNTRY, String.class,
+					       thatIs -> thatIs.filterable().representative()
+				       )
+				       .withAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
+		       )
+		       .updateAndFetchVia(session);
+	}
+
+	/**
+	 * Updates the reference attribute for each product within the given category map using the provided logic for predecessor creation.
+	 *
+	 * @param session            The session instance of {@link EvitaSessionContract} used to perform entity updates.
+	 * @param productsInCategory A map containing lists of products grouped by {@link EntityCountry}.
+	 * @param referenceName      The name
+	 */
+	private static void updateReferenceInProduct(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull String referenceName,
+		@Nonnull String referenceAttributeName,
+		@Nonnull BiFunction<Integer, int[], Predecessor> predecessorCreator
+	) {
+		final Random rnd = new Random(SEED);
+		productsInCategory
+			.values()
+			.forEach(productsByEntityCountry -> {
+				final int[] referenceEntities = productsByEntityCountry
+					.stream()
+					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+					.toArray();
+				ArrayUtils.shuffleArray(rnd, referenceEntities, referenceEntities.length);
+				for (SealedEntity sealedEntity : productsByEntityCountry) {
+					final EntityBuilder entityBuilder = sealedEntity.openForWrite();
+					sealedEntity
+						.getReferences(referenceName)
+						.forEach(
+							reference -> {
+								if (reference.getAttribute(referenceAttributeName) != null) {
+									entityBuilder.setReference(
+										referenceName,
+										reference.getReferencedPrimaryKey(),
+										ref -> ref.getReferenceKey().equals(reference.getReferenceKey()),
+										whichIs -> whichIs.setAttribute(
+											referenceAttributeName,
+											predecessorCreator.apply(
+												sealedEntity.getPrimaryKeyOrThrowException(),
+												referenceEntities
+											)
+										)
+									);
+								}
+							}
+						);
+					session.upsertEntity(entityBuilder);
+				}
+			});
+	}
+
 	@Nullable
 	@DataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterClass = true, readOnly = false)
 	DataCarrier setUpOnlySchemas(Evita evita) {
 		return evita.updateCatalog(
 			TEST_CATALOG, session -> {
-				// we need to create category schema first
-				session
-					.defineEntitySchema(Entities.CATEGORY)
-					.withoutGeneratedPrimaryKey()
-					.withHierarchy()
-					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-					.withReflectedReferenceToEntity(
-						REFERENCE_CATEGORY_PRODUCTS,
-						Entities.PRODUCT,
-						REFERENCE_CATEGORIES,
-						whichIs ->
-							whichIs.indexedForFiltering()
-							       .withAttributesInherited(ATTRIBUTE_COUNTRY)
-					)
-					.updateAndFetchVia(session);
-
-				// we need to create brand schema first
-				session
-					.defineEntitySchema(Entities.BRAND)
-					.withoutGeneratedPrimaryKey()
-					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-					.updateAndFetchVia(session);
-
-				// then the product schema
-				session.defineEntitySchema(Entities.PRODUCT)
-				       .withLocale(Locale.ENGLISH, Locale.GERMAN)
-				       .withAttribute(
-					       ATTRIBUTE_NAME, String.class, thatIs -> thatIs.sortable().filterable().localized())
-				       .withReferenceToEntity(
-					       REFERENCE_CATEGORIES,
-					       Entities.CATEGORY,
-					       Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-					       whichIs -> whichIs
-						       .indexedForFiltering()
-						       .withAttribute(
-							       ATTRIBUTE_COUNTRY, String.class,
-							       thatIs -> thatIs.sortable().filterable().representative()
-						       )
-						       .withAttribute(
-							       ATTRIBUTE_CATEGORY_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
-				       )
-				       .withReferenceToEntity(
-					       REFERENCE_BRAND,
-					       Entities.CATEGORY,
-					       Cardinality.ONE_OR_MORE_WITH_DUPLICATES,
-					       whichIs -> whichIs
-						       .indexedForFilteringAndPartitioning()
-						       .withAttribute(
-							       ATTRIBUTE_COUNTRY, String.class,
-							       thatIs -> thatIs.sortable().filterable().representative()
-						       )
-						       .withAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
-				       )
-				       .updateAndFetchVia(session);
+				createSchema(session);
 
 				return new DataCarrier();
 			}
@@ -162,8 +270,13 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				final DataGenerator dataGenerator = new DataGenerator.Builder()
 					// we need to update the order in second pass
 					.registerValueGenerator(
-						Entities.CATEGORY, ATTRIBUTE_CATEGORY_ORDER,
-						faker -> Predecessor.HEAD
+						Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER,
+						(refenceKey, faker) -> Predecessor.HEAD
+					)
+					// we need to update the order in second pass
+					.registerValueGenerator(
+						Entities.PRODUCT, ATTRIBUTE_BRAND_ORDER,
+						(refenceKey, faker) -> Predecessor.HEAD
 					)
 					.build();
 
@@ -173,96 +286,30 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					return primaryKey == 0 ? null : primaryKey;
 				};
 
-				// we need to create category schema first
-				final SealedEntitySchema categorySchema = session
-					.defineEntitySchema(Entities.CATEGORY)
-					.withoutGeneratedPrimaryKey()
-					.withHierarchy()
-					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-					.withReflectedReferenceToEntity(
-						REFERENCE_CATEGORY_PRODUCTS,
-						Entities.PRODUCT,
-						REFERENCE_CATEGORIES,
-						whichIs -> whichIs.indexedForFiltering()
-						                  .withAttributesInherited(
-							                  ATTRIBUTE_COUNTRY)
-					)
-					.updateAndFetchVia(session);
+				createSchema(session);
 
 				// and now data for categories
 				dataGenerator.generateEntities(
-					             categorySchema,
+					             session.getEntitySchemaOrThrowException(Entities.CATEGORY),
 					             randomEntityPicker,
 					             SEED
 				             )
 				             .limit(CATEGORY_COUNT)
 				             .forEach(session::upsertEntity);
 
-				// we need to create brand schema first
-				final SealedEntitySchema brandSchema = session
-					.defineEntitySchema(Entities.BRAND)
-					.withoutGeneratedPrimaryKey()
-					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-					.updateAndFetchVia(session);
-
 				// and now data for brands
 				dataGenerator.generateEntities(
-					             brandSchema,
+					             session.getEntitySchemaOrThrowException(Entities.BRAND),
 					             randomEntityPicker,
 					             SEED
 				             )
 				             .limit(BRAND_COUNT)
 				             .forEach(session::upsertEntity);
 
-				// then the product schema
-				final SealedEntitySchema productSchema = session
-					.defineEntitySchema(Entities.PRODUCT)
-					.withLocale(Locale.ENGLISH, Locale.GERMAN)
-					.withAttribute(
-						ATTRIBUTE_NAME, String.class,
-						thatIs -> thatIs.sortable()
-						                .filterable()
-						                .localized()
-					)
-					.withReferenceToEntity(
-						REFERENCE_CATEGORIES,
-						Entities.CATEGORY,
-						Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-						whichIs -> whichIs
-							.indexedForFiltering()
-							.withAttribute(
-								ATTRIBUTE_CATEGORY_ORDER,
-								Predecessor.class,
-								AttributeSchemaEditor::sortable
-							)
-							.withAttribute(
-								ATTRIBUTE_COUNTRY, String.class,
-								thatIs -> thatIs.sortable()
-								                .filterable()
-							)
-					)
-					.withReferenceToEntity(
-						REFERENCE_BRAND,
-						Entities.CATEGORY,
-						Cardinality.ONE_OR_MORE_WITH_DUPLICATES,
-						whichIs -> whichIs
-							.indexedForFilteringAndPartitioning()
-							.withAttribute(
-								ATTRIBUTE_BRAND_ORDER, Predecessor.class,
-								AttributeSchemaEditor::sortable
-							)
-							.withAttribute(
-								ATTRIBUTE_COUNTRY, String.class,
-								thatIs -> thatIs.sortable()
-								                .filterable()
-							)
-					)
-					.updateAndFetchVia(session);
-
 				// and now data for both of them (since they are intertwined via reflected reference)
 				final List<EntityReference> storedProducts = dataGenerator
 					.generateEntities(
-						productSchema,
+						session.getEntitySchemaOrThrowException(Entities.PRODUCT),
 						randomEntityPicker,
 						SEED
 					)
@@ -270,30 +317,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.map(session::upsertEntity)
 					.toList();
 
-				// second pass - update the category / brand order of the products
-				updateReferenceAttributeInProduct(
-					session,
-					Entities.PRODUCT, REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_ORDER,
-					(reference, referencedProducts) -> {
-						final int theIndex = ArrayUtils.indexOf(
-							reference.getReferencedPrimaryKey(), referencedProducts);
-						return theIndex == 0 ?
-							Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
-					}
-				);
-				updateReferenceAttributeInProduct(
-					session,
-					Entities.CATEGORY, REFERENCE_BRAND, ATTRIBUTE_BRAND_ORDER, (reference, referencedProducts) -> {
-						final int theIndex = ArrayUtils.indexOf(
-							reference.getReferencedPrimaryKey(), referencedProducts);
-						return theIndex == 0 ?
-							Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
-					}
-				);
-
+				// collect the references by countries and referenced entity
 				final Map<Integer, SealedEntity> products = collectProductIndex(session, storedProducts);
 
-				final Map<Integer, List<SealedEntity>> productsInCategory = products
+				final Map<EntityCountry, List<SealedEntity>> productsInCategory = products
 					.values()
 					.stream()
 					.flatMap(it -> it.getReferences(REFERENCE_CATEGORIES)
@@ -301,16 +328,32 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					                 .map(ref -> new EntityReferenceDTO(it, ref)))
 					.collect(
 						Collectors.groupingBy(
-							it -> it.reference().getReferencedPrimaryKey(),
+							it -> new EntityCountry(
+								it.reference().getReferencedPrimaryKey(),
+								it.reference().getAttribute(ATTRIBUTE_COUNTRY)
+							),
 							Collectors.mapping(EntityReferenceDTO::entity, Collectors.toList())
 						)
 					);
 
+				// second pass - update the category order of the products
+				updateReferenceInProduct(
+					session,
+					productsInCategory,
+					REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_ORDER,
+					(productPk, referencedProducts) -> {
+						final int theIndex = ArrayUtils.indexOf(productPk, referencedProducts);
+						return theIndex == 0 ?
+							Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
+					}
+				);
+
 				// now we need to sort the products in the category
 				sortProductsInByReferenceAttributeOfChainableType(
-					productsInCategory, Entities.PRODUCT, ATTRIBUTE_CATEGORY_ORDER);
+					productsInCategory, REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_ORDER
+				);
 
-				final Map<Integer, List<SealedEntity>> productsInBrand = products
+				final Map<EntityCountry, List<SealedEntity>> productsInBrand = products
 					.values()
 					.stream()
 					.flatMap(it -> it.getReferences(REFERENCE_BRAND)
@@ -318,13 +361,29 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					                 .map(ref -> new EntityReferenceDTO(it, ref)))
 					.collect(
 						Collectors.groupingBy(
-							it -> it.reference().getReferencedPrimaryKey(),
+							it -> new EntityCountry(
+								it.reference().getReferencedPrimaryKey(),
+								it.reference().getAttribute(ATTRIBUTE_COUNTRY)
+							),
 							Collectors.mapping(EntityReferenceDTO::entity, Collectors.toList())
 						)
 					);
 
+				// second pass - update the category order of the products
+				updateReferenceInProduct(
+					session,
+					productsInBrand,
+					REFERENCE_BRAND, ATTRIBUTE_BRAND_ORDER,
+					(productPk, referencedProducts) -> {
+						final int theIndex = ArrayUtils.indexOf(productPk, referencedProducts);
+						return theIndex == 0 ?
+							Predecessor.HEAD : new Predecessor(referencedProducts[theIndex - 1]);
+					}
+				);
+
 				sortProductsInByReferenceAttributeOfChainableType(
-					productsInBrand, Entities.PRODUCT, ATTRIBUTE_BRAND_ORDER);
+					productsInBrand, REFERENCE_BRAND, ATTRIBUTE_BRAND_ORDER
+				);
 
 				return new DataCarrier(
 					REFERENCE_CATEGORY_PRODUCTS, products,
@@ -505,6 +564,25 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				);
 			}
 		);
+	}
+
+	@DisplayName("The product should filter entities by duplicate references")
+	@UseDataSet(value = DUPLICATE_REFERENCES, destroyAfterTest = true)
+	@Test
+	void shouldFilterProductWithDuplicateReferences(Evita evita) {
+
+	}
+
+	/**
+	 * Key to identify brand/category uniquely in combination with country attribute.
+	 *
+	 * @param entityPrimaryKey primary key of the category
+	 * @param country          value of the country attribute
+	 */
+	record EntityCountry(
+		int entityPrimaryKey,
+		@Nonnull String country
+	) {
 	}
 
 }

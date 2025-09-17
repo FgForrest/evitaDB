@@ -255,7 +255,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 			// Verify that the subscriber received exactly 9 items
 			// These are the attribute mutations that match the specified criteria
-			assertEquals(8, subscriber.getItems().size(), "Should receive 8 filtered attribute mutations");
+			assertEquals(9, subscriber.getItems().size(), "Should receive 9 filtered attribute mutations");
 		}
 	}
 
@@ -414,7 +414,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 			// Verify initial subscribers received expected data
 			assertEquals(20, entireWalSubscriber.getItems().size(), "Should receive 40 mutations (20 entities)");
-			assertEquals(8, partialWalSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
+			assertEquals(10, partialWalSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 			// Create 10 new entities in the catalog
 			final CommitVersions commitVersions = evita.updateCatalogAsync(
@@ -464,12 +464,12 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				onlyNewPartialPublisher.subscribe(onlyNewPartialSubscriber);
 
 				// Verify new subscribers received expected data
-				assertEquals(18, partialOldAndNewSubscriber.getItems().size(), "Should receive 18 mutations (8 old + 10 new entities)");
+				assertEquals(20, partialOldAndNewSubscriber.getItems().size(), "Should receive 20 mutations (10 old + 10 new entities)");
 				assertEquals(10, onlyNewPartialSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 				// Verify initial subscribers received new data as well
-				assertEquals(20 + 10, entireWalSubscriber.getItems().size(), "Should receive 20 mutations (20 entities)");
-				assertEquals(10 + 8, partialWalSubscriber.getItems().size(), "Should receive 8 mutations (8 entities)");
+				assertEquals(20 + 10, entireWalSubscriber.getItems().size(), "Should receive 30 mutations (10 old + 20 new entities)");
+				assertEquals(10 + 10, partialWalSubscriber.getItems().size(), "Should receive 20 mutations (10 old + 10 new entities)");
 
 				// Create another 5 new entities in the catalog
 				evita.updateCatalog(
@@ -489,8 +489,8 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 				// Verify all subscribers received the same data from the second batch
 				assertEquals(20 + 10 + 5, entireWalSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 30");
-				assertEquals(10 + 8 + 5, partialWalSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 18");
-				assertEquals(18 + 5, partialOldAndNewSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 18");
+				assertEquals(10 + 10 + 5, partialWalSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 20");
+				assertEquals(20 + 5, partialOldAndNewSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 20");
 				assertEquals(10 + 5, onlyNewPartialSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 10");
 
 				// Verify that all subscribers received entity IDs from the second batch (IDs > 30)

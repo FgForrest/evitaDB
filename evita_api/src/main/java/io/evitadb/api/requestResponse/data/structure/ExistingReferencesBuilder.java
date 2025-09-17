@@ -75,7 +75,6 @@ import java.util.Map.Entry;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -390,7 +389,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		if (!referencesAvailable()) {
 			throw ContextMissingException.referenceContextMissing();
@@ -402,7 +401,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 					this.entitySchema,
 					this.attributeTypes
 				);
-				addOrReplaceReferenceMutations(whichIs.apply(builder), true);
+				whichIs.accept(builder);
+				addOrReplaceReferenceMutations(builder, true);
 			}
 		}
 		return this;
@@ -480,7 +480,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
 		return setReference(
@@ -501,7 +501,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		@Nullable Cardinality cardinality,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		assertReferenceAvailableAndMatchPredicate(referenceName);
 
@@ -512,28 +512,34 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		final EntitySchemaContract schema = this.entitySchema;
-		final Optional<ReferenceContract> existingReference = this.baseReferences.getReferenceWithoutSchemaCheck(
-			referenceKey);
+		final List<ReferenceContract> existingReferences = this.baseReferences.getReferencesWithoutSchemaCheck(referenceKey);
+		ReferenceContract selectedReference = null;
+		for (ReferenceContract existingReference : existingReferences) {
+			if (filter.test(existingReference)) {
+				Assert.isTrue(
+					selectedReference == null,
+					() -> new ReferenceAllowsDuplicatesException(referenceName, schema, Operation.WRITE)
+				);
+				selectedReference = existingReference;
+			}
+		}
 		final ReferenceBuilder referenceBuilder;
-		if (existingReference.map(filter::test).orElse(false)) {
-			referenceBuilder = whichIs.apply(
-				new ExistingReferenceBuilder(
-					existingReference.get(),
-					schema,
-					this.attributeTypes
-				)
+		if (selectedReference == null) {
+			referenceBuilder = new InitialReferenceBuilder(
+				schema,
+				getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality),
+				referenceName, referencedPrimaryKey,
+				getNextReferenceInternalId(),
+				this.attributeTypes
 			);
 		} else {
-			referenceBuilder = whichIs.apply(
-				new InitialReferenceBuilder(
-					schema,
-					getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality),
-					referenceName, referencedPrimaryKey,
-					getNextReferenceInternalId(),
-					this.attributeTypes
-				)
+			referenceBuilder = new ExistingReferenceBuilder(
+				selectedReference,
+				schema,
+				this.attributeTypes
 			);
 		}
+		whichIs.accept(referenceBuilder);
 		addOrReplaceReferenceMutations(referenceBuilder, true);
 		return this;
 	}

@@ -69,7 +69,6 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -705,7 +704,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	@Override
 	public EntityBuilder updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		this.referencesBuilder.updateReferences(filter, whichIs);
 		return this;
@@ -738,7 +737,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		this.referencesBuilder.setReference(referenceName, referencedPrimaryKey, filter, whichIs);
 		return this;
@@ -781,7 +780,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		@Nonnull Cardinality cardinality,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		this.referencesBuilder.setReference(
 			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, filter, whichIs

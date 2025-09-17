@@ -60,7 +60,6 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -267,7 +266,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		// an existing list of references was found - and we know it's duplicates
 		final List<ReferenceExchange> updates = new ArrayList<>(8);
@@ -282,7 +281,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					this.schema,
 					this.attributeTypes
 				);
-				final ReferenceContract updatedReference = whichIs.apply(refBuilder).build();
+				whichIs.accept(refBuilder);
+				final ReferenceContract updatedReference = refBuilder.build();
 				updates.add(new ReferenceExchange(i, updatedReference));
 			}
 		}
@@ -365,9 +365,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
-		return setReference(
+		setReference(
 			referenceName,
 			null,
 			null,
@@ -375,6 +375,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			filter,
 			whichIs
 		);
+		return this;
 	}
 
 	@Nonnull
@@ -385,7 +386,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		@Nullable Cardinality cardinality,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		final Map<ReferenceKey, ReferenceContract> theReferenceIndex = getReferenceIndexForUpdate();
@@ -397,7 +398,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 
 		if (theReference == null) {
 			// no existing reference was found - create brand new, and we know it's not duplicate
-			final InitialReferenceBuilder builder = new InitialReferenceBuilder(
+			final InitialReferenceBuilder refBuilder = new InitialReferenceBuilder(
 				this.schema,
 				referenceSchema
 					.orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
@@ -405,7 +406,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				getNextReferenceInternalId(),
 				this.attributeTypes
 			);
-			addOrReplaceReferenceInternal(whichIs.apply(builder).build());
+			whichIs.accept(refBuilder);
+			addOrReplaceReferenceInternal(refBuilder.build());
 			return this;
 		} else if (theReference == References.DUPLICATE_REFERENCE) {
 			// existing list of references was found - and we know it's duplicates
@@ -421,7 +423,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 						this.schema,
 						this.attributeTypes
 					);
-					final ReferenceContract updatedReference = whichIs.apply(refBuilder).build();
+					whichIs.accept(refBuilder);
+					final ReferenceContract updatedReference = refBuilder.build();
 					updates.add(new ReferenceExchange(i, updatedReference));
 				}
 			}
@@ -437,7 +440,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					getNextReferenceInternalId(),
 					this.attributeTypes
 				);
-				theReferenceCollection.add(whichIs.apply(refBuilder).build());
+				whichIs.accept(refBuilder);
+				theReferenceCollection.add(refBuilder.build());
 			} else {
 				// otherwise just replace the updated references in the list on found positions
 				for (ReferenceExchange update : updates) {
@@ -454,7 +458,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
 					theReference, this.schema, this.attributeTypes
 				);
-				theFinalReference = whichIs.apply(refBuilder).build();
+				whichIs.accept(refBuilder);
+				theFinalReference = refBuilder.build();
 				theReferenceIndex.put(referenceKey, theFinalReference);
 				theReferenceCollection.removeIf(examinedReference -> examinedReference == theReference);
 			} else {
@@ -490,7 +495,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				);
 				Objects.requireNonNull(this.referencesDefinedCount)
 				       .computeIfPresent(referenceName, (k, v) -> v + 1);
-				theFinalReference = whichIs.apply(refBuilder).build();
+				whichIs.accept(refBuilder);
+				theFinalReference = refBuilder.build();
 				// we're adding a new reference with the same key - mark as duplicate
 				theReferenceIndex.put(referenceKey, References.DUPLICATE_REFERENCE);
 			}

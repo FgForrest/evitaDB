@@ -67,7 +67,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -456,7 +455,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	@Override
 	public EntityBuilder updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		getReferencesBuilder().updateReferences(filter, whichIs);
 		return this;
@@ -489,7 +488,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		getReferencesBuilder().setReference(referenceName, referencedPrimaryKey, filter, whichIs);
 		return this;
@@ -532,7 +531,7 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		@Nonnull Cardinality cardinality,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		getReferencesBuilder().setReference(
 			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, filter, whichIs

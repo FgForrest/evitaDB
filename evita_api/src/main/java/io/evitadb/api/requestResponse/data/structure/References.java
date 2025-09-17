@@ -291,7 +291,7 @@ public class References implements ReferencesContract {
 	@Nonnull
 	@Override
 	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
-		checkReferenceNameAndCardinality(referenceName, true);
+		checkReferenceNameAndCardinality(referenceName, true, true);
 		if (this.referencesByName == null) {
 			// here we never limit the references by input requirements
 			// this is managed on the entity decorator level
@@ -316,7 +316,7 @@ public class References implements ReferencesContract {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		checkReferenceNameAndCardinality(referenceName, false);
+		checkReferenceNameAndCardinality(referenceName, false, true);
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
 		final ReferenceContract reference = this.references.get(referenceKey);
 		if (reference == References.DUPLICATE_REFERENCE) {
@@ -365,7 +365,7 @@ public class References implements ReferencesContract {
 	@Override
 	@Nonnull
 	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
-		checkReferenceNameAndCardinality(referenceKey.referenceName(), false);
+		checkReferenceNameAndCardinality(referenceKey.referenceName(), false, referenceKey.isUnknownReference());
 		return getReferenceWithoutSchemaCheck(referenceKey);
 	}
 
@@ -374,7 +374,7 @@ public class References implements ReferencesContract {
 	public List<ReferenceContract> getReferences(
 		@Nonnull ReferenceKey referenceKey
 	) throws ContextMissingException, ReferenceNotFoundException {
-		checkReferenceNameAndCardinality(referenceKey.referenceName(), true);
+		checkReferenceNameAndCardinality(referenceKey.referenceName(), true, referenceKey.isUnknownReference());
 		final ReferenceContract reference = this.references.get(referenceKey);
 		return reference == References.DUPLICATE_REFERENCE ?
 			this.duplicateReferences.get(referenceKey) :
@@ -384,7 +384,7 @@ public class References implements ReferencesContract {
 	/**
 	 * Checks whether the reference is defined in the schema or is otherwise known.
 	 */
-	public void checkReferenceNameAndCardinality(@Nonnull String referenceName, boolean methodAllowsDuplicates) {
+	public void checkReferenceNameAndCardinality(@Nonnull String referenceName, boolean methodAllowsDuplicates, boolean internalPrimaryKeyUnknown) {
 		final Optional<ReferenceSchemaContract> schemaDefined = this.entitySchema.getReference(referenceName);
 		Assert.isTrue(
 			// schema is either defined or can be added automatically
@@ -393,7 +393,7 @@ public class References implements ReferencesContract {
 					this.referencesDefined.contains(referenceName)),
 			() -> new ReferenceNotFoundException(referenceName, this.entitySchema)
 		);
-		if (!methodAllowsDuplicates) {
+		if (!methodAllowsDuplicates && internalPrimaryKeyUnknown) {
 			Assert.isTrue(
 				// schema must not allow duplicates
 				!schemaDefined.map(it -> it.getCardinality().allowsDuplicates()).orElse(false),

@@ -60,6 +60,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.function.Functions;
 import io.evitadb.test.generator.DataGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -76,7 +77,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilderTest.assertCardinality;
@@ -562,7 +562,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		eb.setReference(BRAND, 2);
 		eb.setReference(CATEGORY, 12);
 		eb.setReference(PARAMETER, 101, ref -> false, whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "C"));
-		eb.setReference(STORE, 1002, ref -> false, UnaryOperator.identity());
+		eb.setReference(STORE, 1002, ref -> false, Functions.noOpConsumer());
 
 		// the count has to grow
 		assertEquals(2, eb.getReferences(BRAND).size());
@@ -617,7 +617,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 				2,
 				ref -> false,
-				UnaryOperator.identity()
+				Functions.noOpConsumer()
 			)
 		);
 		/* cannot change cardinality this way */
@@ -630,7 +630,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 					Cardinality.ONE_OR_MORE,
 					2,
 					ref -> false,
-					UnaryOperator.identity()
+					Functions.noOpConsumer()
 				);
 			}
 		);
@@ -640,7 +640,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			BRAND,
 			2,
 			ref -> false,
-			UnaryOperator.identity()
+			Functions.noOpConsumer()
 		);
 		// new references has automatically elevated cardinality
 		for (ReferenceContract reference : builder.getReferences(new ReferenceKey(BRAND, 2))) {
@@ -661,7 +661,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			BRAND,
 			3,
 			ref -> false,
-			UnaryOperator.identity()
+			Functions.noOpConsumer()
 		);
 
 		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);
@@ -1346,7 +1346,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1000,
 			ref -> false,
-			UnaryOperator.identity()
+			Functions.noOpConsumer()
 		);
 		eb.setReference(
 			STORE,

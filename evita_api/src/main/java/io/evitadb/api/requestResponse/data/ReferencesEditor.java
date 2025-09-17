@@ -46,7 +46,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -70,7 +69,7 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	@Nonnull
 	W updateReferences(
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	);
 
 	/**
@@ -145,7 +144,7 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	);
 
 	/**
@@ -268,7 +267,7 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		@Nonnull Cardinality cardinality,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull UnaryOperator<ReferenceBuilder> whichIs
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	);
 
 	/**
