@@ -348,12 +348,21 @@ public class ChangeCaptureConverter {
 	private static ChangeCatalogCaptureCriteria toChangeCaptureCriteria(
 		@Nonnull GrpcChangeCaptureCriteria grpcCaptureCriteria
 	) {
-		final CaptureArea captureArea = EvitaEnumConverter.toCaptureArea(grpcCaptureCriteria.getArea());
+		final CaptureArea captureArea;
+		if (grpcCaptureCriteria.hasSchemaSite()) {
+			captureArea = CaptureArea.SCHEMA;
+		} else if (grpcCaptureCriteria.hasDataSite()) {
+			captureArea = CaptureArea.DATA;
+		} else {
+			captureArea = EvitaEnumConverter.toCaptureArea(grpcCaptureCriteria.getArea());
+		}
+		final CaptureSite<?> captureSite = switch (captureArea) {
+			case SCHEMA -> toSchemaSite(grpcCaptureCriteria.getSchemaSite());
+			case DATA -> toDataSite(grpcCaptureCriteria.getDataSite());
+			case INFRASTRUCTURE -> null;
+		};
 		return new ChangeCatalogCaptureCriteria(
-			captureArea,
-			captureArea == CaptureArea.SCHEMA ?
-				toSchemaSite(grpcCaptureCriteria.getSchemaSite()) :
-				toDataSite(grpcCaptureCriteria.getDataSite())
+			captureArea, captureSite
 		);
 	}
 
