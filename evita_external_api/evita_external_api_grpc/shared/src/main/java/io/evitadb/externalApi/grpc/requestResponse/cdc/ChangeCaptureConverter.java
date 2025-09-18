@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.cdc.*;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -60,11 +61,12 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static ChangeCatalogCaptureRequest toChangeCaptureRequest(
 		@Nonnull GetMutationsHistoryPageRequest request,
-		long currentCatalogVersion
+		long currentCatalogVersion,
+		@Nonnull StreamDirection direction
 	) {
 		return new ChangeCatalogCaptureRequest(
 			request.hasSinceVersion() ? request.getSinceVersion().getValue() : currentCatalogVersion,
-			request.hasSinceVersion() ? request.getSinceIndex().getValue() : 0,
+			request.hasSinceVersion() ? request.getSinceIndex().getValue() : (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
 			request.getCriteriaList()
 			       .stream()
 			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)

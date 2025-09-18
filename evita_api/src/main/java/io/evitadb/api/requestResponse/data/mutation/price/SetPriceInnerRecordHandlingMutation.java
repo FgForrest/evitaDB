@@ -112,7 +112,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 	@Nonnull
 	@Override
 	public ContainerType containerType() {
-		return ContainerType.ENTITY;
+		return ContainerType.PRICE;
 	}
 
 	@Nonnull
