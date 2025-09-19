@@ -191,10 +191,10 @@ public class EntityDecorator implements SealedEntity {
 				if (referenceFilter == null) {
 					Arrays.sort(references, start, end, referenceComparator);
 				} else {
-					final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
-					                                                      .filter(it -> referenceFilter.test(
-						                                                      entityPrimaryKey, it))
-					                                                      .toArray(ReferenceDecorator[]::new);
+					final ReferenceDecorator[] filteredReferences = Arrays
+						.stream(references, start, end)
+						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
+						.toArray(ReferenceDecorator[]::new);
 					filteredOutReferences += (end - start) - filteredReferences.length;
 
 					Arrays.sort(filteredReferences, referenceComparator);

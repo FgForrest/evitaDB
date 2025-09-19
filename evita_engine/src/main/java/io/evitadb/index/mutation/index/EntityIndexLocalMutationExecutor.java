@@ -526,18 +526,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Method returns existing index if it exists and adds it to the changed set of indexes that needs persisting.
-	 */
-	@Nonnull
-	Optional<EntityIndex> getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
-		final EntityIndex indexIfExists = this.entityIndexCreatingAccessor.getIndexIfExists(entityIndexKey);
-		if (indexIfExists != null) {
-			this.accessedIndexes.add(entityIndexKey);
-		}
-		return Optional.ofNullable(indexIfExists);
-	}
-
-	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 */
 	@Nonnull
@@ -1280,8 +1268,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					referenceSchema.set(theReferenceSchema);
 				}
 				final List<ReducedEntityIndex> allReducedIndexes = ContainerizedLocalMutationExecutor.getAllReducedIndexes(
-					eik -> getIndexIfExists(eik).map(ReferencedTypeEntityIndex.class::cast).orElse(null),
-					eik -> getIndexIfExists(eik).map(ReducedEntityIndex.class::cast).orElse(null),
+					eik -> (ReferencedTypeEntityIndex) getOrCreateIndex(eik),
+					eik -> (ReducedEntityIndex) getOrCreateIndex(eik),
 					epk -> getIndexByPrimaryKey(epk).map(ReducedEntityIndex.class::cast).orElse(null),
 					scope,
 					theReferenceSchema.getName(),

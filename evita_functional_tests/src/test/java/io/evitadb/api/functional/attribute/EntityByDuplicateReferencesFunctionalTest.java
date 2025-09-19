@@ -420,7 +420,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				);
 
 				return new DataCarrier(
-					REFERENCE_CATEGORY_PRODUCTS, products,
+					"products", products,
 					"productsInCategory", productsInCategory,
 					"productsInBrand", productsInBrand,
 					"categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY)
@@ -734,9 +734,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 								orderBy(
 									referenceProperty(
 										REFERENCE_BRAND,
-										pickFirstByEntityProperty(
-											attributeNatural(ATTRIBUTE_BRAND_ORDER)
-										)
+										attributeNatural(ATTRIBUTE_BRAND_ORDER)
 									)
 								),
 								require(
@@ -955,14 +953,15 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	@Test
 	void shouldFetchFilteredDuplicateReferences(
 		Evita evita,
-		Map<EntityCountry, List<SealedEntity>> productsInBrand
+		Map<EntityCountry, List<SealedEntity>> productsInBrand,
+		Map<Integer, SealedEntity> products
 	) {
 		final String singleCountry = productsInBrand.keySet().iterator().next().country();
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> allProducts = session.queryListOfSealedEntities(
+				final List<SealedEntity> fetchedProducts = session.queryListOfSealedEntities(
 					query(
 						collection(Entities.PRODUCT),
 						require(
@@ -977,8 +976,18 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						)
 					)
 				);
+
+				int expectedTotalCount = Math.toIntExact(
+					products
+						.values()
+						.stream()
+						.flatMap(it -> it.getReferences(REFERENCE_BRAND).stream())
+						.filter(ref -> singleCountry.equals(ref.getAttribute(ATTRIBUTE_COUNTRY)))
+						.count()
+				);
+
 				int filteredReferences = 0;
-				for (SealedEntity product : allProducts) {
+				for (SealedEntity product : fetchedProducts) {
 					assertThrows(
 						ContextMissingException.class,
 						() -> product.getReferences(REFERENCE_CATEGORIES).isEmpty()
@@ -988,7 +997,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						assertEquals(singleCountry, reference.getAttribute(ATTRIBUTE_COUNTRY));
 					}
 				}
-				assertTrue(filteredReferences > 0);
+				assertEquals(expectedTotalCount, filteredReferences);
 			}
 		);
 	}

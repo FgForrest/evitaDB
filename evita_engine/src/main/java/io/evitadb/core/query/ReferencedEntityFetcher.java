@@ -31,6 +31,7 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.predicates.IntPredicate;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
@@ -82,6 +83,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -506,19 +508,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.values()
 					.stream()
 					.flatMap(
-						epks -> Arrays.stream(epks)
-						              .mapToObj(it -> {
-							              final Formula referencedEntityIds = referencedEntityResolver.apply(it);
-							              // Initializes starting validity relations in `validityMapping` where each entity sees
-							              // all its referenced entities. This initial visibility setup will be refined during fetch process.
-							              ofNullable(validityMapping)
-								              .ifPresent(vm -> vm.setInitialVisibilityForEntity(
-									              it,
-									              referencedEntityIds.compute()
-								              ));
-							              // return the referenced entity primary keys
-							              return referencedEntityIds;
-						              })
+						epks -> Arrays
+							.stream(epks)
+							.mapToObj(it -> {
+								final Formula referencedEntityIds = referencedEntityResolver.apply(it);
+								// Initializes starting validity relations in `validityMapping` where each entity sees
+								// all its referenced entities. This initial visibility setup will be refined during fetch process.
+								ofNullable(validityMapping)
+									.ifPresent(
+										vm -> vm.setInitialVisibilityForEntity(
+											it,
+											referencedEntityIds.compute()
+										)
+									);
+								// return the referenced entity primary keys
+								return referencedEntityIds;
+							})
 					)
 					.toArray(Formula[]::new)
 			)
@@ -650,12 +655,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							);
 
 						Formula lastIndexFormula = null;
-						Integer lastReferencedPrimaryKey = null;
+						RepresentativeReferenceKey lastDiscriminator = null;
 						for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
 							final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-							final ReferenceKey indexDiscriminator = Objects.requireNonNull((RepresentativeReferenceKey) indexKey.discriminator()).referenceKey();
-							final int referencedPrimaryKey = indexDiscriminator.primaryKey();
-							foundReferencedIds.add(referencedPrimaryKey);
+							final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
+								(RepresentativeReferenceKey) indexKey.discriminator()
+							);
+							foundReferencedIds.add(discriminator.primaryKey());
 
 							final Formula resultFormula = computeResultWithPassedIndex(
 								referencedEntityIndex,
@@ -667,10 +673,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								EntityPrimaryKeyInSet.class
 							);
 
-							if (lastReferencedPrimaryKey == null) {
-								lastReferencedPrimaryKey = referencedPrimaryKey;
+							if (lastDiscriminator == null) {
+								lastDiscriminator = discriminator;
 								lastIndexFormula = resultFormula;
-							} else if (Objects.equals(lastReferencedPrimaryKey, referencedPrimaryKey)) {
+							} else if (Objects.equals(lastDiscriminator, discriminator)) {
 								if (lastIndexFormula != resultFormula) {
 									final Formula epkFormula = toFormula(entityPrimaryKeys.get(scope));
 									lastIndexFormula = FormulaFactory.or(
@@ -686,27 +692,27 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								);
 								lastIndexFormula.initialize(executionContext);
 								final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-								final int finalLastReferencedPrimaryKey = lastReferencedPrimaryKey;
+								final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
 								if (matchingPrimaryKeys.isEmpty()) {
-									validityMappingOptional.ifPresent(it -> it.forbid(finalLastReferencedPrimaryKey));
+									validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
 								} else {
-									validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastReferencedPrimaryKey, matchingPrimaryKeys));
-									referencedPrimaryKeysWriter.add(finalLastReferencedPrimaryKey);
+									validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, matchingPrimaryKeys));
+									referencedPrimaryKeysWriter.add(finalLastDiscriminator.primaryKey());
 								}
 
 								lastIndexFormula = resultFormula;
-								lastReferencedPrimaryKey = referencedPrimaryKey;
+								lastDiscriminator = discriminator;
 							}
 						}
-						if (lastReferencedPrimaryKey != null && lastIndexFormula != null) {
+						if (lastDiscriminator != null && lastIndexFormula != null) {
 							lastIndexFormula.initialize(executionContext);
-							final int referencedPrimaryKey = lastReferencedPrimaryKey;
+							final RepresentativeReferenceKey finalDiscriminator = lastDiscriminator;
 							final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
 							if (matchingPrimaryKeys.isEmpty()) {
-								validityMappingOptional.ifPresent(it -> it.forbid(referencedPrimaryKey));
+								validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, EmptyBitmap.INSTANCE));
 							} else {
-								validityMappingOptional.ifPresent(it -> it.restrictTo(referencedPrimaryKey, matchingPrimaryKeys));
-								referencedPrimaryKeysWriter.add(lastReferencedPrimaryKey);
+								validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, matchingPrimaryKeys));
+								referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
 							}
 						}
 					} else {
@@ -1327,7 +1333,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						.map(PrefetchedEntities::validityMapping)
 						.map(vm -> (BiPredicate<Integer, ReferenceDecorator>) (entityPrimaryKey, referenceDecorator) ->
 							ofNullable(referenceDecorator)
-								.map(refDec -> vm.isReferenceSelected(entityPrimaryKey, refDec.getReferencedPrimaryKey()))
+								.map(refDec -> vm.isReferenceSelected(entityPrimaryKey, refDec))
 								.orElse(false)
 						)
 						.orElse(null);
@@ -1423,7 +1429,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							);
 
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(
-							entityPrimaryKey.values().stream().mapToInt(array -> array.length).sum()
+							entityPrimaryKey.values().stream().mapToInt(array -> array.length).sum(),
+							referenceSchema
 						);
 						final int[] filteredReferencedEntityIdsArray;
 						final Map<Integer, ServerEntityDecorator> entityIndex;
@@ -1667,18 +1674,31 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	private static class ValidEntityToReferenceMapping {
 		/**
+		 * Function that produces representative key for a given reference decorator.
+		 */
+		private final Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer;
+		/**
 		 * Contains the source entity PK to allowed referenced entity PKs index.
 		 * Key: source entity primary key
 		 * Value: allowed referenced primary keys
 		 */
-		private final IntObjectMap<IntSet> mapping;
+		private final IntObjectMap<RepresentativeMapping> mapping;
 		/**
 		 * Internal, helper variable that contains initialized {@link RoaringBitmap} with all source entity primary keys.
 		 */
 		private RoaringBitmap knownEntityPrimaryKeys;
 
-		public ValidEntityToReferenceMapping(int expectedEntityCount) {
+		public ValidEntityToReferenceMapping(
+			int expectedEntityCount,
+			@Nonnull ReferenceSchema referenceSchema
+		) {
 			this.mapping = new IntObjectHashMap<>(expectedEntityCount);
+			if (referenceSchema.getCardinality().allowsDuplicates()) {
+				final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+				this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(ref.getReferenceKey(), rad.getRepresentativeValues(ref));
+			} else {
+				this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(ref.getReferenceKey());
+			}
 		}
 
 		/**
@@ -1690,9 +1710,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				this.knownEntityPrimaryKeys == null,
 				"Known entity primary keys are not expected to be initialized here."
 			);
-			final IntSet matchingReferencedPrimaryKeys = ofNullable(this.mapping.get(entityPrimaryKey))
+			final int expectedSize = referencedPrimaryKeys.size();
+			final RepresentativeMapping matchingReferencedPrimaryKeys = ofNullable(this.mapping.get(entityPrimaryKey))
 				.orElseGet(() -> {
-					final IntHashSet theSet = new IntHashSet();
+					final RepresentativeMapping theSet = new RepresentativeMapping(this.representativeKeyProducer, expectedSize);
 					this.mapping.put(entityPrimaryKey, theSet);
 					return theSet;
 				});
@@ -1706,7 +1727,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * Clears all validity mappings - no referenced entity will be allowed for any of known source entities.
 		 */
 		public void forbidAll() {
-			for (IntObjectCursor<IntSet> entry : this.mapping) {
+			for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
 				entry.value.clear();
 			}
 		}
@@ -1717,18 +1738,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * no referenced entities allowed.
 		 */
 		public void forbidAllExcept(@Nonnull IntSet referencedPrimaryKeys) {
-			for (IntObjectCursor<IntSet> entry : this.mapping) {
+			for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
 				entry.value.removeAll(it -> !referencedPrimaryKeys.contains(it));
-			}
-		}
-
-		/**
-		 * Removes `referencedPrimaryKey` in the input from allowed referenced entities for all known source entities.
-		 * The referenced entity with this primary key will not be visible in any of the known mappings.
-		 */
-		public void forbid(int referencedPrimaryKey) {
-			for (IntObjectCursor<IntSet> entry : this.mapping) {
-				entry.value.removeAll(referencedPrimaryKey);
 			}
 		}
 
@@ -1737,7 +1748,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * will remain "allowed".
 		 */
 		public void restrictTo(@Nonnull Bitmap referencedPrimaryKeys) {
-			for (IntObjectCursor<IntSet> entry : this.mapping) {
+			for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
 				entry.value.retainAll(referencedPrimaryKeys::contains);
 			}
 		}
@@ -1747,43 +1758,185 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * in other records than present in input `entityPrimaryKeys` it will be removed from there (not allowed to
 		 * be visible there).
 		 */
-		public void restrictTo(int referencedPrimaryKey, @Nonnull Bitmap entityPrimaryKeys) {
+		public void restrictTo(
+			@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+			@Nonnull Bitmap entityPrimaryKeys
+		) {
+			final OfInt it1 = entityPrimaryKeys.iterator();
+			while (it1.hasNext()) {
+				final int entityPk = it1.nextInt();
+				final RepresentativeMapping mappingForEntity = this.mapping.get(entityPk);
+				if (mappingForEntity != null) {
+					mappingForEntity.restrictTo(representativeReferenceKey);
+				}
+			}
+
 			if (this.knownEntityPrimaryKeys == null) {
 				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-				for (IntObjectCursor<IntSet> entry : this.mapping) {
+				for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
 					writer.add(entry.key);
 				}
 				this.knownEntityPrimaryKeys = writer.get();
 			}
-			final RoaringBitmap invalidRecords = RoaringBitmap.andNot(this.knownEntityPrimaryKeys, RoaringBitmapBackedBitmap.getRoaringBitmap(entityPrimaryKeys));
-			for (Integer invalidRecord : invalidRecords) {
-				this.mapping.get(invalidRecord).removeAll(referencedPrimaryKey);
+			final RoaringBitmap invalidRecords = RoaringBitmap.andNot(
+				this.knownEntityPrimaryKeys,
+				RoaringBitmapBackedBitmap.getRoaringBitmap(
+					entityPrimaryKeys
+				)
+			);
+			final int referencedEntityPk = representativeReferenceKey.primaryKey();
+			final PeekableIntIterator it2 = invalidRecords.getIntIterator();
+			while (it2.hasNext()) {
+				this.mapping
+					.get(it2.next())
+		            .removeAll(pk -> pk == referencedEntityPk);
 			}
 		}
 
 		/**
 		 * Returns true if `referencedPrimaryKey` is allowed to be fetched for passed `entityPrimaryKey`.
 		 */
-		public boolean isReferenceSelected(int entityPrimaryKey, int referencedPrimaryKey) {
+		public boolean isReferenceSelected(int entityPrimaryKey, @Nonnull ReferenceDecorator reference) {
 			return ofNullable(this.mapping.get(entityPrimaryKey))
-				.map(it -> it.contains(referencedPrimaryKey))
+				.map(it -> it.contains(reference))
 				.orElse(false);
 		}
 
 		@Override
 		public String toString() {
 			final StringBuilder sb = new StringBuilder("Valid references: ");
-			for (IntObjectCursor<IntSet> entry : this.mapping) {
-				sb.append("\n   ").append(entry.key).append(" -> ");
-				for (IntCursor valueItem : entry.value) {
-					sb.append(valueItem.value);
-					if (valueItem.index < entry.value.size() - 1) {
+			for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
+				sb.append("\n   ").append(entry.key).append(" -> ").append(entry.value);
+			}
+			return sb.toString();
+		}
+	}
+
+	/**
+	 * The RepresentativeMapping class is a container for managing and filtering entity references
+	 * using both numeric identifiers and representative keys.
+	 *
+	 * Maintains set of all valid referenced entity primary keys for particular entity, which may be further
+	 * restricted to set of allowed representative keys.
+	 */
+	private static class RepresentativeMapping {
+		/**
+		 * Function that produces representative keys from references.
+		 */
+		private final Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer;
+		/**
+		 * Set of all valid referenced entity primary keys for particular entity.
+		 */
+		private final IntSet referencedEntityIds;
+		/**
+		 * Set of allowed representative keys - if empty or null, all representative keys are allowed.
+		 */
+		private Set<RepresentativeReferenceKey> restrictedKeys = null;
+
+		public RepresentativeMapping(
+			@Nonnull Function<ReferenceDecorator, RepresentativeReferenceKey> representativeKeyProducer,
+			int expectedSize
+		) {
+			this.representativeKeyProducer = representativeKeyProducer;
+			this.referencedEntityIds = new IntHashSet(expectedSize);
+		}
+
+		/**
+		 * Adds a referenced entity primary key to the set of valid referenced entity identifiers.
+		 *
+		 * @param referencedEntityPrimaryKey the primary key of the entity to be added
+		 *                                   to the set of referenced entity identifiers
+		 */
+		public void add(int referencedEntityPrimaryKey) {
+			this.referencedEntityIds.add(referencedEntityPrimaryKey);
+		}
+
+		/**
+		 * Clears all stored referenced entity primary keys, removing any entries
+		 * previously added to the set of valid referenced entity identifiers.
+		 */
+		public void clear() {
+			this.referencedEntityIds.clear();
+		}
+
+		/**
+		 * Removes all referenced entity identifiers that match the provided predicate from the set of valid referenced entity identifiers.
+		 *
+		 * @param predicate the condition used to determine which referenced entity identifiers should be removed;
+		 *                  it is a functional interface that evaluates to true for identifiers to be removed
+		 */
+		public void removeAll(@Nonnull IntPredicate predicate) {
+			this.referencedEntityIds.removeAll(predicate);
+		}
+
+		/**
+		 * Restricts the entity to the provided {@link RepresentativeReferenceKey}. If the internal set of restricted keys
+		 * is not initialized, it is created to accommodate the restriction.
+		 *
+		 * @param representativeReferenceKey the key representing the reference to which the restriction is being applied
+		 */
+		public void restrictTo(@Nonnull RepresentativeReferenceKey representativeReferenceKey) {
+			if (this.restrictedKeys == null) {
+				this.restrictedKeys = CollectionUtils.createHashSet(8);
+			}
+			this.restrictedKeys.add(representativeReferenceKey);
+		}
+
+		/**
+		 * Retains only the referenced entity identifiers in the current set that match the provided predicate.
+		 * Any referenced entity identifiers that do not satisfy the predicate are removed from the set.
+		 *
+		 * @param predicate the condition used to determine which referenced entity identifiers should be retained;
+		 *                  it is a functional interface that evaluates to true for identifiers to be retained
+		 */
+		public void retainAll(@Nonnull IntPredicate predicate) {
+			this.referencedEntityIds.retainAll(predicate);
+		}
+
+		/**
+		 * Checks if the provided reference is contained within the referenced entity identifiers.
+		 * The method evaluates based on both primary key presence and potential restrictions applied.
+		 *
+		 * @param reference the reference to check, wrapped in a {@link ReferenceDecorator},
+		 *                  which serves as the input for determining the presence.
+		 * @return true if the reference is contained in the set of referenced entity identifiers
+		 *         and meets any applicable restrictions; otherwise, false.
+		 */
+		public boolean contains(@Nonnull ReferenceDecorator reference) {
+			final RepresentativeReferenceKey referenceKey = this.representativeKeyProducer.apply(reference);
+			if (referenceKey.representativeAttributeValues().length == 0) {
+				return this.referencedEntityIds.contains(referenceKey.primaryKey());
+			} else {
+				return this.referencedEntityIds.contains(referenceKey.primaryKey()) &&
+					(this.restrictedKeys == null || this.restrictedKeys.contains(referenceKey));
+			}
+		}
+
+		@Override
+		public String toString() {
+			final StringBuilder sb = new StringBuilder(this.referencedEntityIds.size() * 5);
+			final Iterator<IntCursor> it = this.referencedEntityIds.iterator();
+			while (it.hasNext()) {
+				int pk = it.next().value;
+				sb.append(pk);
+				  if (it.hasNext()) {
+					  sb.append(", ");
+				  }
+			}
+			if (this.restrictedKeys != null) {
+				sb.append(" restricted to: ");
+				final Iterator<RepresentativeReferenceKey> it2 = this.restrictedKeys.iterator();
+				while (it2.hasNext()) {
+					RepresentativeReferenceKey pk = it2.next();
+					sb.append(pk);
+					if (it2.hasNext()) {
 						sb.append(", ");
 					}
 				}
 			}
 			return sb.toString();
 		}
+
 	}
 
 	/**
