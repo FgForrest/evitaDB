@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.NumberUtils;
@@ -1007,7 +1009,8 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				// first we need to identify whether the method returns a parent entity
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final Price price = reflectionLookup.getAnnotationInstanceForProperty(method, Price.class);
-				if (price == null || !proxyState.getEntitySchema().isWithPrice()) {
+				final EntitySchemaContract entitySchema = proxyState.getEntitySchema();
+				if (price == null || !(entitySchema.isWithPrice() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_PRICES))) {
 					return null;
 				}
 
