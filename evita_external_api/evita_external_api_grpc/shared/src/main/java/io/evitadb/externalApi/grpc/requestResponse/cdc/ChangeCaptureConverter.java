@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
@@ -40,6 +41,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntit
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -244,6 +246,8 @@ public class ChangeCaptureConverter {
 			builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
 		} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
 			builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
+		} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
+			builder.setInfrastructureMutation(DelegatingInfrastructureMutationConverter.INSTANCE.convert(transactionMutation));
 		}
 		return builder.build();
 	}

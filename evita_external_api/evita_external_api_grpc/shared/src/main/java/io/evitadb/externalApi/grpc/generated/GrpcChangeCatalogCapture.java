@@ -78,6 +78,7 @@ private static final long serialVersionUID = 0L;
     SCHEMAMUTATION(7),
     ENTITYMUTATION(8),
     LOCALMUTATION(9),
+    INFRASTRUCTUREMUTATION(10),
     BODY_NOT_SET(0);
     private final int value;
     private BodyCase(int value) {
@@ -98,6 +99,7 @@ private static final long serialVersionUID = 0L;
         case 7: return SCHEMAMUTATION;
         case 8: return ENTITYMUTATION;
         case 9: return LOCALMUTATION;
+        case 10: return INFRASTRUCTUREMUTATION;
         case 0: return BODY_NOT_SET;
         default: return null;
       }
@@ -416,6 +418,37 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcLocalMutation.getDefaultInstance();
   }
 
+  public static final int INFRASTRUCTUREMUTATION_FIELD_NUMBER = 10;
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+   * @return Whether the infrastructureMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasInfrastructureMutation() {
+    return bodyCase_ == 10;
+  }
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+   * @return The infrastructureMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation getInfrastructureMutation() {
+    if (bodyCase_ == 10) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
+  }
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder getInfrastructureMutationOrBuilder() {
+    if (bodyCase_ == 10) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -456,6 +489,9 @@ private static final long serialVersionUID = 0L;
     }
     if (bodyCase_ == 9) {
       output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcLocalMutation) body_);
+    }
+    if (bodyCase_ == 10) {
+      output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -501,6 +537,10 @@ private static final long serialVersionUID = 0L;
     if (bodyCase_ == 9) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcLocalMutation) body_);
+    }
+    if (bodyCase_ == 10) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -553,6 +593,10 @@ private static final long serialVersionUID = 0L;
         if (!getLocalMutation()
             .equals(other.getLocalMutation())) return false;
         break;
+      case 10:
+        if (!getInfrastructureMutation()
+            .equals(other.getInfrastructureMutation())) return false;
+        break;
       case 0:
       default:
     }
@@ -599,6 +643,10 @@ private static final long serialVersionUID = 0L;
       case 9:
         hash = (37 * hash) + LOCALMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getLocalMutation().hashCode();
+        break;
+      case 10:
+        hash = (37 * hash) + INFRASTRUCTUREMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getInfrastructureMutation().hashCode();
         break;
       case 0:
       default:
@@ -778,6 +826,9 @@ private static final long serialVersionUID = 0L;
       if (localMutationBuilder_ != null) {
         localMutationBuilder_.clear();
       }
+      if (infrastructureMutationBuilder_ != null) {
+        infrastructureMutationBuilder_.clear();
+      }
       bodyCase_ = 0;
       body_ = null;
       return this;
@@ -863,6 +914,10 @@ private static final long serialVersionUID = 0L;
           localMutationBuilder_ != null) {
         result.body_ = localMutationBuilder_.build();
       }
+      if (bodyCase_ == 10 &&
+          infrastructureMutationBuilder_ != null) {
+        result.body_ = infrastructureMutationBuilder_.build();
+      }
     }
 
     @java.lang.Override
@@ -938,6 +993,10 @@ private static final long serialVersionUID = 0L;
         }
         case LOCALMUTATION: {
           mergeLocalMutation(other.getLocalMutation());
+          break;
+        }
+        case INFRASTRUCTUREMUTATION: {
+          mergeInfrastructureMutation(other.getInfrastructureMutation());
           break;
         }
         case BODY_NOT_SET: {
@@ -1029,6 +1088,13 @@ private static final long serialVersionUID = 0L;
               bodyCase_ = 9;
               break;
             } // case 74
+            case 82: {
+              input.readMessage(
+                  getInfrastructureMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bodyCase_ = 10;
+              break;
+            } // case 82
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2277,6 +2343,148 @@ private static final long serialVersionUID = 0L;
       bodyCase_ = 9;
       onChanged();
       return localMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder> infrastructureMutationBuilder_;
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     * @return Whether the infrastructureMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasInfrastructureMutation() {
+      return bodyCase_ == 10;
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     * @return The infrastructureMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation getInfrastructureMutation() {
+      if (infrastructureMutationBuilder_ == null) {
+        if (bodyCase_ == 10) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
+      } else {
+        if (bodyCase_ == 10) {
+          return infrastructureMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    public Builder setInfrastructureMutation(io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation value) {
+      if (infrastructureMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        body_ = value;
+        onChanged();
+      } else {
+        infrastructureMutationBuilder_.setMessage(value);
+      }
+      bodyCase_ = 10;
+      return this;
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    public Builder setInfrastructureMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder builderForValue) {
+      if (infrastructureMutationBuilder_ == null) {
+        body_ = builderForValue.build();
+        onChanged();
+      } else {
+        infrastructureMutationBuilder_.setMessage(builderForValue.build());
+      }
+      bodyCase_ = 10;
+      return this;
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    public Builder mergeInfrastructureMutation(io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation value) {
+      if (infrastructureMutationBuilder_ == null) {
+        if (bodyCase_ == 10 &&
+            body_ != io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance()) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          body_ = value;
+        }
+        onChanged();
+      } else {
+        if (bodyCase_ == 10) {
+          infrastructureMutationBuilder_.mergeFrom(value);
+        } else {
+          infrastructureMutationBuilder_.setMessage(value);
+        }
+      }
+      bodyCase_ = 10;
+      return this;
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    public Builder clearInfrastructureMutation() {
+      if (infrastructureMutationBuilder_ == null) {
+        if (bodyCase_ == 10) {
+          bodyCase_ = 0;
+          body_ = null;
+          onChanged();
+        }
+      } else {
+        if (bodyCase_ == 10) {
+          bodyCase_ = 0;
+          body_ = null;
+        }
+        infrastructureMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder getInfrastructureMutationBuilder() {
+      return getInfrastructureMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder getInfrastructureMutationOrBuilder() {
+      if ((bodyCase_ == 10) && (infrastructureMutationBuilder_ != null)) {
+        return infrastructureMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (bodyCase_ == 10) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder>
+        getInfrastructureMutationFieldBuilder() {
+      if (infrastructureMutationBuilder_ == null) {
+        if (!(bodyCase_ == 10)) {
+          body_ = io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
+        }
+        infrastructureMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_,
+                getParentForChildren(),
+                isClean());
+        body_ = null;
+      }
+      bodyCase_ = 10;
+      onChanged();
+      return infrastructureMutationBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

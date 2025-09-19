@@ -6,6 +6,7 @@ option csharp_namespace = "EvitaDB";
 
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcEvitaDataTypes.proto";
+import "GrpcInfrastrutureMutation.proto";
 
 // Mutation is responsible for setting up a new CatalogSchema.
 message GrpcCreateCatalogSchemaMutation {
@@ -71,21 +72,6 @@ message GrpcSetCatalogStateMutation {
   string catalogName = 1;
   // Whether the catalog should be active or inactive.
   bool active = 2;
-}
-
-// This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
-// the scope of the transaction and verify its integrity.
-message GrpcTransactionMutation {
-  // Represents the unique identifier of a transaction.
-  GrpcUuid transactionId = 1;
-  // Represents the next version the transaction transitions the state to.
-  int64 version = 2;
-  // Represents the number of mutations in this particular transaction.
-  int32 mutationCount = 3;
-  // Represents the size of the serialized transaction mutations that follow this mutation in bytes.
-  int64 walSizeInBytes = 4;
-  // Represents the timestamp of the commit.
-  GrpcOffsetDateTime commitTimestamp = 5;
 }
 
 // This structure encapsulates all mutations that needs to be executed on entire evitaDB level and not locally to

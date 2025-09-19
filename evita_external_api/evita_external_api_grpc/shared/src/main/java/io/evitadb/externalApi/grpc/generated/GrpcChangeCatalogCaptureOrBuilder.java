@@ -228,5 +228,20 @@ public interface GrpcChangeCatalogCaptureOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocalMutationOrBuilder getLocalMutationOrBuilder();
 
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+   * @return Whether the infrastructureMutation field is set.
+   */
+  boolean hasInfrastructureMutation();
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+   * @return The infrastructureMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation getInfrastructureMutation();
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation infrastructureMutation = 10;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutationOrBuilder getInfrastructureMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.BodyCase getBodyCase();
 }
