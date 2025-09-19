@@ -49,14 +49,13 @@ import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
@@ -210,19 +209,12 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final AtomicInteger cardinalityCounter = new AtomicInteger(0);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {
-							/* TODO JNO - jak si tohle sedne s duplicated? */
-							this.queryContext.getIndexIfExists(
-									new EntityIndexKey(
-										EntityIndexType.REFERENCED_ENTITY,
-										scope,
-										new RepresentativeReferenceKey(referenceName, hierarchyEntityId)
-									),
-									ReducedEntityIndex.class
-								)
-								.ifPresent(ix -> {
-									theTargetIndexes.add(ix);
-									cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
-								});
+							this.queryContext.getReducedEntityIndexes(
+								scope, hierarchyEntityId, entitySchema, referenceSchema, Functions.noOpBiFunction()
+							).forEach(ix -> {
+								theTargetIndexes.add(ix);
+								cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
+							});
 						}
 					}
 					// add indexes as potential target indexes

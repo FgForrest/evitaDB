@@ -80,6 +80,8 @@ import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializ
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -1151,7 +1153,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Override
 	public <T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection) {
 		// we need to ensure that references are fetched in order to be able to provide information about them
-		final T richEnoughEntity = ((EntityCollection) entityCollection).ensureReferencesFetched(entity);
+		final EntityCollection internalEntityCollection = (EntityCollection) entityCollection;
+		final T richEnoughEntity = internalEntityCollection.ensureReferencesFetched(entity);
 		final Entity theEntity = richEnoughEntity instanceof EntityDecorator entityDecorator ?
 			entityDecorator.getDelegate() : (Entity) richEnoughEntity;
 
@@ -1171,7 +1174,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			this.requirementContext,
 			this.defaultRequirementContext,
 			this.executionContext,
-			entityCollection.getSchema(),
+			internalEntityCollection.getInternalSchema(),
 			this.existingEntityRetriever,
 			(referenceName, entityPk) ->
 				// we can ignore the entityPk, because this method processes only single entity,
@@ -1208,9 +1211,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Override
 	public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 		// we need to ensure that references are fetched in order to be able to provide information about them
+		final EntityCollection internalCollection = (EntityCollection) entityCollection;
 		final List<T> richEnoughEntities = new ArrayList<>(entities.size());
 		for (T entity : entities) {
-			richEnoughEntities.add(((EntityCollection) entityCollection).ensureReferencesFetched(entity));
+			richEnoughEntities.add(internalCollection.ensureReferencesFetched(entity));
 		}
 
 		// prefetch the parents
@@ -1257,7 +1261,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			this.requirementContext,
 			this.defaultRequirementContext,
 			this.executionContext,
-			entityCollection.getSchema(),
+			internalCollection.getInternalSchema(),
 			this.existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
 				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
@@ -1373,7 +1377,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryExecutionContext executionContext,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
@@ -1402,7 +1406,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					it -> {
 						final String referenceName = it.getKey();
 						final RequirementContext requirements = it.getValue();
-						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+						final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 						// initialize requirements with requested attributes
 						if (requirements.attributeContent() != null) {
 							globalPrefetchCollector.addRequirementsToPrefetch(requirements.attributeContent());

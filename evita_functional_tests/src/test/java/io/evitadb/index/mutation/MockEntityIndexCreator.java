@@ -52,6 +52,12 @@ class MockEntityIndexCreator<K extends IndexKey, T extends Index<K>> implements 
 		return this.index;
 	}
 
+	@Nonnull
+	@Override
+	public T getIndexByPrimaryKey(int indexPrimaryKey) {
+		return this.index;
+	}
+
 	@Override
 	public void removeIndex(@Nonnull K entityIndexKey) {
 		throw new UnsupportedOperationException("Method not supported.");

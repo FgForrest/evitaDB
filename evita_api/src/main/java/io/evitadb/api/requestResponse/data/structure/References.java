@@ -68,6 +68,7 @@ import java.util.Set;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -207,18 +208,23 @@ public class References implements ReferencesContract {
 
 		// cache last resolved schema to avoid Optional/map overhead on each iteration
 		ReferenceKey lastReferenceKey = null;
+		String lastDuplicatesAllowedReferenceName = null;
+		Boolean duplicatesAllowed = null;
 
 		for (ReferenceContract reference : references) {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
-			final boolean duplicate = lastReferenceKey != null && lastReferenceKey.referenceName().equals(referenceKey.referenceName()) &&
-				lastReferenceKey.primaryKey() == referenceKey.primaryKey();
+			final boolean duplicate = lastReferenceKey != null && lastReferenceKey.equalsInGeneral(referenceKey);
 
 			if (duplicate) {
-				final boolean duplicatesAllowed = schema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY) ||
-					schema.getReference(referenceKey.referenceName())
-					      .map(ReferenceSchemaContract::getCardinality)
-					      .map(Cardinality::allowsDuplicates)
-					      .orElse(false);
+				if (duplicatesAllowed == null || !referenceKey.referenceName().equals(lastDuplicatesAllowedReferenceName)) {
+					// we have to resolve the schema again
+					duplicatesAllowed = schema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY) ||
+						schema.getReference(referenceKey.referenceName())
+						      .map(ReferenceSchemaContract::getCardinality)
+						      .map(Cardinality::allowsDuplicates)
+						      .orElse(false);
+					lastDuplicatesAllowedReferenceName = referenceKey.referenceName();
+				}
 				if (duplicatesAllowed) {
 					if (duplicatedIndexedReferences == null) {
 						duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
@@ -226,7 +232,9 @@ public class References implements ReferencesContract {
 					final ReferenceKey genericKey = new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
 					final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
 					final List<ReferenceContract> duplicatedList;
-					if (previous != null) {
+					if (previous == DUPLICATE_REFERENCE) {
+						duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
+					} else if (previous != null) {
 						duplicatedList = new ArrayList<>(2);
 						duplicatedIndexedReferences.put(genericKey, duplicatedList);
 						duplicatedList.add(previous);
@@ -350,13 +358,15 @@ public class References implements ReferencesContract {
 			if (referenceKey.isUnknownReference()) {
 				throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.entitySchema, Operation.READ);
 			} else {
-				return Objects
-					// when this.references contains DUPLICATE_REFERENCE marker,
-					// this.duplicateReferences must contain the actual references
-					.requireNonNull(this.duplicateReferences.get(referenceKey))
-					.stream()
-					.filter(it -> it.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey())
-					.findFirst();
+				// when this.references contains DUPLICATE_REFERENCE marker,
+				// this.duplicateReferences must contain the actual references
+				final List<ReferenceContract> duplicatedReferences = Objects.requireNonNull(this.duplicateReferences.get(referenceKey));
+				for (ReferenceContract duplicatedReference : duplicatedReferences) {
+					if (duplicatedReference.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey()) {
+						return Optional.of(duplicatedReference);
+					}
+				}
+				return empty();
 			}
 		}
 		return ofNullable(reference);
@@ -367,6 +377,20 @@ public class References implements ReferencesContract {
 	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) {
 		checkReferenceNameAndCardinality(referenceKey.referenceName(), false, referenceKey.isUnknownReference());
 		return getReferenceWithoutSchemaCheck(referenceKey);
+	}
+
+	@Nonnull
+	@Override
+	public List<ReferenceContract> getReferences(
+		@Nonnull String referenceName,
+		int referencedEntityId
+	) throws ContextMissingException, ReferenceNotFoundException {
+		checkReferenceNameAndCardinality(referenceName, true, true);
+		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
+		final ReferenceContract reference = this.references.get(referenceKey);
+		return reference == References.DUPLICATE_REFERENCE ?
+			this.duplicateReferences.get(referenceKey) :
+			(reference == null ? Collections.emptyList() : Collections.singletonList(reference));
 	}
 
 	@Nonnull

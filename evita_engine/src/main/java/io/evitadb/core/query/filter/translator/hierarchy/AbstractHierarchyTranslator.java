@@ -39,14 +39,12 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.RepresentativeReferenceKey;
+import io.evitadb.index.Index;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -135,24 +133,21 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
 			final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
-			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Set<Scope> scopes = processingScope.getScopes();
 			Assert.isTrue(
 				scopes.isEmpty() || scopes.size() == 1,
 				() -> "Hierarchy queries cannot be executed in multiple scopes (" +
 					scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
 			);
-			/* TODO JNO - JAK SI TOHLE SEDNE S DUPLICATED? */
 			return FormulaFactory.or(
 				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
-					.map(
-						hierarchyNodeId -> queryContext.getIndexIfExists(
-							new EntityIndexKey(
-								EntityIndexType.REFERENCED_ENTITY,
-								scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
-								new RepresentativeReferenceKey(referenceName, hierarchyNodeId)
-							),
-							ReducedEntityIndex.class
-						).orElse(null)
+					.flatMap(
+						hierarchyNodeId -> filterByVisitor.getReferencedEntityIndexes(
+							Objects.requireNonNull(processingScope.getEntitySchema()),
+							Objects.requireNonNull(processingScope.getReferenceSchema()),
+							hierarchyNodeId
+						)
 					)
 					.filter(Objects::nonNull)
 					.map(EntityIndex::getAllPrimaryKeysFormula)

@@ -25,7 +25,6 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.comparator.LocalizedStringComparator;
@@ -43,6 +42,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
@@ -119,7 +119,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
 	 * is part of the global {@link GlobalEntityIndex}.
 	 */
-	@Getter @Nullable private final ReferenceKey referenceKey;
+	@Getter @Nullable private final RepresentativeReferenceKey referenceKey;
 	/**
 	 * Contains key identifying the attribute.
 	 */
@@ -280,7 +280,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@SuppressWarnings("unchecked")
 	public SortIndex(
 		@Nonnull Class<?> attributeType,
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey
 	) {
 		final Class<?> normalizedAttributeType = assertComparable(attributeType);
@@ -311,7 +311,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorSources,
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey
 	) {
 		isTrue(
@@ -332,7 +332,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull int[] sortedRecords,
 		@Nonnull Serializable[] sortedRecordValues,

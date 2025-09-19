@@ -144,11 +144,21 @@ public class ReducedEntityIndex extends EntityIndex
 	 * The reference key is derived from the discriminator of the index key.
 	 *
 	 * @return the non-null {@link ReferenceKey} uniquely identifying a reference within the entity index.
-	 * @throws NullPointerException if the resolved reference key is null.
 	 */
 	@Nonnull
 	public ReferenceKey getReferenceKey() {
-		return Objects.requireNonNull((RepresentativeReferenceKey) this.indexKey.discriminator()).referenceKey();
+		return getRepresentativeReferenceKey().referenceKey();
+	}
+
+	/**
+	 * Retrieves a representative reference key associated with the current entity index.
+	 * The representative reference key is derived from the discriminator of the index key.
+	 *
+	 * @return the {@link RepresentativeReferenceKey} if it exists, otherwise null.
+	 */
+	@Nonnull
+	public RepresentativeReferenceKey getRepresentativeReferenceKey() {
+		return Objects.requireNonNull((RepresentativeReferenceKey) this.indexKey.discriminator());
 	}
 
 	@Override

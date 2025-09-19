@@ -83,7 +83,15 @@ import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
-import io.evitadb.index.*;
+import io.evitadb.index.CatalogIndex;
+import io.evitadb.index.CatalogIndexKey;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.Index;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -752,15 +760,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final OfInt it = reducedIndexPks.iterator();
 		while (it.hasNext()) {
 			int reducedIndexPk = it.nextInt();
-			getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class)
-				.ifPresentOrElse(
-					result::add,
-					() -> {
-						throw new GenericEvitaInternalError(
-							"Reduced entity index with primary key " + reducedIndexPk + " was referenced in the formula but is missing in the index set!"
-						);
-					}
-				);
+			result.add(getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class));
 		}
 		return result;
 	}
@@ -785,9 +785,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		);
 		// we need to translate entity index primary keys to referenced entity primary keys
 		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		for (Integer integer : reducedEntityIndexPrimaryKeys.compute()) {
-			this.getEntityIndexByPrimaryKey(integer, ReducedEntityIndex.class)
-			    .ifPresent(index -> writer.add(index.getReferenceKey().primaryKey()));
+		for (Integer indexPk : reducedEntityIndexPrimaryKeys.compute()) {
+			final ReducedEntityIndex reducedIndex = this.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class);
+			writer.add(reducedIndex.getReferenceKey().primaryKey());
 		}
 		return new ConstantFormula(
 			new BaseBitmap(writer.get())
@@ -934,48 +934,18 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
 	 */
 	@Nonnull
-	public Stream<ReducedEntityIndex> getReferencedEntityIndex(
+	public Stream<ReducedEntityIndex> getReferencedEntityIndexes(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int referencedEntityId
 	) {
-		return getReferencedEntityIndex(
-			entitySchema,
-			referenceSchema.getName(),
-			referencedEntityId,
-			NO_OP_MISSING_REI_SUPPLIER
-		);
-	}
-
-	/**
-	 * Returns {@link EntityIndex} that contains indexed entities that reference `referenceName` and `referencedEntityId`.
-	 */
-	@Nonnull
-	public Stream<ReducedEntityIndex> getReferencedEntityIndex(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String referenceName,
-		int referencedEntityId,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingIndexSupplier
-	) {
-		return getEvitaRequest()
-			.getScopes()
-			.stream()
-			.map(
-				scope -> {
-					final EntityIndexKey entityIndexKey = new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						scope,
-						new RepresentativeReferenceKey(referenceName, referencedEntityId)
-					);
-					return getQueryContext().getEntityIndex(
-						entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class
-					)
-					.orElseGet(
-						() -> missingIndexSupplier.apply(entitySchema, entityIndexKey)
-					);
-				}
-			)
-			.filter(Objects::nonNull);
+		final Set<Scope> scopes = getProcessingScope().getScopes();
+		return (scopes.isEmpty() ? Stream.of(Scope.DEFAULT_SCOPE) : scopes.stream())
+			.flatMap(
+				scope -> getQueryContext().getReducedEntityIndexes(
+					scope, referencedEntityId, entitySchema, referenceSchema, NO_OP_MISSING_REI_SUPPLIER
+				)
+			);
 	}
 
 	/**

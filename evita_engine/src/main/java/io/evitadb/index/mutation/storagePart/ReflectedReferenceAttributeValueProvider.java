@@ -92,7 +92,7 @@ interface ReflectedReferenceAttributeValueProvider<T> {
 	);
 
 	/**
-	 * Retrieves the unique reference key associated with the given reference schema and reference carrier.
+	 * Retrieves the reference key associated with the given reference schema and reference carrier.
 	 *
 	 * @param referenceSchema The schema of the reference that provides the structural information of the reference.
 	 * @param referenceCarrier The carrier containing the reference information from which to retrieve the reference key.

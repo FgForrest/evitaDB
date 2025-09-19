@@ -99,7 +99,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 
 	@Test
 	void shouldInsertNewReference() {
-		final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(Entities.BRAND, 10);
+		final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(new ReferenceKey(Entities.BRAND, 10));
 		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, referenceKey));
 		referenceInsert(
 			1, this.productSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null,

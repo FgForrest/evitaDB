@@ -35,8 +35,9 @@ import io.evitadb.api.query.order.ReferenceProperty;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -149,8 +150,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 							it -> it
 								.getAllPrimaryKeys()
 								.stream()
-								.mapToObj(indexPk -> orderByVisitor.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class).orElse(null))
-								.filter(Objects::nonNull)
+								.mapToObj(indexPk -> orderByVisitor.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class))
 						)
 						.orElse(Stream.empty())
 				);
@@ -329,8 +329,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
 		final String referenceName = referenceProperty.getReferenceName();
-		final EntitySchemaContract entitySchema = orderByVisitor.getSchema();
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+		final EntitySchema entitySchema = orderByVisitor.getSchema();
+		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		for (Scope scope : processingScope.getScopes()) {
 			if (!referenceSchema.isIndexedInScope(scope)) {

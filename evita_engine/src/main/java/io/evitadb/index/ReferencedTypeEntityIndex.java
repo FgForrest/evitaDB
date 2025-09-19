@@ -54,6 +54,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -278,6 +279,19 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public boolean isEmpty() {
 		return super.isEmpty() &&
 			this.referencedPrimaryKeysIndex.isEmpty();
+	}
+
+	/**
+	 * Retrieves all reference indexes associated with the given referenced entity primary key.
+	 *
+	 * @param referencedEntityPrimaryKey the primary key of the referenced entity for which the indexes are to be retrieved
+	 * @return an array of all reference indexes primary keys associated with the specified referenced entity primary key
+	 */
+	@Nonnull
+	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
+		return ofNullable(this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey))
+			.map(TransactionalBitmap::getArray)
+			.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	@Override

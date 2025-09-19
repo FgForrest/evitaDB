@@ -1259,9 +1259,25 @@ public class ArrayUtils {
 	 * @throws NullPointerException if either array or any element within the arrays is null
 	 */
 	public static <T extends Comparable<T>> int compare(@Nonnull T[] a, @Nonnull T[] b) {
+		return compare((Object[]) a, (Object[]) b);
+	}
+
+	/**
+	 * Compares two arrays of unknown elements that are instances of {@link Comparable}.
+	 * The comparison is lexicographical, element by element.
+	 * If both arrays are equal up to the shorter length, the longer array is considered greater.
+	 *
+	 * @param a the first array to compare, must not be null
+	 * @param b the second array to compare, must not be null
+	 * @return a negative integer, zero, or a positive integer as the first array
+	 *         is less than, equal to, or greater than the second array
+	 * @throws NullPointerException if either array or any element within the arrays is null
+	 */
+	public static int compare(@Nonnull Object[] a, @Nonnull Object[] b) {
 		final int minLength = Math.min(a.length, b.length);
 		for (int i = 0; i < minLength; i++) {
-			final int comparisonResult = a[i].compareTo(b[i]);
+			//noinspection unchecked,rawtypes
+			final int comparisonResult = ((Comparable)a[i]).compareTo(b[i]);
 			if (comparisonResult != 0) {
 				return comparisonResult;
 			}

@@ -229,6 +229,15 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Nonnull
 	@Override
 	public List<ReferenceContract> getReferences(
+		@Nonnull String referenceName,
+		int referencedEntityId
+	) throws ContextMissingException, ReferenceNotFoundException {
+		return getReferences(new ReferenceKey(referenceName, referencedEntityId));
+	}
+
+	@Nonnull
+	@Override
+	public List<ReferenceContract> getReferences(
 		@Nonnull ReferenceKey referenceKey
 	) throws ContextMissingException, ReferenceNotFoundException {
 		if (this.references == null || this.referenceCollection == null) {

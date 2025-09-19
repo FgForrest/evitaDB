@@ -30,11 +30,13 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.utils.CollectionUtils;
 import org.roaringbitmap.BatchIterator;
 import org.roaringbitmap.RoaringBatchIterator;
 import org.roaringbitmap.RoaringBitmap;
@@ -42,8 +44,9 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.IntConsumer;
 
 import static java.util.Optional.ofNullable;
@@ -62,7 +65,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	/**
 	 * Contains the index of the {@link ReferenceKey} in the {@link #sortedRecordsProviders} that is used for sorting.
 	 */
-	private final Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes;
+	private final Map<RepresentativeReferenceKey, OffsetAndLimit> referenceKeyIndexes;
 
 	/**
 	 * Creates a mapping of {@link ReferenceKey} objects to their corresponding {@link OffsetAndLimit} values,
@@ -77,22 +80,22 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * for each reference key. Returns null if the input array does not contain instances of {@link ReferenceSortedRecordsProvider}.
 	 */
 	@Nullable
-	public static Map<ReferenceKey, OffsetAndLimit> createSortedRecordsOffsets(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
+	public static LinkedHashMap<RepresentativeReferenceKey, OffsetAndLimit> createSortedRecordsOffsets(@Nonnull SortedRecordsProvider[] sortedRecordsProviders) {
 		final int srpCount = sortedRecordsProviders.length;
-		Map<ReferenceKey, OffsetAndLimit> referenceKeyIndexes = null;
-		ReferenceKey referenceKey = null;
+		LinkedHashMap<RepresentativeReferenceKey, OffsetAndLimit> referenceKeyIndexes = null;
+		RepresentativeReferenceKey referenceKey = null;
 		OffsetAndLimit oal = null;
 		for (int i = 0; i < srpCount; i++) {
 			final SortedRecordsProvider sortedRecordsProvider = sortedRecordsProviders[i];
 			if (sortedRecordsProvider instanceof ReferenceSortedRecordsProvider rssp) {
-				if (!rssp.getReferenceKey().equalsInGeneral(referenceKey)) {
+				if (!Objects.equals(rssp.getReferenceKey(), referenceKey)) {
 					if (oal != null) {
 						referenceKeyIndexes.put(referenceKey, new OffsetAndLimit(oal.offset(), i, srpCount));
 					}
 					referenceKey = rssp.getReferenceKey();
 					oal = new OffsetAndLimit(i, 0, srpCount);
 					if (referenceKeyIndexes == null) {
-						referenceKeyIndexes = new HashMap<>(srpCount);
+						referenceKeyIndexes = CollectionUtils.createLinkedHashMap(srpCount);
 					}
 				}
 			}
@@ -325,7 +328,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * or a default {@link OffsetAndLimit} if no mapping exists.
 	 */
 	@Nonnull
-	private OffsetAndLimit getOffsetAndLimit(@Nonnull ReferenceKey referenceKey) {
+	private OffsetAndLimit getOffsetAndLimit(@Nonnull RepresentativeReferenceKey referenceKey) {
 		if (this.referenceKeyIndexes != null) {
 			final OffsetAndLimit indexes = this.referenceKeyIndexes.getOrDefault(referenceKey, null);
 			if (indexes != null) {

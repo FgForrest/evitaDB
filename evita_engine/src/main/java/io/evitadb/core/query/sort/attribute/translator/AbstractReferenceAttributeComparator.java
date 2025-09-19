@@ -31,11 +31,14 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,6 +72,10 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 */
 	@Nonnull protected final Comparator<EntityContract> pkComparator;
 	/**
+	 * The schema of the reference that is being compared.
+	 */
+	protected final ReferenceSchema referenceSchema;
+	/**
 	 * The name of the reference that is being compared.
 	 */
 	protected final String referenceName;
@@ -88,10 +95,11 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	public AbstractReferenceAttributeComparator(
 		@Nonnull String attributeName,
 		@Nonnull Class<?> type,
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull OrderDirection orderDirection
 	) {
+		this.referenceSchema = referenceSchema;
 		this.referenceName = referenceSchema.getName();
 		this.pkComparator = orderDirection == OrderDirection.ASC ?
 			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
@@ -111,6 +119,8 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 			normalizer = UnaryOperator.identity();
 			valueComparator = this.pkComparator;
 		}
+		final boolean allowsDuplicates = referenceSchema.getCardinality().allowsDuplicates();
+		final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
 		this.attributeValueFetcher = entityContract -> {
 			final ReferenceAttributeValue cachedValue = this.cache.get(entityContract.getPrimaryKeyOrThrowException());
 			if (cachedValue == null) {
@@ -121,9 +131,18 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 							final Serializable storedAttributeValue = it.getAttribute(attributeName);
 							if (storedAttributeValue == null) {
 								return ReferenceAttributeValue.MISSING_VALUE;
+							} else if (allowsDuplicates) {
+								return new ReferenceAttributeValue(
+									new RepresentativeReferenceKey(
+										it.getReferenceKey(),
+										rad.getRepresentativeValues(it)
+									),
+									normalizer.apply(storedAttributeValue),
+									valueComparator
+								);
 							} else {
 								return new ReferenceAttributeValue(
-									it.getReferenceKey(),
+									new RepresentativeReferenceKey(it.getReferenceKey()),
 									normalizer.apply(storedAttributeValue),
 									valueComparator
 								);
@@ -185,12 +204,12 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 	 */
 	@SuppressWarnings("rawtypes")
 	protected record ReferenceAttributeValue(
-		@Nonnull ReferenceKey referencedKey,
+		@Nonnull RepresentativeReferenceKey referencedKey,
 		@Nonnull Serializable attributeValue,
 		@Nonnull Comparator comparator
 	) implements Comparable<ReferenceAttributeValue> {
 		public static final ReferenceAttributeValue MISSING_VALUE = new ReferenceAttributeValue(
-			new ReferenceKey("missing", -1),
+			new RepresentativeReferenceKey(new ReferenceKey("missing", -1)),
 			ClassifierType.ENTITY,
 			Comparator.naturalOrder()
 		);
@@ -200,7 +219,13 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 			//noinspection unchecked
 			final int result = this.comparator.compare(this.attributeValue, o.attributeValue);
 			if (result == 0) {
-				return Integer.compare(this.referencedKey.primaryKey(), o.referencedKey.primaryKey());
+				final int secondResult = Integer.compare(this.referencedKey.primaryKey(), o.referencedKey.primaryKey());
+				if (secondResult == 0) {
+					final Serializable[] rav1 = this.referencedKey.representativeAttributeValues();
+					final Serializable[] rav2 = o.referencedKey.representativeAttributeValues();
+					return ArrayUtils.compare(rav1, rav2);
+				}
+				return secondResult;
 			} else {
 				return result;
 			}

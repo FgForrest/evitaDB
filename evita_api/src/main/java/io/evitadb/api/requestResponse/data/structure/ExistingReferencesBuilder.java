@@ -309,6 +309,15 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	@Nonnull
 	@Override
 	public List<ReferenceContract> getReferences(
+		@Nonnull String referenceName,
+		int referencedEntityId
+	) throws ContextMissingException, ReferenceNotFoundException {
+		return getReferences(new ReferenceKey(referenceName, referencedEntityId));
+	}
+
+	@Nonnull
+	@Override
+	public List<ReferenceContract> getReferences(
 		@Nonnull ReferenceKey referenceKey
 	) throws ContextMissingException, ReferenceNotFoundException {
 		final String referenceName = referenceKey.referenceName();
@@ -1361,9 +1370,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			mutatedReference :
 			reference;
 		if (theReference != null) {
-			final Optional<ReferenceContract> originalReference = this.richReferenceFetcher.apply(
-				theReference.getReferenceKey()
-			);
+			final Optional<ReferenceContract> originalReference = theReference.getReferenceKey().isKnownInternalPrimaryKey() ?
+				this.richReferenceFetcher.apply(theReference.getReferenceKey()) : empty();
 			final Optional<SealedEntity> originalReferencedEntity = originalReference
 				.flatMap(ReferenceContract::getReferencedEntity);
 			final Optional<SealedEntity> originalReferencedEntityGroup = originalReference

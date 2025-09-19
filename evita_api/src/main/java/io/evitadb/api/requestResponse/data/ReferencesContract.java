@@ -116,6 +116,21 @@ public interface ReferencesContract extends Serializable, ReferenceAvailabilityC
 	 * Returns one or more {@link Reference} instances that is referencing passed entity type with certain primary key.
 	 * The references represent relations to other evitaDB entities or external entities in different systems.
 	 *
+	 * @param referenceName name of the reference
+	 * @param referencedEntityId primary key of the entity that is referenced
+	 *
+	 * @return reference to the entity or empty if the entity is not referenced
+	 * @throws ContextMissingException    when {@link ReferenceContent} is not part of the query requirements
+	 * @throws ReferenceNotFoundException when reference with given name is not defined in the schema
+	 */
+	@Nonnull
+	List<ReferenceContract> getReferences(@Nonnull String referenceName, int referencedEntityId)
+		throws ContextMissingException, ReferenceNotFoundException;
+
+	/**
+	 * Returns one or more {@link Reference} instances that is referencing passed entity type with certain primary key.
+	 * The references represent relations to other evitaDB entities or external entities in different systems.
+	 *
 	 * @param referenceKey reference key combining both reference name and referenced entity id information
 	 *
 	 * @return reference to the entity or empty if the entity is not referenced

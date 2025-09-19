@@ -74,6 +74,7 @@ import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataF
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.index.dataAccess.ReferenceSupplier;
+import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
@@ -522,6 +523,28 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
 		this.accessedIndexes.add(entityIndexKey);
 		return this.entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
+	}
+
+	/**
+	 * Method returns existing index if it exists and adds it to the changed set of indexes that needs persisting.
+	 */
+	@Nonnull
+	Optional<EntityIndex> getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
+		final EntityIndex indexIfExists = this.entityIndexCreatingAccessor.getIndexIfExists(entityIndexKey);
+		if (indexIfExists != null) {
+			this.accessedIndexes.add(entityIndexKey);
+		}
+		return Optional.ofNullable(indexIfExists);
+	}
+
+	/**
+	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
+	 */
+	@Nonnull
+	Optional<EntityIndex> getIndexByPrimaryKey(int indexPrimaryKey) {
+		final EntityIndex index = this.entityIndexCreatingAccessor.getIndexByPrimaryKey(indexPrimaryKey);
+		this.accessedIndexes.add(index.getIndexKey());
+		return Optional.of(index);
 	}
 
 	/**
@@ -981,7 +1004,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			.forEach(
 				price -> {
 					// first remove from reduced indexes, because they consult the super index
-					applyOnReducedIndexes(
+					applyOnExistingReducedIndexes(
 						scope,
 						referenceSupplier,
 						(referenceSchema, index) -> {
@@ -1165,7 +1188,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				price -> {
 					//noinspection DataFlowIssue
 					priceUpsertOperation.accept(null, globalIndex, price);
-					applyOnReducedIndexes(
+					applyOnExistingReducedIndexes(
 						scope,
 						referenceSupplier,
 						(referenceSchema, index) -> {
@@ -1241,7 +1264,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Applies passed consumer function on all {@link ReducedEntityIndex} related to currently existing
 	 * {@link ReferenceContract} of the entity.
 	 */
-	private void applyOnReducedIndexes(
+	private void applyOnExistingReducedIndexes(
 		@Nonnull Scope scope,
 		@Nonnull ReferenceSupplier referenceSupplier,
 		@Nonnull BiConsumer<ReferenceSchemaContract, EntityIndex> entityIndexConsumer
@@ -1256,10 +1279,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					theReferenceSchema = entitySchema.getReferenceOrThrowException(refKey.referenceName());
 					referenceSchema.set(theReferenceSchema);
 				}
-				final EntityIndex index = getOrCreateIndex(
-					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, new RepresentativeReferenceKey(refKey))
+				final List<ReducedEntityIndex> allReducedIndexes = ContainerizedLocalMutationExecutor.getAllReducedIndexes(
+					eik -> getIndexIfExists(eik).map(ReferencedTypeEntityIndex.class::cast).orElse(null),
+					eik -> getIndexIfExists(eik).map(ReducedEntityIndex.class::cast).orElse(null),
+					epk -> getIndexByPrimaryKey(epk).map(ReducedEntityIndex.class::cast).orElse(null),
+					scope,
+					theReferenceSchema.getName(),
+					refKey.primaryKey(),
+					theReferenceSchema.getCardinality().allowsDuplicates()
 				);
-				entityIndexConsumer.accept(theReferenceSchema, index);
+				for (ReducedEntityIndex reducedIndex : allReducedIndexes) {
+					entityIndexConsumer.accept(theReferenceSchema, reducedIndex);
+				}
 			});
 	}
 
@@ -1358,7 +1389,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		upsertEntityLanguageInTargetIndex(epk, locale, globalIndex, entitySchema, null, existingDataSupplierFactory, this.undoActionsAppender);
-		applyOnReducedIndexes(
+		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
 			(referenceSchema, index) -> upsertEntityLanguageInTargetIndex(
@@ -1384,7 +1415,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			existingDataSupplierFactory,
 			this.undoActionsAppender
 		);
-		applyOnReducedIndexes(
+		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
 			(referenceSchema, index) -> {

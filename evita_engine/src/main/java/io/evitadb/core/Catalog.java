@@ -2141,6 +2141,12 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 				Catalog.this.archiveCatalogIndex : Catalog.this.catalogIndex;
 		}
 
+		@Nonnull
+		@Override
+		public CatalogIndex getIndexByPrimaryKey(int indexPrimaryKey) {
+			throw new UnsupportedOperationException("Catalog index doesn't support retrieval by primary key!");
+		}
+
 		/**
 		 * Removes entity index by its key. If such index doesn't exist, exception is thrown.
 		 *

@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
@@ -40,7 +41,7 @@ import java.io.Serial;
  */
 public class ReferenceSortedRecordsProvider extends SortedRecordsSupplier {
 	@Serial private static final long serialVersionUID = -3001386450022878707L;
-	@Getter @Nonnull private final ReferenceKey referenceKey;
+	@Getter @Nonnull private final RepresentativeReferenceKey referenceKey;
 
 	public ReferenceSortedRecordsProvider(
 		long transactionalId,
@@ -48,7 +49,7 @@ public class ReferenceSortedRecordsProvider extends SortedRecordsSupplier {
 		@Nonnull int[] recordPositions,
 		@Nonnull Bitmap allRecords,
 		@Nonnull SortedComparableForwardSeeker sortedComparableForwardSeeker,
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull RepresentativeReferenceKey referenceKey
 	) {
 		super(transactionalId, sortedRecordIds, recordPositions, allRecords, sortedComparableForwardSeeker);
 		this.referenceKey = referenceKey;

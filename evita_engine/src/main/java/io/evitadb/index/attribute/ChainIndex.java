@@ -24,7 +24,6 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
@@ -38,6 +37,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
@@ -119,7 +119,7 @@ public class ChainIndex implements
 	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
 	 * is part of the global {@link GlobalEntityIndex}.
 	 */
-	@Getter @Nullable private final ReferenceKey referenceKey;
+	@Getter @Nullable private final RepresentativeReferenceKey referenceKey;
 	/**
 	 * Contains key identifying the attribute.
 	 */
@@ -134,7 +134,7 @@ public class ChainIndex implements
 		this(null, attributeKey);
 	}
 
-	public ChainIndex(@Nullable ReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
+	public ChainIndex(@Nullable RepresentativeReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
 		this.referenceKey = referenceKey;
 		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
@@ -151,7 +151,7 @@ public class ChainIndex implements
 	}
 
 	public ChainIndex(
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
@@ -175,7 +175,7 @@ public class ChainIndex implements
 	}
 
 	private ChainIndex(
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates

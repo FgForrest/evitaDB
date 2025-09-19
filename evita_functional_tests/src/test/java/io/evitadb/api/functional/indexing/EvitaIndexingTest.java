@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -318,7 +319,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY,
 				scope,
-				new RepresentativeReferenceKey(entityType, recordId)
+				new RepresentativeReferenceKey(new ReferenceKey(entityType, recordId))
 			)
 		);
 	}

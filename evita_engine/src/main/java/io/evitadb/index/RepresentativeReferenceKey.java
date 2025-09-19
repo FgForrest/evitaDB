@@ -28,10 +28,13 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.StringUtils;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Comparator;
 
 import static io.evitadb.utils.StringUtils.serializableArrayToString;
 
@@ -44,16 +47,7 @@ public record RepresentativeReferenceKey(
 	@Nonnull ReferenceKey referenceKey,
 	@Nonnull Serializable[] representativeAttributeValues
 ) implements Serializable, Comparable<RepresentativeReferenceKey> {
-
-	public RepresentativeReferenceKey(
-		@Nonnull String referenceName,
-		int primaryKey
-	) {
-		this(
-			new ReferenceKey(referenceName, primaryKey),
-			ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
-		);
-	}
+	public static final Comparator<RepresentativeReferenceKey> GENERIC_COMPARATOR = new GenericReferenceKeyComparator();
 
 	public RepresentativeReferenceKey(
 		@Nonnull ReferenceKey referenceKey
@@ -134,4 +128,34 @@ public record RepresentativeReferenceKey(
 	public String toString() {
 		return this.referenceKey + ": [" + StringUtils.serializableArrayToString(this.representativeAttributeValues) + "]";
 	}
+
+	/**
+	 * Comparator implementation for comparing instances of {@link RepresentativeReferenceKey}.
+	 * This comparator first compares by the {@link ReferenceKey#referenceName()} in natural order.
+	 * If the reference names are equal, it then compares by the {@link ReferenceKey#primaryKey()}.
+	 * When both match, it compares the {@link #representativeAttributeValues()} lexicographically.
+	 * Implements {@link Serializable} to allow usage in serialization contexts.
+	 */
+	@NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
+	public static class GenericReferenceKeyComparator implements Comparator<RepresentativeReferenceKey>, Serializable {
+		@Serial private static final long serialVersionUID = -8844802046787394781L;
+
+		@Override
+		public int compare(RepresentativeReferenceKey o1, RepresentativeReferenceKey o2) {
+			final int primaryComparison = o1.referenceName().compareTo(o2.referenceName());
+			if (primaryComparison == 0) {
+				final int secondComparison = Integer.compare(o1.primaryKey(), o2.primaryKey());
+				if (secondComparison == 0) {
+					final Serializable[] rav1 = o1.representativeAttributeValues();
+					final Serializable[] rav2 = o2.representativeAttributeValues();
+					return ArrayUtils.compare(rav1, rav2);
+				}
+				return secondComparison;
+			} else {
+				return primaryComparison;
+			}
+		}
+
+	}
+
 }

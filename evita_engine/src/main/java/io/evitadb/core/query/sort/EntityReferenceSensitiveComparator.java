@@ -24,10 +24,22 @@
 package io.evitadb.core.query.sort;
 
 
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator;
+import io.evitadb.index.RepresentativeReferenceKey;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This interface extends {@link EntityComparator} and allows to bind comparison with some specific referenced entity
@@ -43,6 +55,42 @@ public interface EntityReferenceSensitiveComparator extends EntityComparator {
 	 * @param referenceKey The identifier of the reference to be used as the context for the lambda execution.
 	 * @param lambda        The executable task to be performed within the context of the referenced entity ID.
 	 */
-	void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda);
+	void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda);
+
+	/**
+	 * Retrieves a reference from the given entity based on the provided representative reference key.
+	 * The reference is located by matching the representative attribute values, if they exist.
+	 *
+	 * @param entity The entity from which the reference will be retrieved. Must not be null.
+	 * @param referenceSchema The schema defining the reference attributes. Must not be null.
+	 * @param representativeReferenceKey The key containing the reference and representative attribute values. Must not be null.
+	 * @return An {@link Optional} containing the matching {@link ReferenceContract}, or an empty Optional if no match is found.
+	 */
+	@Nonnull
+	static Optional<ReferenceContract> getReferenceByRepresentativeReferenceKey(
+		@Nonnull EntityContract entity,
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		final Serializable[] expectedRAV = representativeReferenceKey.representativeAttributeValues();
+		if (ArrayUtils.isEmpty(expectedRAV)) {
+			return entity.getReference(representativeReferenceKey.referenceKey());
+		} else {
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			final List<ReferenceContract> matchingReferences = entity.getReferences(representativeReferenceKey.referenceKey());
+			ReferenceContract foundReference = null;
+			for (ReferenceContract matchingReference : matchingReferences) {
+				final Serializable[] representativeValues = rad.getRepresentativeValues(matchingReference);
+				if (Arrays.equals(representativeValues, expectedRAV)) {
+					Assert.isPremiseValid(
+						foundReference == null,
+						() -> "Duplicate references found for " + Arrays.toString(expectedRAV) + ", which should not happen!"
+					);
+					foundReference = matchingReference;
+				}
+			}
+			return ofNullable(foundReference);
+		}
+	}
 
 }

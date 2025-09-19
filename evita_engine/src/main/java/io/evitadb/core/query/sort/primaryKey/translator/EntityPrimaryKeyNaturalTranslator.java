@@ -27,8 +27,7 @@ import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
@@ -63,6 +62,7 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -78,12 +78,11 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyNatural entityPrimaryKeyNatural, @Nonnull OrderByVisitor orderByVisitor) {
 		final OrderDirection orderDirection = entityPrimaryKeyNatural.getOrderDirection();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
-		final ReferenceSchemaContract referenceSchema = processingScope.referenceSchema();
+		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
 		if (referenceSchema == null) {
 			return orderDirection == OrderDirection.DESC ? Stream.of(ReversedPrimaryKeySorter.INSTANCE) : Stream.empty();
 		} else {
 			final EntityIndex[] entityIndices = processingScope.entityIndex();
-			final String referenceSchemaName = referenceSchema.getName();
 			return Stream.of(
 				new PreSortedRecordsSorter(
 					ofNullable(processingScope.mergeModeDefinition())
@@ -103,7 +102,7 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 										return new ReferenceSortedRecordsProvider(
 											txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
 											position -> rrk.primaryKey(),
-											rrk.referenceKey()
+											rrk
 										);
 									} else {
 										throw new GenericEvitaInternalError(
@@ -122,7 +121,7 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 				),
 				new PrefetchedRecordsSorter(
 					new ReferencePrimaryKeyEntityComparator(
-						referenceSchemaName,
+						referenceSchema,
 						orderDirection == OrderDirection.DESC ?
 							IntDescendingComparator.INSTANCE : IntAscendingComparator.INSTANCE
 					)
@@ -153,13 +152,13 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 	@RequiredArgsConstructor
 	private static class ReferencePrimaryKeyEntityComparator implements EntityComparator, EntityReferenceSensitiveComparator {
 		/**
-		 * The name of the reference that is being traversed.
+		 * The schema of the reference that is being traversed.
 		 */
-		private final String referenceName;
+		private final ReferenceSchema referenceSchema;
 		/**
 		 * The id of the referenced entity that is being traversed.
 		 */
-		@Nullable private ReferenceKey referenceKey;
+		@Nullable private RepresentativeReferenceKey referenceKey;
 		/**
 		 * The comparator used to compare the primary keys of the referenced entities.
 		 */
@@ -178,10 +177,13 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 		}
 
 		@Override
-		public void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda) {
+		public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 			try {
 				Assert.isPremiseValid(this.referenceKey == null, "Cannot set referenced entity id twice!");
-				Assert.isPremiseValid(this.referenceName.equals(referenceKey.referenceName()), "Referenced entity id must be for the same reference!");
+				Assert.isPremiseValid(
+					this.referenceSchema.getName().equals(referenceKey.referenceName()),
+					"Referenced entity id must be for the same reference!"
+				);
 				this.referenceKey = referenceKey;
 				lambda.run();
 			} finally {
@@ -192,8 +194,9 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
 			Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-			final ReferenceContract o1Reference = o1.getReference(this.referenceKey).orElse(null);
-			final ReferenceContract o2Reference = o2.getReference(this.referenceKey).orElse(null);
+
+			final ReferenceContract o1Reference = getReferenceByRepresentativeReferenceKey(o1, this.referenceSchema, this.referenceKey).orElse(null);
+			final ReferenceContract o2Reference = getReferenceByRepresentativeReferenceKey(o2, this.referenceSchema, this.referenceKey).orElse(null);
 			if (o1Reference == null && o2Reference == null) {
 				this.nonSortedEntities = getOrCreatedNonSortedEntitiesCollector();
 				this.nonSortedEntities.add(o1);

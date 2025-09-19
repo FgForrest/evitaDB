@@ -112,7 +112,8 @@ public class SegmentSorter implements Sorter {
 				Math.min(sortingContext.startIndex(), recomputedEndIndex),
 				recomputedEndIndex,
 				sortingContext.peak(),
-				sortingContext.skipped()
+				sortingContext.skipped(),
+				sortingContext.referenceKey()
 			);
 			for (Sorter embeddedSorter : this.embeddedSorters) {
 				subResult = embeddedSorter.sortAndSlice(

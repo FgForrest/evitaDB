@@ -31,8 +31,11 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 
@@ -55,6 +58,10 @@ import java.util.function.ToIntBiFunction;
 public class ReferencePredecessorComparator implements ReferenceComparator, ReferenceComparator.EntityPrimaryKeyAwareComparator {
 	@Nullable private final ReferenceComparator nextComparator;
 	/**
+	 * The function used to calculate the representative key for a given reference.
+	 */
+	private final Function<ReferenceContract, RepresentativeReferenceKey> representativeKeyCalculator;
+	/**
 	 * The attribute key used to identify the attribute by which the references are sorted.
 	 */
 	private final AttributeKey attributeKey;
@@ -69,7 +76,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 	/**
 	 * The predicate used to resolve the comparability of two reference keys.
 	 */
-	private final BiPredicate<ReferenceKey, ReferenceKey> comparabilityResolver;
+	private final BiPredicate<RepresentativeReferenceKey, RepresentativeReferenceKey> comparabilityResolver;
 	/**
 	 * The function used to resolve the primary key of an entity based on the entity primary key and reference key.
 	 */
@@ -88,11 +95,12 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 	private final IntIntMap pkToRecordPositionCache = new IntIntHashMap(128);
 
 	public ReferencePredecessorComparator(
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull String attributeName,
 		@Nullable Locale locale,
 		@Nonnull ReferenceOrderByVisitor referenceOrderByVisitor,
 		@Nonnull Function<ChainIndex, SortedRecordsSupplier> sortedRecordsSupplierProvider,
-		@Nonnull BiPredicate<ReferenceKey, ReferenceKey> comparabilityResolver,
+		@Nonnull BiPredicate<RepresentativeReferenceKey, RepresentativeReferenceKey> comparabilityResolver,
 		@Nonnull ToIntBiFunction<Integer, ReferenceKey> primaryKeyResolver
 	) {
 		this.attributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
@@ -101,16 +109,26 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		this.comparabilityResolver = comparabilityResolver;
 		this.primaryKeyResolver = primaryKeyResolver;
 		this.nextComparator = null;
+		if (referenceSchema.getCardinality().allowsDuplicates()) {
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			this.representativeKeyCalculator = rc -> new RepresentativeReferenceKey(
+				rc.getReferenceKey(), rad.getRepresentativeValues(rc)
+			);
+		} else {
+			this.representativeKeyCalculator = rc -> new RepresentativeReferenceKey(rc.getReferenceKey());
+		}
 	}
 
-	public ReferencePredecessorComparator(
+	private ReferencePredecessorComparator(
+		@Nonnull Function<ReferenceContract, RepresentativeReferenceKey> representativeKeyCalculator,
 		@Nullable ReferenceComparator nextComparator,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull ReferenceOrderByVisitor referenceOrderByVisitor,
 		@Nonnull Function<ChainIndex, SortedRecordsSupplier> sortedRecordsSupplierProvider,
-		@Nonnull BiPredicate<ReferenceKey, ReferenceKey> comparabilityResolver,
+		@Nonnull BiPredicate<RepresentativeReferenceKey, RepresentativeReferenceKey> comparabilityResolver,
 		@Nonnull ToIntBiFunction<Integer, ReferenceKey> primaryKeyResolver
 	) {
+		this.representativeKeyCalculator = representativeKeyCalculator;
 		this.nextComparator = nextComparator;
 		this.attributeKey = attributeKey;
 		this.referenceOrderByVisitor = referenceOrderByVisitor;
@@ -135,6 +153,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 	@Override
 	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
 		return new ReferencePredecessorComparator(
+			this.representativeKeyCalculator,
 			comparatorForUnknownRecords,
 			this.attributeKey,
 			this.referenceOrderByVisitor,
@@ -160,8 +179,8 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		} else if (o2 == null) {
 			return 1;
 		} else {
-			final ReferenceKey referenceKey1 = o1.getReferenceKey();
-			final ReferenceKey referenceKey2 = o2.getReferenceKey();
+			final RepresentativeReferenceKey referenceKey1 = this.representativeKeyCalculator.apply(o1);
+			final RepresentativeReferenceKey referenceKey2 = this.representativeKeyCalculator.apply(o2);
 			// first test whether both references relate to the same entity
 			if (this.comparabilityResolver.test(referenceKey1, referenceKey2)) {
 				final int position1 = getRecordPosition(referenceKey1);
@@ -189,7 +208,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 				}
 			} else {
 				// if the references relate to different entities, compare the primary keys of the references
-				return ReferenceKey.FULL_COMPARATOR.compare(referenceKey1, referenceKey2);
+				return RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(referenceKey1, referenceKey2);
 			}
 		}
 	}
@@ -213,15 +232,15 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 	 * The method looks up the position using a cache. If the position is not found in the cache,
 	 * it computes the position by querying the respective chain index and updates the cache.
 	 *
-	 * @param referenceKey The key referencing a specific record.
+	 * @param representativeReferenceKey The key referencing a specific record.
 	 * @return The position of the record identified by the given reference key, or a computed position
 	 *         if not found in the cache.
 	 */
-	private int getRecordPosition(@Nonnull ReferenceKey referenceKey) {
-		final int pkToLookup = this.primaryKeyResolver.applyAsInt(this.entityPrimaryKey, referenceKey);
+	private int getRecordPosition(@Nonnull RepresentativeReferenceKey representativeReferenceKey) {
+		final int pkToLookup = this.primaryKeyResolver.applyAsInt(this.entityPrimaryKey, representativeReferenceKey.referenceKey());
 		final int position = this.pkToRecordPositionCache.getOrDefault(pkToLookup, -1);
 		if (position == -1) {
-			final ChainIndex chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, referenceKey, this.attributeKey).orElse(null);
+			final ChainIndex chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, representativeReferenceKey, this.attributeKey).orElse(null);
 			final SortedRecordsProvider sortedRecordsSupplier = chainIndex == null ? SortedRecordsProvider.EMPTY : this.sortedRecordsSupplierProvider.apply(chainIndex);
 			final int index = sortedRecordsSupplier.getAllRecords().indexOf(pkToLookup);
 			final int computedPosition = index < 0 ? -2 : sortedRecordsSupplier.getRecordPositions()[index];

@@ -78,6 +78,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.requestResponse.data.structure.References.DUPLICATE_REFERENCE;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
@@ -240,7 +241,7 @@ public class EntityDecorator implements SealedEntity {
 			for (ReferenceContract reference : references) {
 				if (reference != null && !returnedKeys.contains(reference.getReferenceKey())) {
 					final ReferenceContract removedReference = filteredReferences.remove(reference.getReferenceKey());
-					if (removedReference == References.DUPLICATE_REFERENCE) {
+					if (removedReference == DUPLICATE_REFERENCE) {
 						duplicatedReferences.remove(removedReference.getReferenceKey());
 					}
 				}
@@ -521,26 +522,26 @@ public class EntityDecorator implements SealedEntity {
 				? Cardinality.ZERO_OR_MORE.allowsDuplicates()
 				: lastResolvedSchema.getCardinality().allowsDuplicates();
 
+			final ReferenceKey referenceKey = reference.getReferenceKey();
 			if (duplicatesAllowed) {
 				// mark reference key as duplicate bearer
-				this.filteredReferences.put(reference.getReferenceKey(), References.DUPLICATE_REFERENCE);
+				this.filteredReferences.put(referenceKey, DUPLICATE_REFERENCE);
 				if (this.filteredDuplicateReferences == null) {
 					this.filteredDuplicateReferences = createHashMap(schema.getReferences().size());
 				}
 				this.filteredDuplicateReferences
 					.computeIfAbsent(
-						reference.getReferenceKey(),
+						new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey()),
 						k -> new ArrayList<>(2)
 					)
 					.add(reference);
 			} else {
 				// entity decorator wraps entity with up-to-date schema, so having duplicate reference which is not
 				// allowed by the schema is a sign of an invalid state
-				final ReferenceContract previous = this.filteredReferences.putIfAbsent(
-					reference.getReferenceKey(), reference);
+				final ReferenceContract previous = this.filteredReferences.putIfAbsent(referenceKey, reference);
 				Assert.isPremiseValid(
 					previous == null,
-					"Unexpected duplicate reference " + reference.getReferenceKey() + " in entity " + entityPrimaryKey + "!"
+					"Unexpected duplicate reference " + referenceKey + " in entity " + entityPrimaryKey + "!"
 				);
 			}
 		}
@@ -746,7 +747,7 @@ public class EntityDecorator implements SealedEntity {
 					theFilteredReferences
 						.values()
 						.stream()
-					    .filter(it -> it != References.DUPLICATE_REFERENCE),
+					    .filter(it -> it != DUPLICATE_REFERENCE),
 					this.filteredDuplicateReferences.values().stream().flatMap(Collection::stream)
 				)
 				.collect(Collectors.toList());
@@ -762,16 +763,11 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		return getReferenceChunk(referenceName).getData();
-	}
-
-	@Nonnull
-	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
 		this.referencePredicate.checkFetched(referenceName);
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)))
-			.map(it -> avoidDuplicates(referenceName, it));
+		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
+		return ofNullable(getFilteredReferences().get(referenceKey))
+			.map(it -> avoidDuplicates(referenceKey, it));
 	}
 
 	@Nonnull
@@ -781,7 +777,22 @@ public class EntityDecorator implements SealedEntity {
 	) throws ContextMissingException, ReferenceNotFoundException {
 		this.referencePredicate.checkFetched(referenceKey.referenceName());
 		return ofNullable(getFilteredReferences().get(referenceKey))
-			.map(it -> avoidDuplicates(referenceKey.referenceName(), it));
+			.map(it -> avoidDuplicates(referenceKey, it));
+	}
+
+	@Nonnull
+	@Override
+	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
+		return getReferenceChunk(referenceName).getData();
+	}
+
+	@Nonnull
+	@Override
+	public List<ReferenceContract> getReferences(
+		@Nonnull String referenceName,
+		int referencedEntityId
+	) throws ContextMissingException, ReferenceNotFoundException {
+		return getReferences(new ReferenceKey(referenceName, referencedEntityId));
 	}
 
 	@Nonnull
@@ -793,7 +804,7 @@ public class EntityDecorator implements SealedEntity {
 		final ReferenceContract reference = getFilteredReferences().get(referenceKey);
 		if (reference == null) {
 			return Collections.emptyList();
-		} else if (reference == References.DUPLICATE_REFERENCE) {
+		} else if (reference == DUPLICATE_REFERENCE) {
 			return this.filteredDuplicateReferences.get(referenceKey);
 		} else {
 			return Collections.singletonList(reference);
@@ -829,8 +840,9 @@ public class EntityDecorator implements SealedEntity {
 	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(
 		@Nonnull String referenceName, int referencedEntityId
 	) {
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)))
-			.map(it -> avoidDuplicates(referenceName, it));
+		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
+		return ofNullable(getFilteredReferences().get(referenceKey))
+			.map(it -> avoidDuplicates(it.getReferenceKey(), it));
 	}
 
 	@Nullable
@@ -1515,15 +1527,27 @@ public class EntityDecorator implements SealedEntity {
 	 * Ensures that the provided reference is not a duplicate. If the reference is marked as a duplicate,
 	 * an exception is thrown. Otherwise, the original reference is returned.
 	 *
-	 * @param referenceName the name of the reference being checked
-	 * @param reference     the reference to verify for duplicates
+	 * @param referenceKey  the key of the reference to verify for duplicates
+	 * @param reference     the reference found in {@link #getFilteredReferences()}
 	 * @return the provided reference if no duplicates are detected
 	 * @throws ReferenceAllowsDuplicatesException if the reference is marked as a duplicate
 	 */
-	@Nonnull
-	private ReferenceContract avoidDuplicates(@Nonnull String referenceName, @Nonnull ReferenceContract reference) {
-		if (reference == References.DUPLICATE_REFERENCE) {
-			throw new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.READ);
+	@Nullable
+	private ReferenceContract avoidDuplicates(@Nonnull ReferenceKey referenceKey, @Nonnull ReferenceContract reference) {
+		if (reference == DUPLICATE_REFERENCE) {
+			if (referenceKey.isUnknownReference()) {
+				throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.entitySchema, Operation.READ);
+			} else {
+				// when this.references contains DUPLICATE_REFERENCE marker,
+				// this.duplicateReferences must contain the actual references
+				final List<ReferenceContract> duplicatedReferences = Objects.requireNonNull(this.filteredDuplicateReferences.get(referenceKey));
+				for (ReferenceContract duplicatedReference : duplicatedReferences) {
+					if (duplicatedReference.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey()) {
+						return duplicatedReference;
+					}
+				}
+				return null;
+			}
 		} else {
 			return reference;
 		}
@@ -1560,6 +1584,9 @@ public class EntityDecorator implements SealedEntity {
 				final EntitySchemaContract schema = getSchema();
 				ReferenceSchemaContract lastResolvedSchema = null;
 				String lastResolvedSchemaName = null;
+				Boolean duplicatesAllowed = null;
+				ReferenceKey lastReferenceKey = null;
+
 				for (ReferenceContract reference : references) {
 					if (this.referencePredicate.test(reference)) {
 						final String referenceName = reference.getReferenceName();
@@ -1569,36 +1596,37 @@ public class EntityDecorator implements SealedEntity {
 						if (lastResolvedSchema == null || !referenceName.equals(lastResolvedSchemaName)) {
 							lastResolvedSchema = schema.getReference(referenceName).orElse(null);
 							lastResolvedSchemaName = referenceName;
+							duplicatesAllowed = lastResolvedSchema == null
+								? Cardinality.ZERO_OR_MORE.allowsDuplicates()
+								: lastResolvedSchema.getCardinality().allowsDuplicates();
 						}
-						final boolean duplicatesAllowed = lastResolvedSchema == null
-							? Cardinality.ZERO_OR_MORE.allowsDuplicates()
-							: lastResolvedSchema.getCardinality().allowsDuplicates();
 
-						if (duplicatesAllowed) {
-							// mark as duplicate-bearing key (idempotent)
-							indexedReferences.putIfAbsent(referenceKey, References.DUPLICATE_REFERENCE);
-
-							if (duplicatedIndexedReferences == null) {
-								duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
-							}
-							duplicatedIndexedReferences
-								.computeIfAbsent(referenceKey, key -> new ArrayList<>(2))
-								.add(reference);
-						} else {
-							final ReferenceContract previous = indexedReferences.putIfAbsent(referenceKey, reference);
-							if (previous != null) {
-								// convert to duplicate tracking
-								indexedReferences.put(referenceKey, References.DUPLICATE_REFERENCE);
+						if (lastReferenceKey != null && lastReferenceKey.equalsInGeneral(referenceKey.primaryKey())) {
+							if (duplicatesAllowed) {
 								if (duplicatedIndexedReferences == null) {
 									duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
 								}
-								final List<ReferenceContract> duplicatedReferences = duplicatedIndexedReferences.computeIfAbsent(
-									referenceKey, key -> new ArrayList<>(2)
-								);
-								duplicatedReferences.add(previous);
-								duplicatedReferences.add(reference);
+								final ReferenceKey genericKey = new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
+								final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
+								final List<ReferenceContract> duplicatedList;
+								if (previous == DUPLICATE_REFERENCE) {
+									duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
+								} else if (previous != null) {
+									duplicatedList = new ArrayList<>(2);
+									duplicatedIndexedReferences.put(genericKey, duplicatedList);
+									duplicatedList.add(previous);
+								} else {
+									duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
+								}
+								duplicatedList.add(reference);
+								indexedReferences.put(genericKey, DUPLICATE_REFERENCE);
+							} else {
+								throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), schema, Operation.CREATE);
 							}
+						} else {
+							indexedReferences.put(referenceKey, reference);
 						}
+						lastReferenceKey = referenceKey;
 					}
 				}
 

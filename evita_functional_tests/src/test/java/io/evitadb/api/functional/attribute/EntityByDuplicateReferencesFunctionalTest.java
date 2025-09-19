@@ -25,20 +25,18 @@ package io.evitadb.api.functional.attribute;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.EntityReferenceDTO;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
-import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -47,6 +45,8 @@ import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
+import one.edee.oss.pmptt.model.Hierarchy;
+import one.edee.oss.pmptt.model.HierarchyItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -54,21 +54,26 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static graphql.Assert.assertNotNull;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.collectProductIndex;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the behavior related to the duplicate references of the same type in entities and reflected
@@ -93,55 +98,6 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int PRODUCT_COUNT = 100;
 	private final static int CATEGORY_COUNT = 10;
 	private final static int BRAND_COUNT = 10;
-
-	/**
-	 * Sorts the products in a category based on the reference order attribute.
-	 *
-	 * @param productsInCategory     a map where the key is the referenced entity ID (non-null) and the value is a list of sealed entities (nullable).
-	 * @param referenceName          the name of the reference to sort by (non-null).
-	 * @param referenceAttributeName the name of the attribute to sort by (non-null).
-	 */
-	static void sortProductsInByReferenceAttributeOfChainableType(
-		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
-		@Nonnull String referenceName,
-		@Nonnull String referenceAttributeName
-	) {
-		productsInCategory.forEach((key, value) -> {
-			if (value != null) {
-				// we rely on ChainIndex correctness - it's tested elsewhere
-				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(referenceAttributeName));
-				for (SealedEntity entity : value) {
-					entity.getReferences(
-						      new ReferenceKey(referenceName, key.entityPrimaryKey())
-					      )
-					      .stream()
-					      .filter(
-						      ref -> ref.getReferencedPrimaryKey() == key.entityPrimaryKey() &&
-							      key.country().equals(ref.getAttribute(ATTRIBUTE_COUNTRY))
-					      )
-					      .findFirst()
-					      .ifPresent(reference -> {
-						      final ChainableType attribute = reference.getAttribute(referenceAttributeName);
-						      if (attribute != null) {
-							      chainIndex.upsertPredecessor(
-								      attribute,
-								      entity.getPrimaryKeyOrThrowException()
-							      );
-						      }
-					      });
-				}
-				// this is not much effective, but enough for a test
-				final int[] sortedRecordIds = chainIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
-				value.sort(
-					(a, b) -> {
-						final int aPos = ArrayUtils.indexOf(a.getPrimaryKeyOrThrowException(), sortedRecordIds);
-						final int bPos = ArrayUtils.indexOf(b.getPrimaryKeyOrThrowException(), sortedRecordIds);
-						return Integer.compare(aPos, bPos);
-					}
-				);
-			}
-		});
-	}
 
 	private static void createSchema(@Nonnull EvitaSessionContract session) {
 		// we need to create category schema first
@@ -187,7 +143,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		       )
 		       .withReferenceToEntity(
 			       REFERENCE_BRAND,
-			       Entities.CATEGORY,
+			       Entities.BRAND,
 			       Cardinality.ONE_OR_MORE_WITH_DUPLICATES,
 			       whichIs -> whichIs
 				       .indexedForFilteringAndPartitioning()
@@ -204,50 +160,137 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	 * Updates the reference attribute for each product within the given category map using the provided logic for predecessor creation.
 	 *
 	 * @param session            The session instance of {@link EvitaSessionContract} used to perform entity updates.
-	 * @param productsInCategory A map containing lists of products grouped by {@link EntityCountry}.
+	 * @param groupedProducts A map containing lists of products grouped by {@link EntityCountry}.
 	 * @param referenceName      The name
 	 */
 	private static void updateReferenceInProduct(
 		@Nonnull EvitaSessionContract session,
-		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull Map<EntityCountry, List<SealedEntity>> groupedProducts,
 		@Nonnull String referenceName,
 		@Nonnull String referenceAttributeName,
 		@Nonnull BiFunction<Integer, int[], Predecessor> predecessorCreator
 	) {
 		final Random rnd = new Random(SEED);
-		productsInCategory
-			.values()
-			.forEach(productsByEntityCountry -> {
+		groupedProducts
+			.forEach((entityCountry, productsByEntityCountry) -> {
 				final int[] referenceEntities = productsByEntityCountry
 					.stream()
 					.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 					.toArray();
 				ArrayUtils.shuffleArray(rnd, referenceEntities, referenceEntities.length);
+				productsByEntityCountry.sort(
+					(o1, o2) -> {
+						final int i1 = ArrayUtils.indexOf(o1.getPrimaryKeyOrThrowException(), referenceEntities);
+						final int i2 = ArrayUtils.indexOf(o2.getPrimaryKeyOrThrowException(), referenceEntities);
+						return Integer.compare(i1, i2);
+					}
+				);
 				for (SealedEntity sealedEntity : productsByEntityCountry) {
 					final EntityBuilder entityBuilder = sealedEntity.openForWrite();
 					sealedEntity
-						.getReferences(referenceName)
+						.getReferences(referenceName, entityCountry.entityPrimaryKey())
+						.stream()
+						.filter(reference -> entityCountry.country().equals(reference.getAttribute(ATTRIBUTE_COUNTRY)))
 						.forEach(
-							reference -> {
-								if (reference.getAttribute(referenceAttributeName) != null) {
-									entityBuilder.setReference(
-										referenceName,
-										reference.getReferencedPrimaryKey(),
-										ref -> ref.getReferenceKey().equals(reference.getReferenceKey()),
-										whichIs -> whichIs.setAttribute(
-											referenceAttributeName,
-											predecessorCreator.apply(
-												sealedEntity.getPrimaryKeyOrThrowException(),
-												referenceEntities
-											)
-										)
+							reference -> entityBuilder.setReference(
+								referenceName,
+								reference.getReferencedPrimaryKey(),
+								ref -> ref.getReferenceKey().equals(reference.getReferenceKey()),
+								whichIs -> {
+									final Predecessor predecessor = predecessorCreator.apply(
+										sealedEntity.getPrimaryKeyOrThrowException(),
+										referenceEntities
+									);
+									whichIs.setAttribute(
+										referenceAttributeName,
+										predecessor
 									);
 								}
-							}
+							)
 						);
+					assertNotNull(entityBuilder.toInstance());
 					session.upsertEntity(entityBuilder);
 				}
 			});
+	}
+
+	/**
+	 * Recursively adds products from the given category hierarchy to the provided list of products.
+	 *
+	 * @param products           The list to which products will be added.
+	 * @param productsInCategory A map containing lists of products grouped by {@link EntityCountry}.
+	 * @param categoryHierarchy  The hierarchy structure defining category relationships.
+	 * @param country            The country identifier used to locate products within the hierarchy.
+	 * @param rootItem           The root item from which to begin traversal of the category hierarchy.
+	 */
+	private static void addProducts(
+		@Nonnull LinkedHashSet<SealedEntity> products,
+		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull String country,
+		@Nonnull HierarchyItem rootItem
+	) {
+		addProducts(products, productsInCategory, categoryHierarchy, country, rootItem, it -> true);
+	}
+
+	/**
+	 * Recursively adds products from the given category hierarchy to the provided list of products.
+	 *
+	 * @param products           The list to which products will be added.
+	 * @param productsInCategory A map containing lists of products grouped by {@link EntityCountry}.
+	 * @param categoryHierarchy  The hierarchy structure defining category relationships.
+	 * @param country            The country identifier used to locate products within the hierarchy.
+	 * @param rootItem           The root item from which to begin traversal of the category hierarchy.
+	 */
+	private static void addProducts(
+		@Nonnull LinkedHashSet<SealedEntity> products,
+		@Nonnull Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nonnull String country,
+		@Nonnull HierarchyItem rootItem,
+		@Nonnull Predicate<SealedEntity> productFilter
+	) {
+		final int categoryId = Integer.parseInt(rootItem.getCode());
+		Optional.ofNullable(productsInCategory.get(new EntityCountry(categoryId, country)))
+		        .ifPresent(pic -> {
+			        for (SealedEntity product : pic) {
+				        if (productFilter.test(product)) {
+					        products.add(product);
+				        }
+			        }
+		        });
+		final List<HierarchyItem> childItems = categoryHierarchy.getChildItems(rootItem.getCode());
+		for (HierarchyItem childItem : childItems) {
+			addProducts(products, productsInCategory, categoryHierarchy, country, childItem, productFilter);
+		}
+	}
+
+	/**
+	 * Counts the number of distinct references for a given reference name in a product entity.
+	 *
+	 * @param product       The {@link SealedEntity} representing the product whose references are to be counted.
+	 * @param referenceName The name of the reference whose distinct values need to be counted.
+	 * @return The number of distinct references for the given reference name.
+	 */
+	private static int countDuplicates(
+		@Nonnull SealedEntity product,
+		@Nonnull String referenceName
+	) {
+		return Math.toIntExact(
+			product
+				.getReferences(referenceName)
+				.stream()
+				.collect(
+					Collectors.groupingBy(
+						ReferenceContract::getReferencedPrimaryKey,
+						Collectors.counting()
+					)
+				)
+				.values()
+				.stream()
+				.max(Long::compareTo)
+				.orElse(0L)
+		);
 	}
 
 	@Nullable
@@ -348,11 +391,6 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					}
 				);
 
-				// now we need to sort the products in the category
-				sortProductsInByReferenceAttributeOfChainableType(
-					productsInCategory, REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_ORDER
-				);
-
 				final Map<EntityCountry, List<SealedEntity>> productsInBrand = products
 					.values()
 					.stream()
@@ -381,14 +419,11 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					}
 				);
 
-				sortProductsInByReferenceAttributeOfChainableType(
-					productsInBrand, REFERENCE_BRAND, ATTRIBUTE_BRAND_ORDER
-				);
-
 				return new DataCarrier(
 					REFERENCE_CATEGORY_PRODUCTS, products,
 					"productsInCategory", productsInCategory,
-					"productsInBrand", productsInBrand
+					"productsInBrand", productsInBrand,
+					"categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY)
 				);
 			}
 		);
@@ -566,11 +601,396 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		);
 	}
 
-	@DisplayName("The product should filter entities by duplicate references")
-	@UseDataSet(value = DUPLICATE_REFERENCES, destroyAfterTest = true)
 	@Test
-	void shouldFilterProductWithDuplicateReferences(Evita evita) {
+	void shouldInsertDuplicatedReferencesViaReflectedReferences() {
+		fail("Not implemented yet");
+	}
 
+	@Test
+	void shouldRemoveDuplicateReferences() {
+		fail("Not implemented yet");
+	}
+
+	@Test
+	void shouldRemoveDuplicateReferencesViaReflectedReferences() {
+		fail("Not implemented yet");
+	}
+
+	@Test
+	void shouldArchiveAndUnarchiveEntityWithDuplicatedReferences() {
+		fail("Not implemented yet");
+	}
+
+	@Test
+	void shouldChangeRepresentativeAttributes() {
+		fail("Not implemented yet");
+	}
+
+	@Test
+	void shouldRemoveAndRestoreRepresentativeAttributes() {
+		fail("Not implemented yet");
+	}
+
+	@Test
+	void failToSetupNonDuplicatedReflectedSchemaToDuplicateReferenceSchema() {
+		fail("Not implemented yet");
+	}
+
+	@Test
+	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
+		fail("Not implemented yet");
+	}
+
+	@DisplayName("The product should filter entities by brand duplicate references")
+	@UseDataSet(value = DUPLICATE_REFERENCES)
+	@Test
+	void shouldFilterProductByBrandWithDuplicateReferences(
+		Evita evita, Map<EntityCountry, List<SealedEntity>> productsInBrand) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// verify that each product is found when filtering by brand
+				productsInBrand.forEach(
+					(entityCountry, products) -> {
+						final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									referenceHaving(
+										REFERENCE_BRAND,
+										entityPrimaryKeyInSet(entityCountry.entityPrimaryKey()),
+										attributeEquals(ATTRIBUTE_COUNTRY, entityCountry.country())
+									)
+								),
+								orderBy(
+									referenceProperty(
+										REFERENCE_BRAND,
+										attributeNatural(ATTRIBUTE_BRAND_ORDER)
+									)
+								),
+								require(
+									debug(
+										DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS,
+										DebugMode.VERIFY_POSSIBLE_CACHING_TREES
+									)
+								)
+							)
+						);
+						assertEquals(
+							products.size(), foundProducts.size(),
+							"Expected to find " + products.size() + " products for brand " +
+								entityCountry.entityPrimaryKey() + " in country " + entityCountry.country() +
+								", but found " + foundProducts.size()
+						);
+						assertArrayEquals(
+							products.stream()
+							        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+							        .toArray(),
+							foundProducts.stream()
+							             .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+							             .toArray()
+						);
+					}
+				);
+			}
+		);
+	}
+
+	@DisplayName("The product should filter entities by brand duplicate references (prefetch)")
+	@UseDataSet(value = DUPLICATE_REFERENCES)
+	@Test
+	void shouldFilterProductByBrandWithDuplicateReferencesByPrefetch(
+		Evita evita,
+		Map<EntityCountry, List<SealedEntity>> productsInBrand
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// verify that each product is found when filtering by brand
+				productsInBrand.forEach(
+					(entityCountry, products) -> {
+						final int[] expectedProducts = products
+							.stream()
+							.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+							.toArray();
+						final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									entityPrimaryKeyInSet(
+										ArrayUtils.mergeArrays(
+											// garbage pks to verify prefetch doesn't influence the result
+											new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+											// expected
+											expectedProducts
+										)
+									),
+									referenceHaving(
+										REFERENCE_BRAND,
+										entityPrimaryKeyInSet(entityCountry.entityPrimaryKey()),
+										attributeEquals(ATTRIBUTE_COUNTRY, entityCountry.country())
+									)
+								),
+								orderBy(
+									referenceProperty(
+										REFERENCE_BRAND,
+										pickFirstByEntityProperty(
+											attributeNatural(ATTRIBUTE_BRAND_ORDER)
+										)
+									)
+								),
+								require(
+									debug(DebugMode.PREFER_PREFETCHING)
+								)
+							)
+						);
+						assertEquals(
+							products.size(), foundProducts.size(),
+							"Expected to find " + products.size() + " products for brand " +
+								entityCountry.entityPrimaryKey() + " in country " + entityCountry.country() +
+								", but found " + foundProducts.size()
+						);
+						final int[] foundPks = foundProducts
+							.stream()
+							.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+							.toArray();
+						assertArrayEquals(
+							expectedProducts,
+							foundPks
+						);
+					}
+				);
+			}
+		);
+	}
+
+	@DisplayName("The product should filter entities by category hierarchy duplicate references")
+	@UseDataSet(value = DUPLICATE_REFERENCES)
+	@Test
+	void shouldFilterProductByCategoryWithDuplicateReferences(
+		Evita evita,
+		Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		Hierarchy categoryHierarchy
+	) {
+		final Set<String> countries = productsInCategory
+			.keySet()
+			.stream()
+			.map(EntityCountry::country)
+			.collect(Collectors.toSet());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (String country : countries) {
+					final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+						query(
+							collection(Entities.PRODUCT),
+							/* CURRENTLY, WE DON'T support traversing hierarchy by reference attributes */
+							/*filterBy(
+								hierarchyWithinRoot(
+									REFERENCE_CATEGORIES,
+									having(
+										attributeEquals(ATTRIBUTE_COUNTRY, country)
+									)
+								)
+							),*/
+							filterBy(
+								referenceHaving(
+									REFERENCE_CATEGORIES,
+									attributeEquals(ATTRIBUTE_COUNTRY, country)
+								),
+								hierarchyWithinRoot(REFERENCE_CATEGORIES)
+							),
+							orderBy(
+								referenceProperty(
+									REFERENCE_CATEGORIES,
+									attributeNatural(ATTRIBUTE_CATEGORY_ORDER)
+								)
+							),
+							require(
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						)
+					);
+
+					final LinkedHashSet<SealedEntity> products = new LinkedHashSet<>(256);
+					for (HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+						addProducts(products, productsInCategory, categoryHierarchy, country, rootItem);
+					}
+
+					assertEquals(
+						products.size(),
+						foundProducts.size(),
+						"Expected to find " + products.size() + " products for country " + country +
+							", but found " + foundProducts.size()
+					);
+					assertArrayEquals(
+						products.stream()
+						        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+						        .toArray(),
+						foundProducts.stream()
+						             .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+						             .toArray()
+					);
+				}
+			}
+		);
+	}
+
+	@DisplayName("The product should filter entities by category hierarchy duplicate references (prefetch)")
+	@UseDataSet(value = DUPLICATE_REFERENCES)
+	@Test
+	void shouldFilterProductByCategoryWithDuplicateReferencesWithPrefetch(
+		Evita evita,
+		Map<EntityCountry, List<SealedEntity>> productsInCategory,
+		Hierarchy categoryHierarchy
+	) {
+		final Set<String> countries = productsInCategory
+			.keySet()
+			.stream()
+			.map(EntityCountry::country)
+			.collect(Collectors.toSet());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (String country : countries) {
+					final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+						query(
+							collection(Entities.PRODUCT),
+							/* CURRENTLY, WE DON'T support traversing hierarchy by reference attributes */
+							/*filterBy(
+								hierarchyWithinRoot(
+									REFERENCE_CATEGORIES,
+									having(
+										attributeEquals(ATTRIBUTE_COUNTRY, country)
+									)
+								)
+							),*/
+							filterBy(
+								entityPrimaryKeyInSet(IntStream.rangeClosed(1, 50).toArray()),
+								referenceHaving(
+									REFERENCE_CATEGORIES,
+									attributeEquals(ATTRIBUTE_COUNTRY, country)
+								)
+							),
+							orderBy(
+								referenceProperty(
+									REFERENCE_CATEGORIES,
+									attributeNatural(ATTRIBUTE_CATEGORY_ORDER)
+								)
+							),
+							require(
+								debug(DebugMode.PREFER_PREFETCHING)
+							)
+						)
+					);
+
+					final LinkedHashSet<SealedEntity> products = new LinkedHashSet<>(256);
+					for (HierarchyItem rootItem : categoryHierarchy.getRootItems()) {
+						addProducts(
+							products, productsInCategory, categoryHierarchy, country, rootItem,
+							product -> product.getPrimaryKeyOrThrowException() <= 50
+						);
+					}
+
+					assertEquals(
+						products.size(),
+						foundProducts.size(),
+						"Expected to find " + products.size() + " products for country " + country +
+							", but found " + foundProducts.size()
+					);
+					assertArrayEquals(
+						products.stream()
+						        .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+						        .toArray(),
+						foundProducts.stream()
+						             .mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
+						             .toArray()
+					);
+				}
+			}
+		);
+	}
+
+	@DisplayName("The product should contain duplicate references")
+	@UseDataSet(value = DUPLICATE_REFERENCES)
+	@Test
+	void shouldFetchAndBrowseDuplicateReferences(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> allProducts = session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, 100),
+							entityFetch(
+								referenceContentWithAttributes(REFERENCE_CATEGORIES, entityFetchAll()),
+								referenceContentWithAttributes(REFERENCE_BRAND, entityFetchAll())
+							)
+						)
+					)
+				);
+				int maxDuplicateCategories = 0;
+				int maxDuplicateBrands = 0;
+				for (SealedEntity product : allProducts) {
+					maxDuplicateCategories = Math.max(
+						maxDuplicateCategories,
+						countDuplicates(product, REFERENCE_CATEGORIES)
+					);
+					maxDuplicateBrands = Math.max(
+						maxDuplicateBrands,
+						countDuplicates(product, REFERENCE_BRAND)
+					);
+				}
+				assertTrue(maxDuplicateCategories > 1);
+				assertTrue(maxDuplicateBrands > 1);
+			}
+		);
+	}
+
+	@DisplayName("The product should contain filtered duplicate references")
+	@UseDataSet(value = DUPLICATE_REFERENCES)
+	@Test
+	void shouldFetchFilteredDuplicateReferences(
+		Evita evita,
+		Map<EntityCountry, List<SealedEntity>> productsInBrand
+	) {
+		final String singleCountry = productsInBrand.keySet().iterator().next().country();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> allProducts = session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, 100),
+							entityFetch(
+								referenceContentWithAttributes(
+									REFERENCE_BRAND,
+									filterBy(attributeEquals(ATTRIBUTE_COUNTRY, singleCountry)),
+									entityFetchAll()
+								)
+							)
+						)
+					)
+				);
+				int filteredReferences = 0;
+				for (SealedEntity product : allProducts) {
+					assertThrows(
+						ContextMissingException.class,
+						() -> product.getReferences(REFERENCE_CATEGORIES).isEmpty()
+					);
+					filteredReferences += product.getReferences(REFERENCE_BRAND).size();
+					for (ReferenceContract reference : product.getReferences(REFERENCE_BRAND)) {
+						assertEquals(singleCountry, reference.getAttribute(ATTRIBUTE_COUNTRY));
+					}
+				}
+				assertTrue(filteredReferences > 0);
+			}
+		);
 	}
 
 	/**

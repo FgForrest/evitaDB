@@ -164,12 +164,13 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	@Override
 	public Formula translate(@Nonnull EntityHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
 		final EntitySchemaContract entitySchema = Objects.requireNonNull(filterByVisitor.getProcessingScope().getEntitySchema());
-		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
+		final ReferenceSchemaContract referenceSchema = filterByVisitor
+			.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
-					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
-						"parent constraint that allows to resolve the entity `" +
-						entitySchema.getName() + "` referenced entity type."
-				)
+				             "Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
+					             "parent constraint that allows to resolve the entity `" +
+					             entitySchema.getName() + "` referenced entity type."
+			             )
 			);
 		Assert.isTrue(
 			referenceSchema.isReferencedEntityTypeManaged(),
@@ -222,7 +223,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 										it -> {
 											// leave the return here, so that we can easily debug it
 											final RoaringBitmap combinedResult = RoaringBitmap.or(
-												filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
+												filterByVisitor.getReferencedEntityIndexes(entitySchema, referenceSchema, it)
 													.map(EntityIndex::getAllPrimaryKeys)
 													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 													.toArray(RoaringBitmap[]::new)

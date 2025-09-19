@@ -2745,6 +2745,29 @@ public final class EntityCollection implements
 		}
 
 		/**
+		 * Returns existing index for passed `entityIndexKey` or returns null.
+		 */
+		@Nullable
+		@Override
+		public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
+			return EntityCollection.this.getIndexByKeyIfExists(entityIndexKey);
+		}
+
+		/**
+		 * Retrieves an existing index by its unique primary key.
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex getIndexByPrimaryKey(int indexPrimaryKey) {
+			final EntityIndex index = EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+			Assert.isPremiseValid(
+				index != null,
+				() -> new GenericEvitaInternalError("Entity index for primary key " + indexPrimaryKey + " doesn't exists!")
+			);
+			return index;
+		}
+
+		/**
 		 * Ensures that the reference index prerequisites are satisfied before proceeding.
 		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
 		 *
@@ -2760,15 +2783,6 @@ public final class EntityCollection implements
 			EntityCollection.this
 				.getSchema()
 				.getReferenceOrThrowException(referenceName);
-		}
-
-		/**
-		 * Returns existing index for passed `entityIndexKey` or returns null.
-		 */
-		@Nullable
-		@Override
-		public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
-			return EntityCollection.this.getIndexByKeyIfExists(entityIndexKey);
 		}
 
 		/**

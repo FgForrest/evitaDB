@@ -51,10 +51,6 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class PredecessorAttributeComparator implements EntityComparator {
 	/**
-	 * Name of the attribute this comparator is used for.
-	 */
-	private final String attributeName;
-	/**
 	 * Supplier providing an array of {@link SortedRecordsProvider} objects used for sorting.
 	 */
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
