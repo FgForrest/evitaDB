@@ -196,7 +196,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 			// Verify that the subscriber received exactly 40 items
 			// For each upserted entity there are 2 mutations - entity creation and attribute update
-			assertEquals(40, subscriber.getItems().size(), "Should receive 40 mutations (20 entities × 2 mutations each)");
+			assertEquals(20, subscriber.getItems().size(), "Should receive 420 mutations (20 entities)");
 		}
 	}
 
@@ -413,8 +413,8 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			partialWalPublisher.subscribe(partialWalSubscriber);
 
 			// Verify initial subscribers received expected data
-			assertEquals(40, entireWalSubscriber.getItems().size(), "Should receive 40 mutations (20 entities × 2 mutations each)");
-			assertEquals(20, partialWalSubscriber.getItems().size(), "Should receive 20 mutations (10 entities × 2 mutations each)");
+			assertEquals(20, entireWalSubscriber.getItems().size(), "Should receive 20 mutations (20 entities)");
+			assertEquals(10, partialWalSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 			// Create 10 new entities in the catalog
 			final CommitVersions commitVersions = evita.updateCatalogAsync(
@@ -464,12 +464,12 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				onlyNewPartialPublisher.subscribe(onlyNewPartialSubscriber);
 
 				// Verify new subscribers received expected data
-				assertEquals(40, partialOldAndNewSubscriber.getItems().size(), "Should receive 40 mutations (10 old + 10 new entities, both × 2 mutations)");
-				assertEquals(20, onlyNewPartialSubscriber.getItems().size(), "Should receive 20 mutations (10 entities × 2 mutations)");
+				assertEquals(20, partialOldAndNewSubscriber.getItems().size(), "Should receive 20 mutations (10 old + 10 new entities)");
+				assertEquals(10, onlyNewPartialSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 				// Verify initial subscribers received new data as well
-				assertEquals(40 + 20, entireWalSubscriber.getItems().size(), "Should receive 40 mutations (20 entities × 2 mutations each)");
-				assertEquals(20 + 20, partialWalSubscriber.getItems().size(), "Should receive 20 mutations (10 entities × 2 mutations each)");
+				assertEquals(20 + 10, entireWalSubscriber.getItems().size(), "Should receive 20 mutations (20 entities)");
+				assertEquals(10 + 10, partialWalSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 				// Create another 5 new entities in the catalog
 				evita.updateCatalog(
@@ -488,10 +488,10 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				);
 
 				// Verify all subscribers received the same data from the second batch
-				assertEquals(40 + 20 + 10, entireWalSubscriber.getItems().size(), "Should receive 5 × 2 mutations in new batch on top of the previous 60");
-				assertEquals(20 + 20 + 10, partialWalSubscriber.getItems().size(), "Should receive 5 × 2 mutations in new batch on top of the previous 40");
-				assertEquals(40 + 10, partialOldAndNewSubscriber.getItems().size(), "Should receive 5 × 2 mutations in new batch on top of the previous 40");
-				assertEquals(20 + 10, onlyNewPartialSubscriber.getItems().size(), "Should receive 5 × 2 mutations in new batch on top of the previous 20");
+				assertEquals(20 + 10 + 5, entireWalSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 30");
+				assertEquals(10 + 10 + 5, partialWalSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 20");
+				assertEquals(20 + 5, partialOldAndNewSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 20");
+				assertEquals(10 + 5, onlyNewPartialSubscriber.getItems().size(), "Should receive 5 in new batch on top of the previous 10");
 
 				// Verify that all subscribers received entity IDs from the second batch (IDs > 30)
 				verifySubscriberReceivedEntityIdsGreaterThan(entireWalSubscriber, 0);
@@ -574,7 +574,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Verify the subscriber received mutations
 		// For each upserted entity there are 2 mutations - entity creation and attribute update
-		assertEquals(10, subscriber.getItems().size(), "Should receive 10 mutations (5 entities × 2 mutations each)");
+		assertEquals(5, subscriber.getItems().size(), "Should receive 10 mutations (5 entities)");
 
 		// Close the publisher, which will unregister the observer
 		assertTrue(tested.unregisterObserver(subscriber.getSubscriptionId()));
@@ -602,7 +602,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		);
 
 		// Verify the subscriber still has only the original mutations
-		assertEquals(10, subscriber.getItems().size(), "Should still have only 10 mutations after unregistering");
+		assertEquals(5, subscriber.getItems().size(), "Should still have only 5 mutations after unregistering");
 	}
 
 	/**

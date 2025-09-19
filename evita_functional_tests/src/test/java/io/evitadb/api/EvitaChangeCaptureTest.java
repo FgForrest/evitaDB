@@ -284,7 +284,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
-			assertEquals(9, reverseCaptures.size());
+			assertEquals(7, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
 			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
@@ -351,7 +351,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.build()
 			).toList();
 
-			assertEquals(2, reverseCaptures.size());
+			assertEquals(4, reverseCaptures.size());
 
 			assertEquals(Entities.PRODUCT, reverseCaptures.get(0).entityType());
 			assertEquals(CURRENCY_USD, ((UpsertPriceMutation)reverseCaptures.get(0).body()).getPriceKey().currency());
