@@ -57,6 +57,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -279,8 +280,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final List<ReducedEntityIndex> indexes = getAllReducedIndexes(
 			dataStoreReader, scope,
 			referenceSchema.getReflectedReferenceName(),
-			this.entityPrimaryKey, referenceSchema.getCardinality()
-			                                      .allowsDuplicates()
+			this.entityPrimaryKey,
+			referenceSchema.getCardinality().allowsDuplicates()
 		);
 
 		for (ReducedEntityIndex referenceIndexWithPrimaryReferences : indexes) {
@@ -294,13 +295,24 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							"` unexpectedly not found!"
 					)
 				);
+			final RepresentativeReferenceKey rrk = Objects.requireNonNull(
+				(RepresentativeReferenceKey) referenceIndexWithPrimaryReferences
+					.getIndexKey()
+					.discriminator()
+			);
 			final List<ReferenceKey> referenceKeys = new ArrayList<>(referencingEntities.size());
 			final OfInt it = referencingEntities.iterator();
 			while (it.hasNext()) {
 				int epk = it.nextInt();
 				final ReferenceKey primaryRefKeyWithInternalPk = findPrimaryReferenceKeyOrThrow(
-					referenceSchema, targetDataStoreReader, epk,
-					new ReferenceKey(referenceSchema.getReflectedReferenceName(), entityPrimaryKey)
+					referenceSchema,
+					targetDataStoreReader,
+					epk,
+					new ReferenceKey(
+						referenceSchema.getReflectedReferenceName(),
+						entityPrimaryKey
+					),
+					rrk.representativeAttributeValues()
 				);
 				final ReferenceKey insertedRefKey = new ReferenceKey(
 					referenceSchema.getName(), epk, primaryRefKeyWithInternalPk.internalPrimaryKey()
@@ -407,23 +419,25 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	/**
-	 * Finds the primary reference key associated with the given {@code genericReferenceKey}.
+	 * Finds the primary reference key associated with the given {@code representativeReferenceKey}.
 	 * Validates that the reference has a known internal primary key and is present in the reference storage.
 	 *
 	 * @param referenceSchema The schema defining the structure of the reference.
 	 * @param dataStoreReader The data store reader instance to fetch reference storage part data.
 	 * @param entityPrimaryKey The primary key of the entity to which the reference belongs.
-	 * @param genericReferenceKey The generic reference key whose associated primary reference key is to be found.
+	 * @param referenceKey The generic reference key whose associated primary reference key is to be found.
+	 * @param representativeAttributeValues The representative attribute values used to identifythe reference uniquely.
 	 * @return The primary reference key with a known internal primary key.
 	 * @throws EntityMissingException If the reference storage part is not found for the given entity primary key.
 	 * @throws AssertionError If the primary reference key does not have a known internal primary key.
 	 */
 	@Nonnull
 	private ReferenceKey findPrimaryReferenceKeyOrThrow(
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull DataStoreReader dataStoreReader,
 		int entityPrimaryKey,
-		@Nonnull ReferenceKey genericReferenceKey
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Serializable[] representativeAttributeValues
 	) {
 		final ReferencesStoragePart otherReferenceStoragePart = dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class);
 		Assert.notNull(
@@ -435,7 +449,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			)
 		);
 		final ReferenceKey primaryRefKeyWithInternalPk = otherReferenceStoragePart
-			.findReferenceOrThrowException(genericReferenceKey)
+			.findReferenceOrThrowException(
+				referenceSchema,
+				referenceKey,
+				representativeAttributeValues
+			)
 			.getReferenceKey();
 
 		Assert.isPremiseValid(
@@ -461,7 +479,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private ReferenceKey findPrimaryReferenceKey(
 		@Nonnull DataStoreReader dataStoreReader,
 		int entityPrimaryKey,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull ReferenceKey genericReferenceKey,
+		@Nonnull Serializable[] representativeAttributeValues,
 		@Nonnull Function<ReferencesStoragePart, ReferenceKey> defaultValueProvider
 	) {
 		final Optional<ReferencesStoragePart> otherReferenceStoragePart = ofNullable(
@@ -472,7 +492,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			)
 		);
 		final ReferenceKey primaryRefKeyWithInternalPk = otherReferenceStoragePart
-			.map(it -> it.findReferenceOrThrowException(genericReferenceKey))
+			.flatMap(it -> it.findReference(referenceSchema, genericReferenceKey, representativeAttributeValues))
 			.map(ReferenceContract::getReferenceKey)
 			.orElseGet(
 				() -> otherReferenceStoragePart
@@ -500,6 +520,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param referenceSchema			 The reference schema used to generate the missing references.
 	 * @param referencedSchemaName       The name of the schema in which the references are being created.
 	 * @param referencedEntityType       The type of the referenced entity that should be checked and potentially created.
+	 * @param representativeAttributeValuesSupplier Supplier providing an array of representative attribute values to be used when searching for existing references.
 	 * @param referenceAttributeSupplier Supplier providing an array of reference attribute mutations to be applied to the missing references.
 	 * @param entityPrimaryKeyPredicate  A predicate that determines if the entity primary key matches the criteria for insertion.
 	 */
@@ -511,6 +532,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String referencedSchemaName,
 		@Nonnull String referencedEntityType,
+		@Nonnull Function<ReferenceKey, Stream<Serializable[]>> representativeAttributeValuesSupplier,
 		@Nonnull Function<ReferenceKey, Stream<ReferenceAttributeMutation>> referenceAttributeSupplier,
 		@Nonnull IntPredicate entityPrimaryKeyPredicate
 	) {
@@ -526,26 +548,68 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				if (referenceSchema instanceof ReflectedReferenceSchema rrs) {
 					// if we work with the reflected reference schema
 					// we need to look up for reference internal PKs in external referenceStoragePart (fetch)
-					final ReferenceKey primaryReferenceKey = findPrimaryReferenceKey(
-						dataStoreReader, ownerEntityPrimaryKey,
-						new ReferenceKey(rrs.getReflectedReferenceName(), entityPrimaryKey),
-						referencesStoragePart ->
-						    // make up new internal primary key from the known last used primary key
-							// target container will adapt the key we assign here
-							new ReferenceKey(
-								rrs.getReflectedReferenceName(),
-								entityPrimaryKey,
-								// if the reference storage part is not present, we will start from 1
-								// (created reference will be the first one)
-								(referencesStoragePart == null ? 0 : referencesStoragePart.getLastUsedPrimaryKey()) +
-									nonExistentRefCounter.incrementAndGet()
+					final ReferenceKey reflectedReferenceKey = new ReferenceKey(rrs.getName(), ownerEntityPrimaryKey);
+					final PrimaryReferenceKeyWithRepresentativeAttributes[] primaryReferenceKeys = representativeAttributeValuesSupplier
+						.apply(reflectedReferenceKey)
+						.map(
+							representativeAttributeValues -> new PrimaryReferenceKeyWithRepresentativeAttributes(
+								findPrimaryReferenceKey(
+									dataStoreReader,
+									ownerEntityPrimaryKey,
+									rrs,
+									new ReferenceKey(rrs.getReflectedReferenceName(), entityPrimaryKey),
+									representativeAttributeValues,
+									referencesStoragePart -> {
+										Assert.isPremiseValid(
+											referencesStoragePart != null,
+											"Reference storage part must be present when working with reflected references!"
+										);
+										// make up new internal primary key from the known last used primary key
+										// target container will adapt the key we assign here
+										return new ReferenceKey(
+											rrs.getReflectedReferenceName(),
+											entityPrimaryKey,
+											// if the reference storage part is not present, we will start from 1
+											// (created reference will be the first one)
+											referencesStoragePart.getLastUsedPrimaryKey() + nonExistentRefCounter.incrementAndGet()
+										);
+									}
+								),
+								representativeAttributeValues
 							)
+						)
+						.toArray(PrimaryReferenceKeyWithRepresentativeAttributes[]::new);
+					// now we need to replace assigned reflected reference internal PKs according to the found ones
+					// in the primary container, entire operation needs to be performed in a single procedure
+					final int replacedReferencesCount = this.referencesStorageContainer.replaceReferences(
+						rrs, reflectedReferenceKey,
+						examinedRepresentativeAttributeValues -> {
+							for (int i = 0; i < primaryReferenceKeys.length; i++) {
+								if (Arrays.equals(
+									examinedRepresentativeAttributeValues,
+									primaryReferenceKeys[i].representativeAttributeValues()
+								)) {
+									;
+									return i;
+								}
+							}
+							return -1;
+						},
+						(index, reference) -> new Reference(
+							primaryReferenceKeys[index].referenceKey().internalPrimaryKey(), reference)
 					);
-					addMutations(
-						localMutations,
-						entityPrimaryKey, ownerEntityPrimaryKey, primaryReferenceKey,
-						referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
+					Assert.isPremiseValid(
+						primaryReferenceKeys.length == replacedReferencesCount,
+						"All references must be replaced!"
 					);
+					// after that we can generate attribute mutations - the reference key is now stable
+					for (PrimaryReferenceKeyWithRepresentativeAttributes primaryReferenceKey : primaryReferenceKeys) {
+						addMutations(
+							localMutations,
+							entityPrimaryKey, ownerEntityPrimaryKey, primaryReferenceKey.referenceKey(),
+							referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
+						);
+					}
 				} else {
 					// if we work with the standard reference schema,
 					// we will look up for reference internal PKs in the current referenceStoragePart
@@ -1468,18 +1532,20 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		// we can rely on a fact, that references are ordered by reference key
 		String referenceName = null;
 		// we need to filter out already discarded references
-		final ReferenceContract[] references = Arrays.stream(referencesStorageContainer.getReferences())
-			.filter(Droppable::exists)
-			.toArray(ReferenceContract[]::new);
+		final ReferenceContract[] references = referencesStorageContainer.getReferences();
 
 		for (int i = 0; i < references.length; i++) {
 			final ReferenceContract reference = references[i];
+			// skip dropped references
+			if (reference.dropped()) {
+				continue;
+			}
 			final String thisReferenceName = reference.getReferenceName();
 			// fast forward to reference with different name
 			if (!Objects.equals(thisReferenceName, referenceName)) {
 				referenceName = thisReferenceName;
-				final int currentIndex = i;
 				// setup references
+				final int currentIndex = i;
 				propagateReferenceModification(
 					entityPrimaryKey,
 					sourceEntityScope,
@@ -1487,29 +1553,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					catalogSchema,
 					entitySchema,
 					thisReferenceName,
-					() -> {
-						final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(thisReferenceName);
-						// lets collect all primary keys of the reference with the same name into a bitmap
-						if (currentIndex + 1 < references.length) {
-							for (int j = currentIndex + 1; j < references.length; j++) {
-								if (!thisReferenceName.equals(references[j].getReferenceName())) {
-									return new ReferenceBlock<>(
-										catalogSchema, this.entityContainer.getLocales(), entitySchema, referenceSchema,
-										new ReferenceAttributeValueProvider(this.entityPrimaryKey, Arrays.copyOfRange(references, currentIndex, j))
-									);
-								}
-							}
-							return new ReferenceBlock<>(
-								catalogSchema, this.entityContainer.getLocales(), entitySchema, referenceSchema,
-								new ReferenceAttributeValueProvider(this.entityPrimaryKey, Arrays.copyOfRange(references, currentIndex, references.length))
-							);
-						} else {
-							return new ReferenceBlock<>(
-								catalogSchema, this.entityContainer.getLocales(), entitySchema, referenceSchema,
-								new ReferenceAttributeValueProvider(this.entityPrimaryKey, reference)
-							);
-						}
-					},
+					() -> new ReferenceBlock<>(
+						catalogSchema, this.entityContainer.getLocales(), entitySchema,
+						entitySchema.getReferenceOrThrowException(thisReferenceName),
+						new ReferenceAttributeValueProvider(
+							this.entityPrimaryKey, currentIndex, references, thisReferenceName
+						)
+					),
 					mutationCollector,
 					createMode
 				);
@@ -1632,6 +1682,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									referenceSchema,
 									referencedSchemaName,
 									referencedEntityType,
+									referenceBlock::getRepresentativeAttributeValuesSupplier,
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references
 									primaryKeyPredicate.negate()
@@ -2249,5 +2300,20 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		);
 
 	}
+
+	/**
+	 * Represents a combination of a primary reference key and its associated representative attribute values.
+	 *
+	 * This record is used to encapsulate a unique reference to an entity identified by a reference key,
+	 * along with a set of serialized representative attribute values that further describe or qualify the entity.
+	 *
+	 * @param referenceKey A non-null reference key uniquely identifying the entity.
+	 * @param representativeAttributeValues A non-null array of serializable values that represent
+	 *                                      additional attribute information associated with the entity.
+	 */
+	private record PrimaryReferenceKeyWithRepresentativeAttributes(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Serializable[] representativeAttributeValues
+	) {}
 
 }

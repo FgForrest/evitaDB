@@ -35,6 +35,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -542,6 +545,160 @@ class ReferencesStoragePartTest {
 		assertEquals(2, result.size());
 		assertSame(ref1, result.get(0));
 		assertSame(ref2, result.get(1));
+	}
+
+	@Test
+	@DisplayName("shouldFindReferenceByRepresentativeAttributesWhenMultipleShareSameBusinessKey")
+	void shouldFindReferenceByRepresentativeAttributesWhenMultipleShareSameBusinessKey() {
+		final Reference r1 = newRef(new ReferenceKey("brand", 1, 5));
+		final Reference r2 = newRef(new ReferenceKey("brand", 1, 6));
+		final ReferencesStoragePart part = new ReferencesStoragePart(321, 6, new Reference[]{r1, r2}, -1);
+
+		final ReferenceSchema schema = Mockito.mock(ReferenceSchema.class);
+		final RepresentativeAttributeDefinition rad = Mockito.mock(RepresentativeAttributeDefinition.class);
+		when(schema.getRepresentativeAttributeDefinition()).thenReturn(rad);
+
+		when(rad.getRepresentativeValues(r1)).thenReturn(new Serializable[]{"alpha"});
+		when(rad.getRepresentativeValues(r2)).thenReturn(new Serializable[]{"beta"});
+
+		// should pick the second reference when matching its representative values
+		final ReferenceContract found2 = part.findReferenceOrThrowException(
+			schema,
+			new ReferenceKey("brand", 1),
+			new Serializable[]{"beta"}
+		);
+		assertSame(r2, found2);
+
+		// should pick the first reference when matching its representative values
+		final ReferenceContract found1 = part.findReferenceOrThrowException(
+			schema,
+			new ReferenceKey("brand", 1),
+			new Serializable[]{"alpha"}
+		);
+		assertSame(r1, found1);
+	}
+
+	@Test
+	@DisplayName("shouldThrowExceptionWhenNoReferenceMatchesRepresentativeAttributes")
+	void shouldThrowExceptionWhenNoReferenceMatchesRepresentativeAttributes() {
+		final Reference r1 = newRef(new ReferenceKey("brand", 1, 5));
+		final Reference r2 = newRef(new ReferenceKey("brand", 1, 6));
+		final ReferencesStoragePart part = new ReferencesStoragePart(654, 6, new Reference[]{r1, r2}, -1);
+
+		final ReferenceSchema schema = Mockito.mock(ReferenceSchema.class);
+		final RepresentativeAttributeDefinition rad = Mockito.mock(RepresentativeAttributeDefinition.class);
+		when(schema.getRepresentativeAttributeDefinition()).thenReturn(rad);
+
+		when(rad.getRepresentativeValues(r1)).thenReturn(new Serializable[]{"alpha"});
+		when(rad.getRepresentativeValues(r2)).thenReturn(new Serializable[]{"beta"});
+
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> part.findReferenceOrThrowException(
+				schema,
+				new ReferenceKey("brand", 1),
+				new Serializable[]{"gamma"}
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("shouldReplaceReferenceWhenRepresentativeAttributesMatch")
+	void shouldReplaceReferenceWhenRepresentativeAttributesMatch() {
+		final Reference r1 = newRef(new ReferenceKey("brand", 1, 5));
+		final Reference r2 = newRef(new ReferenceKey("brand", 1, 6));
+		final ReferencesStoragePart part = new ReferencesStoragePart(777, 6, new Reference[]{r1, r2}, -1);
+
+		final ReferenceSchema schema = Mockito.mock(ReferenceSchema.class);
+		final RepresentativeAttributeDefinition rad = Mockito.mock(RepresentativeAttributeDefinition.class);
+		when(schema.getRepresentativeAttributeDefinition()).thenReturn(rad);
+
+		when(rad.getRepresentativeValues(r1)).thenReturn(new Serializable[]{"alpha"});
+		when(rad.getRepresentativeValues(r2)).thenReturn(new Serializable[]{"beta"});
+
+		final Reference replacement = Mockito.mock(Reference.class);
+		when(replacement.getReferenceKey()).thenReturn(new ReferenceKey("brand", 1, 6));
+		when(replacement.exists()).thenReturn(true);
+
+		part.replaceReferences(
+			schema,
+			new ReferenceKey("brand", 1),
+			representativeValues -> java.util.Arrays.equals(representativeValues, new Serializable[]{"beta"}) ? 0 : -1,
+			(index, ref) -> replacement
+		);
+
+		final ReferenceContract[] arr = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertSame(r1, arr[0]);
+		assertSame(replacement, arr[1]);
+	}
+
+	@Test
+	@DisplayName("shouldNotChangeReferencesWhenNoRepresentativeAttributesMatch")
+	void shouldNotChangeReferencesWhenNoRepresentativeAttributesMatch() {
+		final Reference r1 = newRef(new ReferenceKey("brand", 1, 5));
+		final Reference r2 = newRef(new ReferenceKey("brand", 1, 6));
+		final ReferencesStoragePart part = new ReferencesStoragePart(888, 6, new Reference[]{r1, r2}, -1);
+
+		final ReferenceSchema schema = Mockito.mock(ReferenceSchema.class);
+		final RepresentativeAttributeDefinition rad = Mockito.mock(RepresentativeAttributeDefinition.class);
+		when(schema.getRepresentativeAttributeDefinition()).thenReturn(rad);
+
+		when(rad.getRepresentativeValues(r1)).thenReturn(new Serializable[]{"alpha"});
+		when(rad.getRepresentativeValues(r2)).thenReturn(new Serializable[]{"beta"});
+
+		part.replaceReferences(
+			schema,
+			new ReferenceKey("brand", 1),
+			representativeValues -> java.util.Arrays.equals(representativeValues, new Serializable[]{"gamma"}) ? 0 : -1,
+			(index, ref) -> {
+				fail("Modifier should not be invoked when no reference matches representative attributes");
+				return ref;
+			}
+		);
+
+		final ReferenceContract[] arr = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertSame(r1, arr[0]);
+		assertSame(r2, arr[1]);
+	}
+
+	@Test
+	@DisplayName("shouldReplaceMultipleReferencesInSingleCall")
+	void shouldReplaceMultipleReferencesInSingleCall() {
+		final Reference r1 = newRef(new ReferenceKey("brand", 1, 5));
+		final Reference r2 = newRef(new ReferenceKey("brand", 1, 6));
+		final Reference r3 = newRef(new ReferenceKey("brand", 1, 7));
+		final ReferencesStoragePart part = new ReferencesStoragePart(999, 7, new Reference[]{r1, r2, r3}, -1);
+
+		final ReferenceSchema schema = Mockito.mock(ReferenceSchema.class);
+		final RepresentativeAttributeDefinition rad = Mockito.mock(RepresentativeAttributeDefinition.class);
+		when(schema.getRepresentativeAttributeDefinition()).thenReturn(rad);
+
+		when(rad.getRepresentativeValues(r1)).thenReturn(new Serializable[]{"alpha"});
+		when(rad.getRepresentativeValues(r2)).thenReturn(new Serializable[]{"beta"});
+		when(rad.getRepresentativeValues(r3)).thenReturn(new Serializable[]{"gamma"});
+
+		final Reference replacement1 = Mockito.mock(Reference.class);
+		when(replacement1.getReferenceKey()).thenReturn(new ReferenceKey("brand", 1, 5));
+		when(replacement1.exists()).thenReturn(true);
+		final Reference replacement2 = Mockito.mock(Reference.class);
+		when(replacement2.getReferenceKey()).thenReturn(new ReferenceKey("brand", 1, 6));
+		when(replacement2.exists()).thenReturn(true);
+
+		part.replaceReferences(
+			schema,
+			new ReferenceKey("brand", 1),
+			representativeValues -> {
+				if (java.util.Arrays.equals(representativeValues, new Serializable[]{"alpha"})) return 0;
+				if (java.util.Arrays.equals(representativeValues, new Serializable[]{"beta"})) return 1;
+				return -1;
+			},
+			(index, ref) -> index == 0 ? replacement1 : replacement2
+		);
+
+		final ReferenceContract[] arr = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		assertSame(replacement1, arr[0]);
+		assertSame(replacement2, arr[1]);
+		assertSame(r3, arr[2]);
 	}
 
 }

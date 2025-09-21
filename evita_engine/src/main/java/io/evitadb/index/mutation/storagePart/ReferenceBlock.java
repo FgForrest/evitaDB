@@ -66,6 +66,10 @@ import static java.util.Optional.of;
  */
 class ReferenceBlock<T> {
 	/**
+	 * The reference schema defining the reference attributes.
+	 */
+	private final ReferenceSchema referenceSchema;
+	/**
 	 * The bitmap of all referenced entity primary keys.
 	 */
 	@Getter private final RoaringBitmap referencedPrimaryKeys;
@@ -127,6 +131,7 @@ class ReferenceBlock<T> {
 			.mapToInt(attributeValueProvider::getReferencedEntityPrimaryKey)
 			.forEach(writer::add);
 		this.referencedPrimaryKeys = writer.get();
+		this.referenceSchema = localReferenceSchema;
 
 		// now build the attribute supplier for all attribute mutations that needs to be applied
 		final Optional<ReferenceSchema> theOtherReferenceSchema;
@@ -176,6 +181,23 @@ class ReferenceBlock<T> {
 	}
 
 	/**
+	 * Provides a stream of arrays containing representative attribute values derived from the reference schema
+	 * and reference carriers. The method relies on an attribute value provider to extract these values, ensuring
+	 * they are representative of the schema and carrier relationship.
+	 *
+	 * @return a non-null stream of serializable arrays, where each array contains the representative attribute values
+	 *         for a specific reference carrier defined by the reference schema.
+	 */
+	@Nonnull
+	public Stream<Serializable[]> getRepresentativeAttributeValuesSupplier(
+		@Nonnull ReferenceKey genericReferenceKey
+	) {
+		return this.attributeValueProvider
+			.getReferenceCarriers(genericReferenceKey)
+			.map(it -> this.attributeValueProvider.getRepresentativeAttributeValues(this.referenceSchema, it));
+	}
+
+	/**
 	 * Generates a stream of reference attribute mutations based on the provided locales, attribute value provider,
 	 * referenced entity schema, reference, attribute schema, and inherited attributes.
 	 *
@@ -222,6 +244,7 @@ class ReferenceBlock<T> {
 						.filter(attVal -> attributeKey.equals(attVal.key()))
 						.map(AttributeValue::valueOrThrowException)
 						.findFirst()
+						.map(ReferenceBlock::convertIfNecessary)
 						.orElse(defaultValue);
 				// if the attribute is localized
 				if (attributeSchema.isLocalized()) {
@@ -233,7 +256,7 @@ class ReferenceBlock<T> {
 								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 								new UpsertAttributeMutation(
 									attributeKey,
-									convertIfNecessary(valueLookup.apply(attributeKey))
+									valueLookup.apply(attributeKey)
 								)
 							);
 						});
@@ -245,7 +268,7 @@ class ReferenceBlock<T> {
 							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 							new UpsertAttributeMutation(
 								attributeKey,
-								convertIfNecessary(valueLookup.apply(attributeKey))
+								valueLookup.apply(attributeKey)
 							)
 						)
 					);
@@ -257,6 +280,7 @@ class ReferenceBlock<T> {
 						.filter(attVal -> attributeKey.equals(attVal.key()))
 						.map(AttributeValue::valueOrThrowException)
 						.findFirst()
+			            .map(ReferenceBlock::convertIfNecessary)
 						.orElse(null);
 				if (attributeSchema.isLocalized()) {
 					// set-up a stream of reference attribute mutations for each locale
@@ -273,7 +297,7 @@ class ReferenceBlock<T> {
 								// otherwise, return a single reference attribute mutation
 								return new ReferenceAttributeMutation(
 									attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-									new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
+									new UpsertAttributeMutation(attributeKey, value)
 								);
 							} else {
 								return null;
@@ -293,7 +317,7 @@ class ReferenceBlock<T> {
 						return Stream.of(
 							new ReferenceAttributeMutation(
 								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-								new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
+								new UpsertAttributeMutation(attributeKey, value)
 							)
 						);
 					} else {

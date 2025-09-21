@@ -37,10 +37,13 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -155,6 +158,13 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 
 	@Nonnull
 	@Override
+	public Stream<ReferenceMutation> getReferenceCarriers(@Nonnull ReferenceKey genericReferenceKey) {
+		return StreamSupport.stream(this.matchingMutations.spliterator(), false)
+			.filter(it -> it.getReferenceKey().equalsInGeneral(genericReferenceKey));
+	}
+
+	@Nonnull
+	@Override
 	public Optional<ReferenceMutation> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
 		// we can use any mutation here, since this provider will always work with the reference key inside it
 		return Optional.ofNullable(this.referenceAttributesIndex.containsKey(referenceKey) ? new InsertReferenceMutation(referenceKey) : null);
@@ -173,7 +183,32 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 
 	@Nonnull
 	@Override
-	public Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceCarrier, @Nonnull String attributeName) {
+	public Serializable[] getRepresentativeAttributeValues(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceMutation referenceCarrier
+	) {
+		if (referenceSchema.getCardinality().allowsDuplicates()) {
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			final Map<AttributeKey, AttributeValue> attributeValues = this.referenceAttributesIndex.get(referenceCarrier.getReferenceKey());
+			final List<String> representativeAttributeNames = rad.getAttributeNames();
+			final Serializable[] values = new Serializable[representativeAttributeNames.size()];
+			for (int i = 0; i < representativeAttributeNames.size(); i++) {
+				final AttributeValue attributeValue = attributeValues.get(new AttributeKey(representativeAttributeNames.get(i)));
+				values[i] = attributeValue == null ? null : attributeValue.value();
+			}
+			return values;
+		} else {
+			return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Collection<AttributeValue> getAttributeValues(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceMutation referenceCarrier,
+		@Nonnull String attributeName
+	) {
 		// we retrieve the attribute values from the index built in constructor from the input list of mutations
 		final Map<AttributeKey, AttributeValue> attributeValues = this.referenceAttributesIndex.get(referenceCarrier.getReferenceKey());
 		return attributeValues == null ?

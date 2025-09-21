@@ -29,7 +29,10 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.utils.ArrayUtils;
@@ -43,6 +46,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,6 +57,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.ToIntBiFunction;
+import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -441,6 +446,122 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			);
 			return Optional.of(this.references[index]);
 		}
+	}
+
+	/**
+	 * Finds a reference within the storage part that matches the given `referenceSchema`, `referenceKey`,
+	 * and the required `representativeAttributeValues`. If no matching reference is found, an exception is thrown.
+	 *
+	 * @param referenceSchema the schema defining the structure and attributes of the reference; must not be null
+	 * @param referenceKey the key identifying the target reference; must not be null
+	 * @param requiredRepresentativeAttributeValues an array of values that must match the representative attributes of the reference; must not be null
+	 * @return the located {@link ReferenceContract} that matches the specified criteria, or null if no matching reference is found
+	 * @throws GenericEvitaInternalError if no matching reference is found
+	 */
+	@Nonnull
+	public ReferenceContract findReferenceOrThrowException(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Serializable[] requiredRepresentativeAttributeValues
+	) {
+		return findReference(
+			referenceSchema, referenceKey, requiredRepresentativeAttributeValues
+		).orElseThrow(
+			() -> new GenericEvitaInternalError(
+				"Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
+			)
+		);
+	}
+
+	/**
+	 * Finds a reference within the storage part that matches the given `referenceSchema`, `genericReferenceKey`,
+	 * and the required `representativeAttributeValues`. If no matching reference is found, an exception is thrown.
+	 *
+	 * @param referenceSchema the schema defining the structure and attributes of the reference; must not be null
+	 * @param genericReferenceKey the key identifying the target reference; must not be null
+	 * @param requiredRepresentativeAttributeValues an array of values that must match the representative attributes of the reference; must not be null
+	 * @return the located {@link ReferenceContract} that matches the specified criteria, or null if no matching reference is found
+	 * @throws GenericEvitaInternalError if no matching reference is found
+	 */
+	@Nonnull
+	public Optional<ReferenceContract> findReference(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceKey genericReferenceKey,
+		@Nonnull Serializable[] requiredRepresentativeAttributeValues
+	) {
+		final InsertionPosition position = findPositionInGeneralManner(genericReferenceKey);
+		if (position.alreadyPresent()) {
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			int index = position.position();
+			ReferenceContract reference = this.references[index];
+			do {
+				if (reference.exists()) {
+					final Serializable[] representativeValues = rad.getRepresentativeValues(reference);
+					if (Arrays.equals(representativeValues, requiredRepresentativeAttributeValues)) {
+						return Optional.of(reference);
+					}
+				}
+				index++;
+				if (index < this.references.length) {
+					reference = this.references[index];
+				} else {
+					break;
+				}
+			} while (reference.getReferenceKey().equals(genericReferenceKey));
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * Replaces references in the existing collection of references based on the provided reference schema,
+	 * reference key, representative attribute values function, and reference modifier function.
+	 *
+	 * @param referenceSchema               the schema defining how references are structured and the rules for representative
+	 *                                      attributes, must not be null
+	 * @param genericReferenceKey           the key used to identify a group of references to be processed, must not be null
+	 * @param representativeAttributeValues a function that determines the position or index to resolve based
+	 *                                      on the representative attribute values, must not be null
+	 * @param referenceModifier             a function that modifies the reference based on a specific index and the existing
+	 *                                      reference, must not be null
+	 * @return the number of references that were replaced
+	 */
+	public int replaceReferences(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceKey genericReferenceKey,
+		@Nonnull ToIntFunction<Serializable[]> representativeAttributeValues,
+		@Nonnull IntObjBiFunction<Reference, Reference> referenceModifier
+	) {
+		int replaced = 0;
+		final InsertionPosition position = findPositionInGeneralManner(genericReferenceKey);
+		if (position.alreadyPresent()) {
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			int index = position.position();
+			Reference reference = this.references[index];
+			do {
+				if (reference.exists()) {
+					final Serializable[] representativeValues = rad.getRepresentativeValues(reference);
+					final int resolvedIndex = representativeAttributeValues.applyAsInt(representativeValues);
+					if (resolvedIndex >= 0) {
+						this.references[index] = referenceModifier.apply(resolvedIndex, reference);
+						this.dirty = true;
+						replaced++;
+					}
+				}
+				index++;
+				if (index < this.references.length) {
+					reference = this.references[index];
+				} else {
+					break;
+				}
+			} while (reference.getReferenceKey().equals(genericReferenceKey));
+		}
+
+		if (replaced > 0) {
+			// after modifications, we need to ensure the references are still sorted
+			Arrays.sort(this.references, ReferenceContract.FULL_COMPARATOR);
+		}
+
+		return replaced;
 	}
 
 	/**
