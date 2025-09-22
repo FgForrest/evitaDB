@@ -95,16 +95,17 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} for all entities that are currently referenced.
 	 */
 	static void executeWithReferenceIndexes(
-		@Nonnull String entityType,
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull BiConsumer<ReferenceSchemaContract, EntityIndex> referenceIndexConsumer
+		@Nonnull BiConsumer<ReferenceSchemaContract, EntityIndex> referenceIndexConsumer,
+		boolean referencePresenceExpected
 	) {
 		executeWithReferenceIndexes(
 			indexType,
 			executor,
 			referenceIndexConsumer,
-			referenceContract -> true
+			referenceContract -> true,
+			referencePresenceExpected
 		);
 	}
 
@@ -116,7 +117,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull BiConsumer<ReferenceSchemaContract, EntityIndex> referenceIndexConsumer,
-		@Nonnull Predicate<ReferenceContract> referencePredicate
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected
 	) {
 		final Scope scope = executor.getScope();
 		final ReferencesStoragePart referencesStorageContainer = executor.getReferencesStoragePart();
@@ -125,7 +127,7 @@ public interface ReferenceIndexMutator {
 			referenceSchema = referenceSchema == null || !Objects.equals(referenceSchema.getName(), reference.getReferenceName()) ?
 				reference.getReferenceSchemaOrThrow() : referenceSchema;
 			if (reference.exists() && isIndexedReferenceFor(referenceSchema, scope, indexType) && referencePredicate.test(reference)) {
-				final RepresentativeReferenceKey rrk = executor.getRepresentativeReferenceKey(reference.getReferenceKey());
+				final RepresentativeReferenceKey rrk = executor.getRepresentativeReferenceKey(reference.getReferenceKey(), referencePresenceExpected);
 				final ReducedEntityIndex targetIndex = getOrCreateReferencedEntityIndex(executor, rrk, scope);
 				referenceIndexConsumer.accept(referenceSchema, targetIndex);
 			}

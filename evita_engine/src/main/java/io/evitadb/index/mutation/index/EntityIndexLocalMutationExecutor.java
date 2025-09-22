@@ -105,6 +105,7 @@ import java.util.function.ToIntFunction;
 import static io.evitadb.index.mutation.index.HierarchyPlacementMutator.removeParent;
 import static io.evitadb.index.mutation.index.HierarchyPlacementMutator.setParent;
 import static io.evitadb.utils.Assert.isPremiseValid;
+import static java.util.Optional.of;
 
 /**
  * This class applies changes in {@link LocalMutation} to one or multiple {@link EntityIndex} so that changes are reflected
@@ -279,12 +280,22 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
 				(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 				// removal must first occur on the reduced indexes, because they consult the super index
-				ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpdateApplicator);
+				ReferenceIndexMutator.executeWithReferenceIndexes(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+					this,
+					priceUpdateApplicator,
+					true
+				);
 				priceUpdateApplicator.accept(null, globalIndex);
 			} else {
 				// upsert must first occur on super index, because reduced indexed rely on information in super index
 				priceUpdateApplicator.accept(null, globalIndex);
-				ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpdateApplicator);
+				ReferenceIndexMutator.executeWithReferenceIndexes(
+					ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+					this,
+					priceUpdateApplicator,
+					true
+				);
 			}
 		} else if (localMutation instanceof ParentMutation parentMutation) {
 			updateHierarchyPlacement(parentMutation, globalIndex);
@@ -298,7 +309,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					this,
 					(theReferenceSchema, referenceIndex) -> updateReferencesInReferenceIndex(referenceMutation, referenceIndex),
 					// avoid indexing the referenced index that got updated by updateReferences method
-					referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey())
+					referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey()),
+					!(referenceMutation instanceof InsertReferenceMutation)
 				);
 			}
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
@@ -319,7 +331,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 				this,
 				(theReferenceSchema,entityIndex) -> attributeUpdateApplicator.accept(false, entityIndex, theReferenceSchema),
-				Droppable::exists
+				Droppable::exists,
+				true
 			);
 		} else if (localMutation instanceof AssociatedDataMutation) {
 			// do nothing, associated data doesn't affect entity index directly
@@ -432,7 +445,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull
 	RepresentativeReferenceKey getRepresentativeReferenceKey(
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull ReferenceKey referenceKey,
+		boolean referencePresenceExpected
 	) {
 		final EntitySchema entitySchema = getEntitySchema();
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
@@ -443,7 +457,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				comparableReferenceKey -> {
 					final ReferenceKey theRefKey = comparableReferenceKey.referenceKey();
 					final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
-					final Optional<ReferenceContract> reference = getReferencesStoragePart().findReference(theRefKey);
+					final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart();
+					final Optional<ReferenceContract> reference = referencePresenceExpected ?
+						of(referencesStoragePart.findReferenceOrThrowException(theRefKey)) :
+						referencesStoragePart.findReference(theRefKey);
 
 					// first fill representative attributes with default values and current values of the reference
 					final Serializable[] representativeAttributes = rad.getRepresentativeValues(reference.orElse(null));
@@ -532,7 +549,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	Optional<EntityIndex> getIndexByPrimaryKey(int indexPrimaryKey) {
 		final EntityIndex index = this.entityIndexCreatingAccessor.getIndexByPrimaryKey(indexPrimaryKey);
 		this.accessedIndexes.add(index.getIndexKey());
-		return Optional.of(index);
+		return of(index);
 	}
 
 	/**
@@ -941,7 +958,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = entity.getPrimaryKeyOrThrowException();
 		for (ReferenceContract reference : entity.getReferences()) {
 			if (reference.exists()) {
-				final RepresentativeReferenceKey referenceKey = getRepresentativeReferenceKey(reference.getReferenceKey());
+				final RepresentativeReferenceKey referenceKey = getRepresentativeReferenceKey(reference.getReferenceKey(), true);
 				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(reference, scope)) {
 					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
 					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
@@ -1212,7 +1229,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = entity.getPrimaryKeyOrThrowException();
 		for (ReferenceContract reference : entity.getReferences()) {
 			if (reference.exists()) {
-				final RepresentativeReferenceKey representativeReferenceKey = getRepresentativeReferenceKey(reference.getReferenceKey());
+				final RepresentativeReferenceKey representativeReferenceKey = getRepresentativeReferenceKey(reference.getReferenceKey(), true);
 				if (ReferenceIndexMutator.isIndexedReferenceForFiltering(reference, scope)) {
 					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(representativeReferenceKey.referenceName(), scope);
 					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
@@ -1291,7 +1308,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final Scope scope = getScope();
 		final int theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 		final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
-		final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(referenceKey);
+		final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
+			referenceKey,
+			!(referenceMutation instanceof InsertReferenceMutation)
+		);
 
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
 			final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
@@ -1516,7 +1536,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			};
 
 			// first remove data from reduced indexes
-			ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, pricesRemoval);
+			ReferenceIndexMutator.executeWithReferenceIndexes(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, pricesRemoval, true
+			);
 
 			// now we can safely remove the data from super index
 			pricesRemoval.accept(null, index);
@@ -1525,7 +1547,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			pricesInsertion.accept(null, index);
 
 			// and then we can add data to reduced indexes
-			ReferenceIndexMutator.executeWithReferenceIndexes(this.entityType, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, pricesInsertion);
+			ReferenceIndexMutator.executeWithReferenceIndexes(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, pricesInsertion, true
+			);
 		}
 	}
 

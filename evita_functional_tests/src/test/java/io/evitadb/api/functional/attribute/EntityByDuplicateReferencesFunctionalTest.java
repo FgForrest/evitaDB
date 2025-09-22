@@ -154,9 +154,9 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					       thatIs -> thatIs.filterable().representative()
 				       )
 				       .withAttribute(
-						   ATTRIBUTE_BRAND_ORDER,
-						   Predecessor.class,
-						   thatIs -> thatIs.sortable().withDefaultValue(Predecessor.HEAD)
+					       ATTRIBUTE_BRAND_ORDER,
+					       Predecessor.class,
+					       thatIs -> thatIs.sortable().withDefaultValue(Predecessor.HEAD)
 				       )
 		       )
 		       .updateAndFetchVia(session);
@@ -300,6 +300,35 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	}
 
 	/**
+	 * Counts the number of distinct references for a given reference name in a product entity.
+	 *
+	 * @param product       The {@link SealedEntity} representing the product whose references are to be counted.
+	 * @param referenceName The name of the reference whose distinct values need to be counted.
+	 * @return The number of distinct references for the given reference name.
+	 */
+	private static int countDuplicates(
+		@Nonnull SealedEntity product,
+		@Nonnull String referenceName,
+		int referencedEntityId
+	) {
+		return Math.toIntExact(
+			product
+				.getReferences(referenceName, referencedEntityId)
+				.stream()
+				.collect(
+					Collectors.groupingBy(
+						ReferenceContract::getReferencedPrimaryKey,
+						Collectors.counting()
+					)
+				)
+				.values()
+				.stream()
+				.max(Long::compareTo)
+				.orElse(0L)
+		);
+	}
+
+	/**
 	 * Verifies that the stored product entity and its references are correctly reflected and updated in the session.
 	 * This method ensures that attributes of the product, references to related entities, and referenced entities'
 	 * reflected references are consistent with the expected states.
@@ -388,6 +417,34 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			),
 			category2Products
 		);
+	}
+
+	/**
+	 * Collects the cardinalities (counts) of categories grouped by country and entity primary key.
+	 * This method retrieves a category entity from the session by its primary key, gathers its
+	 * product references, and groups them based on the combination of the referenced primary key
+	 * and a specified country attribute.
+	 *
+	 * @param session    The session instance of {@link EvitaSessionContract} used to fetch the category entity.
+	 * @param primaryKey The primary key of the category entity for which cardinalities are to be calculated.
+	 * @return A map where the keys are {@link EntityCountry} objects representing the combination of
+	 * an entity's primary key and country, and the values are counts of occurrences.
+	 */
+	@Nonnull
+	private static Map<EntityCountry, Long> collectCategoryCardinalities(
+		@Nonnull EvitaSessionContract session, int primaryKey) {
+		return session
+			.getEntity(Entities.CATEGORY, primaryKey, entityFetchAllContent())
+			.orElseThrow(() -> new ContextMissingException("Category with pk 1 is missing!"))
+			.getReferences(REFERENCE_CATEGORY_PRODUCTS)
+			.stream()
+			.collect(
+				Collectors.groupingBy(
+					ref -> new EntityCountry(
+						ref.getReferencedPrimaryKey(), ref.getAttribute(ATTRIBUTE_COUNTRY)),
+					Collectors.counting()
+				)
+			);
 	}
 
 	@Nullable
@@ -789,14 +846,180 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		);
 	}
 
+	@DisplayName("All duplicated references can be gradually removed from the product")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
 	@Test
-	void shouldRemoveDuplicateReferences() {
-		fail("Not implemented yet");
+	void shouldRemoveDuplicateReferences(Evita evita) {
+		shouldIndexProductWithReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(2, countDuplicates(product, REFERENCE_CATEGORIES));
+
+				// remove first DE reference to category 1
+				product.openForWrite()
+				       .removeReferences(
+					       REFERENCE_CATEGORIES, ref -> ref.getReferencedPrimaryKey() == 1 && ref.getAttribute(
+						       ATTRIBUTE_COUNTRY).equals("DE")
+				       )
+				       .upsertVia(session);
+
+				final SealedEntity updatedProduct = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(1, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 1));
+				assertEquals(2, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountries = collectCategoryCardinalities(session, 1);
+				assertEquals(1, category1EntityCountries.size());
+				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, "US")));
+
+				final Map<EntityCountry, Long> category2EntityCountries = collectCategoryCardinalities(session, 2);
+
+				assertEquals(2, category2EntityCountries.size());
+				assertEquals(1, category2EntityCountries.get(new EntityCountry(1, "DE")));
+				assertEquals(1, category2EntityCountries.get(new EntityCountry(1, "US")));
+
+				// remove secondary DE reference to category 1
+				updatedProduct.openForWrite()
+				       .removeReferences(
+					       REFERENCE_CATEGORIES, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE")
+				       )
+				       .upsertVia(session);
+
+				final SealedEntity updatedProductWithoutDE = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 1));
+				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutDE = collectCategoryCardinalities(session, 1);
+				assertEquals(1, category1EntityCountriesWithoutDE.size());
+				assertEquals(1, category1EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
+
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutDE = collectCategoryCardinalities(session, 2);
+
+				assertEquals(1, category2EntityCountriesWithoutDE.size());
+				assertEquals(1, category2EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
+
+				// remove all US references at once
+				updatedProductWithoutDE.openForWrite()
+				              .removeReferences(REFERENCE_CATEGORIES, ref -> true)
+				              .upsertVia(session);
+
+				final SealedEntity updatedProductWithoutCategories = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 1));
+				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 1);
+				assertEquals(0, category1EntityCountriesWithoutRefs.size());
+
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 2);
+
+				assertEquals(0, category2EntityCountriesWithoutRefs.size());
+			}
+		);
 	}
 
+	@DisplayName("All duplicated references can be gradually removed from the product via reflected references")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
 	@Test
-	void shouldRemoveDuplicateReferencesViaReflectedReferences() {
-		fail("Not implemented yet");
+	void shouldRemoveDuplicateReferencesViaReflectedReferences(Evita evita) {
+		shouldIndexProductWithReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(2, countDuplicates(product, REFERENCE_CATEGORIES));
+
+				// remove reflected reference DE in category 1
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+				       .orElseThrow(() -> new ContextMissingException("Category with pk 1 is missing!"))
+					.openForWrite()
+					.removeReferences(REFERENCE_CATEGORY_PRODUCTS, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE"))
+					.upsertVia(session);
+
+				final SealedEntity updatedProduct = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(1, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 1));
+				assertEquals(2, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountries = collectCategoryCardinalities(session, 1);
+				assertEquals(1, category1EntityCountries.size());
+				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, "US")));
+
+				final Map<EntityCountry, Long> category2EntityCountries = collectCategoryCardinalities(session, 2);
+
+				assertEquals(2, category2EntityCountries.size());
+				assertEquals(1, category2EntityCountries.get(new EntityCountry(1, "DE")));
+				assertEquals(1, category2EntityCountries.get(new EntityCountry(1, "US")));
+
+				// remove reflected reference DE in category 2
+				session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+				       .orElseThrow(() -> new ContextMissingException("Category with pk 2 is missing!"))
+				       .openForWrite()
+				       .removeReferences(REFERENCE_CATEGORY_PRODUCTS, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE"))
+				       .upsertVia(session);
+
+				final SealedEntity updatedProductWithoutDE = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 1));
+				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutDE = collectCategoryCardinalities(session, 1);
+				assertEquals(1, category1EntityCountriesWithoutDE.size());
+				assertEquals(1, category1EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
+
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutDE = collectCategoryCardinalities(session, 2);
+
+				assertEquals(1, category2EntityCountriesWithoutDE.size());
+				assertEquals(1, category2EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
+
+				// remove both US references
+				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+				       .orElseThrow(() -> new ContextMissingException("Category with pk 1 is missing!"))
+				       .openForWrite()
+				       .removeReferences(REFERENCE_CATEGORY_PRODUCTS)
+				       .upsertVia(session);
+				session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+				       .orElseThrow(() -> new ContextMissingException("Category with pk 1 is missing!"))
+				       .openForWrite()
+				       .removeReferences(REFERENCE_CATEGORY_PRODUCTS)
+				       .upsertVia(session);
+
+				final SealedEntity updatedProductWithoutCategories = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 1));
+				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 1);
+				assertEquals(0, category1EntityCountriesWithoutRefs.size());
+
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 2);
+
+				assertEquals(0, category2EntityCountriesWithoutRefs.size());
+			}
+		);
 	}
 
 	@Test

@@ -37,13 +37,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -179,27 +176,6 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceCarrier) {
 		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey, referenceCarrier.getReferenceKey().internalPrimaryKey());
-	}
-
-	@Nonnull
-	@Override
-	public Serializable[] getRepresentativeAttributeValues(
-		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull ReferenceMutation referenceCarrier
-	) {
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
-			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
-			final Map<AttributeKey, AttributeValue> attributeValues = this.referenceAttributesIndex.get(referenceCarrier.getReferenceKey());
-			final List<String> representativeAttributeNames = rad.getAttributeNames();
-			final Serializable[] values = new Serializable[representativeAttributeNames.size()];
-			for (int i = 0; i < representativeAttributeNames.size(); i++) {
-				final AttributeValue attributeValue = attributeValues.get(new AttributeKey(representativeAttributeNames.get(i)));
-				values[i] = attributeValue == null ? null : attributeValue.value();
-			}
-			return values;
-		} else {
-			return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
-		}
 	}
 
 	@Nonnull

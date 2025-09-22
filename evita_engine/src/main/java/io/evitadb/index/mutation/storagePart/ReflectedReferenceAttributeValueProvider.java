@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
@@ -112,24 +111,6 @@ interface ReflectedReferenceAttributeValueProvider<T> {
 	 */
 	@Nonnull
 	ReferenceKey getReferenceKey(
-		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull T referenceCarrier
-	);
-
-	/**
-	 * Retrieves an array of representative attribute values associated with the provided reference schema
-	 * and reference carrier. This method ensures that the values extracted are representative of the
-	 * defined schema and reference carrier relationship.
-	 *
-	 * @param referenceSchema The schema of the reference that defines the structural and attribute information
-	 *                        pertaining to the reference.
-	 * @param referenceCarrier The carrier containing reference information from which the attribute values
-	 *                         are extracted.
-	 * @return An array of serializable objects representing the attribute values for the given reference schema
-	 *         and reference carrier.
-	 */
-	@Nonnull
-	Serializable[] getRepresentativeAttributeValues(
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull T referenceCarrier
 	);

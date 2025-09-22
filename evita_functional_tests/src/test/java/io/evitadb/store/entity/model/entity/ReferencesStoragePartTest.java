@@ -25,6 +25,7 @@ package io.evitadb.store.entity.model.entity;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
@@ -701,4 +702,107 @@ class ReferencesStoragePartTest {
 		assertSame(r3, arr[2]);
 	}
 
+	@Test
+	@DisplayName("shouldReturnOnlyDroppedReferencesWhenMultipleReferencesShareGenericKey")
+	void shouldReturnOnlyDroppedReferencesWhenMultipleReferencesShareGenericKey() {
+		final ReferencesStoragePart part = new ReferencesStoragePart(
+			101, 10,
+			new Reference[]{
+				newRef("B", 1, 1, null, false),
+				// three references sharing the same generic key (D,1) with mixed dropped flags
+				newRef("D", 1, 4, null, true),
+				newRef("D", 1, 5, null, false),
+				newRef("D", 1, 6, null, true),
+				newRef("E", 1, 7, null, false)
+			},
+			-1
+		);
+
+		final List<ReferenceContract> dropped = part.findAllReferences(
+			new ReferenceKey("D", 1), Droppable::dropped
+		);
+		assertEquals(2, dropped.size());
+		assertEquals(4, dropped.get(0).getReferenceKey().internalPrimaryKey());
+		assertEquals(6, dropped.get(1).getReferenceKey().internalPrimaryKey());
+	}
+
+	@Test
+	@DisplayName("shouldReturnSingleDroppedReferenceWhenExactlyOneExists")
+	void shouldReturnSingleDroppedReferenceWhenExactlyOneExists() {
+		final ReferencesStoragePart part = new ReferencesStoragePart(
+			202, 10,
+			new Reference[]{
+				newRef("B", 1, 1, null, false),
+				newRef("C", 2, 2, null, false),
+				newRef("E", 1, 7, null, false),
+				newRef("F", 9, 11, null, true)
+			},
+			-1
+		);
+
+		final List<ReferenceContract> dropped = part.findAllReferences(
+			new ReferenceKey("F", 9), Droppable::dropped
+		);
+		assertEquals(1, dropped.size());
+		assertEquals(11, dropped.get(0).getReferenceKey().internalPrimaryKey());
+	}
+
+	@Test
+	@DisplayName("shouldReturnEmptyListWhenNoDroppedReferencesExistForGenericKey")
+	void shouldReturnEmptyListWhenNoDroppedReferencesExistForGenericKey() {
+		final ReferencesStoragePart part = new ReferencesStoragePart(
+			303, 10,
+			new Reference[]{
+				newRef("B", 1, 1, null, false),
+				newRef("D", 1, 4, null, false),
+				newRef("D", 1, 6, null, false),
+				newRef("E", 1, 7, null, false)
+			},
+			-1
+		);
+
+		final List<ReferenceContract> dropped = part.findAllReferences(
+			new ReferenceKey("D", 1), Droppable::dropped
+		);
+		assertTrue(dropped.isEmpty());
+	}
+
+	@Test
+	@DisplayName("shouldReturnEmptyListWhenGenericReferenceKeyNotFound")
+	void shouldReturnEmptyListWhenGenericReferenceKeyNotFound() {
+		final ReferencesStoragePart part = new ReferencesStoragePart(
+			404, 10,
+			new Reference[]{
+				newRef("B", 1, 1, null, false),
+				newRef("D", 1, 4, null, false),
+				newRef("E", 1, 7, null, true)
+			},
+			-1
+		);
+
+		final List<ReferenceContract> dropped = part.findAllReferences(
+			new ReferenceKey("X", 99), Droppable::dropped
+		);
+		assertTrue(dropped.isEmpty());
+	}
+
+	@Test
+	@DisplayName("shouldThrowExceptionWhenNonGenericKeyProvidedToFindDroppedReferences")
+	void shouldThrowExceptionWhenNonGenericKeyProvidedToFindDroppedReferences() {
+		final ReferencesStoragePart part = new ReferencesStoragePart(
+			505, 10,
+			new Reference[]{
+				newRef("B", 1, 1, null, false),
+				newRef("D", 1, 4, null, true)
+			},
+			-1
+		);
+
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> part.findAllReferences(
+				new ReferenceKey("D", 1, 4), Droppable::dropped
+			)
+		);
+	}
 }

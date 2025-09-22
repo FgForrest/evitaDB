@@ -33,13 +33,10 @@ import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -167,20 +164,6 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 			}
 		}
 		return Optional.ofNullable(this.referenceIndex.get(new ComparableReferenceKey(referenceKey)));
-	}
-
-	@Nonnull
-	@Override
-	public Serializable[] getRepresentativeAttributeValues(
-		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull ReferenceContract referenceCarrier
-	) {
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
-			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
-			return rad.getRepresentativeValues(referenceCarrier);
-		} else {
-			return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
-		}
 	}
 
 	@Nonnull

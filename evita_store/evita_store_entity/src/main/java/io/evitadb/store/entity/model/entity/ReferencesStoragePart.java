@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.function.Predicate;
 import java.util.function.ToIntBiFunction;
 import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
@@ -409,22 +410,76 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				index >= 0,
 				() -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
 			);
-			if (index + 1 < this.references.length && this.references[index + 1].getReferenceKey().equals(
-				referenceKey)) {
+			if (index + 1 < this.references.length &&
+				this.references[index + 1].getReferenceKey().equals(referenceKey)) {
 				final List<ReferenceContract> references = new ArrayList<>(Math.min(8, this.references.length - index));
 				while (
 					index < this.references.length &&
 						this.references[index].getReferenceKey().equals(referenceKey)) {
-					references.add(this.references[index++]);
+					final Reference reference = this.references[index++];
+					if (reference.exists()) {
+						references.add(reference);
+					}
 				}
 				return references;
-			} else {
+			} else if (this.references[index].exists()) {
 				return Collections.singletonList(this.references[index]);
 			}
-		} else {
-			throw new GenericEvitaInternalError(
-				"Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
+		}
+		throw new GenericEvitaInternalError(
+			"Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
+		);
+	}
+
+	/**
+	 * Finds all dropped references associated with the given reference key.
+	 *
+	 * This method is specifically used to retrieve references that are marked as "dropped"
+	 * for the provided generic reference key. If no dropped references are present
+	 * or if the reference key is not associated with this entity, an empty list is returned.
+	 *
+	 * @param referenceKey the unique key identifying the reference(s) to search for;
+	 *                     it must be a generic reference key.
+	 * @return a list of dropped references corresponding to the provided reference key;
+	 *         if no dropped references exist, an empty list is returned.
+	 * @throws IllegalArgumentException if the provided reference key is not a generic reference key
+	 *                                  or if it does not exist within the context of this entity.
+	 */
+	@Nonnull
+	public List<ReferenceContract> findAllReferences(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Predicate<ReferenceContract> filter
+	) {
+		Assert.isPremiseValid(
+			referenceKey.isUnknownReference(),
+			() -> "This method makes sense only with generic reference key!"
+		);
+		final InsertionPosition startPosition = findPositionInGeneralManner(referenceKey);
+		if (startPosition.alreadyPresent()) {
+			int index = startPosition.position();
+			Assert.isPremiseValid(
+				index >= 0,
+				() -> "Reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "` was not found!"
 			);
+			if (index + 1 < this.references.length &&
+				this.references[index + 1].getReferenceKey().equals(referenceKey)) {
+				final List<ReferenceContract> references = new ArrayList<>(Math.min(8, this.references.length - index));
+				while (
+					index < this.references.length &&
+						this.references[index].getReferenceKey().equals(referenceKey)) {
+					final Reference reference = this.references[index++];
+					if (filter.test(reference)) {
+						references.add(reference);
+					}
+				}
+				return references;
+			} else if (filter.test(this.references[index])) {
+				return Collections.singletonList(this.references[index]);
+			} else {
+				return Collections.emptyList();
+			}
+		} else {
+			return Collections.emptyList();
 		}
 	}
 

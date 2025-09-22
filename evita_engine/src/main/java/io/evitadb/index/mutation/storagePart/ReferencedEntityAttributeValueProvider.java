@@ -32,11 +32,9 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -119,33 +117,6 @@ class ReferencedEntityAttributeValueProvider implements ReflectedReferenceAttrib
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceKey referenceCarrier) {
 		return referenceCarrier;
-	}
-
-	@Nonnull
-	@Override
-	public Serializable[] getRepresentativeAttributeValues(
-		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull ReferenceKey referenceCarrier
-	) {
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
-			// fetch the referenced entity reference part, this is quite expensive operation
-			final ReferencesStoragePart referencedEntityReferencePart = this.dataStoreReader.fetch(
-				this.catalogVersion, referenceCarrier.primaryKey(), ReferencesStoragePart.class
-			);
-			if (referencedEntityReferencePart == null) {
-				return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
-			} else {
-				// find the appropriate reference in the referenced entity
-				final ReferenceContract reference = referencedEntityReferencePart.findReferenceOrThrowException(
-					new ReferenceKey(
-						referenceSchema.getName(), this.entityPrimaryKey, referenceCarrier.internalPrimaryKey())
-				);
-				// and propagate the inherited attributes
-				return referenceSchema.getRepresentativeAttributeDefinition().getRepresentativeValues(reference);
-			}
-		} else {
-			return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
-		}
 	}
 
 	@Nonnull

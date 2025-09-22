@@ -181,23 +181,6 @@ class ReferenceBlock<T> {
 	}
 
 	/**
-	 * Provides a stream of arrays containing representative attribute values derived from the reference schema
-	 * and reference carriers. The method relies on an attribute value provider to extract these values, ensuring
-	 * they are representative of the schema and carrier relationship.
-	 *
-	 * @return a non-null stream of serializable arrays, where each array contains the representative attribute values
-	 *         for a specific reference carrier defined by the reference schema.
-	 */
-	@Nonnull
-	public Stream<Serializable[]> getRepresentativeAttributeValuesSupplier(
-		@Nonnull ReferenceKey genericReferenceKey
-	) {
-		return this.attributeValueProvider
-			.getReferenceCarriers(genericReferenceKey)
-			.map(it -> this.attributeValueProvider.getRepresentativeAttributeValues(this.referenceSchema, it));
-	}
-
-	/**
 	 * Generates a stream of reference attribute mutations based on the provided locales, attribute value provider,
 	 * referenced entity schema, reference, attribute schema, and inherited attributes.
 	 *
