@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -1022,9 +1023,54 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		);
 	}
 
+	@DisplayName("Product with duplicated references can be archived and unarchived")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
 	@Test
-	void shouldArchiveAndUnarchiveEntityWithDuplicatedReferences() {
-		fail("Not implemented yet");
+	void shouldArchiveAndUnarchiveEntityWithDuplicatedReferences(Evita evita) {
+		shouldIndexProductWithReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// archive the product
+				session.archiveEntity(Entities.PRODUCT, 1);
+
+				assertNull(
+					session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent()).orElse(null)
+				);
+
+				final SealedEntity archivedProduct = session.getEntity(
+					Entities.PRODUCT, 1, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()
+				).orElse(null);
+
+				// verify it still has duplicated references intact
+				assertNotNull(archivedProduct);
+				assertEquals(2, countDuplicates(archivedProduct, REFERENCE_CATEGORIES));
+
+				// verify categories have no references to the archived product
+				final Map<EntityCountry, Long> category1AfterArchivation = collectCategoryCardinalities(session, 1);
+				assertEquals(0, category1AfterArchivation.size());
+
+				final Map<EntityCountry, Long> category2AfterARchivation = collectCategoryCardinalities(session, 2);
+				assertEquals(0, category2AfterARchivation.size());
+
+				// restore the product
+				session.restoreEntity(Entities.PRODUCT, 1);
+
+				// verify the product and its duplicated references are back
+				final SealedEntity restoredProduct = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+				                                         .orElse(null);
+
+				assertNotNull(restoredProduct);
+				assertEquals(2, countDuplicates(restoredProduct, REFERENCE_CATEGORIES));
+
+				final Map<EntityCountry, Long> category1AfterRestore = collectCategoryCardinalities(session, 1);
+				assertEquals(2, category1AfterRestore.size());
+
+				final Map<EntityCountry, Long> category2AfterRestore = collectCategoryCardinalities(session, 2);
+				assertEquals(2, category2AfterRestore.size());
+			}
+		);
 	}
 
 	@Test

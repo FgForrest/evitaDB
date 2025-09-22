@@ -727,28 +727,34 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final PeekableIntIterator existingPrimaryKeysIterator = existingEntityPks.getIntIterator();
 		while (existingPrimaryKeysIterator.hasNext()) {
 			final int epk = existingPrimaryKeysIterator.next();
-			final List<ReferenceContract> droppedReferences = this.referencesStorageContainer.findAllReferences(
+			final List<ReferenceContract> referencesToRemove = this.referencesStorageContainer.findAllReferences(
 				new ReferenceKey(referenceSchema.getName(), epk), referencePredicate
 			);
-			for (ReferenceContract droppedReference : droppedReferences) {
-				if (entityPrimaryKeyPredicate.test(epk, rad.getRepresentativeValues(droppedReference))) {
-					// if the dropped reference is present, we need to remove it
-					mutationCollector.addExternalMutation(
-						new ServerEntityUpsertMutation(
-							referencedEntityType, epk, EntityExistence.MUST_EXIST,
-							EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES),
-							true,
-							true,
+			if (!referencesToRemove.isEmpty()) {
+				final List<LocalMutation<?, ?>> localMutations = new ArrayList<>(referencesToRemove.size());
+				for (ReferenceContract removedReference : referencesToRemove) {
+					if (entityPrimaryKeyPredicate.test(epk, rad.getRepresentativeValues(removedReference))) {
+						localMutations.add(
 							new RemoveReferenceMutation(
 								new ReferenceKey(
 									referencedSchemaName,
 									entityPrimaryKey,
-									droppedReference.getReferenceKey().internalPrimaryKey()
+									removedReference.getReferenceKey().internalPrimaryKey()
 								)
 							)
-						)
-					);
+						);
+					}
 				}
+				// if the dropped reference is present, we need to remove it
+				mutationCollector.addExternalMutation(
+					new ServerEntityUpsertMutation(
+						referencedEntityType, epk, EntityExistence.MUST_EXIST,
+						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES),
+						true,
+						true,
+						localMutations.toArray(LocalMutation[]::new)
+					)
+				);
 			}
 		}
 	}
