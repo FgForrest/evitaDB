@@ -1904,7 +1904,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										mutationCollector.addExternalMutation(
 											entityMutationFactory.apply(
 												new ReferenceAttributeMutation(
-													new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey),
+													new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey, ram.getReferenceKey().internalPrimaryKey()),
 													toInvertedTypeAttributeMutation(ram.getAttributeMutation())
 												)
 											)
@@ -1929,7 +1929,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 													mutationCollector.addExternalMutation(
 														entityMutationFactory.apply(
 															new ReferenceAttributeMutation(
-																new ReferenceKey(rrsc.getName(), this.entityPrimaryKey),
+																new ReferenceKey(rrsc.getName(), this.entityPrimaryKey, ram.getReferenceKey().internalPrimaryKey()),
 																toInvertedTypeAttributeMutation(ram.getAttributeMutation())
 															)
 														)

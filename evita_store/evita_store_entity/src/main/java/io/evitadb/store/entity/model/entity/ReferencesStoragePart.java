@@ -157,6 +157,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 */
 	public void assignMissingIdsAndSort() {
 		if (this.unassignedPrimaryKeys) {
+			final int lupkBefore = this.lastUsedPrimaryKey;
 			ReferenceKey previousReferenceKey = null;
 			for (int i = 0; i < this.references.length; i++) {
 				Reference reference = this.references[i];
@@ -178,6 +179,11 @@ public class ReferencesStoragePart implements EntityStoragePart {
 					this.references[i] = reference;
 					this.dirty = true;
 				}
+			}
+
+			if (lupkBefore != this.lastUsedPrimaryKey) {
+				// after modifications, we need to ensure the references are still sorted
+				Arrays.sort(this.references, ReferenceContract.FULL_COMPARATOR);
 			}
 
 			this.unassignedPrimaryKeys = false;
@@ -383,7 +389,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		);
 		Assert.isPremiseValid(
 			index + 1 == this.references.length ||
-				!this.references[index + 1].getReferenceKey().equals(referenceKey),
+				ReferenceKey.FULL_COMPARATOR.compare(this.references[index + 1].getReferenceKey(), referenceKey) != 0,
 			() -> "There is more than one reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "`!"
 		);
 		return reference;

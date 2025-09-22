@@ -107,6 +107,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 */
 	private final Function<ReferenceKey, Optional<ReferenceContract>> richReferenceFetcher;
 	/**
+	 * Map of attribute types for the reference shared for all references of the same type.
+	 */
+	private final Map<String, AttributeSchemaContract> attributeTypes;
+	/**
 	 * Collected reference mutations grouped by business {@link ReferenceKey} and disambiguated
 	 * by internal primary key. The outer key never contains the internal primary key.
 	 */
@@ -136,10 +140,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * don't have it assigned yet.
 	 */
 	private int lastLocallyAssignedReferenceId = 0;
-	/**
-	 * Map of attribute types for the reference shared for all references of the same type.
-	 */
-	private final Map<String, AttributeSchemaContract> attributeTypes;
 
 	ExistingReferencesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -320,70 +320,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	public List<ReferenceContract> getReferences(
 		@Nonnull ReferenceKey referenceKey
 	) throws ContextMissingException, ReferenceNotFoundException {
-		final String referenceName = referenceKey.referenceName();
-		assertReferenceAvailableAndMatchPredicate(referenceName);
-
-		if (!referencesAvailable(referenceName)) {
-			throw ContextMissingException.referenceContextMissing(referenceName);
-		}
-
-		// collect base references for the business key
-		final List<ReferenceContract> baseReferences = this.baseReferences.getReferences(referenceKey);
-
-		// build a set of known internal PKs for fast membership checks (only for known positive internal PKs)
-		final int baseSize = baseReferences.size();
-		final HashSet<Integer> knownInternalPks = CollectionUtils.createHashSet(baseSize);
-
-		// fetch relevant mutation bulk only once
-		final Map<Integer, List<ReferenceMutation<?>>> mutationBulk =
-			this.referenceMutations == null ?
-				Map.of() : this.referenceMutations.get(referenceKey);
-
-		// estimate result capacity (upper bound: all base + all new-from-mutations)
-		final int mutationCount = mutationBulk != null ? mutationBulk.size() : 0;
-		final ArrayList<ReferenceContract> result = new ArrayList<>(baseSize + mutationCount);
-
-		// process existing base references first
-		for (int i = 0; i < baseSize; i++) {
-			final ReferenceContract baseRef = baseReferences.get(i);
-			if (!this.referencePredicate.test(baseRef)) {
-				continue;
-			}
-			if (mutationBulk != null) {
-				final ReferenceKey baseRefKey = baseRef.getReferenceKey();
-				final int ipk = baseRefKey.internalPrimaryKey();
-				if (baseRefKey.isKnownInternalPrimaryKey()) {
-					knownInternalPks.add(ipk);
-				}
-
-				final List<ReferenceMutation<?>> mutationsForRef = mutationBulk.get(ipk);
-				if (mutationsForRef != null) {
-					result.add(evaluateReferenceMutations(baseRef, mutationsForRef));
-					continue;
-				}
-			}
-			// no mutations for this reference – prefer decorated instance if available
-			result.add(this.richReferenceFetcher.apply(referenceKey).orElse(baseRef));
-		}
-
-		// now add references created solely by mutations (not tied to existing base references)
-		if (mutationBulk != null && !mutationBulk.isEmpty()) {
-			for (Map.Entry<Integer, List<ReferenceMutation<?>>> e : mutationBulk.entrySet()) {
-				final int internalPkFromMutation = e.getKey();
-				// skip those already present in base (we processed them above)
-				if (internalPkFromMutation > 0 && knownInternalPks.contains(internalPkFromMutation)) {
-					continue;
-				}
-				final List<ReferenceMutation<?>> mutations = e.getValue();
-				// create new reference from NULL input and evaluate predicate
-				final ReferenceContract created = evaluateReferenceMutations(null, mutations);
-				if (created != null && this.referencePredicate.test(created)) {
-					result.add(created);
-				}
-			}
-		}
-
-		return result;
+		return getReferencesInternal(referenceKey, true);
 	}
 
 	@Nonnull
@@ -452,6 +389,25 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder setReference(
 		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
+		return setReference(
+			referenceName,
+			referenceSchema.getReferencedEntityType(),
+			referenceSchema.getCardinality(),
+			referencedPrimaryKey,
+			filter,
+			whichIs
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesBuilder setReference(
+		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Cardinality cardinality,
 		int referencedPrimaryKey
@@ -487,25 +443,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder setReference(
 		@Nonnull String referenceName,
-		int referencedPrimaryKey,
-		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull Consumer<ReferenceBuilder> whichIs
-	) {
-		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		return setReference(
-			referenceName,
-			referenceSchema.getReferencedEntityType(),
-			referenceSchema.getCardinality(),
-			referencedPrimaryKey,
-			filter,
-			whichIs
-		);
-	}
-
-	@Nonnull
-	@Override
-	public ReferencesBuilder setReference(
-		@Nonnull String referenceName,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,
 		int referencedPrimaryKey,
@@ -521,7 +458,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		final EntitySchemaContract schema = this.entitySchema;
-		final List<ReferenceContract> existingReferences = this.baseReferences.getReferencesWithoutSchemaCheck(referenceKey);
+		final List<ReferenceContract> existingReferences = getReferencesInternal(referenceKey, false);
 		ReferenceContract selectedReference = null;
 		for (ReferenceContract existingReference : existingReferences) {
 			if (filter.test(existingReference)) {
@@ -583,7 +520,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 	@Nonnull
 	@Override
-	public ReferencesBuilder removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
+	public ReferencesBuilder removeReferences(
+		@Nonnull String referenceName,
+		@Nonnull Predicate<ReferenceContract> filter
+	) {
 		assertReferenceAvailableAndMatchPredicate(referenceName);
 		final Predicate<ReferenceContract> combinedFilter = ref ->
 			Objects.equals(referenceName, ref.getReferenceName()) && filter.test(ref);
@@ -610,6 +550,109 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 
 		return this;
+	}
+
+	/**
+	 * Adds a new mutation to the collection of reference mutations.
+	 *
+	 * @param referenceMutation the mutation to be added, which defines changes to a specific reference.
+	 *                          The mutation includes details such as the reference key and any required
+	 *                          updates or additions to the reference schema.
+	 */
+	public void addMutation(@Nonnull ReferenceMutation<?> referenceMutation) {
+		if (referenceMutation instanceof InsertReferenceMutation irs) {
+			// we need to resolve the referenced entity type and cardinality from schema
+			if (irs.getReferencedEntityType() == null || irs.getReferenceCardinality() == null) {
+				final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(
+					referenceMutation.getReferenceKey().referenceName()
+				);
+				referenceMutation = irs.withReferenceTo(
+					referenceSchema.getReferencedEntityType(),
+					referenceSchema.getCardinality()
+				);
+			} else {
+				// check we have access to the reference
+				getReferenceSchemaOrCreateImplicit(
+					referenceMutation.getReferenceKey().referenceName(),
+					irs.getReferencedEntityType(),
+					irs.getReferenceCardinality()
+				);
+			}
+		}
+		getReferenceMutationsForKey(referenceMutation.getReferenceKey())
+			.computeIfAbsent(
+				referenceMutation.getReferenceKey().internalPrimaryKey(),
+				k -> new ArrayList<>(8)
+			).add(referenceMutation);
+		this.memoizedReferences = null;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
+		if (this.referenceMutations == null || this.referenceMutations.isEmpty()) {
+			return Stream.empty();
+		} else {
+			// Pre-size the result list by summing sizes of inner mutation lists.
+			// This walks only the maps and list sizes (O(number of lists)), not the mutations themselves.
+			int totalCapacity = 0;
+			for (Map.Entry<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> bulkEntry : this.referenceMutations.entrySet()) {
+				final Map<Integer, List<ReferenceMutation<?>>> byInternalId = bulkEntry.getValue();
+				for (List<ReferenceMutation<?>> bucket : byInternalId.values()) {
+					totalCapacity += bucket.size();
+				}
+			}
+
+			// presize the result list to avoid multiple resizes
+			final List<ReferenceMutation<?>> filtered = new ArrayList<>(totalCapacity);
+
+			// Second pass: actual processing
+			for (Map.Entry<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> bulkEntry : this.referenceMutations.entrySet()) {
+				final ReferenceKey referenceKey = bulkEntry.getKey();
+				final Map<Integer, List<ReferenceMutation<?>>> mutationsByInternalId = bulkEntry.getValue();
+
+				// handle each reference one by one
+				for (Map.Entry<Integer, List<ReferenceMutation<?>>> entry : mutationsByInternalId.entrySet()) {
+					final int internalId = entry.getKey();
+					// create the complete reference key - the reference key in the map never has internalPrimaryKey set
+					final ReferenceKey composedReferenceKey = new ReferenceKey(
+						referenceKey.referenceName(),
+						referenceKey.primaryKey(),
+						internalId
+					);
+
+					// retrieve to base reference if it exists to start mutation from it
+					ReferenceContract updatedReference = this.baseReferences
+						.getReferenceWithoutSchemaCheck(composedReferenceKey)
+						.orElse(null);
+
+					// apply all mutations in the order they were added
+					final List<ReferenceMutation<?>> mutations = entry.getValue();
+					for (final ReferenceMutation<?> mutation : mutations) {
+						final ReferenceKey mutationKey = mutation.getReferenceKey();
+
+						// sanity check - all mutations must target the same reference
+						Assert.isPremiseValid(
+							composedReferenceKey.equals(mutationKey)
+								&& composedReferenceKey.internalPrimaryKey() == mutationKey.internalPrimaryKey(),
+							"All mutations must target the same reference!"
+						);
+
+						// apply mutation
+						final ReferenceContract newReference = mutation.mutateLocal(
+							this.entitySchema, updatedReference, this.attributeTypes);
+
+						// only keep the mutation if it increases version, or initial version was null (non-existent)
+						if (updatedReference == null || newReference.version() > updatedReference.version()) {
+							filtered.add(mutation);
+							updatedReference = newReference;
+						}
+					}
+				}
+			}
+
+			return filtered.stream();
+		}
 	}
 
 	@Override
@@ -651,7 +694,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final int internalReferenceKey = referenceKey.internalPrimaryKey();
 		Assert.isPremiseValid(
 			internalReferenceKey != 0 ||
-			    // TOBEDONE #538 - due to backward compatibility with 2025.6 we need to relax this condition
+				// TOBEDONE #538 - due to backward compatibility with 2025.6 we need to relax this condition
 				// until all reflected references gets reassigned to proper internal PKs gradually
 				getReferenceSchemaOrThrowException(referenceName) instanceof ReflectedReferenceSchemaContract,
 			"Internal primary key must be known or locally assigned here!"
@@ -684,8 +727,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				.map(ref ->
 					     ref.exists() &&
 						     !(
-								 this.removedReferences != null &&
-							     this.removedReferences.remove(new FullyComparableReferenceKey(referenceKey))
+							     this.removedReferences != null &&
+								     this.removedReferences.remove(new FullyComparableReferenceKey(referenceKey))
 						     )
 				)
 				.orElse(true);
@@ -804,108 +847,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		this.memoizedReferences = null;
 	}
 
-	/**
-	 * Adds a new mutation to the collection of reference mutations.
-	 *
-	 * @param referenceMutation the mutation to be added, which defines changes to a specific reference.
-	 *                          The mutation includes details such as the reference key and any required
-	 *                          updates or additions to the reference schema.
-	 */
-	public void addMutation(@Nonnull ReferenceMutation<?> referenceMutation) {
-		if (referenceMutation instanceof InsertReferenceMutation irs) {
-			// we need to resolve the referenced entity type and cardinality from schema
-			if (irs.getReferencedEntityType() == null || irs.getReferenceCardinality() == null) {
-				final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(
-					referenceMutation.getReferenceKey().referenceName()
-				);
-				referenceMutation = irs.withReferenceTo(
-					referenceSchema.getReferencedEntityType(),
-					referenceSchema.getCardinality()
-				);
-			} else {
-				// check we have access to the reference
-				getReferenceSchemaOrCreateImplicit(
-					referenceMutation.getReferenceKey().referenceName(),
-					irs.getReferencedEntityType(),
-					irs.getReferenceCardinality()
-				);
-			}
-		}
-		getReferenceMutationsForKey(referenceMutation.getReferenceKey())
-			.computeIfAbsent(
-				referenceMutation.getReferenceKey().internalPrimaryKey(),
-				k -> new ArrayList<>(8)
-			).add(referenceMutation);
-		this.memoizedReferences = null;
-	}
-
-	@Nonnull
-	@Override
-	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
-		if (this.referenceMutations == null || this.referenceMutations.isEmpty()) {
-			return Stream.empty();
-		} else {
-			// Pre-size the result list by summing sizes of inner mutation lists.
-			// This walks only the maps and list sizes (O(number of lists)), not the mutations themselves.
-			int totalCapacity = 0;
-			for (Map.Entry<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> bulkEntry : this.referenceMutations.entrySet()) {
-				final Map<Integer, List<ReferenceMutation<?>>> byInternalId = bulkEntry.getValue();
-				for (List<ReferenceMutation<?>> bucket : byInternalId.values()) {
-					totalCapacity += bucket.size();
-				}
-			}
-
-			// presize the result list to avoid multiple resizes
-			final List<ReferenceMutation<?>> filtered = new ArrayList<>(totalCapacity);
-
-			// Second pass: actual processing
-			for (Map.Entry<ReferenceKey, Map<Integer, List<ReferenceMutation<?>>>> bulkEntry : this.referenceMutations.entrySet()) {
-				final ReferenceKey referenceKey = bulkEntry.getKey();
-				final Map<Integer, List<ReferenceMutation<?>>> mutationsByInternalId = bulkEntry.getValue();
-
-				// handle each reference one by one
-				for (Map.Entry<Integer, List<ReferenceMutation<?>>> entry : mutationsByInternalId.entrySet()) {
-					final int internalId = entry.getKey();
-					// create the complete reference key - the reference key in the map never has internalPrimaryKey set
-					final ReferenceKey composedReferenceKey = new ReferenceKey(
-						referenceKey.referenceName(),
-						referenceKey.primaryKey(),
-						internalId
-					);
-
-					// retrieve to base reference if it exists to start mutation from it
-					ReferenceContract updatedReference = this.baseReferences
-						.getReferenceWithoutSchemaCheck(composedReferenceKey)
-						.orElse(null);
-
-					// apply all mutations in the order they were added
-					final List<ReferenceMutation<?>> mutations = entry.getValue();
-					for (final ReferenceMutation<?> mutation : mutations) {
-						final ReferenceKey mutationKey = mutation.getReferenceKey();
-
-						// sanity check - all mutations must target the same reference
-						Assert.isPremiseValid(
-							composedReferenceKey.equals(mutationKey)
-								&& composedReferenceKey.internalPrimaryKey() == mutationKey.internalPrimaryKey(),
-							"All mutations must target the same reference!"
-						);
-
-						// apply mutation
-						final ReferenceContract newReference = mutation.mutateLocal(this.entitySchema, updatedReference, this.attributeTypes);
-
-						// only keep the mutation if it increases version, or initial version was null (non-existent)
-						if (updatedReference == null || newReference.version() > updatedReference.version()) {
-							filtered.add(mutation);
-							updatedReference = newReference;
-						}
-					}
-				}
-			}
-
-			return filtered.stream();
-		}
-	}
-
 	@Nonnull
 	@Override
 	public References build() {
@@ -926,10 +867,96 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * whether the reference mutations list is non-null and not empty.
 	 *
 	 * @return true if the reference mutations list is not null and not empty;
-	 *         false otherwise.
+	 * false otherwise.
 	 */
 	public boolean isThereAnyChangeInMutations() {
 		return this.referenceMutations != null && !this.referenceMutations.isEmpty();
+	}
+
+	/**
+	 * Retrieves a list of references associated with the specified `ReferenceKey`,
+	 * applying optional schema validation and filtering based on a predicate.
+	 * The method processes both base references and those created or altered through mutations.
+	 *
+	 * @param referenceKey the key that identifies the references to retrieve.
+	 * @param schemaCheck  a flag indicating whether schema validation should be performed.
+	 *                     If true, base references will be validated against the schema.
+	 * @return an ArrayList of `ReferenceContract` objects, representing the references
+	 * associated with the specified key. May include references created solely
+	 * by mutations, provided they pass the predicate filter.
+	 * @throws ContextMissingException if the reference context is unavailable for the given reference name.
+	 */
+	@Nonnull
+	private ArrayList<ReferenceContract> getReferencesInternal(
+		@Nonnull ReferenceKey referenceKey,
+		boolean schemaCheck
+	) {
+		final String referenceName = referenceKey.referenceName();
+		assertReferenceAvailableAndMatchPredicate(referenceName);
+
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
+
+		// collect base references for the business key
+		final List<ReferenceContract> baseReferences = schemaCheck ?
+			this.baseReferences.getReferences(referenceKey) :
+			this.baseReferences.getReferencesWithoutSchemaCheck(referenceKey);
+
+		// build a set of known internal PKs for fast membership checks (only for known positive internal PKs)
+		final int baseSize = baseReferences.size();
+		final HashSet<Integer> knownInternalPks = CollectionUtils.createHashSet(baseSize);
+
+		// fetch relevant mutation bulk only once
+		final Map<Integer, List<ReferenceMutation<?>>> mutationBulk =
+			this.referenceMutations == null ?
+				Map.of() : this.referenceMutations.get(referenceKey);
+
+		// estimate result capacity (upper bound: all base + all new-from-mutations)
+		final int mutationCount = mutationBulk != null ? mutationBulk.size() : 0;
+		final ArrayList<ReferenceContract> result = new ArrayList<>(baseSize + mutationCount);
+
+		// process existing base references first
+		for (int i = 0; i < baseSize; i++) {
+			final ReferenceContract baseRef = baseReferences.get(i);
+			if (!this.referencePredicate.test(baseRef)) {
+				continue;
+			}
+			if (mutationBulk != null) {
+				final ReferenceKey baseRefKey = baseRef.getReferenceKey();
+				final int ipk = baseRefKey.internalPrimaryKey();
+				if (baseRefKey.isKnownInternalPrimaryKey()) {
+					knownInternalPks.add(ipk);
+				}
+
+				final List<ReferenceMutation<?>> mutationsForRef = mutationBulk.get(ipk);
+				if (mutationsForRef != null) {
+					result.add(evaluateReferenceMutations(baseRef, mutationsForRef));
+					continue;
+				}
+			}
+			// no mutations for this reference – prefer decorated instance if available
+			result.add(this.richReferenceFetcher.apply(baseRef.getReferenceKey()).orElse(baseRef));
+		}
+
+		// now add references created solely by mutations (not tied to existing base references)
+		if (mutationBulk != null && !mutationBulk.isEmpty()) {
+			for (Entry<Integer, List<ReferenceMutation<?>>> e : mutationBulk.entrySet()) {
+				final int internalPkFromMutation = e.getKey();
+				// skip those already present in base (we processed them above)
+				if (internalPkFromMutation > 0 && knownInternalPks.contains(internalPkFromMutation)) {
+					continue;
+				}
+				final List<ReferenceMutation<?>> mutations = e.getValue();
+				// create new reference from NULL input and evaluate predicate
+				final ReferenceContract created = evaluateReferenceMutations(null, mutations);
+				if (created != null && this.referencePredicate.test(created)) {
+					result.add(created);
+				}
+			}
+		}
+
+		return result;
 	}
 
 	/**
@@ -985,7 +1012,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			this.baseReferences.getReferenceWithoutSchemaCheck(referenceKey);
 		final ReferenceBuilder referenceBuilder = existingReference
 			.filter(reference -> isNotReferenceLocallyRemoved(reference.getReferenceKey()))
-			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, entitySchema, existingMutations, this.attributeTypes))
+			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(
+				it, entitySchema, existingMutations,
+				this.attributeTypes
+			))
 			.filter(this.referencePredicate)
 			.orElseGet(
 				() -> {
@@ -1017,10 +1047,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * and initializes the builder accordingly. It also applies any attribute mutations
 	 * from the provided list of mutations to the builder.
 	 *
-	 * @param entitySchema the schema of the entity containing the reference
-	 * @param referenceSchema the schema definition of the reference
-	 * @param existingMutations a list of existing reference mutations to be applied
-	 * @param referenceName the name of the reference
+	 * @param entitySchema         the schema of the entity containing the reference
+	 * @param referenceSchema      the schema definition of the reference
+	 * @param existingMutations    a list of existing reference mutations to be applied
+	 * @param referenceName        the name of the reference
 	 * @param referencedPrimaryKey the primary key of the referenced entity
 	 * @return an instance of InitialReferenceBuilder initialized with the provided data
 	 * @throws GenericEvitaInternalError if the first mutation in the list is not an InsertReferenceMutation
@@ -1091,7 +1121,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		) {
 			throw new ReferenceCardinalityViolatedException(
 				entitySchema.getName(),
-				List.of(new CardinalityViolation(referenceName, referenceSchema.getCardinality(), existingInternalPkCount + 1))
+				List.of(new CardinalityViolation(
+					referenceName, referenceSchema.getCardinality(),
+				                                 existingInternalPkCount + 1
+				))
 			);
 		} else {
 			refBuilder = new InitialReferenceBuilder(
@@ -1163,7 +1196,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				// we need to promote the cardinality in all insert reference mutations
 				final Cardinality elevatedCardinality = schemaCardinality.getMin() == 0 ?
 					(hasDuplicates ? Cardinality.ZERO_OR_MORE_WITH_DUPLICATES : Cardinality.ZERO_OR_MORE) :
-					(hasDuplicates ? Cardinality.ONE_OR_MORE_WITH_DUPLICATES : Cardinality.ONE_OR_MORE) ;
+					(hasDuplicates ? Cardinality.ONE_OR_MORE_WITH_DUPLICATES : Cardinality.ONE_OR_MORE);
 				for (Entry<Integer, List<ReferenceMutation<?>>> entry : referenceMutationIndex.entrySet()) {
 					final List<ReferenceMutation<?>> mutations = entry.getValue();
 					final List<ReferenceMutation<?>> newMutations = new ArrayList<>(mutations.size());
@@ -1211,7 +1244,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			if (mutations.size() == 1) {
 				return mutations.values().iterator().next();
 			} else {
-				throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.entitySchema, operation);
+				throw new ReferenceAllowsDuplicatesException(
+					referenceKey.referenceName(), this.entitySchema, operation);
 			}
 		} else {
 			final List<ReferenceMutation<?>> foundChangeSet = mutations.get(referenceKey.internalPrimaryKey());
@@ -1277,11 +1311,11 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		// the exact internal primary key to remove - unless explicitly allowed
 		if (
 			!allowRemovingAllDuplicates &&
-			referenceKey.isUnknownReference() &&
-			getReferenceSchemaContract(referenceName)
-				.map(ReferenceSchemaContract::getCardinality)
-				.map(Cardinality::allowsDuplicates)
-				.orElse(false)
+				referenceKey.isUnknownReference() &&
+				getReferenceSchemaContract(referenceName)
+					.map(ReferenceSchemaContract::getCardinality)
+					.map(Cardinality::allowsDuplicates)
+					.orElse(false)
 		) {
 			throw new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.WRITE);
 		}
@@ -1319,22 +1353,22 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 							referenceKey.internalPrimaryKey() == theReference.getReferenceKey().internalPrimaryKey()
 					)
 			) {
-					// if the reference was part of the previous entity version we build upon, remove it as-well
-					final ReferenceKey completeReferenceKey = theReference.getReferenceKey();
-					getReferenceMutationsForKey(referenceKey)
-						.put(
-							completeReferenceKey.internalPrimaryKey(),
-							Collections.singletonList(
-								new RemoveReferenceMutation(completeReferenceKey)
-							)
-						);
-					if (this.removedReferences == null) {
-						this.removedReferences = new HashSet<>(4);
-					}
-					this.removedReferences.add(
-						new FullyComparableReferenceKey(completeReferenceKey)
+				// if the reference was part of the previous entity version we build upon, remove it as-well
+				final ReferenceKey completeReferenceKey = theReference.getReferenceKey();
+				getReferenceMutationsForKey(referenceKey)
+					.put(
+						completeReferenceKey.internalPrimaryKey(),
+						Collections.singletonList(
+							new RemoveReferenceMutation(completeReferenceKey)
+						)
 					);
-					removed = true;
+				if (this.removedReferences == null) {
+					this.removedReferences = new HashSet<>(4);
+				}
+				this.removedReferences.add(
+					new FullyComparableReferenceKey(completeReferenceKey)
+				);
+				removed = true;
 			}
 		}
 
@@ -1370,7 +1404,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			mutatedReference :
 			reference;
 		if (theReference != null) {
-			final Optional<ReferenceContract> originalReference = theReference.getReferenceKey().isKnownInternalPrimaryKey() ?
+			final Optional<ReferenceContract> originalReference = theReference.getReferenceKey()
+			                                                                  .isKnownInternalPrimaryKey() ?
 				this.richReferenceFetcher.apply(theReference.getReferenceKey()) : empty();
 			final Optional<SealedEntity> originalReferencedEntity = originalReference
 				.flatMap(ReferenceContract::getReferencedEntity);
@@ -1448,7 +1483,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	/**
 	 * Caches the provided reference schema locally by its reference name.
 	 *
-	 * @param referenceName the unique name identifying the reference schema; must not be null
+	 * @param referenceName   the unique name identifying the reference schema; must not be null
 	 * @param referenceSchema the reference schema contract to be cached; must not be null
 	 */
 	private void cacheLocalSchema(
@@ -1506,8 +1541,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 	/**
 	 * Represents alternative to {@link ReferenceKey} that implements full comparison including internalPrimaryKey.
-	 * @param referenceName the name of the reference to be validated; must not be null
-	 * @param primaryKey the primary key of the referenced entity; must not be negative
+	 *
+	 * @param referenceName      the name of the reference to be validated; must not be null
+	 * @param primaryKey         the primary key of the referenced entity; must not be negative
 	 * @param internalPrimaryKey the internal primary key of the referenced entity; must not be negative
 	 */
 	private record FullyComparableReferenceKey(
@@ -1535,11 +1571,12 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * Fields:
 	 * - referenceKey: An instance of referenced key with corrected internal primary key
 	 * - mutations: A list of reference mutations that describe changes related to the primary key. This field is nonnull and
-	 *   must always contain a valid list of mutations.
+	 * must always contain a valid list of mutations.
 	 */
 	private record RemappedSet(
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull List<ReferenceMutation<?>> mutations
-	) {}
+	) {
+	}
 
 }

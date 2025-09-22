@@ -87,6 +87,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -159,7 +160,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Memoized factory that allows to retrieve existing attribute values from the current storage part.
 	 */
-	private ExistingDataSupplierFactory storagePartExistingDataFactory;
+	private EntityStoragePartExistingDataFactory storagePartExistingDataFactory;
 	/**
 	 * Set of keys of indexes that were created in this particular entity upsert.
 	 */
@@ -448,49 +449,79 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ReferenceKey referenceKey,
 		boolean referencePresenceExpected
 	) {
+		return this.memoizedRepresentativeAttributes.computeIfAbsent(
+			new ComparableReferenceKey(referenceKey),
+			crk -> getRepresentativeReferenceKeys(
+				crk.referenceKey(),
+				referencePresenceExpected
+			).current()
+		);
+	}
+
+	/**
+	 * Retrieves the representative reference key for the given reference key. Depending on the cardinality
+	 * of the reference schema, the method calculates representative attributes for all existing references
+	 * of the specified type if duplicates are allowed. If no duplicates are allowed, a representative key
+	 * is created directly based on the specified reference key.
+	 *
+	 * @param referenceKey the key of the reference for which the representative key is to be retrieved
+	 * @return the representative reference key, which may carry additional representative attributes
+	 *         if the reference supports duplicates
+	 */
+	@Nonnull
+	RepresentativeReferenceKeys getRepresentativeReferenceKeys(
+		@Nonnull ReferenceKey referenceKey,
+		boolean referencePresenceExpected
+	) {
 		final EntitySchema entitySchema = getEntitySchema();
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
 		if (referenceSchema.getCardinality().allowsDuplicates()) {
 			// we need to calculate representative attributes for all existing references of this type
-			return this.memoizedRepresentativeAttributes.computeIfAbsent(
-				new ComparableReferenceKey(referenceKey),
-				comparableReferenceKey -> {
-					final ReferenceKey theRefKey = comparableReferenceKey.referenceKey();
-					final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
-					final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart();
-					final Optional<ReferenceContract> reference = referencePresenceExpected ?
-						of(referencesStoragePart.findReferenceOrThrowException(theRefKey)) :
-						referencesStoragePart.findReference(theRefKey);
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart();
+			final Optional<ReferenceContract> reference = referencePresenceExpected ?
+				of(referencesStoragePart.findReferenceOrThrowException(referenceKey)) :
+				referencesStoragePart.findReference(referenceKey);
 
-					// first fill representative attributes with default values and current values of the reference
-					final Serializable[] representativeAttributes = rad.getRepresentativeValues(reference.orElse(null));
+			// first fill representative attributes with default values and current values of the reference
+			final Serializable[] storedRAV = rad.getRepresentativeValues(reference.orElse(null));
+			Serializable[] currentRAV = storedRAV;
 
-					// then peek into all local mutations and update values according to them
-					// this prevents from reindexing data when local mutations are gradually applied one by one
-					for (LocalMutation<?, ?> localMutation : this.localMutations) {
-						if (localMutation instanceof ReferenceAttributeMutation ram &&
-							ReferenceKey.FULL_COMPARATOR.compare(ram.getReferenceKey(), theRefKey) == 0) {
-							final String attributeName = ram.getAttributeKey().attributeName();
-							rad.getAttributeNameIndex(attributeName)
-							   .ifPresent(index -> {
-								   final AttributeMutation attributeMutation = ram.getAttributeMutation();
-								   final AttributeValue updatedValue = attributeMutation
-									   .mutateLocal(
-										   entitySchema,
-										   reference.flatMap(it -> it.getAttributeValue(attributeName))
-										            .orElse(null)
-									   );
-								   representativeAttributes[index] = updatedValue.exists() ?
-									   updatedValue.value() :
-									   null;
-							   });
+			// then peek into all local mutations and update values according to them
+			// this prevents from reindexing data when local mutations are gradually applied one by one
+			for (LocalMutation<?, ?> localMutation : this.localMutations) {
+				if (localMutation instanceof ReferenceAttributeMutation ram &&
+					ReferenceKey.FULL_COMPARATOR.compare(ram.getReferenceKey(), referenceKey) == 0) {
+					final String attributeName = ram.getAttributeKey().attributeName();
+					final OptionalInt attributeNameIndex = rad.getAttributeNameIndex(attributeName);
+					if (attributeNameIndex.isPresent()) {
+						final int index = attributeNameIndex.getAsInt();
+						final AttributeMutation attributeMutation = ram.getAttributeMutation();
+						final AttributeValue updatedValue = attributeMutation
+							.mutateLocal(
+								entitySchema,
+								reference.flatMap(it -> it.getAttributeValue(attributeName))
+								         .orElse(null)
+							);
+						final Serializable newValue = updatedValue.exists() ? updatedValue.value() : null;
+						if (!Objects.equals(newValue, storedRAV[index])) {
+							//noinspection ArrayEquality
+							if (currentRAV == storedRAV) {
+								currentRAV = Arrays.copyOf(storedRAV, storedRAV.length);
+							}
+							currentRAV[index] = newValue;
 						}
 					}
-					return new RepresentativeReferenceKey(theRefKey, representativeAttributes);
 				}
+			}
+
+			return new RepresentativeReferenceKeys(
+				new RepresentativeReferenceKey(referenceKey, storedRAV),
+				new RepresentativeReferenceKey(referenceKey, currentRAV)
 			);
 		} else {
-			return new RepresentativeReferenceKey(referenceKey);
+			final RepresentativeReferenceKey singleKey = new RepresentativeReferenceKey(referenceKey);
+			return new RepresentativeReferenceKeys(singleKey, singleKey);
 		}
 	}
 
@@ -761,7 +792,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @return An instance of ExistingDataSupplierFactory associated with the current storage part.
 	 */
 	@Nonnull
-	private ExistingDataSupplierFactory getStoragePartExistingDataFactory() {
+	private EntityStoragePartExistingDataFactory getStoragePartExistingDataFactory() {
 		if (this.storagePartExistingDataFactory == null) {
 			this.storagePartExistingDataFactory = new EntityStoragePartExistingDataFactory(
 				this.containerAccessor,
@@ -1308,12 +1339,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final Scope scope = getScope();
 		final int theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 		final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
-		final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(
-			referenceKey,
-			!(referenceMutation instanceof InsertReferenceMutation)
-		);
 
 		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
+			final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(referenceKey, true);
 			final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
 			ReferenceIndexMutator.setFacetGroupInIndex(
 				theEntityPrimaryKey, entityIndex,
@@ -1328,6 +1356,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				this
 			);
 		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
+			final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(referenceKey, true);
 			final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
 			ReferenceIndexMutator.removeFacetGroupInIndex(
 				theEntityPrimaryKey, entityIndex,
@@ -1341,18 +1370,60 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			);
 		} else {
 			if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
-				final AttributeMutation attributeMutation = referenceAttributesUpdateMutation.getAttributeMutation();
-				final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
-					getReferencedTypeIndexKey(rrk.referenceName(), scope)
-				);
-				final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-				ReferenceIndexMutator.attributeUpdate(
-					this, getStoragePartExistingDataFactory(),
-					referenceTypeIndex, referenceIndex, rrk, attributeMutation
-				);
+				final RepresentativeReferenceKeys bothKeys = getRepresentativeReferenceKeys(referenceKey, true);
+				this.memoizedRepresentativeAttributes.put(new ComparableReferenceKey(referenceKey), bothKeys.current());
+				// if the mutation changes the representative attribute value
+				final EntityStoragePartExistingDataFactory existingStoragePartFactory = getStoragePartExistingDataFactory();
+				final Runnable attributeUpdateProcedure = () -> {
+					final RepresentativeReferenceKey rrk = bothKeys.current();
+					final AttributeMutation attributeMutation = referenceAttributesUpdateMutation.getAttributeMutation();
+					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
+						getReferencedTypeIndexKey(rrk.referenceName(), scope)
+					);
+					final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+					ReferenceIndexMutator.attributeUpdate(
+						this, existingStoragePartFactory,
+						referenceTypeIndex, referenceIndex, rrk, attributeMutation
+					);
+				};
+				if (bothKeys.differ() && (this.createdReferences == null || !this.createdReferences.contains(bothKeys.current()))) {
+					final EntitySchema entitySchema = getEntitySchema();
+					// we need to remove entity from the old reduced entity index
+					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(referenceKey.referenceName(), scope);
+					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
+					final ReducedEntityIndex formerReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
+						this, bothKeys.stored(), scope
+					);
+					final ReducedEntityIndex newReferenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
+						this, bothKeys.current(), scope
+					);
+					existingStoragePartFactory.executeWithRepresentativeReferenceKeyAlias(
+						bothKeys.current(), bothKeys.stored(),
+						() -> {
+							ReferenceIndexMutator.referenceRemoval(
+								theEntityPrimaryKey, entitySchema, this,
+								entityIndex, referenceTypeIndex, formerReferenceIndex,
+								bothKeys.stored(),
+								existingStoragePartFactory,
+								this.undoActionsAppender
+							);
+							// and move it to the new one
+							ReferenceIndexMutator.referenceInsert(
+								theEntityPrimaryKey, entitySchema, this,
+								entityIndex, referenceTypeIndex, newReferenceIndex, bothKeys.current(), null,
+								existingStoragePartFactory,
+								this.undoActionsAppender
+							);
+							attributeUpdateProcedure.run();
+						}
+					);
+				} else {
+					attributeUpdateProcedure.run();
+				}
 			} else {
 				final EntitySchema entitySchema = getEntitySchema();
 				if (referenceMutation instanceof InsertReferenceMutation) {
+					final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(referenceKey, false);
 					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(
 						getReferencedTypeIndexKey(rrk.referenceName(), scope)
 					);
@@ -1368,6 +1439,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					}
 					this.createdReferences.add(rrk);
 				} else if (referenceMutation instanceof RemoveReferenceMutation) {
+					final RepresentativeReferenceKey rrk = getRepresentativeReferenceKey(referenceKey, true);
 					final EntityIndexKey referencedTypeIndexKey = getReferencedTypeIndexKey(rrk.referenceName(), scope);
 					final ReferencedTypeEntityIndex referenceTypeIndex = (ReferencedTypeEntityIndex) getOrCreateIndex(referencedTypeIndexKey);
 					final ReducedEntityIndex referenceIndex = ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
@@ -1624,6 +1696,42 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		} else {
 			// SHOULD NOT EVER HAPPEN
 			throw new GenericEvitaInternalError("Unknown mutation: " + parentMutation.getClass());
+		}
+	}
+
+	/**
+	 * A record that encapsulates two {@link RepresentativeReferenceKey} objects representing
+	 * a stored key and a current key. The stored key may be null, while the current key cannot
+	 * be null.
+	 *
+	 * This class is designed to hold references that distinguish between a persisted (stored)
+	 * version and an current version of a {@link RepresentativeReferenceKey} that takes current entity mutation
+	 * in account.
+	 *
+	 * The two fields are:
+	 * - {@code stored}: A nullable reference to a {@link RepresentativeReferenceKey} representing
+	 *                   the stored state.
+	 * - {@code current}: A non-null reference to a {@link RepresentativeReferenceKey} representing
+	 *                    the current state.
+	 */
+	private record RepresentativeReferenceKeys(
+		@Nonnull RepresentativeReferenceKey stored,
+		@Nonnull RepresentativeReferenceKey current
+	) {
+
+		/**
+		 * Determines whether the stored key and the current key differ.
+		 *
+		 * This method compares the `stored` and `current` fields to check if they reference different
+		 * {@link RepresentativeReferenceKey} objects.
+		 *
+		 * @return {@code true} if the `stored` key is different from the `current` key,
+		 *         {@code false} otherwise.
+		 */
+		public boolean differ() {
+			// when the arrays are different instances, they MUST be different in values
+			// see implementation of the method that creates this object
+			return this.stored != this.current;
 		}
 	}
 

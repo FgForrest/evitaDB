@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.attribute;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.EntityReferenceDTO;
@@ -32,11 +33,18 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -44,6 +52,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -54,6 +63,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -98,6 +108,40 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int PRODUCT_COUNT = 100;
 	private final static int CATEGORY_COUNT = 10;
 	private final static int BRAND_COUNT = 10;
+
+	/**
+	 * Retrieves the referenced entity index based on the provided parameters.
+	 *
+	 * @param evita                         the evita instance, must not be null
+	 * @param scope                         the scope in which the index resides, must not be null
+	 * @param entityType                    the type of the entity for which the index is being retrieved, must not be null
+	 * @param recordId                      the unique record identifier of the entity
+	 * @param representativeAttributeValues an array of representative attribute values used as part of the reference key, must not be null
+	 * @return the referenced entity index if it exists, or null if it does not exist
+	 */
+	@Nullable
+	static EntityIndex getReferencedEntityIndex(
+		@Nonnull Evita evita,
+		@Nonnull Scope scope,
+		@Nonnull String entityType,
+		@Nonnull String referenceName,
+		int recordId,
+		@Nonnull Serializable... representativeAttributeValues
+	) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final EntityCollectionContract collection = catalog.getCollectionForEntity(entityType).orElseThrow();
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY,
+				scope,
+				new RepresentativeReferenceKey(
+					new ReferenceKey(referenceName, recordId),
+					representativeAttributeValues
+				)
+			)
+		);
+	}
 
 	private static void createSchema(@Nonnull EvitaSessionContract session) {
 		// we need to create category schema first
@@ -446,6 +490,53 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					Collectors.counting()
 				)
 			);
+	}
+
+	/**
+	 * Retrieves a list of product entity references filtered by a specific category and country.
+	 *
+	 * @param session the Evita session contract used to perform the query, must not be null
+	 * @param country the country filter used in the query, must not be null
+	 * @return a list of entity references that match the specified category and country filters
+	 */
+	@Nonnull
+	private static List<EntityReference> getProductByCategoryCountry(
+		@Nonnull EvitaSessionContract session, @Nonnull String country) {
+		return session.queryListOfEntityReferences(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					referenceHaving(
+						REFERENCE_CATEGORIES,
+						entityPrimaryKeyInSet(1),
+						attributeEquals(ATTRIBUTE_COUNTRY, country)
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Retrieves a list of product entity references where the reference category has the specified primary key
+	 * and the attribute "country" is null.
+	 *
+	 * @param session The Evita session contract used to execute the query. Must not be null.
+	 * @return A list of entity references representing the products matching the query criteria. Never null.
+	 */
+	@Nonnull
+	private static List<EntityReference> getProductByNullCategoryCountry(@Nonnull EvitaSessionContract session) {
+		return session.queryListOfEntityReferences(
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					referenceHaving(
+						REFERENCE_CATEGORIES,
+						entityPrimaryKeyInSet(1),
+						attributeIsNull(ATTRIBUTE_COUNTRY)
+					)
+				)
+			)
+		);
 	}
 
 	@Nullable
@@ -889,10 +980,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 
 				// remove secondary DE reference to category 1
 				updatedProduct.openForWrite()
-				       .removeReferences(
-					       REFERENCE_CATEGORIES, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE")
-				       )
-				       .upsertVia(session);
+				              .removeReferences(
+					              REFERENCE_CATEGORIES, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE")
+				              )
+				              .upsertVia(session);
 
 				final SealedEntity updatedProductWithoutDE = session
 					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
@@ -901,19 +992,21 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 1));
 				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 2));
 
-				final Map<EntityCountry, Long> category1EntityCountriesWithoutDE = collectCategoryCardinalities(session, 1);
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutDE = collectCategoryCardinalities(
+					session, 1);
 				assertEquals(1, category1EntityCountriesWithoutDE.size());
 				assertEquals(1, category1EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
 
-				final Map<EntityCountry, Long> category2EntityCountriesWithoutDE = collectCategoryCardinalities(session, 2);
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutDE = collectCategoryCardinalities(
+					session, 2);
 
 				assertEquals(1, category2EntityCountriesWithoutDE.size());
 				assertEquals(1, category2EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
 
 				// remove all US references at once
 				updatedProductWithoutDE.openForWrite()
-				              .removeReferences(REFERENCE_CATEGORIES, ref -> true)
-				              .upsertVia(session);
+				                       .removeReferences(REFERENCE_CATEGORIES, ref -> true)
+				                       .upsertVia(session);
 
 				final SealedEntity updatedProductWithoutCategories = session
 					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
@@ -922,10 +1015,12 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 1));
 				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 2));
 
-				final Map<EntityCountry, Long> category1EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 1);
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutRefs = collectCategoryCardinalities(
+					session, 1);
 				assertEquals(0, category1EntityCountriesWithoutRefs.size());
 
-				final Map<EntityCountry, Long> category2EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 2);
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutRefs = collectCategoryCardinalities(
+					session, 2);
 
 				assertEquals(0, category2EntityCountriesWithoutRefs.size());
 			}
@@ -950,9 +1045,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// remove reflected reference DE in category 1
 				session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
 				       .orElseThrow(() -> new ContextMissingException("Category with pk 1 is missing!"))
-					.openForWrite()
-					.removeReferences(REFERENCE_CATEGORY_PRODUCTS, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE"))
-					.upsertVia(session);
+				       .openForWrite()
+				       .removeReferences(
+					       REFERENCE_CATEGORY_PRODUCTS, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE"))
+				       .upsertVia(session);
 
 				final SealedEntity updatedProduct = session
 					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
@@ -975,7 +1071,8 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
 				       .orElseThrow(() -> new ContextMissingException("Category with pk 2 is missing!"))
 				       .openForWrite()
-				       .removeReferences(REFERENCE_CATEGORY_PRODUCTS, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE"))
+				       .removeReferences(
+					       REFERENCE_CATEGORY_PRODUCTS, ref -> ref.getAttribute(ATTRIBUTE_COUNTRY).equals("DE"))
 				       .upsertVia(session);
 
 				final SealedEntity updatedProductWithoutDE = session
@@ -985,11 +1082,13 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 1));
 				assertEquals(1, countDuplicates(updatedProductWithoutDE, REFERENCE_CATEGORIES, 2));
 
-				final Map<EntityCountry, Long> category1EntityCountriesWithoutDE = collectCategoryCardinalities(session, 1);
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutDE = collectCategoryCardinalities(
+					session, 1);
 				assertEquals(1, category1EntityCountriesWithoutDE.size());
 				assertEquals(1, category1EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
 
-				final Map<EntityCountry, Long> category2EntityCountriesWithoutDE = collectCategoryCardinalities(session, 2);
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutDE = collectCategoryCardinalities(
+					session, 2);
 
 				assertEquals(1, category2EntityCountriesWithoutDE.size());
 				assertEquals(1, category2EntityCountriesWithoutDE.get(new EntityCountry(1, "US")));
@@ -1013,10 +1112,12 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 1));
 				assertEquals(0, countDuplicates(updatedProductWithoutCategories, REFERENCE_CATEGORIES, 2));
 
-				final Map<EntityCountry, Long> category1EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 1);
+				final Map<EntityCountry, Long> category1EntityCountriesWithoutRefs = collectCategoryCardinalities(
+					session, 1);
 				assertEquals(0, category1EntityCountriesWithoutRefs.size());
 
-				final Map<EntityCountry, Long> category2EntityCountriesWithoutRefs = collectCategoryCardinalities(session, 2);
+				final Map<EntityCountry, Long> category2EntityCountriesWithoutRefs = collectCategoryCardinalities(
+					session, 2);
 
 				assertEquals(0, category2EntityCountriesWithoutRefs.size());
 			}
@@ -1059,7 +1160,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 
 				// verify the product and its duplicated references are back
 				final SealedEntity restoredProduct = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
-				                                         .orElse(null);
+				                                            .orElse(null);
 
 				assertNotNull(restoredProduct);
 				assertEquals(2, countDuplicates(restoredProduct, REFERENCE_CATEGORIES));
@@ -1073,14 +1174,174 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		);
 	}
 
+	@DisplayName("Representative attributes of duplicated references can be changed")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
 	@Test
-	void shouldChangeRepresentativeAttributes() {
-		fail("Not implemented yet");
+	void shouldChangeRepresentativeAttributes(Evita evita) {
+		shouldIndexProductWithReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				// change country DE to FR in both duplicated references to category 1
+				product.openForWrite()
+				       .setReference(
+					       REFERENCE_CATEGORIES,
+					       1,
+					       ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_COUNTRY)),
+					       refBuilder -> refBuilder.setAttribute(ATTRIBUTE_COUNTRY, "FR")
+				       )
+				       .upsertVia(session);
+
+				final SealedEntity updatedProduct = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(2, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 1));
+				assertEquals(2, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountries = collectCategoryCardinalities(session, 1);
+				assertEquals(2, category1EntityCountries.size());
+				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, "FR")));
+				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, "US")));
+
+				final Map<EntityCountry, Long> category2EntityCountries = collectCategoryCardinalities(session, 2);
+
+				assertEquals(2, category2EntityCountries.size());
+				assertEquals(1, category2EntityCountries.get(new EntityCountry(1, "DE")));
+				assertEquals(1, category2EntityCountries.get(new EntityCountry(1, "US")));
+
+				assertNull(
+					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
+				assertNotNull(
+					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "FR"));
+
+				// product can be found by new country in category 1
+				final List<EntityReference> foundProducts = getProductByCategoryCountry(session, "FR");
+				assertEquals(1, foundProducts.size());
+				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+
+				// product cannot be found by old country in category 1
+				final List<EntityReference> notFoundProducts = getProductByCategoryCountry(session, "DE");
+				assertEquals(0, notFoundProducts.size());
+			}
+		);
 	}
 
+	@DisplayName("Representative attributes of duplicated references can be removed and restored again")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
 	@Test
-	void shouldRemoveAndRestoreRepresentativeAttributes() {
-		fail("Not implemented yet");
+	void shouldRemoveAndRestoreRepresentativeAttributes(Evita evita) {
+		shouldIndexProductWithReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_CATEGORIES,
+						Entities.CATEGORY,
+						Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+						whichIs -> whichIs.withAttribute(
+							ATTRIBUTE_COUNTRY,
+							String.class,
+							thatIs -> thatIs.filterable().representative().nullable()
+						)
+					)
+					.updateVia(session);
+
+				final SealedEntity product = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				// remove country attribute in both duplicated references to category 1
+				product.openForWrite()
+				       .setReference(
+					       REFERENCE_CATEGORIES,
+					       1,
+					       ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_COUNTRY)),
+					       refBuilder -> refBuilder.removeAttribute(ATTRIBUTE_COUNTRY)
+				       )
+				       .upsertVia(session);
+
+				final SealedEntity updatedProduct = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(2, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 1));
+				assertEquals(2, countDuplicates(updatedProduct, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountries = collectCategoryCardinalities(session, 1);
+				assertEquals(2, category1EntityCountries.size());
+				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, null)));
+				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, "US")));
+
+				assertNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
+				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
+				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, new Serializable[] {null}));
+
+				// product can be found by empty country in category 1
+				final List<EntityReference> foundProducts = getProductByNullCategoryCountry(session);
+				assertEquals(1, foundProducts.size());
+				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				final List<EntityReference> foundProductsUS = getProductByCategoryCountry(session, "US");
+				assertEquals(1, foundProductsUS.size());
+				assertEquals(1, foundProductsUS.get(0).getPrimaryKey());
+
+				// product cannot be found by old country in category 1
+				final List<EntityReference> notFoundProductsDE = getProductByCategoryCountry(session, "DE");
+				assertEquals(0, notFoundProductsDE.size());
+
+				// restore country attribute in both duplicated references to category 1
+				updatedProduct
+					.openForWrite()
+					.setReference(
+						REFERENCE_CATEGORIES,
+						1,
+						ref -> ref.getAttribute(ATTRIBUTE_COUNTRY) == null,
+						refBuilder -> refBuilder.setAttribute(ATTRIBUTE_COUNTRY, "DE")
+					)
+					.upsertVia(session);
+
+				final SealedEntity restoredProduct = session
+					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow(() -> new ContextMissingException("Product with pk 1 is missing!"));
+
+				assertEquals(2, countDuplicates(restoredProduct, REFERENCE_CATEGORIES, 1));
+				assertEquals(2, countDuplicates(restoredProduct, REFERENCE_CATEGORIES, 2));
+
+				final Map<EntityCountry, Long> category1EntityCountriesAfterRestore = collectCategoryCardinalities(session, 1);
+				assertEquals(2, category1EntityCountriesAfterRestore.size());
+				assertEquals(1, category1EntityCountriesAfterRestore.get(new EntityCountry(1, "DE")));
+				assertEquals(1, category1EntityCountriesAfterRestore.get(new EntityCountry(1, "US")));
+
+				final Map<EntityCountry, Long> category2EntityCountriesAfterRestore = collectCategoryCardinalities(session, 2);
+				assertEquals(2, category2EntityCountriesAfterRestore.size());
+				assertEquals(1, category2EntityCountriesAfterRestore.get(new EntityCountry(1, "DE")));
+				assertEquals(1, category2EntityCountriesAfterRestore.get(new EntityCountry(1, "US")));
+
+				assertNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, new Serializable[] {null}));
+				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
+				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
+
+				// product can be found by restored country in category 1
+				final List<EntityReference> foundProductsDE = getProductByCategoryCountry(session, "DE");
+				assertEquals(1, foundProductsDE.size());
+				assertEquals(1, foundProductsDE.get(0).getPrimaryKey());
+
+				final List<EntityReference> foundProductsUSAfterRestore = getProductByCategoryCountry(session, "US");
+				assertEquals(1, foundProductsUSAfterRestore.size());
+				assertEquals(1, foundProductsUSAfterRestore.get(0).getPrimaryKey());
+
+				// product cannot be found by empty country in category 1
+				final List<EntityReference> notFoundProductsNull = getProductByNullCategoryCountry(session);
+				assertEquals(0, notFoundProductsNull.size());
+			}
+		);
 	}
 
 	@Test

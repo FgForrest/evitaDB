@@ -31,7 +31,9 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This implementation provides access to memoized instances of {@link EntityStoragePartAccessorAttributeValueSupplier} and
@@ -49,6 +51,7 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 	private PriceStoragePartSupplier priceStoragePartSupplier;
 	private ReferencesStoragePartSupplier referenceStoragePartSupplier;
 	private Map<RepresentativeReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueSupplier> referenceAttributeValueSuppliers;
+	@Nullable private RepresentativeReferenceKeyAlias representativeReferenceKeyAlias;
 
 	@Nonnull
 	@Override
@@ -78,8 +81,12 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
 			this.referenceAttributeValueSuppliers;
+
+		final RepresentativeReferenceKey keyToUse = this.representativeReferenceKeyAlias == null ||
+			!Objects.equals(this.representativeReferenceKeyAlias.representativeReferenceKey(), referenceKey) ?
+				referenceKey : this.representativeReferenceKeyAlias.aliasRepresentativeReferenceKey();
 		return this.referenceAttributeValueSuppliers.computeIfAbsent(
-			referenceKey,
+			keyToUse,
 			rrk -> new ReferenceEntityStoragePartAccessorAttributeValueSupplier(
 				this.containerAccessor,
 				this.entitySchema.getReferenceOrThrowException(rrk.referenceName()),
@@ -100,4 +107,46 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 		}
 		return this.priceStoragePartSupplier;
 	}
+
+	/**
+	 * Executes the provided {@link Runnable} within a context that temporarily establishes a mapping
+	 * (alias) between a primary {@link RepresentativeReferenceKey} and its alias counterpart.
+	 * This allows the same internal entity-related operations to temporarily recognize the alias as if
+	 * it were the primary key. Once the operation is completed, the alias mapping is removed.
+	 * Throws {@link IllegalStateException} if nested aliasing is attempted.
+	 *
+	 * @param representativeReferenceKey the primary {@link RepresentativeReferenceKey} to map.
+	 * @param aliasRepresentativeReferenceKey the alias {@link RepresentativeReferenceKey} to associate with the primary key.
+	 * @param runnable the task to execute within the context of the alias mapping.
+	 */
+	public void executeWithRepresentativeReferenceKeyAlias(
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull RepresentativeReferenceKey aliasRepresentativeReferenceKey,
+		@Nonnull Runnable runnable
+	) {
+		if (this.representativeReferenceKeyAlias != null) {
+			throw new IllegalStateException("Nested aliases are not supported!");
+		}
+		try {
+			this.representativeReferenceKeyAlias = new RepresentativeReferenceKeyAlias(representativeReferenceKey, aliasRepresentativeReferenceKey);
+			runnable.run();
+		} finally {
+			this.representativeReferenceKeyAlias = null;
+		}
+	}
+
+	/**
+	 * Represents a mapping between two {@link RepresentativeReferenceKey} instances.
+	 * This class is used to create an alias relationship where one {@link RepresentativeReferenceKey} can temporarily
+	 * act as an alternative to another.
+	 *
+	 * It typically facilitates operations that require the application to treat an alias {@link RepresentativeReferenceKey}
+	 * as the primary one within a defined context, such as when executing tasks that need temporary key remapping.
+	 */
+	private record RepresentativeReferenceKeyAlias(
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull RepresentativeReferenceKey aliasRepresentativeReferenceKey
+	) {
+	}
+
 }
