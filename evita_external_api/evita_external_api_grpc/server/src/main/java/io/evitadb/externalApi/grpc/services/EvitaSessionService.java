@@ -66,6 +66,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
@@ -129,10 +130,7 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
-import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
-import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcTaskStatus;
-import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
-import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toOffsetDateTime;
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.*;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCommitBehavior;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter.convert;
@@ -675,17 +673,39 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@Override
 	public void getMutationsHistoryPage(
-		GetMutationsHistoryPageRequest request, StreamObserver<GetMutationsHistoryPageResponse> responseObserver) {
+		GetMutationsHistoryPageRequest request,
+		StreamObserver<GetMutationsHistoryPageResponse> responseObserver
+	) {
 		executeWithClientContext(
 			session -> {
 				final GetMutationsHistoryPageResponse.Builder builder = GetMutationsHistoryPageResponse.newBuilder();
 				final int page = request.hasPage() ? request.getPage().getValue() : 1;
 				final int pageSize = request.hasPageSize() ? request.getPageSize().getValue() : 20;
+				final Long firstRequestedCatalogVersion;
+				final Long lastRequestedCatalogVersion;
+				if (request.hasTimeFrame()) {
+					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
+					firstRequestedCatalogVersion = requestedTimeFrame.getPreciseFrom() != null ?
+						session.getCatalogVersionAt(requestedTimeFrame.getPreciseFrom()).version() : null;
+					lastRequestedCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
+						(firstRequestedCatalogVersion == null ?
+							session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).version() :
+							Math.max(
+								firstRequestedCatalogVersion + 1,
+								session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).version()
+							)
+						) :
+						null;
+				} else {
+					firstRequestedCatalogVersion = null;
+					lastRequestedCatalogVersion = null;
+				}
 				try (
 					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
 						ChangeCaptureConverter.toChangeCaptureRequest(
 							request,
-							session.getCatalogVersion(),
+							lastRequestedCatalogVersion != null ?
+								lastRequestedCatalogVersion : session.getCatalogVersion(),
 							StreamDirection.REVERSE
 						)
 					)
@@ -696,6 +716,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 								page,
 								pageSize
 							)
+						)
+						.takeWhile(cdcEvent ->
+							firstRequestedCatalogVersion == null ||
+								cdcEvent.version() > firstRequestedCatalogVersion
 						)
 						.limit(pageSize)
 						.forEach(cdcEvent -> builder.addChangeCapture(

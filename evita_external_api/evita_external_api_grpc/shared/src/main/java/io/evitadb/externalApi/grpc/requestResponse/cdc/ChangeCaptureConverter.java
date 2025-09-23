@@ -63,11 +63,12 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static ChangeCatalogCaptureRequest toChangeCaptureRequest(
 		@Nonnull GetMutationsHistoryPageRequest request,
-		long currentCatalogVersion,
+		long requestedCatalogVersion,
 		@Nonnull StreamDirection direction
 	) {
 		return new ChangeCatalogCaptureRequest(
-			request.hasSinceVersion() ? request.getSinceVersion().getValue() : currentCatalogVersion,
+			request.hasSinceVersion() && request.getSinceVersion().getValue() <= requestedCatalogVersion ?
+				request.getSinceVersion().getValue() : requestedCatalogVersion,
 			request.hasSinceVersion() ? request.getSinceIndex().getValue() : (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
 			request.getCriteriaList()
 			       .stream()
