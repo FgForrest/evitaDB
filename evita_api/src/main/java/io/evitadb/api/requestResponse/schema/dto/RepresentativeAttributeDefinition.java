@@ -32,6 +32,7 @@ import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -55,7 +56,8 @@ import java.util.OptionalInt;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class RepresentativeAttributeDefinition {
+public class RepresentativeAttributeDefinition implements Serializable {
+	@Serial private static final long serialVersionUID = 1946518348250618864L;
 	/**
 	 * Ordered list of representative attribute names (lexicographical order).
 	 */

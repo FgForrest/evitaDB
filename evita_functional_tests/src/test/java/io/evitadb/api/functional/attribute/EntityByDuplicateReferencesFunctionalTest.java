@@ -27,6 +27,8 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.EntityReferenceDTO;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -857,6 +859,116 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		);
 	}
 
+	@DisplayName("It must not be possible to create non-duplicated reflected reference to duplicated reference")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
+	@Test
+	void failToSetupNonDuplicatedReflectedSchemaToDuplicateReferenceSchema(Evita evita) {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// attempt to create reflected reference without duplicates to reference with duplicates
+					// should fail
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_CATEGORY_PRODUCTS,
+							Entities.PRODUCT,
+							REFERENCE_CATEGORIES,
+							whichIs ->
+								whichIs.withCardinality(Cardinality.ZERO_OR_MORE)
+						)
+						.updateAndFetchVia(session);
+				}
+			);
+			fail("Should not be able to complete the transaction!");
+		} catch (RollbackException ex) {
+			final Throwable cause = ex.getCause();
+			assertInstanceOf(InvalidSchemaMutationException.class, cause);
+			assertEquals(
+				"""
+					Schema `CATEGORY` contains validation errors:
+						Reference schema `products` contains validation errors:
+						Reflected reference `products` cannot disallow duplicates, because the original reflected reference `categories` in entity `PRODUCT` allows them!""",
+				cause.getMessage()
+			);
+		}
+	}
+
+	@DisplayName("It must not be possible to create reflected reference to duplicated reference without inheriting its representative attributes")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
+	@Test
+	void failToSetupNonReflectedSchemaToDuplicateReferenceSchemaWithoutInheritingRepresentativeAttributes(Evita evita) {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// attempt to create reflected reference without inheriting representative attribute
+					// should fail
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_CATEGORY_PRODUCTS,
+							Entities.PRODUCT,
+							REFERENCE_CATEGORIES,
+							whichIs ->
+								whichIs.indexedForFiltering()
+								       .withoutAttributesInherited()
+						)
+						.updateAndFetchVia(session);
+				}
+			);
+			fail("Should not be able to complete the transaction!");
+		} catch (RollbackException ex) {
+			final Throwable cause = ex.getCause();
+			assertInstanceOf(InvalidSchemaMutationException.class, cause);
+			assertEquals(
+				"""
+					Schema `CATEGORY` contains validation errors:
+						Reference schema `products` contains validation errors:
+						Reflected reference `products` must contain all representative attributes of the original reflected reference `categories` in entity `PRODUCT`! Missing representative attributes: country""",
+				cause.getMessage()
+			);
+		}
+	}
+
+	@DisplayName("It must not be possible to create reflected reference to duplicated reference with localized representative attribute")
+	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
+	@Test
+	void failToSetupDuplicatedReferenceBasedOnLocalizedRepresentativeAttribute(Evita evita) {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// attempt to create reflected reference without inheriting representative attribute
+					// should fail
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							"someNewReference",
+							Entities.CATEGORY,
+							Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+							whichIs ->
+								whichIs.indexedForFiltering()
+									.withAttribute("name", String.class, thatIs -> thatIs.filterable().localized().representative())
+						)
+						.updateAndFetchVia(session);
+				}
+			);
+			fail("Should not be able to complete the transaction!");
+		} catch (RollbackException ex) {
+			final Throwable cause = ex.getCause();
+			assertInstanceOf(InvalidSchemaMutationException.class, cause);
+			assertEquals(
+				"""
+					Schema `PRODUCT` contains validation errors:
+						Reference schema `someNewReference` contains validation errors:
+						Attribute `name` of reference schema `someNewReference` is marked as representative but also localized! This is not supported yet - see issue #956.""",
+				cause.getMessage()
+			);
+		}
+	}
+
 	@DisplayName("The product references should be created via reflected references when duplicate references are present")
 	@UseDataSet(value = DUPLICATE_REFERENCES_SCHEMA_ONLY, destroyAfterTest = true)
 	@Test
@@ -1242,17 +1354,17 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_CATEGORIES,
-						Entities.CATEGORY,
-						Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-						whichIs -> whichIs.withAttribute(
-							ATTRIBUTE_COUNTRY,
-							String.class,
-							thatIs -> thatIs.filterable().representative().nullable()
-						)
-					)
-					.updateVia(session);
+				       .withReferenceToEntity(
+					       REFERENCE_CATEGORIES,
+					       Entities.CATEGORY,
+					       Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+					       whichIs -> whichIs.withAttribute(
+						       ATTRIBUTE_COUNTRY,
+						       String.class,
+						       thatIs -> thatIs.filterable().representative().nullable()
+					       )
+				       )
+				       .updateVia(session);
 
 				final SealedEntity product = session
 					.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
@@ -1280,9 +1392,14 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, null)));
 				assertEquals(1, category1EntityCountries.get(new EntityCountry(1, "US")));
 
-				assertNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
-				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
-				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, new Serializable[] {null}));
+				assertNull(
+					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
+				assertNotNull(
+					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
+				assertNotNull(getReferencedEntityIndex(
+					evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1,
+					new Serializable[]{null}
+				));
 
 				// product can be found by empty country in category 1
 				final List<EntityReference> foundProducts = getProductByNullCategoryCountry(session);
@@ -1314,19 +1431,26 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(2, countDuplicates(restoredProduct, REFERENCE_CATEGORIES, 1));
 				assertEquals(2, countDuplicates(restoredProduct, REFERENCE_CATEGORIES, 2));
 
-				final Map<EntityCountry, Long> category1EntityCountriesAfterRestore = collectCategoryCardinalities(session, 1);
+				final Map<EntityCountry, Long> category1EntityCountriesAfterRestore = collectCategoryCardinalities(
+					session, 1);
 				assertEquals(2, category1EntityCountriesAfterRestore.size());
 				assertEquals(1, category1EntityCountriesAfterRestore.get(new EntityCountry(1, "DE")));
 				assertEquals(1, category1EntityCountriesAfterRestore.get(new EntityCountry(1, "US")));
 
-				final Map<EntityCountry, Long> category2EntityCountriesAfterRestore = collectCategoryCardinalities(session, 2);
+				final Map<EntityCountry, Long> category2EntityCountriesAfterRestore = collectCategoryCardinalities(
+					session, 2);
 				assertEquals(2, category2EntityCountriesAfterRestore.size());
 				assertEquals(1, category2EntityCountriesAfterRestore.get(new EntityCountry(1, "DE")));
 				assertEquals(1, category2EntityCountriesAfterRestore.get(new EntityCountry(1, "US")));
 
-				assertNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, new Serializable[] {null}));
-				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
-				assertNotNull(getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
+				assertNull(getReferencedEntityIndex(
+					evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1,
+					new Serializable[]{null}
+				));
+				assertNotNull(
+					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "DE"));
+				assertNotNull(
+					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
 
 				// product can be found by restored country in category 1
 				final List<EntityReference> foundProductsDE = getProductByCategoryCountry(session, "DE");
@@ -1345,18 +1469,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	}
 
 	@Test
-	void failToSetupNonDuplicatedReflectedSchemaToDuplicateReferenceSchema() {
-		fail("Not implemented yet");
-	}
-
-	@Test
 	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
-		fail("Not implemented yet");
-	}
-
-	@Test
-	void failToSetupDuplicatedReferenceBasedOnLocalizedRepresentativeAttribute() {
-		/* TODO JNO - create issue */
 		fail("Not implemented yet");
 	}
 

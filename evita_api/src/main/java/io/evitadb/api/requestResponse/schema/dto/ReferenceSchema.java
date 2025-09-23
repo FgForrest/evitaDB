@@ -69,19 +69,61 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public sealed class ReferenceSchema implements ReferenceSchemaContract permits ReflectedReferenceSchema {
 	@Serial private static final long serialVersionUID = 6899584103779653340L;
+	/**
+	 * Reference name distinguishing relations of the same target type.
+	 */
 	@Getter @Nonnull protected final String name;
+	/**
+	 * Expected number of relations per entity; influences API shape and validation.
+	 */
 	@Getter @Nonnull protected final Cardinality cardinality;
+	/**
+	 * Optional note explaining why the reference is deprecated.
+	 */
 	@Getter @Nullable protected final String deprecationNotice;
+	/**
+	 * Human‑readable reference description.
+	 */
 	@Getter @Nullable protected final String description;
+	/**
+	 * Index type configured per scope for this reference.
+	 */
 	protected final Map<Scope, ReferenceIndexType> indexedInScopes;
+	/**
+	 * Scopes where facet statistics are maintained for this reference.
+	 */
 	@Getter protected final Set<Scope> facetedInScopes;
+	/**
+	 * Variants of the reference name in different naming conventions.
+	 */
 	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
+	/**
+	 * Name of the referenced entity type (or external type identifier).
+	 */
 	@Getter @Nonnull protected final String referencedEntityType;
+	/**
+	 * Variants of the referenced entity type name when the type is not managed by evitaDB.
+	 */
 	@Nonnull protected final Map<NamingConvention, String> entityTypeNameVariants;
+	/**
+	 * True when {@code referencedEntityType} is an entity managed by evitaDB.
+	 */
 	@Getter protected final boolean referencedEntityTypeManaged;
+	/**
+	 * Optional name of the referenced group entity type.
+	 */
 	@Getter @Nullable protected final String referencedGroupType;
+	/**
+	 * Variants of the referenced group type name when the group type is not managed by evitaDB.
+	 */
 	@Nonnull protected final Map<NamingConvention, String> groupTypeNameVariants;
+	/**
+	 * True when {@code referencedGroupType} is an entity managed by evitaDB.
+	 */
 	@Getter protected final boolean referencedGroupTypeManaged;
+	/**
+	 * Precomputed definition identifying representative attribute(s) of this reference.
+	 */
 	@Getter private final RepresentativeAttributeDefinition representativeAttributeDefinition;
 	/**
 	 * Contains index of all {@link SortableAttributeCompoundSchema} that could be used as sortable attribute compounds
@@ -762,6 +804,33 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 						);
 					}
 				}
+			}
+		}
+		if (this.cardinality.allowsDuplicates()) {
+			int representativeAttributes = 0;
+			for (AttributeSchemaContract attribute : attributes.values()) {
+				if (attribute.isRepresentative()) {
+					representativeAttributes++;
+					if (attribute.isLocalized()) {
+						/* TOBEDONE #956 */
+						attributeErrors = Stream.concat(
+							attributeErrors,
+							Stream.of(
+								"Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` " +
+									"is marked as representative but also localized! This is not supported yet - see issue #956."
+							)
+						);
+					}
+				}
+			}
+			if (representativeAttributes == 0) {
+				attributeErrors = Stream.concat(
+					attributeErrors,
+					Stream.of(
+						"Reference schema `" + this.name + "` allows duplicates but has no representative attribute defined! " +
+							"This would effectively prevent multiple references to the same entity is the duplicates need to be uniquely identified by their representative attributes."
+					)
+				);
 			}
 		}
 		return attributeErrors;

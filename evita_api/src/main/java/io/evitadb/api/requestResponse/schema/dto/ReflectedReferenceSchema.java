@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -758,6 +759,44 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 										"which is used for reflected reference `" + this.getName() + "` in `" + entitySchema.getName() + "`!")
 							);
 						}
+					}
+				}
+				if (this.reflectedReference.getCardinality().allowsDuplicates()) {
+					if (!this.getCardinality().allowsDuplicates()) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Reflected reference `" + this.getName() + "` cannot disallow duplicates, " +
+									"because the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "` allows them!"
+							)
+						);
+					}
+					final Set<String> representativeAttributes;
+					if (this.reflectedReference instanceof ReferenceSchema rs) {
+						representativeAttributes = new HashSet<>(
+							rs.getRepresentativeAttributeDefinition().getAttributeNames()
+						);
+					} else {
+						representativeAttributes = this.reflectedReference
+							.getAttributes()
+							.values()
+							.stream()
+							.filter(AttributeSchemaContract::isRepresentative)
+							.map(NamedSchemaContract::getName)
+							.collect(Collectors.toSet());
+					}
+					this.getAttributes().keySet().forEach(
+						representativeAttributes::remove
+					);
+					if (!representativeAttributes.isEmpty()) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Reflected reference `" + this.getName() + "` must contain all representative attributes " +
+									"of the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "`! " +
+									"Missing representative attributes: " + String.join(", ", representativeAttributes)
+							)
+						);
 					}
 				}
 			}
