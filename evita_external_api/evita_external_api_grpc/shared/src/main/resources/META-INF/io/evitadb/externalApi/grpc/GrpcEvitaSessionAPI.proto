@@ -49,10 +49,12 @@ message GetMutationsHistoryPageRequest {
   google.protobuf.Int64Value sinceVersion = 3;
   // Starting point for the search (index of the mutation within catalog version)
   google.protobuf.Int32Value sinceIndex = 4;
+  // The time range within which the mutations should be found
+  GrpcDateTimeRange timeFrame = 5;
   // The criteria of the capture, allows to define constraints on the returned mutations
-  repeated GrpcChangeCaptureCriteria criteria = 5;
+  repeated GrpcChangeCaptureCriteria criteria = 6;
   // The scope of the returned data - either header of the mutation, or the whole mutation
-  GrpcChangeCaptureContent content = 6;
+  GrpcChangeCaptureContent content = 7;
 }
 
 // Response to GetMutationsHistoryPage request.

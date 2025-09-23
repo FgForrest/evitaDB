@@ -141,10 +141,37 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
 
   /**
    * <pre>
+   * The time range within which the mutations should be found
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
+   * @return Whether the timeFrame field is set.
+   */
+  boolean hasTimeFrame();
+  /**
+   * <pre>
+   * The time range within which the mutations should be found
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
+   * @return The timeFrame.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange getTimeFrame();
+  /**
+   * <pre>
+   * The time range within which the mutations should be found
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRange timeFrame = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeOrBuilder getTimeFrameOrBuilder();
+
+  /**
+   * <pre>
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria>
       getCriteriaList();
@@ -153,7 +180,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria getCriteria(int index);
   /**
@@ -161,7 +188,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
    */
   int getCriteriaCount();
   /**
@@ -169,7 +196,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder>
       getCriteriaOrBuilderList();
@@ -178,7 +205,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The criteria of the capture, allows to define constraints on the returned mutations
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteria criteria = 6;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureCriteriaOrBuilder getCriteriaOrBuilder(
       int index);
@@ -188,7 +215,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The scope of the returned data - either header of the mutation, or the whole mutation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
    * @return The enum numeric value on the wire for content.
    */
   int getContentValue();
@@ -197,7 +224,7 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * The scope of the returned data - either header of the mutation, or the whole mutation
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent content = 7;</code>
    * @return The content.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();
