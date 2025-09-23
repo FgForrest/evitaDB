@@ -26,10 +26,10 @@ package io.evitadb.core.query.sort;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 

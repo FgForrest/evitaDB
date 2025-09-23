@@ -30,13 +30,13 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.utils.ArrayUtils;
 

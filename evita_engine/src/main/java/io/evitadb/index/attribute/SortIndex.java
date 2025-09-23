@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.comparator.LocalizedStringComparator;
@@ -42,7 +43,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;

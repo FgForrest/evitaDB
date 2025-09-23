@@ -24,8 +24,8 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;

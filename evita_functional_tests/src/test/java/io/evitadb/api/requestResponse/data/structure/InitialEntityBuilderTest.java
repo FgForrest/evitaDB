@@ -79,7 +79,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	private static final String BRAND = Entities.BRAND;
 	private static final String GROUP = "group";
 	private static final String BRAND_PRIORITY = "brandPriority";
-	private static final String COUNTRY = "country";
+	private static final String ATTRIBUTE_COUNTRY = "ATTRIBUTE_COUNTRY";
 	private static final String NAME = "name";
 	private static final String MANUAL = "manual";
 
@@ -116,18 +116,28 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			PRODUCT_SCHEMA
 		)
 			.withReferenceToEntity(STORE, STORE, Cardinality.ZERO_OR_MORE, r -> {})
-			.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, r -> {})
-			.withReferenceToEntity(GROUP, GROUP, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, r -> {})
+			.withReferenceToEntity(
+				BRAND,
+				BRAND,
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				r -> r.withAttribute(ATTRIBUTE_COUNTRY, String.class, AttributeSchemaEditor::representative)
+			)
+			.withReferenceToEntity(
+				GROUP,
+				GROUP,
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				r -> r.withAttribute(ATTRIBUTE_COUNTRY, String.class, AttributeSchemaEditor::representative)
+			)
 			.toInstance();
 
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
 
 		builder.setReference(STORE, 1);
-		builder.setReference(BRAND, 1, ref -> false, Functions.noOpConsumer());
-		builder.setReference(BRAND, 1, ref -> false, Functions.noOpConsumer());
-		builder.setReference(GROUP, 1, ref -> false, Functions.noOpConsumer());
-		builder.setReference(GROUP, 1, ref -> false, Functions.noOpConsumer());
-		builder.setReference(GROUP, 1, ref -> false, Functions.noOpConsumer());
+		builder.setReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
+		builder.setReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
+		builder.setReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
+		builder.setReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
+		builder.setReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "EN"));
 
 		return builder;
 	}
@@ -246,7 +256,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				BRAND, BRAND, Cardinality.ZERO_OR_ONE, ref -> {
 					ref.withGroupType(GROUP);
 					ref.withAttribute(BRAND_PRIORITY, Long.class, AttributeSchemaEditor::nullable);
-					ref.withAttribute(COUNTRY, String.class, AttributeSchemaEditor::localized);
+					ref.withAttribute(ATTRIBUTE_COUNTRY, String.class, AttributeSchemaEditor::localized);
 				}
 			)
 			.toInstance();
@@ -256,7 +266,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			BRAND, 5, rb -> {
 				rb.setGroup(GROUP, 10);
 				rb.setAttribute(BRAND_PRIORITY, 123L);
-				rb.setAttribute(COUNTRY, Locale.ENGLISH, "UK");
+				rb.setAttribute(ATTRIBUTE_COUNTRY, Locale.ENGLISH, "UK");
 			}
 		);
 
@@ -641,7 +651,8 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			.withReferenceToEntity(
 				BRAND, BRAND, Cardinality.ZERO_OR_ONE,
 				ref -> ref.withAttribute(
-					BRAND_PRIORITY, Long.class, AttributeSchemaEditor::nullable
+					BRAND_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
 				)
 			)
 			.toInstance();
@@ -664,7 +675,10 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setReference(
 			BRAND,
 			1,
-			rb -> rb.setAttribute(BRAND_PRIORITY, 10L)
+			rb -> {
+				rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ");
+				rb.setAttribute(BRAND_PRIORITY, 10L);
+			}
 		);
 		assertTrue(builder.getReference(BRAND, 1).isPresent(), "Expected single reference present for key (brand,1)");
 
@@ -677,9 +691,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			BRAND,
 			1,
 			ref -> BRAND.equals(ref.getReferenceName()) && ref.getReferencedPrimaryKey() == 1,
-			rb -> {
-				rb.setAttribute(BRAND_PRIORITY, 11L);
-			}
+			rb -> rb.setAttribute(BRAND_PRIORITY, 11L)
 		);
 		final List<ReferenceContract> updatedUniqueReference = builder.getReferences(new ReferenceKey(BRAND, 1));
 		assertEquals(1, updatedUniqueReference.size(), "Still single after update");
@@ -692,6 +704,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			1,
 			ref -> false,
 			rb -> {
+				rb.setAttribute(ATTRIBUTE_COUNTRY, "FR");
 				rb.setAttribute(BRAND_PRIORITY, 12L);
 			}
 		);
@@ -732,6 +745,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			1,
 			ref -> false,
 			rb -> {
+				rb.setAttribute(ATTRIBUTE_COUNTRY, "DE");
 				rb.setAttribute(BRAND_PRIORITY, 14L);
 			}
 		);
@@ -1074,13 +1088,17 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
 		assertCardinality(Cardinality.ZERO_OR_MORE, builder, new ReferenceKey(BRAND, 1));
 
-		// promote to ZERO_OR_MORE_WITH_DUPLICATES
-		builder.setReference(
-			BRAND,
-			2,
-			ref -> false,
-			Functions.noOpConsumer()
+		// fail to promote to ZERO_OR_MORE_WITH_DUPLICATES - no representative attribute can be set this way
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND,
+				2,
+				ref -> false,
+				Functions.noOpConsumer()
+			)
 		);
+
 		/* cannot change referenced entity type this way */
 		assertThrows(
 			InvalidMutationException.class,
@@ -1093,6 +1111,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				Functions.noOpConsumer()
 			)
 		);
+
 		/* cannot change cardinality this way */
 		assertThrows(
 			InvalidMutationException.class,
@@ -1121,7 +1140,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		);
 		assertCardinality(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, builder, new ReferenceKey(BRAND, 1));
 
-		// add another duplicate
+		// add another reference
 		builder.setReference(
 			BRAND,
 			3,
@@ -1129,8 +1148,8 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			Functions.noOpConsumer()
 		);
 
-		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);
-		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 2, 3);
+		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 3);
+		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 3);
 	}
 
 	@Test
@@ -1464,6 +1483,55 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			InvalidMutationException.class,
 			() -> builder.setReference(BRAND, 2)
 		);
+	}
+
+	@Test
+	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
+		final String ATTRIBUTE_COUNTRY = InitialEntityBuilderTest.ATTRIBUTE_COUNTRY;
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaStrictly()
+			.withReferenceTo(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				ref -> ref
+					.indexedForFiltering()
+					.withAttribute(
+						ATTRIBUTE_COUNTRY,
+						String.class,
+						thatIs -> thatIs.filterable().representative()
+					)
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		builder.setReference(
+			BRAND,
+			1,
+			filter -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+		);
+		// different ATTRIBUTE_COUNTRY is ok
+		builder.setReference(
+			BRAND,
+			1,
+			filter -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
+		);
+		// creating another reference with same ATTRIBUTE_COUNTRY should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND,
+				1,
+				filter -> false,
+				rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+			)
+		);
+
+		final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
+		assertEquals(2, references.size());
 	}
 
 	private static void checkCollectionBrands(Collection<ReferenceContract> references, int... expectedPks) {

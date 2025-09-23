@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenc
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
@@ -57,7 +58,6 @@ import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.dataType.set.LazyHashSet;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;

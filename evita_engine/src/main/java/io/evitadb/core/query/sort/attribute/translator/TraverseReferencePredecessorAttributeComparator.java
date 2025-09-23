@@ -31,13 +31,13 @@ import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.chunk.OffsetAndLimit;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.dataType.array.CompositeObjectArray;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 

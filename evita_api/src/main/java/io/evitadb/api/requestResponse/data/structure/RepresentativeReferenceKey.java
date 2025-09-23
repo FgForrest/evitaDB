@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index;
+package io.evitadb.api.requestResponse.data.structure;
 
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;

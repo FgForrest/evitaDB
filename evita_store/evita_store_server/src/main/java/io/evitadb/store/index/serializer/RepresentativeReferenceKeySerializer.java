@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.index.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 
 import java.io.Serializable;
 

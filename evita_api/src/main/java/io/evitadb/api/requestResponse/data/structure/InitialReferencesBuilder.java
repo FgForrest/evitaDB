@@ -41,7 +41,6 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -49,7 +48,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
-import io.evitadb.dataType.map.LazyHashMap;
+import io.evitadb.dataType.set.LazyHashSet;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -58,9 +57,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -87,29 +84,65 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 */
 	@Nullable private List<ReferenceContract> referenceCollection;
 	/**
+	 * Helper associated object tracking duplicates.
+	 */
+	@Nullable private Map<String, InitialReferenceBundle> referenceBundles;
+	/**
 	 * Index of references by {@link ReferenceKey}. If a key appears more than once, the value stored
 	 * is a special sentinel {@link References#DUPLICATE_REFERENCE} to signal that duplicates exist and
 	 * callers must fall back to scanning {@link #referenceCollection}.
 	 */
 	@Nullable private Map<ReferenceKey, ReferenceContract> references;
 	/**
-	 * Contains names of all reference names that have at least one reference in this instance.
-	 */
-	@Nullable private Map<String, Integer> referencesDefinedCount;
-	/**
 	 * Internal sequence that is used to generate unique negative reference ids for references that
 	 * don't have it assigned yet (which is none in the initial entity builder).
 	 */
 	private int lastLocallyAssignedReferenceId = 0;
+
 	/**
-	 * Map of attribute types for the reference shared for all references of the same type.
+	 * Asserts the compatibility of the provided reference schema with the specified references entity type and cardinality.
+	 * Ensures that the referenced entity type and cardinality provided are either compatible with or match the
+	 * already defined values in the reference schema. If they are incompatible, an {@code InvalidMutationException} is thrown.
+	 *
+	 * @param referenceSchema      the reference schema contract to validate against
+	 * @param referencedEntityType the referenced entity type to check for compatibility, may be null
+	 * @param cardinality          the cardinality to check for compatibility, may be null
+	 * @return the cardinality defined in the provided reference schema
 	 */
-	private final Map<String, AttributeSchemaContract> attributeTypes = new LazyHashMap<>(4);
+	@Nonnull
+	static Cardinality assertReferenceSchemaCompatibility(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality
+	) {
+		final String schemaDefinedReferencedEntityType = referenceSchema.getReferencedEntityType();
+		if (referencedEntityType != null) {
+			Assert.isTrue(
+				Objects.equals(schemaDefinedReferencedEntityType, referencedEntityType),
+				() -> new InvalidMutationException(
+					"The reference `" + referenceSchema.getName() + "` is already defined to point to `" +
+						schemaDefinedReferencedEntityType + "` entity type, cannot change it to `" + referencedEntityType + "`!"
+				)
+			);
+		}
+
+		final Cardinality schemaCardinality = referenceSchema.getCardinality();
+		if (cardinality != null) {
+			Assert.isTrue(
+				Objects.equals(schemaCardinality, cardinality),
+				() -> new InvalidMutationException(
+					"The reference `" + referenceSchema.getName() + "` is already defined to have `" +
+						schemaCardinality + "` cardinality, cannot change it to `" + cardinality + "`!"
+				)
+			);
+		}
+		return schemaCardinality;
+	}
 
 	InitialReferencesBuilder(@Nonnull EntitySchemaContract schema) {
 		this.schema = schema;
 		this.referenceCollection = null;
-		this.referencesDefinedCount = null;
+		this.referenceBundles = null;
 		this.references = null;
 	}
 
@@ -118,30 +151,43 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		@Nonnull Collection<ReferenceContract> referenceContracts
 	) {
 		this.schema = schema;
-		this.referenceCollection = referenceContracts.isEmpty() ?
-			null : new ArrayList<>(referenceContracts);
-		this.referencesDefinedCount = referenceContracts.isEmpty() ?
-			null : CollectionUtils.createLinkedHashMap(schema.getReferences().size());
-		this.references = referenceContracts.isEmpty() ?
-			null :
-			referenceContracts
-				.stream()
-				.collect(
-					Collectors.toMap(
-						ref -> {
-							this.referencesDefinedCount.compute(
-								ref.getReferenceName(),
-								(k, v) -> v == null ? 1 : v + 1
-							);
-							return ref.getReferenceKey();
-						},
-						Function.identity(),
-						(o, o2) -> {
-							throw new IllegalStateException("Duplicate key " + o);
-						},
-						LinkedHashMap::new
-					)
+		if (referenceContracts.isEmpty()) {
+			this.referenceCollection = null;
+			this.references = null;
+		} else {
+			this.referenceCollection = new ArrayList<>(referenceContracts);
+			this.referenceBundles = CollectionUtils.createHashMap(schema.getReferences().size());
+			this.references = CollectionUtils.createHashMap(referenceContracts.size());
+			final int averageRefCount = schema.getReferences().isEmpty() ?
+				0 : referenceContracts.size() / schema.getReferences().size();
+			ReferenceKey previousKey = null;
+			for (final ReferenceContract currentReference : referenceContracts) {
+				final ReferenceKey currentRefKey = currentReference.getReferenceKey();
+				final InitialReferenceBundle bundle = getReferenceBundleForUpdate(
+					currentRefKey.referenceName(), averageRefCount
 				);
+				if (previousKey != null && previousKey.equalsInGeneral(currentRefKey)) {
+					final ReferenceContract previousReference = this.references.put(
+						new ReferenceKey(currentRefKey.referenceName(), currentRefKey.primaryKey()),
+						References.DUPLICATE_REFERENCE
+					);
+					Assert.isPremiseValid(
+						previousReference != null,
+						"Reference " + currentRefKey + " was expected to be already present!"
+					);
+					if (previousReference != References.DUPLICATE_REFERENCE) {
+						// we are encountering the first duplicate - move the previous one to duplicates as well
+						bundle.convertToDuplicateReference(currentReference, previousReference);
+					} else {
+						bundle.addDuplicateReference(currentReference);
+					}
+				} else {
+					this.references.put(currentRefKey, currentReference);
+					bundle.addNonDuplicateReference(currentReference);
+				}
+				previousKey = currentRefKey;
+			}
+		}
 	}
 
 	@Override
@@ -163,10 +209,10 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Nonnull
 	@Override
 	public Set<String> getReferenceNames() {
-		if (this.referencesDefinedCount == null) {
+		if (this.referenceBundles == null) {
 			return Collections.emptySet();
 		} else {
-			return this.referencesDefinedCount.keySet();
+			return this.referenceBundles.keySet();
 		}
 	}
 
@@ -200,7 +246,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			null : this.references.get(new ReferenceKey(referenceName, referencedEntityId));
 		if (reference == null) {
 			return empty();
-		} else if (reference == References.DUPLICATE_REFERENCE || reference.getReferenceSchemaOrThrow().getCardinality().allowsDuplicates()) {
+		} else if (reference == References.DUPLICATE_REFERENCE || reference.getReferenceSchemaOrThrow()
+		                                                                   .getCardinality()
+		                                                                   .allowsDuplicates()) {
 			throw new ReferenceAllowsDuplicatesException(referenceName, this.schema, Operation.READ);
 		} else {
 			return of(reference);
@@ -219,7 +267,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		final ReferenceContract reference = this.references == null ? null : this.references.get(referenceKey);
 		if (reference == null) {
 			return empty();
-		} else if (reference == References.DUPLICATE_REFERENCE || reference.getReferenceSchemaOrThrow().getCardinality().allowsDuplicates()) {
+		} else if (reference == References.DUPLICATE_REFERENCE || reference.getReferenceSchemaOrThrow()
+		                                                                   .getCardinality()
+		                                                                   .allowsDuplicates()) {
 			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.schema, Operation.READ);
 		} else {
 			return of(reference);
@@ -288,7 +338,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
 					referenceContract,
 					this.schema,
-					this.attributeTypes
+					getReferenceBundleForUpdate(
+						referenceContract.getReferenceKey().referenceName(), 8).getAttributeTypes()
 				);
 				whichIs.accept(refBuilder);
 				final ReferenceContract updatedReference = refBuilder.build();
@@ -327,6 +378,25 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			null,
 			whichIs
 		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		setReference(
+			referenceName,
+			null,
+			null,
+			referencedPrimaryKey,
+			filter,
+			whichIs
+		);
+		return this;
 	}
 
 	@Nonnull
@@ -372,25 +442,6 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder setReference(
 		@Nonnull String referenceName,
-		int referencedPrimaryKey,
-		@Nonnull Predicate<ReferenceContract> filter,
-		@Nonnull Consumer<ReferenceBuilder> whichIs
-	) {
-		setReference(
-			referenceName,
-			null,
-			null,
-			referencedPrimaryKey,
-			filter,
-			whichIs
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public ReferencesBuilder setReference(
-		@Nonnull String referenceName,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,
 		int referencedPrimaryKey,
@@ -399,26 +450,30 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	) {
 		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
 		final Map<ReferenceKey, ReferenceContract> theReferenceIndex = getReferenceIndexForUpdate();
-		final ReferenceContract theReference = theReferenceIndex.get(referenceKey);
+		final ReferenceContract existingReference = theReferenceIndex.get(referenceKey);
 		final Optional<ReferenceSchemaContract> referenceSchema = getReferenceSchemaContract(referenceName);
 		referenceSchema.ifPresent(
 			theRefSchema -> assertReferenceSchemaCompatibility(theRefSchema, referencedEntityType, cardinality)
 		);
 
-		if (theReference == null) {
+		if (existingReference == null) {
 			// no existing reference was found - create brand new, and we know it's not duplicate
+			final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 			final InitialReferenceBuilder refBuilder = new InitialReferenceBuilder(
 				this.schema,
 				referenceSchema
-					.orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
+					.orElseGet(
+						() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
 				referenceName, referencedPrimaryKey,
 				getNextReferenceInternalId(),
-				this.attributeTypes
+				referenceBundle.getAttributeTypes()
 			);
 			whichIs.accept(refBuilder);
-			addOrReplaceReferenceInternal(refBuilder.build());
+			final Reference newReference = refBuilder.build();
+			addOrReplaceReferenceInternal(newReference);
+			referenceBundle.addNonDuplicateReference(newReference);
 			return this;
-		} else if (theReference == References.DUPLICATE_REFERENCE) {
+		} else if (existingReference == References.DUPLICATE_REFERENCE) {
 			// existing list of references was found - and we know it's duplicates
 			final List<ReferenceExchange> updates = new LinkedList<>();
 			// we need to traverse all references and filter those matching reference key and predicate
@@ -426,31 +481,37 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			for (int i = 0; i < theReferenceCollection.size(); i++) {
 				final ReferenceContract referenceContract = theReferenceCollection.get(i);
 				if (referenceKey.equals(referenceContract.getReferenceKey()) && filter.test(referenceContract)) {
+					final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 					// if the predicate passes, we need to update the reference
 					final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
 						referenceContract,
 						this.schema,
-						this.attributeTypes
+						referenceBundle.getAttributeTypes()
 					);
 					whichIs.accept(refBuilder);
 					final ReferenceContract updatedReference = refBuilder.build();
+					referenceBundle.addDuplicateReference(updatedReference);
 					updates.add(new ReferenceExchange(i, updatedReference));
 				}
 			}
 			if (updates.isEmpty()) {
 				// if no updates were made - it means that the predicate did not pass for any of the references
 				// so we create another duplicate and add it to the list
+				final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 				final InitialReferenceBuilder refBuilder = new InitialReferenceBuilder(
 					this.schema,
 					referenceSchema
-						.orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
+						.orElseGet(
+							() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality)),
 					referenceName,
 					referencedPrimaryKey,
 					getNextReferenceInternalId(),
-					this.attributeTypes
+					referenceBundle.getAttributeTypes()
 				);
 				whichIs.accept(refBuilder);
-				theReferenceCollection.add(refBuilder.build());
+				final Reference newReference = refBuilder.build();
+				referenceBundle.addDuplicateReference(newReference);
+				theReferenceCollection.add(newReference);
 			} else {
 				// otherwise just replace the updated references in the list on found positions
 				for (ReferenceExchange update : updates) {
@@ -462,18 +523,21 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			final List<ReferenceContract> theReferenceCollection = getReferenceCollectionForUpdate();
 			// we found exactly one reference to this particular reference key
 			final ReferenceContract theFinalReference;
-			if (filter.test(theReference)) {
+			if (filter.test(existingReference)) {
 				// if the predicate matches, we update the existing reference
+				final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 				final ExistingReferenceBuilder refBuilder = new ExistingReferenceBuilder(
-					theReference, this.schema, this.attributeTypes
+					existingReference, this.schema, referenceBundle.getAttributeTypes()
 				);
 				whichIs.accept(refBuilder);
 				theFinalReference = refBuilder.build();
+				replaceReference(theFinalReference, theReferenceCollection);
+				referenceBundle.addNonDuplicateReference(theFinalReference);
 				theReferenceIndex.put(referenceKey, theFinalReference);
-				theReferenceCollection.removeIf(examinedReference -> examinedReference == theReference);
 			} else {
 				ReferenceSchemaContract theReferenceSchema = referenceSchema
-					.orElseGet(() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality));
+					.orElseGet(
+						() -> getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality));
 				final Cardinality schemaCardinality = theReferenceSchema.getCardinality();
 				// we don't allow explicit cardinality change
 				if (cardinality != null && cardinality != schemaCardinality) {
@@ -494,22 +558,22 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					}
 				}
 				// otherwise we create a new reference, which makes existing and new one duplicates
+				final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 				final InitialReferenceBuilder refBuilder = new InitialReferenceBuilder(
 					this.schema,
 					theReferenceSchema,
 					referenceName,
 					referencedPrimaryKey,
 					getNextReferenceInternalId(),
-					this.attributeTypes
+					referenceBundle.getAttributeTypes()
 				);
-				Objects.requireNonNull(this.referencesDefinedCount)
-				       .computeIfPresent(referenceName, (k, v) -> v + 1);
 				whichIs.accept(refBuilder);
 				theFinalReference = refBuilder.build();
+				referenceBundle.convertToDuplicateReference(theFinalReference, existingReference);
+				theReferenceCollection.add(theFinalReference);
 				// we're adding a new reference with the same key - mark as duplicate
 				theReferenceIndex.put(referenceKey, References.DUPLICATE_REFERENCE);
 			}
-			theReferenceCollection.add(theFinalReference);
 			return this;
 		}
 	}
@@ -525,10 +589,9 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				// removing duplicates this way is not supported - caller must use filter variant
 				throw new ReferenceAllowsDuplicatesException(referenceName, this.schema, Operation.WRITE);
 			} else if (removedReference != null) {
+				getReferenceBundleForUpdate(referenceName, 8).removeNonDuplicateReference(removedReference);
 				getReferenceCollectionForUpdate().remove(removedReference);
 			}
-			Objects.requireNonNull(this.referencesDefinedCount)
-			       .computeIfPresent(referenceName, (k, v) -> v > 1 ? v - 1 : null);
 		}
 		return this;
 	}
@@ -546,15 +609,15 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					throw new ReferenceAllowsDuplicatesException(referenceName, this.schema, Operation.WRITE);
 				} else {
 					int duplicateCounter = 0;
+					ReferenceContract removedReferenceOccurence = null;
 					ReferenceContract remainingOccurence = null;
 					final Iterator<ReferenceContract> it = getReferenceCollectionForUpdate().iterator();
 					while (it.hasNext()) {
 						final ReferenceContract reference = it.next();
 						if (referenceKey.equals(reference.getReferenceKey())) {
 							if (reference.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey()) {
-								Objects.requireNonNull(this.referencesDefinedCount)
-								       .computeIfPresent(referenceName, (k, v) -> v > 1 ? v - 1 : null);
 								it.remove();
+								removedReferenceOccurence = reference;
 							} else if (remainingOccurence == null) {
 								remainingOccurence = reference;
 								duplicateCounter = 1;
@@ -563,9 +626,19 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 							}
 						}
 					}
+
+					Assert.isTrue(
+						removedReferenceOccurence != null,
+						() -> new InvalidMutationException(
+							"Reference with key `" + referenceKey + "` was not found!"
+						)
+					);
+					final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
+					referenceBundle.removeDuplicateReference(removedReferenceOccurence);
 					if (duplicateCounter == 1) {
 						// only one occurrence remains - put it back as the single one
 						this.references.put(referenceKey, remainingOccurence);
+						referenceBundle.discardDuplicates(referenceKey);
 					} else if (duplicateCounter > 1) {
 						// more than one occurrence remains - keep the duplicate marker
 						this.references.put(referenceKey, References.DUPLICATE_REFERENCE);
@@ -573,8 +646,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				}
 			} else if (removedReference != null) {
 				getReferenceCollectionForUpdate().remove(removedReference);
-				Objects.requireNonNull(this.referencesDefinedCount)
-				       .computeIfPresent(referenceName, (k, v) -> v > 1 ? v - 1 : null);
+				getReferenceBundleForUpdate(referenceName, 8)
+					.removeNonDuplicateReference(removedReference);
 			}
 		}
 		return this;
@@ -586,16 +659,23 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		if (this.references != null) {
 			// remove all references with this key
 			final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
-			this.references.remove(referenceKey);
+			final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
+			final boolean duplicate = this.references.remove(referenceKey) == References.DUPLICATE_REFERENCE;
 			getReferenceCollectionForUpdate()
 				.removeIf(examinedReference -> {
 					final boolean remove = examinedReference.getReferenceKey().equals(referenceKey);
 					if (remove) {
-						Objects.requireNonNull(this.referencesDefinedCount)
-						       .computeIfPresent(referenceName, (k, v) -> v > 1 ? v - 1 : null);
+						if (duplicate) {
+							referenceBundle.removeDuplicateReference(examinedReference);
+						} else {
+							referenceBundle.removeNonDuplicateReference(examinedReference);
+						}
 					}
 					return remove;
 				});
+			if (duplicate) {
+				referenceBundle.discardDuplicates(referenceKey);
+			}
 		}
 		return this;
 	}
@@ -604,25 +684,40 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder removeReferences(@Nonnull String referenceName) {
 		if (this.references != null) {
+			final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 			final Iterator<ReferenceContract> it = getReferenceCollectionForUpdate().iterator();
+			final Set<ReferenceKey> duplicateReferenceKeys = new LazyHashSet<>(8);
 			while (it.hasNext()) {
 				final ReferenceContract reference = it.next();
 				if (referenceName.equals(reference.getReferenceName())) {
 					it.remove();
 					// we can remove here, because even if the reference is duplicated, this method would eventually
 					// remove all the duplicates anyway
-					this.references.remove(reference.getReferenceKey());
+					final ReferenceKey referenceKey = reference.getReferenceKey();
+					final ReferenceContract removedReference = this.references.remove(referenceKey);
+					if (removedReference == References.DUPLICATE_REFERENCE) {
+						duplicateReferenceKeys.add(
+							new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey())
+						);
+						referenceBundle.removeDuplicateReference(reference);
+					} else if (duplicateReferenceKeys.contains(referenceKey)) {
+						referenceBundle.removeDuplicateReference(reference);
+					} else {
+						referenceBundle.removeNonDuplicateReference(reference);
+					}
 				}
 			}
-			Objects.requireNonNull(this.referencesDefinedCount)
-			       .remove(referenceName);
+			for (ReferenceKey duplicateReferenceKey : duplicateReferenceKeys) {
+				referenceBundle.discardDuplicates(duplicateReferenceKey);
+			}
 		}
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public ReferencesBuilder removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
+	public ReferencesBuilder removeReferences(
+		@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
 		final Predicate<ReferenceContract> nameFilter = reference -> referenceName.equals(reference.getReferenceName());
 		return this.removeReferences(nameFilter.and(filter));
 	}
@@ -631,7 +726,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Override
 	public ReferencesBuilder removeReferences(@Nonnull Predicate<ReferenceContract> filter) {
 		if (this.references != null) {
-			Set<ReferenceKey> affectedKeys = null;
+			Set<ReferenceKey> duplicateReferenceKeys = null;
 			final List<ReferenceContract> referenceCollection = getReferenceCollectionForUpdate();
 			final Iterator<ReferenceContract> it = referenceCollection.iterator();
 
@@ -639,29 +734,32 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				final ReferenceContract reference = it.next();
 				if (filter.test(reference)) {
 					it.remove();
-					Objects.requireNonNull(this.referencesDefinedCount)
-					       .computeIfPresent(reference.getReferenceName(), (k, v) -> v > 1 ? v - 1 : null);
 					final ReferenceKey key = reference.getReferenceKey();
 					final ReferenceContract removed = this.references.remove(key);
 					// if it was duplicate, remember the key for later reconciliation
 					if (removed == References.DUPLICATE_REFERENCE) {
-						if (affectedKeys == null) {
-							affectedKeys = new HashSet<>(16);
+						if (duplicateReferenceKeys == null) {
+							duplicateReferenceKeys = new HashSet<>(16);
 						}
-						affectedKeys.add(key);
+						duplicateReferenceKeys.add(key);
+						getReferenceBundleForUpdate(reference.getReferenceName(), 8)
+							.removeDuplicateReference(reference);
+					} else {
+						getReferenceBundleForUpdate(reference.getReferenceName(), 8)
+							.removeNonDuplicateReference(reference);
 					}
 				}
 			}
 
 			// Reconcile only keys that were duplicates
-			if (affectedKeys != null && !affectedKeys.isEmpty()) {
-				final Map<ReferenceKey, Integer> counts = new HashMap<>(affectedKeys.size() << 1);
-				final Map<ReferenceKey, ReferenceContract> singleCandidate = new HashMap<>(affectedKeys.size() << 1);
+			if (duplicateReferenceKeys != null && !duplicateReferenceKeys.isEmpty()) {
+				final Map<ReferenceKey, Integer> counts = new HashMap<>(duplicateReferenceKeys.size() << 1);
+				final Map<ReferenceKey, ReferenceContract> singleCandidate = new HashMap<>(duplicateReferenceKeys.size() << 1);
 
 				// Count remaining occurrences for affected keys and keep the single candidate if count == 1
 				for (ReferenceContract ref : referenceCollection) {
 					final ReferenceKey key = ref.getReferenceKey();
-					if (affectedKeys.contains(key)) {
+					if (duplicateReferenceKeys.contains(key)) {
 						final int newCount = counts.getOrDefault(key, 0) + 1;
 						counts.put(key, newCount);
 						if (newCount == 1) {
@@ -674,10 +772,12 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				}
 
 				// Rebuild reference index for affected keys
-				for (ReferenceKey key : affectedKeys) {
+				for (ReferenceKey key : duplicateReferenceKeys) {
 					final int c = counts.getOrDefault(key, 0);
 					if (c == 1) {
 						this.references.put(key, singleCandidate.get(key));
+						getReferenceBundleForUpdate(key.referenceName(), 8)
+							.discardDuplicates(key);
 					} else if (c > 1) {
 						this.references.put(key, References.DUPLICATE_REFERENCE);
 					}
@@ -686,6 +786,58 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			}
 		}
 		return this;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
+		if (this.referenceCollection != null) {
+			return this.referenceCollection
+				.stream()
+				.flatMap(it -> {
+					         final Stream<? extends ReferenceMutation<?>> base = Stream.of(
+						         new InsertReferenceMutation(
+							         it.getReferenceKey(),
+							         resolveCardinality(it.getReferenceKey(), it.getReferenceCardinality()),
+							         it.getReferencedEntityType()
+						         )
+					         );
+					         final Stream<? extends ReferenceMutation<?>> baseWithGroup = it.getGroup().isPresent() ?
+						         Stream.concat(
+							         base,
+							         Stream.of(
+								         new SetReferenceGroupMutation(
+									         it.getReferenceKey(),
+									         it.getGroup().get().getType(),
+									         it.getGroup().get().getPrimaryKey()
+								         )
+							         )
+						         )
+						         : base;
+					         final Stream<? extends ReferenceMutation<?>> attributeMutations =
+						         it.getAttributeValues()
+						           .stream()
+						           .filter(
+							           attributeValue -> attributeValue.value() != null)
+						           .map(
+							           attributeValue -> new ReferenceAttributeMutation(
+								           it.getReferenceKey(),
+								           new UpsertAttributeMutation(
+									           attributeValue.key(),
+									           attributeValue.value()
+								           )
+							           )
+						           );
+					         return Stream.concat(
+						         baseWithGroup,
+						         // Reference attributes with non-null values
+						         attributeMutations
+					         );
+				         }
+				);
+		} else {
+			return Stream.empty();
+		}
 	}
 
 	@Override
@@ -721,65 +873,13 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 
 	@Nonnull
 	@Override
-	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
-		if (this.referenceCollection != null) {
-			return this.referenceCollection
-				.stream()
-				.flatMap(it -> {
-					final Stream<? extends ReferenceMutation<?>> base = Stream.of(
-						new InsertReferenceMutation(
-							it.getReferenceKey(),
-							resolveCardinality(it.getReferenceKey(), it.getReferenceCardinality()),
-							it.getReferencedEntityType()
-						)
-					);
-					final Stream<? extends ReferenceMutation<?>> baseWithGroup = it.getGroup().isPresent() ?
-						Stream.concat(
-							base,
-							Stream.of(
-								new SetReferenceGroupMutation(
-									it.getReferenceKey(),
-									it.getGroup().get().getType(),
-									it.getGroup().get().getPrimaryKey()
-								)
-							)
-						)
-						: base;
-					final Stream<? extends ReferenceMutation<?>> attributeMutations =
-						it.getAttributeValues()
-						  .stream()
-						  .filter(
-							  attributeValue -> attributeValue.value() != null)
-						  .map(
-							  attributeValue -> new ReferenceAttributeMutation(
-								  it.getReferenceKey(),
-								  new UpsertAttributeMutation(
-									  attributeValue.key(),
-									  attributeValue.value()
-								  )
-							  )
-						  );
-					return Stream.concat(
-						baseWithGroup,
-						// Reference attributes with non-null values
-						attributeMutations
-					);
-				}
-			);
-		} else {
-			return Stream.empty();
-		}
-	}
-
-	@Nonnull
-	@Override
 	public References build() {
 		final Set<String> allReferenceNames;
-		if (this.referenceCollection == null || this.referencesDefinedCount == null) {
+		if (this.referenceBundles == null) {
 			allReferenceNames = this.schema.getReferences().keySet();
 		} else {
-			allReferenceNames = new HashSet<>(this.schema.getReferences().size() + this.referencesDefinedCount.size());
-			allReferenceNames.addAll(this.referencesDefinedCount.keySet());
+			allReferenceNames = new HashSet<>(this.schema.getReferences().size() + this.referenceBundles.size());
+			allReferenceNames.addAll(this.referenceBundles.keySet());
 			allReferenceNames.addAll(this.schema.getReferences().keySet());
 		}
 
@@ -799,11 +899,31 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	}
 
 	/**
+	 * Retrieves or initializes an {@link InitialReferenceBundle} for a given reference name.
+	 * If the reference bundle for the specified reference name does not already exist, it creates
+	 * a new one with the provided expected count and stores it in the map.
+	 *
+	 * @param referenceName the name of the reference to retrieve or initialize the bundle for
+	 * @param expectedCount the initial count expected for the reference bundle, used if creating a new bundle
+	 * @return the {@link InitialReferenceBundle} associated with the specified reference name
+	 */
+	@Nonnull
+	private InitialReferenceBundle getReferenceBundleForUpdate(@Nonnull String referenceName, int expectedCount) {
+		if (this.referenceBundles == null) {
+			this.referenceBundles = CollectionUtils.createHashMap(Math.max(8, this.schema.getReferences().size()));
+		}
+		return this.referenceBundles.computeIfAbsent(
+			referenceName,
+			k -> new InitialReferenceBundle(expectedCount)
+		);
+	}
+
+	/**
 	 * Retrieves the reference collection for updating. If the collection does not yet exist,
 	 * it initializes a new collection along with its associated index.
 	 *
 	 * @return a non-null {@link List} of {@link ReferenceContract} representing the reference collection
-	 *         prepared for updates
+	 * prepared for updates
 	 */
 	@Nonnull
 	private List<ReferenceContract> getReferenceCollectionForUpdate() {
@@ -819,13 +939,14 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 * it initializes a new reference index along with its associated collection.
 	 *
 	 * @return a non-null map of {@link ReferenceKey} to {@link ReferenceContract} representing
-	 *         the reference index prepared for updates
+	 * the reference index prepared for updates
 	 */
 	@Nonnull
 	private Map<ReferenceKey, ReferenceContract> getReferenceIndexForUpdate() {
 		if (this.references == null) {
-			this.referenceCollection = new ArrayList<>();
-			this.references = new LinkedHashMap<>();
+			this.referenceCollection = new ArrayList<>(16);
+			this.references = new LinkedHashMap<>(16);
+			this.referenceBundles = new HashMap<>(8);
 		}
 		return this.references;
 	}
@@ -936,7 +1057,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			referenceWithAssignedInternalId.getReferenceKey(),
 			(key, existingValue) -> {
 				if (existingValue == null) {
-					addNewReference(referenceWithAssignedInternalId, this.referenceCollection);
+					this.referenceCollection.add(referenceWithAssignedInternalId);
 					return referenceWithAssignedInternalId;
 				} else {
 					final int existingPk = existingValue.getReferenceKey().internalPrimaryKey();
@@ -946,7 +1067,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 						// replacing existing reference with the same internal id
 						return referenceWithAssignedInternalId;
 					} else {
-						addNewReference(referenceWithAssignedInternalId, this.referenceCollection);
+						this.referenceCollection.add(referenceWithAssignedInternalId);
 						// marking as duplicate
 						return References.DUPLICATE_REFERENCE;
 					}
@@ -956,36 +1077,14 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	}
 
 	/**
-	 * Adds a new reference to the provided reference collection and updates the
-	 * count of references defined for the given reference name.
-	 *
-	 * @param referenceWithAssignedInternalId the reference object with an assigned internal ID
-	 * @param theReferenceCollection the collection to which the reference will be added
-	 */
-	private void addNewReference(
-		@Nonnull ReferenceContract referenceWithAssignedInternalId,
-		@Nonnull List<ReferenceContract> theReferenceCollection
-	) {
-		// update duplicates count
-		if (this.referencesDefinedCount == null) {
-			this.referencesDefinedCount = new HashMap<>(8);
-		}
-		this.referencesDefinedCount.compute(
-			referenceWithAssignedInternalId.getReferenceName(),
-			(name, count) -> count == null ? 1 : count + 1
-		);
-		theReferenceCollection.add(referenceWithAssignedInternalId);
-	}
-
-	/**
 	 * Replaces an existing reference in the provided collection with the given reference.
 	 * The method removes the reference identified by its internal ID and adds the given
 	 * reference to the collection.
 	 *
-	 * @param reference the reference object with an assigned internal ID
-	 *        that will replace an existing reference in the collection
+	 * @param reference              the reference object with an assigned internal ID
+	 *                               that will replace an existing reference in the collection
 	 * @param theReferenceCollection the collection of references in which the replacement
-	 *        occurs
+	 *                               occurs
 	 */
 	@SuppressWarnings("MethodMayBeStatic")
 	private void replaceReference(
@@ -995,7 +1094,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		Assert.isPremiseValid(
 			theReferenceCollection.removeIf(
 				examinedRef -> examinedRef.getReferenceKey().equals(reference.getReferenceKey()) &&
-					examinedRef.getReferenceKey().internalPrimaryKey() == reference.getReferenceKey().internalPrimaryKey()
+					examinedRef.getReferenceKey().internalPrimaryKey() == reference.getReferenceKey()
+					                                                               .internalPrimaryKey()
 			),
 			"The reference to replace must exist in the collection!"
 		);
@@ -1027,11 +1127,11 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 * validates that the reference conforms to the rules defined in the schema, and may promote cardinality if permissible.
 	 * It enforces constraints such as avoiding duplicate references and maintaining schema consistency.
 	 *
-	 * @param referenceSchema the schema associated with the reference, used to validate its properties and constraints
-	 * @param referenceKey the unique key identifying the referenced entity; this includes the primary key and internal key
+	 * @param referenceSchema      the schema associated with the reference, used to validate its properties and constraints
+	 * @param referenceKey         the unique key identifying the referenced entity; this includes the primary key and internal key
 	 * @param referencedEntityType the type of the referenced entity; must match the schema-defined type, if provided
-	 * @param cardinality the cardinality of the reference; if provided, must match the schema-defined cardinality
-	 * @param whichIs an optional consumer for setting additional properties of the reference during its building process
+	 * @param cardinality          the cardinality of the reference; if provided, must match the schema-defined cardinality
+	 * @param whichIs              an optional consumer for setting additional properties of the reference during its building process
 	 * @return the updated instance of InternalEntityBuilder that includes the newly added or updated reference
 	 */
 	@Nonnull
@@ -1052,16 +1152,22 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			throw new ReferenceAllowsDuplicatesException(referenceName, this.schema, Operation.WRITE);
 		}
 		// but we allow implicit cardinality widening when needed
-		if (this.referencesDefinedCount != null && this.referencesDefinedCount.containsKey(referenceName) && schemaCardinality.getMax() <= 1) {
-			// check whether there already is some reference to this key
-			// if yes, check whether we can promote cardinality
-			if (this.schema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
-				referenceSchema = promoteUniqueCardinality(referenceSchema, referenceKey);
-			} else {
-				throw new ReferenceCardinalityViolatedException(
-					this.schema.getName(),
-					List.of(new CardinalityViolation(referenceName, schemaCardinality, this.referencesDefinedCount.get(referenceName) + 1))
-				);
+		final InitialReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
+		if (schemaCardinality.getMax() <= 1) {
+			final int existingRefCount = referenceBundle.count();
+			if (existingRefCount >= 1) {
+				// check whether there already is some reference to this key
+				// if yes, check whether we can promote cardinality
+				if (this.schema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
+					referenceSchema = promoteUniqueCardinality(referenceSchema, referenceKey);
+				} else {
+					throw new ReferenceCardinalityViolatedException(
+						this.schema.getName(),
+						List.of(
+							new CardinalityViolation(referenceName, schemaCardinality, existingRefCount + 1)
+						)
+					);
+				}
 			}
 		}
 		// coerce the reference key
@@ -1078,7 +1184,8 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				} else {
 					Assert.isTrue(
 						referenceKey.isUnknownReference() ||
-							referenceKey.internalPrimaryKey() == referenceContract.getReferenceKey().internalPrimaryKey(),
+							referenceKey.internalPrimaryKey() == referenceContract.getReferenceKey()
+							                                                      .internalPrimaryKey(),
 						() -> new InvalidMutationException(
 							"The reference `" + referenceName + "` with primary key `" +
 								referencedEntityPrimaryKey + "` already exists and has internal id " +
@@ -1097,51 +1204,13 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			referenceKey.isUnknownReference() ?
 				getNextReferenceInternalId() :
 				referenceKey.internalPrimaryKey(),
-			this.attributeTypes
+			referenceBundle.getAttributeTypes()
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
-		addOrReplaceReferenceInternal(builder.build());
+		final Reference newReference = builder.build();
+		referenceBundle.addNonDuplicateReference(newReference);
+		addOrReplaceReferenceInternal(newReference);
 		return this;
-	}
-
-	/**
-	 * Asserts the compatibility of the provided reference schema with the specified references entity type and cardinality.
-	 * Ensures that the referenced entity type and cardinality provided are either compatible with or match the
-	 * already defined values in the reference schema. If they are incompatible, an {@code InvalidMutationException} is thrown.
-	 *
-	 * @param referenceSchema the reference schema contract to validate against
-	 * @param referencedEntityType the referenced entity type to check for compatibility, may be null
-	 * @param cardinality the cardinality to check for compatibility, may be null
-	 * @return the cardinality defined in the provided reference schema
-	 */
-	@Nonnull
-	static Cardinality assertReferenceSchemaCompatibility(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality
-	) {
-		final String schemaDefinedReferencedEntityType = referenceSchema.getReferencedEntityType();
-		if (referencedEntityType != null) {
-			Assert.isTrue(
-				Objects.equals(schemaDefinedReferencedEntityType, referencedEntityType),
-				() -> new InvalidMutationException(
-					"The reference `" + referenceSchema.getName() + "` is already defined to point to `" +
-						schemaDefinedReferencedEntityType + "` entity type, cannot change it to `" + referencedEntityType + "`!"
-				)
-			);
-		}
-
-		final Cardinality schemaCardinality = referenceSchema.getCardinality();
-		if (cardinality != null) {
-			Assert.isTrue(
-				Objects.equals(schemaCardinality, cardinality),
-				() -> new InvalidMutationException(
-					"The reference `" + referenceSchema.getName() + "` is already defined to have `" +
-						schemaCardinality + "` cardinality, cannot change it to `" + cardinality + "`!"
-				)
-			);
-		}
-		return schemaCardinality;
 	}
 
 	/**

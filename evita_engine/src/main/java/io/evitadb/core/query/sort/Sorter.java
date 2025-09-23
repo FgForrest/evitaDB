@@ -23,9 +23,9 @@
 
 package io.evitadb.core.query.sort;
 
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 

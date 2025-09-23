@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 

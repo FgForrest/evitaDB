@@ -1314,6 +1314,55 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		);
 	}
 
+	@Test
+	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
+		final String ATTRIBUTE_COUNTRY = "country";
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaStrictly()
+			.withReferenceTo(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				ref -> ref
+					.indexedForFiltering()
+					.withAttribute(
+						ATTRIBUTE_COUNTRY,
+						String.class,
+						thatIs -> thatIs.filterable().representative()
+					)
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		builder.setReference(
+			BRAND,
+			1,
+			filter -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+		);
+		// different country is ok
+		builder.setReference(
+			BRAND,
+			1,
+			filter -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
+		);
+		// creating another reference with same country should fail
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND,
+				1,
+				filter -> false,
+				rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+			)
+		);
+
+		final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
+		assertEquals(2, references.size());
+	}
+
 	@Nonnull
 	private Entity buildInitialEntityWithDuplicatedReferences() {
 		final ExistingEntityBuilder eb = new ExistingEntityBuilder(this.initialEntity);

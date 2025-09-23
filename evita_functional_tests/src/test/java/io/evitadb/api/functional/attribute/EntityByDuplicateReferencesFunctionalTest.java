@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
@@ -46,7 +47,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -926,7 +926,8 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				"""
 					Schema `CATEGORY` contains validation errors:
 						Reference schema `products` contains validation errors:
-						Reflected reference `products` must contain all representative attributes of the original reflected reference `categories` in entity `PRODUCT`! Missing representative attributes: country""",
+						Reflected reference `products` must contain all representative attributes of the original reflected reference `categories` in entity `PRODUCT`! Missing representative attributes: country
+						Reference schema `products` allows duplicates but has no representative attribute defined! This would effectively prevent multiple references to the same entity is the duplicates need to be uniquely identified by their representative attributes.""",
 				cause.getMessage()
 			);
 		}
@@ -1466,11 +1467,6 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertEquals(0, notFoundProductsNull.size());
 			}
 		);
-	}
-
-	@Test
-	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
-		fail("Not implemented yet");
 	}
 
 	@DisplayName("The product should filter entities by brand duplicate references")

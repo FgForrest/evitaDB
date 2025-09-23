@@ -25,8 +25,8 @@ package io.evitadb.index.attribute;
 
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
-import io.evitadb.index.RepresentativeReferenceKey;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 

@@ -24,7 +24,7 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
-import io.evitadb.index.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 
 import javax.annotation.Nonnull;
 

@@ -56,6 +56,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupM
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
