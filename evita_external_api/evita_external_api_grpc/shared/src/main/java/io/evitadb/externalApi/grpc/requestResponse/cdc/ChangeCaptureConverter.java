@@ -30,7 +30,9 @@ import io.evitadb.api.requestResponse.cdc.*;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
@@ -39,6 +41,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntit
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -60,11 +63,12 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static ChangeCatalogCaptureRequest toChangeCaptureRequest(
 		@Nonnull GetMutationsHistoryPageRequest request,
-		long currentCatalogVersion
+		long currentCatalogVersion,
+		@Nonnull StreamDirection direction
 	) {
 		return new ChangeCatalogCaptureRequest(
 			request.hasSinceVersion() ? request.getSinceVersion().getValue() : currentCatalogVersion,
-			request.hasSinceVersion() ? request.getSinceIndex().getValue() : 0,
+			request.hasSinceVersion() ? request.getSinceIndex().getValue() : (direction == StreamDirection.FORWARD ? 0 : Integer.MAX_VALUE),
 			request.getCriteriaList()
 			       .stream()
 			       .map(ChangeCaptureConverter::toChangeCaptureCriteria)
@@ -242,6 +246,8 @@ public class ChangeCaptureConverter {
 			builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
 		} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
 			builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
+		} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
+			builder.setInfrastructureMutation(DelegatingInfrastructureMutationConverter.INSTANCE.convert(transactionMutation));
 		}
 		return builder.build();
 	}
@@ -348,12 +354,21 @@ public class ChangeCaptureConverter {
 	private static ChangeCatalogCaptureCriteria toChangeCaptureCriteria(
 		@Nonnull GrpcChangeCaptureCriteria grpcCaptureCriteria
 	) {
-		final CaptureArea captureArea = EvitaEnumConverter.toCaptureArea(grpcCaptureCriteria.getArea());
+		final CaptureArea captureArea;
+		if (grpcCaptureCriteria.hasSchemaSite()) {
+			captureArea = CaptureArea.SCHEMA;
+		} else if (grpcCaptureCriteria.hasDataSite()) {
+			captureArea = CaptureArea.DATA;
+		} else {
+			captureArea = EvitaEnumConverter.toCaptureArea(grpcCaptureCriteria.getArea());
+		}
+		final CaptureSite<?> captureSite = switch (captureArea) {
+			case SCHEMA -> toSchemaSite(grpcCaptureCriteria.getSchemaSite());
+			case DATA -> toDataSite(grpcCaptureCriteria.getDataSite());
+			case INFRASTRUCTURE -> null;
+		};
 		return new ChangeCatalogCaptureCriteria(
-			captureArea,
-			captureArea == CaptureArea.SCHEMA ?
-				toSchemaSite(grpcCaptureCriteria.getSchemaSite()) :
-				toDataSite(grpcCaptureCriteria.getDataSite())
+			captureArea, captureSite
 		);
 	}
 

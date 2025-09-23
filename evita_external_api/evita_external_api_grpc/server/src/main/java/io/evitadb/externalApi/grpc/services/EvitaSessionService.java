@@ -51,6 +51,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -682,7 +683,11 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final int pageSize = request.hasPageSize() ? request.getPageSize().getValue() : 20;
 				try (
 					final Stream<ChangeCatalogCapture> mutationsHistoryStream = session.getMutationsHistory(
-						ChangeCaptureConverter.toChangeCaptureRequest(request, session.getCatalogVersion())
+						ChangeCaptureConverter.toChangeCaptureRequest(
+							request,
+							session.getCatalogVersion(),
+							StreamDirection.REVERSE
+						)
 					)
 				) {
 					mutationsHistoryStream

@@ -9,6 +9,7 @@ import "GrpcEngineMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
+import "GrpcInfrastrutureMutation.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
@@ -69,6 +70,7 @@ message GrpcChangeCatalogCapture {
     GrpcEntitySchemaMutation schemaMutation = 7;
     GrpcEntityMutation entityMutation = 8;
     GrpcLocalMutation localMutation = 9;
+    GrpcInfrastructureMutation infrastructureMutation = 10;
   }
 }
 
