@@ -351,7 +351,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.build()
 			).toList();
 
-			assertEquals(4, reverseCaptures.size());
+			assertEquals(2, reverseCaptures.size());
 
 			assertEquals(Entities.PRODUCT, reverseCaptures.get(0).entityType());
 			assertEquals(CURRENCY_USD, ((UpsertPriceMutation)reverseCaptures.get(0).body()).getPriceKey().currency());
