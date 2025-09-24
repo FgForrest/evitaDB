@@ -380,14 +380,14 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 	@Nonnull
 	@Override
-	public ReferencesBuilder setReference(
+	public ReferencesBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
 		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
 		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		return setReference(
+		return setOrUpdateReference(
 			referenceName,
 			referenceSchema.getReferencedEntityType(),
 			referenceSchema.getCardinality(),
@@ -434,7 +434,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 	@Nonnull
 	@Override
-	public ReferencesBuilder setReference(
+	public ReferencesBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,

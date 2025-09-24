@@ -382,13 +382,13 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 
 	@Nonnull
 	@Override
-	public ReferencesBuilder setReference(
+	public ReferencesBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
 		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
-		setReference(
+		setOrUpdateReference(
 			referenceName,
 			null,
 			null,
@@ -440,7 +440,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 
 	@Nonnull
 	@Override
-	public ReferencesBuilder setReference(
+	public ReferencesBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,

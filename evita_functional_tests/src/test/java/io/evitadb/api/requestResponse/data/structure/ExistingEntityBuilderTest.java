@@ -579,8 +579,8 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// add a few references
 		eb.setReference(BRAND, 2);
 		eb.setReference(CATEGORY, 12);
-		eb.setReference(PARAMETER, 101, ref -> false, whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "C"));
-		eb.setReference(STORE, 1002, ref -> false, Functions.noOpConsumer());
+		eb.setOrUpdateReference(PARAMETER, 101, ref -> false, whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "C"));
+		eb.setOrUpdateReference(STORE, 1002, ref -> false, Functions.noOpConsumer());
 
 		// the count has to grow
 		assertEquals(2, eb.getReferences(BRAND).size());
@@ -629,7 +629,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change referenced entity type this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				"differentEntityType",
 				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
@@ -641,7 +641,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change cardinality this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				BRAND,
 				Cardinality.ONE_OR_MORE,
@@ -654,7 +654,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// cannot promote to ZERO_OR_MORE_WITH_DUPLICATES - because there is no distinguishable attribute
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				2,
 				ref -> false,
@@ -674,7 +674,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
 
 		// add another duplicate
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			3,
 			ref -> false,
@@ -1347,14 +1347,14 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			filter -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ")
 		);
 		// different country is ok
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			filter -> false,
@@ -1363,7 +1363,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// creating another reference with same country should fail
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				1,
 				filter -> false,
@@ -1396,28 +1396,28 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ")
 		);
 		// different ATTRIBUTE_DISCRIMINATOR is ok
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE")
 		);
 		// now, we free DE and change it to FR
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR)),
 			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "FR")
 		);
 		// then we can reuse DE
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
@@ -1437,32 +1437,32 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		eb.setReference(CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE, 10);
 		eb.setReference(CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE, 11);
 		// initial: 2x PARAMETER (same PKs)
-		eb.setReference(
+		eb.setOrUpdateReference(
 			PARAMETER,
 			100,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
-		eb.setReference(
+		eb.setOrUpdateReference(
 			PARAMETER,
 			100,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
 		);
 		// initial: 3x STORE (two share same referencedEntityPrimaryKey)
-		eb.setReference(
+		eb.setOrUpdateReference(
 			STORE,
 			1000,
 			ref -> false,
 			Functions.noOpConsumer()
 		);
-		eb.setReference(
+		eb.setOrUpdateReference(
 			STORE,
 			1001,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
-		eb.setReference(
+		eb.setOrUpdateReference(
 			STORE,
 			1001,
 			ref -> false,

@@ -133,11 +133,11 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
 
 		builder.setReference(STORE, 1);
-		builder.setReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
-		builder.setReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
-		builder.setReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
-		builder.setReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
-		builder.setReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "EN"));
+		builder.setOrUpdateReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
+		builder.setOrUpdateReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
+		builder.setOrUpdateReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
+		builder.setOrUpdateReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
+		builder.setOrUpdateReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "EN"));
 
 		return builder;
 	}
@@ -643,7 +643,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	@DisplayName("setReference supports add/update and duplicates via filter and builder")
-	void shouldHandleSetReferenceAddUpdateAndDuplicates() {
+	void shouldHandleSetOrUpdateReferenceAddUpdateAndDuplicates() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
 			PRODUCT_SCHEMA
@@ -687,7 +687,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertCreatedReferenceInvariants(1, createdUniqueReference);
 
 		// B) update the existing single reference (filter matches)
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> BRAND.equals(ref.getReferenceName()) && ref.getReferencedPrimaryKey() == 1,
@@ -699,7 +699,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertCreatedReferenceInvariants(1, updatedUniqueReference);
 
 		// C) add duplicate (filter not matching) -> introduce duplication
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
@@ -719,7 +719,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		);
 
 		// D) update one of the duplicates using filter (target priority 12 -> 13)
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> BRAND.equals(ref.getReferenceName()) && ref.getReferencedPrimaryKey() == 1 &&
@@ -740,7 +740,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertCreatedReferenceInvariants(2, afterUpdateOnce);
 
 		// E) add another duplicate when duplicates already exist (filter not matching)
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
@@ -754,7 +754,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertCreatedReferenceInvariants(3, threeDuplicates);
 
 		// F) update an already existing duplicate (target 11 -> 15)
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> Long.valueOf(11L).equals(ref.getAttribute(BRAND_PRIORITY)),
@@ -1091,7 +1091,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		// fail to promote to ZERO_OR_MORE_WITH_DUPLICATES - no representative attribute can be set this way
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				2,
 				ref -> false,
@@ -1102,7 +1102,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change referenced entity type this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				"differentEntityType",
 				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
@@ -1115,7 +1115,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change cardinality this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				BRAND,
 				Cardinality.ONE_OR_MORE,
@@ -1128,7 +1128,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertCardinality(Cardinality.ZERO_OR_MORE, builder, new ReferenceKey(BRAND, 1));
 
 		// add another reference
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			3,
 			ref -> false,
@@ -1506,14 +1506,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 		);
 		// different ATTRIBUTE_COUNTRY is ok
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
@@ -1522,7 +1522,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		// creating another reference with same ATTRIBUTE_COUNTRY should fail
 		assertThrows(
 			InvalidMutationException.class,
-			() -> builder.setReference(
+			() -> builder.setOrUpdateReference(
 				BRAND,
 				1,
 				ref -> false,
@@ -1556,28 +1556,28 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 		);
 		// different ATTRIBUTE_COUNTRY is ok
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 		);
 		// now, we free DE and change it to FR
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_COUNTRY)),
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "FR")
 		);
 		// then we can reuse DE
-		builder.setReference(
+		builder.setOrUpdateReference(
 			BRAND,
 			1,
 			ref -> false,

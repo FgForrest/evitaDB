@@ -733,13 +733,13 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 
 	@Nonnull
 	@Override
-	public EntityBuilder setReference(
+	public EntityBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
 		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
-		this.referencesBuilder.setReference(referenceName, referencedPrimaryKey, filter, whichIs);
+		this.referencesBuilder.setOrUpdateReference(referenceName, referencedPrimaryKey, filter, whichIs);
 		return this;
 	}
 
@@ -774,7 +774,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 
 	@Nonnull
 	@Override
-	public EntityBuilder setReference(
+	public EntityBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Cardinality cardinality,
@@ -782,7 +782,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		@Nonnull Predicate<ReferenceContract> filter,
 		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) {
-		this.referencesBuilder.setReference(
+		this.referencesBuilder.setOrUpdateReference(
 			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, filter, whichIs
 		);
 		return this;

@@ -245,7 +245,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 						.stream()
 						.filter(reference -> entityCountry.country().equals(reference.getAttribute(ATTRIBUTE_COUNTRY)))
 						.forEach(
-							reference -> entityBuilder.setReference(
+							reference -> entityBuilder.setOrUpdateReference(
 								referenceName,
 								reference.getReferencedPrimaryKey(),
 								ref -> ref.getReferenceKey().equals(reference.getReferenceKey()),
@@ -712,7 +712,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Bravia TV")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Bravia Fernseher")
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
 						ref -> false,
@@ -720,7 +720,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
 						ref -> true,
@@ -728,7 +728,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
 						ref -> false,
@@ -736,7 +736,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
 						ref -> false,
@@ -744,7 +744,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
 						ref -> false,
@@ -752,7 +752,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
 						ref -> false,
@@ -780,7 +780,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Bravia TV")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Bravia Fernseher")
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
 						ref -> false,
@@ -788,7 +788,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
 						ref -> true,
@@ -796,7 +796,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_BRAND_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
 						ref -> false,
@@ -804,7 +804,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
 						ref -> false,
@@ -812,7 +812,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "US")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
 						ref -> false,
@@ -820,7 +820,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.setAttribute(ATTRIBUTE_CATEGORY_ORDER, Predecessor.HEAD)
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						2,
 						ref -> false,
@@ -982,7 +982,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Bravia TV")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Bravia Fernseher")
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_BRAND,
 						1,
 						ref -> true,
@@ -1004,14 +1004,14 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.createNewEntity(Entities.CATEGORY, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Cameras")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Kameras")
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
 						filter -> false,
 						whichIs -> whichIs
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
 						filter -> false,
@@ -1025,14 +1025,14 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.createNewEntity(Entities.CATEGORY, 2)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TVs")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Fernseher")
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
 						filter -> false,
 						whichIs -> whichIs
 							.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 					)
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORY_PRODUCTS,
 						1,
 						filter -> false,
@@ -1302,7 +1302,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 
 				// change country DE to FR in both duplicated references to category 1
 				product.openForWrite()
-				       .setReference(
+				       .setOrUpdateReference(
 					       REFERENCE_CATEGORIES,
 					       1,
 					       ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_COUNTRY)),
@@ -1373,7 +1373,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 
 				// remove country attribute in both duplicated references to category 1
 				product.openForWrite()
-				       .setReference(
+				       .setOrUpdateReference(
 					       REFERENCE_CATEGORIES,
 					       1,
 					       ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_COUNTRY)),
@@ -1417,7 +1417,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// restore country attribute in both duplicated references to category 1
 				updatedProduct
 					.openForWrite()
-					.setReference(
+					.setOrUpdateReference(
 						REFERENCE_CATEGORIES,
 						1,
 						ref -> ref.getAttribute(ATTRIBUTE_COUNTRY) == null,

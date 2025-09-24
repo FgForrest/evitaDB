@@ -140,7 +140,7 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	 * @return this editor instance for fluent chaining
 	 */
 	@Nonnull
-	W setReference(
+	W setOrUpdateReference(
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Predicate<ReferenceContract> filter,
@@ -261,7 +261,7 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	 * @return this editor instance for fluent chaining
 	 */
 	@Nonnull
-	W setReference(
+	W setOrUpdateReference(
 		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Cardinality cardinality,

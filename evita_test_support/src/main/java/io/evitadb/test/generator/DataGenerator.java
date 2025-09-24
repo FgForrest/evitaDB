@@ -630,7 +630,7 @@ public class DataGenerator {
 				if (referencedEntity != null) {
 					if (referenceAllowsDuplicates) {
 						final int finalIndex = i;
-						detachedBuilder.setReference(
+						detachedBuilder.setOrUpdateReference(
 							referenceName,
 							Objects.requireNonNull(referencedEntity),
 							// if we update existing entity, we rewrite contents of every third refererence
