@@ -47,7 +47,22 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 /**
- * TODO JNO - document me
+ * Translates referenced entity primary keys produced by the inner formula into primary keys of
+ * the referenced-type entity index.
+ *
+ * The formula is used when query evaluation needs to switch from the space of referenced entities
+ * to the space of records stored in {@link ReferencedTypeEntityIndex}. The translation is performed
+ * lazily during evaluation so that the potentially heavy computation of the inner formula is not
+ * executed during query preparation. This behaviour mirrors
+ * {@link ReferenceOwnerTranslatingFormula}, but the resulting bitmap contains primary keys of the
+ * referenced-entity index, not owner entity primary keys.
+ *
+ * If the reference is indexed only in selected {@link io.evitadb.dataType.Scope scopes} or the
+ * referenced entity type is managed, the translation can be restricted by a precomputed superset of
+ * referenced entities available in those scopes. Only ids present in that superset are considered.
+ *
+ * The final result is a bitmap of primary keys that identify rows inside
+ * {@link ReferencedTypeEntityIndex}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -55,7 +70,10 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 	private static final long CLASS_ID = 6841111737856593641L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
-	 * TODO JNO - document me
+	 * Optional union bitmap of all referenced entity primary keys that are allowed to participate
+	 * in the translation. The bitmap is built from {@link GlobalEntityIndex#getAllPrimaryKeys()}
+	 * across all scopes where the reference is indexed. When {@code null}, no additional
+	 * restriction applies (either the referenced type is not managed or the index is unavailable).
 	 */
 	private final Bitmap referencedEntitySuperSet;
 	/**
@@ -67,16 +85,28 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 	 */
 	private final long[] referencedEntityTypeSuperSetTransactionalIds;
 	/**
-	 * TODO JNO - document me
+	 * Target index that knows how to translate referenced entity primary keys into its own
+	 * primary keys.
 	 */
 	private final ReferencedTypeEntityIndex referencedEntityTypeIndex;
 	/**
-	 * Contains the information about referenced entity type cardinality. The consideration is the same as for
-	 * {@link #referencedEntityTypeTransactionalIds} - we have to provide the {@link Formula#getEstimatedCardinality()} before
-	 * the real calculation occurs, so we have to consider the worst possible cardinality here.
+	 * Worst-case estimate of the result cardinality that must be available before evaluation.
+	 * If a superset is present, it is {@code min(superset.size, index.size)}; otherwise it equals
+	 * {@code index.size}.
 	 */
 	private final int worstCardinality;
 
+	/**
+	 * Internal constructor used by cloning and tests.
+	 *
+	 * @param referencedEntitySuperSet optional superset of referenced entity primary keys to limit
+	 *        the translation; may be {@code null}
+	 * @param referencedEntityTypeSuperSetTransactionalId transactional ids of contributing
+	 *        {@link GlobalEntityIndex} instances used for cache-key hashing
+	 * @param referencedEntityTypeIndex target index for the translation
+	 * @param worstCardinality worst-case estimate of the result cardinality
+	 * @param innerFormula inner formula producing referenced entity primary keys
+	 */
 	ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nullable Bitmap referencedEntitySuperSet,
 		@Nonnull long[] referencedEntityTypeSuperSetTransactionalId,
@@ -91,6 +121,24 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 		this.initFields(innerFormula);
 	}
 
+	/**
+	 * Creates a translating formula that takes referenced entity primary keys produced by the
+	 * inner formula and lazily maps them to primary keys of the referenced-type entity index.
+	 *
+	 * When the referenced entity type is managed, this constructor also builds a superset of allowed
+	 * referenced entity primary keys by querying {@link GlobalEntityIndex} for the referenced entity
+	 * type in all provided scopes where the reference is indexed. The union of these bitmaps is used
+	 * to filter the inner result during evaluation. Transactional ids of the contributing indices are
+	 * captured so that {@link #includeAdditionalHash(LongHashFunction)} can properly invalidate caches
+	 * when any of them changes.
+	 *
+	 * @param referenceSchema schema of the processed reference
+	 * @param referencedEntitySuperSetSupplier supplier returning {@link GlobalEntityIndex} for a
+	 *        referenced entity type and a scope
+	 * @param referencedTypeEntityIndex target referenced-type entity index
+	 * @param innerFormula inner formula producing referenced entity primary keys
+	 * @param scopes scopes the query is evaluated in
+	 */
 	public ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull BiFunction<String, Scope, Optional<GlobalEntityIndex>> referencedEntitySuperSetSupplier,
@@ -137,6 +185,12 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 		this.initFields(innerFormula);
 	}
 
+	/**
+	 * Includes a hash that ensures cache invalidation when any of the indices involved in the
+	 * translation changes. If no superset was constructed, the id of the target
+	 * {@link ReferencedTypeEntityIndex} is used. Otherwise, a combined hash of all transactional ids
+	 * of contributing {@link GlobalEntityIndex} instances and the target index id is used.
+	 */
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return this.referencedEntityTypeSuperSetTransactionalIds.length == 0 ?

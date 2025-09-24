@@ -39,7 +39,29 @@ import java.util.Comparator;
 import static io.evitadb.utils.StringUtils.serializableArrayToString;
 
 /**
- * TODO JNO - document me
+ * Compound key that identifies a specific reference by its {@link ReferenceKey} together with a
+ * fixed-size, ordered set of representative attribute values.
+ *
+ * The representative attribute values serve two purposes:
+ * - they provide a stable, domain-specific tie-breaker when multiple references share the same
+ *   {@link #referenceName()} and {@link #primaryKey()}, and
+ * - they allow creation of a deterministic, total (or domain-constrained) ordering.
+ *
+ * Equality and hashing are based on:
+ * - the {@link ReferenceKey} compared via {@link ReferenceKey#equalsInGeneral}, and
+ * - element-wise equality of the {@link #representativeAttributeValues()} array.
+ *
+ * Natural ordering implemented by {@link #compareTo(RepresentativeReferenceKey)} sorts by
+ * {@link #referenceName()}, then {@link #primaryKey()}, and finally lexicographically by the
+ * representative attribute values. The natural ordering expects both compared keys to carry the same
+ * number of representative values and throws an exception when they do not. If you need a more
+ * permissive ordering that handles different array lengths, use {@link #GENERIC_COMPARATOR} instead.
+ *
+ * This record is immutable and safe to use as a key in maps or elements of sets.
+ *
+ * Note: unless the {@link ReferenceKey} is an "unknown" reference, the constructor creates a new
+ * {@link ReferenceKey} instance from the pair (referenceName, primaryKey) to normalize any extra
+ * flags the original instance might carry. This guarantees consistent equality and hashing semantics.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -47,8 +69,23 @@ public record RepresentativeReferenceKey(
 	@Nonnull ReferenceKey referenceKey,
 	@Nonnull Serializable[] representativeAttributeValues
 ) implements Serializable, Comparable<RepresentativeReferenceKey> {
+	/**
+	 * Comparator that provides a permissive total ordering: it sorts by reference name, then primary
+	 * key, and finally lexicographically by the representative attribute values using
+	 * {@link ArrayUtils#compare(Object[], Object[])}. Unlike {@link #compareTo(RepresentativeReferenceKey)},
+	 * it does not require the arrays to have the same length.
+	 */
 	public static final Comparator<RepresentativeReferenceKey> GENERIC_COMPARATOR = new GenericReferenceKeyComparator();
 
+	/**
+	 * Creates a key for the provided {@link ReferenceKey} with no representative attribute values.
+	 *
+	 * This is a convenience constructor equivalent to passing an empty array to the other
+	 * constructor. If the supplied reference is not marked as unknown, it is normalized to a new
+	 * {@link ReferenceKey} containing only the pair (referenceName, primaryKey).
+	 *
+	 * @param referenceKey the reference identifier; must not be null
+	 */
 	public RepresentativeReferenceKey(
 		@Nonnull ReferenceKey referenceKey
 	) {
@@ -58,6 +95,21 @@ public record RepresentativeReferenceKey(
 		);
 	}
 
+	/**
+	 * Creates a key for the provided {@link ReferenceKey} and a fixed-size array of representative
+	 * attribute values.
+	 *
+	 * Unless the reference is unknown, a new {@link ReferenceKey} is created from
+	 * (referenceName, primaryKey) to normalize any additional state the original instance might have.
+	 * This normalization ensures stable equality and hashing.
+	 *
+	 * The representative attribute values are used as a lexicographical tie-breaker in comparisons.
+	 * All compared instances are expected to carry the same number of values when using
+	 * {@link #compareTo(RepresentativeReferenceKey)}.
+	 *
+	 * @param referenceKey the reference identifier; must not be null
+	 * @param representativeAttributeValues the ordered attribute values used for comparison; must not be null
+	 */
 	public RepresentativeReferenceKey(
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Serializable[] representativeAttributeValues
@@ -67,15 +119,41 @@ public record RepresentativeReferenceKey(
 		this.representativeAttributeValues = representativeAttributeValues;
 	}
 
+	/**
+	 * Returns the name of the referenced entity type.
+	 *
+	 * @return non-null reference name
+	 */
 	@Nonnull
 	public String referenceName() {
 		return this.referenceKey.referenceName();
 	}
 
+	/**
+	 * Returns the primary key of the referenced entity.
+	 *
+	 * @return primary key value
+	 */
 	public int primaryKey() {
 		return this.referenceKey.primaryKey();
 	}
 
+	/**
+	 * Natural ordering comparator.
+	 *
+	 * Sorts by:
+	 * 1) reference name,
+	 * 2) primary key,
+	 * 3) lexicographically by representative attribute values.
+	 *
+	 * Both compared instances must contain the same number of representative attribute values. When the
+	 * lengths differ, a {@link GenericEvitaInternalError} is thrown to signal a misuse in the calling
+	 * code. If you need a more permissive comparator that tolerates different lengths, use
+	 * {@link #GENERIC_COMPARATOR}.
+	 *
+	 * @param thatDis the other key to compare with; must not be null
+	 * @return negative if this comes before the other key, zero if equal, positive if after
+	 */
 	@Override
 	public int compareTo(@Nonnull RepresentativeReferenceKey thatDis) {
 		final int nameComparison = this.referenceName().compareTo(thatDis.referenceName());
@@ -108,6 +186,16 @@ public record RepresentativeReferenceKey(
 		}
 	}
 
+	/**
+	 * Compares this key to another object for equality.
+	 *
+	 * Two keys are equal when their {@link ReferenceKey}s are equal according to
+	 * {@link ReferenceKey#equalsInGeneral} and their representative attribute value arrays are equal
+	 * element-by-element.
+	 *
+	 * @param o the object to compare to
+	 * @return true when equal, false otherwise
+	 */
 	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof final RepresentativeReferenceKey that)) return false;
@@ -116,6 +204,14 @@ public record RepresentativeReferenceKey(
 			Arrays.equals(this.representativeAttributeValues, that.representativeAttributeValues);
 	}
 
+	/**
+	 * Computes a hash code consistent with {@link #equals(Object)}.
+	 *
+	 * The hash is derived from the normalized {@link ReferenceKey} and the contents of the
+	 * representative attribute value array.
+	 *
+	 * @return hash code value
+	 */
 	@Override
 	public int hashCode() {
 		int result = this.referenceKey.hashCode();
@@ -123,6 +219,14 @@ public record RepresentativeReferenceKey(
 		return result;
 	}
 
+	/**
+	 * Returns a human-readable representation in the form:
+	 * referenceKey: [value1, value2, ...]
+	 *
+	 * Intended to aid debugging and logs.
+	 *
+	 * @return non-null string representation
+	 */
 	@Nonnull
 	@Override
 	public String toString() {

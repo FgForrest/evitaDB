@@ -182,11 +182,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	@Nonnull private final TransactionalMap<AttributeKey, CardinalityIndex> cardinalityIndexes;
 	/**
-	 * TODO JNO - document me
+	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
+	 * contains entity primary keys referencing this entity.
 	 */
 	@Nonnull private final TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
 	/**
-	 * TODO JNO - document me
+	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
+	 * {@link #referencedPrimaryKeysIndex}.
 	 */
 	private RoaringBitmap memoizedAllReferencedPrimaryKeys;
 
