@@ -55,7 +55,6 @@ public class ReferencesStoragePartSerializer_2025_6 extends Serializer<Reference
 		for (int i = 0; i < referenceCount; i++) {
 			// assign missing primary keys
 			final Reference reference = kryo.readObject(input, Reference.class);
-			/* TODO JNO - je tohle správně? */
 			// we can't assign default internal primary keys to reflected references,
 			// because they need to track internal primary keys or the origin reference
 			references[i] = reference.getReferenceSchemaOrThrow() instanceof ReflectedReferenceSchemaContract ?

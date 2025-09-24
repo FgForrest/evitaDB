@@ -962,6 +962,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			return sealedEntityProxy.getEntityBuilderWithCallback(Propagation.SHALLOW)
 				.map(entityBuilderWithCallback -> {
 					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+					/* TODO JNO - tady (i na úrovni celé metody) se musí vrace i přiřazené interní PK referencí (a musí se to předávat až na klienta)
+					*   aby bylo možné to v metodě `io.evitadb.api.proxy.impl.SealedEntityProxyState.getEntityBuilderWithCallback` nasetovat do generovaných proxy
+					*   referenčních objektů (kvůli tomu neprochází dva testy) - konkrétně `io.evitadb.api.proxy.EntityEditorProxyingFunctionalTest.shouldSetReferenceGroupByIdAndUpdateIt` */
 					entityBuilderWithCallback.entityUpserted(entityReference);
 					return entityReference;
 				})
