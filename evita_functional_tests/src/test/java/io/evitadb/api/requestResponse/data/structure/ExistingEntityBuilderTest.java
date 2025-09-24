@@ -160,7 +160,25 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@BeforeEach
 	void setUp() {
-		final SealedEntity sealedEntity = new InitialEntityBuilder("product", 1)
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				PARAMETER,
+				PARAMETER,
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				r -> r.withAttribute(ATTRIBUTE_DISCRIMINATOR, String.class, AttributeSchemaEditor::representative)
+			)
+			.withReferenceToEntity(
+				STORE,
+				STORE,
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				r -> r.withAttribute(ATTRIBUTE_DISCRIMINATOR, String.class, AttributeSchemaEditor::representative)
+			)
+			.toInstance();
+
+		final SealedEntity sealedEntity = new InitialEntityBuilder(schema, 1)
 			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -623,38 +641,37 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change cardinality this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> {
-				builder.setReference(
-					BRAND,
-					BRAND,
-					Cardinality.ONE_OR_MORE,
-					2,
-					ref -> false,
-					Functions.noOpConsumer()
-				);
-			}
+			() -> builder.setReference(
+				BRAND,
+				BRAND,
+				Cardinality.ONE_OR_MORE,
+				2,
+				ref -> false,
+				Functions.noOpConsumer()
+			)
 		);
 
-		// promote to ZERO_OR_MORE_WITH_DUPLICATES
-		builder.setReference(
-			BRAND,
-			2,
-			ref -> false,
-			Functions.noOpConsumer()
+		// cannot promote to ZERO_OR_MORE_WITH_DUPLICATES - because there is no distinguishable attribute
+		assertThrows(
+			InvalidMutationException.class,
+			() -> builder.setReference(
+				BRAND,
+				2,
+				ref -> false,
+				Functions.noOpConsumer()
+			)
 		);
+
 		// new references has automatically elevated cardinality
 		for (ReferenceContract reference : builder.getReferences(new ReferenceKey(BRAND, 2))) {
 			assertEquals(
-				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
+				Cardinality.ZERO_OR_MORE, reference.getReferenceSchemaOrThrow().getCardinality());
 		}
 		for (ReferenceContract reference : builder.toInstance().getReferences(new ReferenceKey(BRAND, 2))) {
 			assertEquals(
-				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, reference.getReferenceSchemaOrThrow().getCardinality());
+				Cardinality.ZERO_OR_MORE, reference.getReferenceSchemaOrThrow().getCardinality());
 		}
-		assertThrows(
-			ReferenceAllowsDuplicatesException.class,
-			() -> builder.getReference(new ReferenceKey(BRAND, 1)).isPresent()
-		);
+		assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
 
 		// add another duplicate
 		builder.setReference(
@@ -664,8 +681,8 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			Functions.noOpConsumer()
 		);
 
-		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 2, 3);
-		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 2, 3);
+		checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 3);
+		checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 3);
 	}
 
 	@Test
@@ -800,10 +817,6 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final Entity modifiedInstance = eb.toInstance();
 
 		assertEquals(0, eb.getReferences(PARAMETER).size());
-		assertThrows(
-			ReferenceNotFoundException.class,
-			() -> modifiedInstance.getReferences(PARAMETER)
-		);
 		assertEquals(2, eb.getReferences(STORE).size());
 		assertEquals(2, modifiedInstance.getReferences(STORE).stream().filter(Droppable::exists).count());
 		assertEquals(
@@ -1315,8 +1328,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
-		final String ATTRIBUTE_COUNTRY = "country";
+	void failToInsertDuplicatedReferenceSharingRepresentativeAttributeValues() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
 			PRODUCT_SCHEMA
@@ -1327,7 +1339,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				ref -> ref
 					.indexedForFiltering()
 					.withAttribute(
-						ATTRIBUTE_COUNTRY,
+						ATTRIBUTE_DISCRIMINATOR,
 						String.class,
 						thatIs -> thatIs.filterable().representative()
 					)
@@ -1339,14 +1351,14 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			BRAND,
 			1,
 			filter -> false,
-			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ")
 		);
 		// different country is ok
 		builder.setReference(
 			BRAND,
 			1,
 			filter -> false,
-			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
+			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE")
 		);
 		// creating another reference with same country should fail
 		assertThrows(
@@ -1355,12 +1367,65 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				BRAND,
 				1,
 				filter -> false,
-				rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+				rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ")
 			)
 		);
 
 		final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
 		assertEquals(2, references.size());
+	}
+
+	@Test
+	@DisplayName("allows reusing freed representative values in duplicated references")
+	void allowReusingFreedRepresentativeAssociatedValuesInDuplicatedReference() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaStrictly()
+			.withReferenceTo(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				ref -> ref
+					.indexedForFiltering()
+					.withAttribute(
+						ATTRIBUTE_DISCRIMINATOR,
+						String.class,
+						thatIs -> thatIs.filterable().representative()
+					)
+			)
+			.toInstance();
+
+		final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ")
+		);
+		// different ATTRIBUTE_DISCRIMINATOR is ok
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE")
+		);
+		// now, we free DE and change it to FR
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR)),
+			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "FR")
+		);
+		// then we can reuse DE
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE")
+		);
+
+		final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
+		assertEquals(3, references.size());
 	}
 
 	@Nonnull
@@ -1374,16 +1439,12 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// initial: 2x PARAMETER (same PKs)
 		eb.setReference(
 			PARAMETER,
-			PARAMETER,
-			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			100,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
 		eb.setReference(
 			PARAMETER,
-			PARAMETER,
-			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			100,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
@@ -1391,24 +1452,18 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		// initial: 3x STORE (two share same referencedEntityPrimaryKey)
 		eb.setReference(
 			STORE,
-			STORE,
-			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1000,
 			ref -> false,
 			Functions.noOpConsumer()
 		);
 		eb.setReference(
 			STORE,
-			STORE,
-			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1001,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
 		eb.setReference(
 			STORE,
-			STORE,
-			Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 			1001,
 			ref -> false,
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")

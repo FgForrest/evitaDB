@@ -65,6 +65,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
@@ -432,6 +433,31 @@ public class References implements ReferencesContract {
 	@Nonnull
 	public ChunkTransformerAccessor getReferenceChunkTransformer() {
 		return this.referenceChunkTransformer;
+	}
+
+	/**
+	 * Returns stream of all references that are not marked as duplicates.
+	 * @return stream of references
+	 */
+	@Nonnull
+	public Stream<ReferenceContract> getNonDuplicatedReferences(@Nonnull String referenceName) {
+		return this.references.values()
+			.stream()
+			.filter(it -> it != DUPLICATE_REFERENCE)
+			.filter(it -> it.getReferenceKey().referenceName().equals(referenceName));
+	}
+
+	/**
+	 * Returns stream of all references that are marked as duplicates.
+	 * @return stream of references
+	 */
+	@Nonnull
+	public Stream<ReferenceContract> getDuplicatedReferences(@Nonnull String referenceName) {
+		return this.duplicateReferences.entrySet()
+			.stream()
+			.filter(it -> it.getKey().referenceName().equals(referenceName))
+			.map(Entry::getValue)
+			.flatMap(Collection::stream);
 	}
 
 	/**

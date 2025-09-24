@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * This test verifies contract and behavior of InitialEntityBuilder.
  */
-@DisplayName("InitialEntityBuilder tests")
+@DisplayName("InitialEntityBuilder")
 class InitialEntityBuilderTest extends AbstractBuilderTest {
 	private static final String SORTABLE_ATTRIBUTE = "toSort";
 	private static final String BRAND = Entities.BRAND;
@@ -178,7 +178,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Creates new entity with type and no primary key")
+ @DisplayName("creates new entity with type and no primary key")
 	void shouldCreateNewEntity() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		final Entity product = builder.toMutation().orElseThrow().mutate(builder.getSchema(), null);
@@ -189,7 +189,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Throws on adding array as value for sortable attribute")
+	@DisplayName("throws on adding array as value for sortable attribute")
 	void shouldFailToAddArrayAsSortableAttribute() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -204,7 +204,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Includes scope mutation when scope not LIVE")
+	@DisplayName("includes scope mutation when scope not LIVE")
 	void shouldIncludeScopeMutationWhenScopeNotLive() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		builder.setScope(Scope.ARCHIVED);
@@ -219,7 +219,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Does not include scope mutation when scope is LIVE")
+	@DisplayName("does not include scope mutation when scope is LIVE")
 	void shouldNotIncludeScopeMutationWhenScopeLive() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		final EntityUpsertMutation mutation = (EntityUpsertMutation) builder.toMutation().orElseThrow();
@@ -230,7 +230,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Includes parent mutation and exposes parent entity when parent is set")
+	@DisplayName("includes parent mutation and exposes parent entity when parent is set")
 	void shouldIncludeParentMutationAndExposeParentEntityWhenSet() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		builder.setParent(42);
@@ -246,7 +246,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Manages references with group and attributes and exposes accessors")
+	@DisplayName("manages references with group and attributes and exposes accessors")
 	void shouldManageReferencesWithGroupAndAttributesAndExposeAccessors() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -301,7 +301,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Throws when setting unknown reference")
+	@DisplayName("throws when setting unknown reference")
 	void shouldThrowWhenSettingUnknownReference() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		assertThrows(
@@ -311,7 +311,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Aggregates locales from attributes and associated data")
+	@DisplayName("aggregates locales from attributes and associated data")
 	void shouldAggregateLocalesFromAttributesAndAssociatedData() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -330,7 +330,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Includes price mutations when price is set")
+	@DisplayName("includes price mutations when price is set")
 	void shouldIncludePriceMutationsWhenPriceSet() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -362,7 +362,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Filters null attribute values from attribute upserts")
+	@DisplayName("filters null attribute values from attribute upserts")
 	void shouldNotUpsertNullAttributeValues() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -382,7 +382,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Constructs from schema with default scope")
+	@DisplayName("constructs from schema with default scope")
 	void shouldConstructFromSchemaWithDefaultScope() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -397,7 +397,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Constructs from type and primary key")
+	@DisplayName("constructs from type and primary key")
 	void shouldConstructFromTypeAndPrimaryKey() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product", 123);
 		assertEquals("product", builder.getType());
@@ -406,7 +406,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Constructs from schema and primary key")
+	@DisplayName("constructs from schema and primary key")
 	void shouldConstructFromSchemaAndPrimaryKey() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -421,7 +421,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Preloads state via full constructor")
+	@DisplayName("preloads state via full constructor")
 	void shouldPreloadStateWithFullConstructor() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -452,7 +452,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		final Reference ref = new Reference(
 			schema,
 			ReferencesBuilder.createImplicitSchema(schema, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
-			new ReferenceKey(Entities.BRAND, 7),
+			new ReferenceKey(Entities.BRAND, 7, -1),
 			null
 		);
 
@@ -507,7 +507,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Removes parent and does not emit parent mutation")
+	@DisplayName("removes parent and does not emit parent mutation")
 	void shouldRemoveParentAndNotEmitMutation() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		builder.setParent(101);
@@ -522,7 +522,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Toggles price inner record handling to NONE after remove")
+	@DisplayName("toggles price inner record handling to NONE after remove")
 	void shouldHaveNonePriceHandlingAfterRemove() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -543,7 +543,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Removes one of two prices and keeps the other")
+	@DisplayName("removes one of two prices and keeps the other")
 	void shouldRemoveOnlyOnePrice() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -772,7 +772,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Updates multiple matching references using predicate")
+	@DisplayName("updates multiple matching references using predicate")
 	void shouldUpdateMultipleReferencesByPredicate() {
 		final String targetEntityType = "supplier";
 		final String attributeLoc = "loc";
@@ -827,7 +827,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	@DisplayName("Updates only references satisfying complex predicate")
+	@DisplayName("updates only references satisfying complex predicate")
 	void shouldUpdateOnlySelectedReferences() {
 		final String attributePriority = "priority";
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1115,30 +1115,17 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		/* cannot change cardinality this way */
 		assertThrows(
 			InvalidMutationException.class,
-			() -> {
-				builder.setReference(
-					BRAND,
-					BRAND,
-					Cardinality.ONE_OR_MORE,
-					2,
-					ref -> false,
-					Functions.noOpConsumer()
-				);
-			}
+			() -> builder.setReference(
+				BRAND,
+				BRAND,
+				Cardinality.ONE_OR_MORE,
+				2,
+				ref -> false,
+				Functions.noOpConsumer()
+			)
 		);
-		assertThrows(
-			ReferenceAllowsDuplicatesException.class,
-			() -> builder.getReference(new ReferenceKey(BRAND, 1))
-		);
-		assertThrows(
-			ReferenceAllowsDuplicatesException.class,
-			() -> builder.getReference(BRAND, 1)
-		);
-		assertThrows(
-			ReferenceAllowsDuplicatesException.class,
-			() -> builder.setReference(BRAND, 5)
-		);
-		assertCardinality(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES, builder, new ReferenceKey(BRAND, 1));
+		assertNotNull(builder.getReference(new ReferenceKey(BRAND, 1)));
+		assertCardinality(Cardinality.ZERO_OR_MORE, builder, new ReferenceKey(BRAND, 1));
 
 		// add another reference
 		builder.setReference(
@@ -1153,6 +1140,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("allows adding new definitions when evolution is allowed")
 	void shouldAllowAddingNewDefinitions() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1215,6 +1203,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("keeps reference attribute schema consistent across references")
 	void shouldKeepAttributeSchemaConsistentOverMultipleReferences() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1248,6 +1237,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("throws when providing external primary key but schema requires generated PK")
 	void shouldDenyExternalPrimaryKey() {
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1265,6 +1255,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("throws when using generated primary key but schema requires external PK")
 	void shouldDenyGeneratedPrimaryKey() {
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1282,6 +1273,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies adding attributes when schema disallows attribute evolution")
 	void shouldDenyAddingAttributes() {
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1309,6 +1301,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies adding associated data when schema disallows evolution")
 	void shouldDenyAddingAssociatedData() {
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1332,6 +1325,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies using non-configured locale for attributes and associated data")
 	void shouldDenyAddingLanguage() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1375,6 +1369,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies setting parent when schema disallows hierarchy changes")
 	void shouldDenyAddingParent() {
 
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
@@ -1394,6 +1389,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies adding prices and handling when schema disallows prices")
 	void shouldDenyAddingPrice() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1419,6 +1415,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies price in a non-allowed currency")
 	void shouldDenyAddingPriceCurrency() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1447,6 +1444,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies adding references when schema disallows references")
 	void shouldDenyAddingReference() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1465,6 +1463,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	@DisplayName("denies elevating reference cardinality when schema disallows")
 	void shouldDenyElevatingCardinality() {
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1486,7 +1485,8 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void failToInsertDuplicatedReferenceSharingRepresentativeAssociatedValues() {
+	@DisplayName("fails to insert duplicate reference with identical representative attribute value")
+	void failToInsertDuplicatedReferenceSharingRepresentativeAttributeValues() {
 		final String ATTRIBUTE_COUNTRY = InitialEntityBuilderTest.ATTRIBUTE_COUNTRY;
 		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
 			CATALOG_SCHEMA,
@@ -1509,14 +1509,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setReference(
 			BRAND,
 			1,
-			filter -> false,
+			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 		);
 		// different ATTRIBUTE_COUNTRY is ok
 		builder.setReference(
 			BRAND,
 			1,
-			filter -> false,
+			ref -> false,
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 		);
 		// creating another reference with same ATTRIBUTE_COUNTRY should fail
@@ -1525,13 +1525,67 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			() -> builder.setReference(
 				BRAND,
 				1,
-				filter -> false,
+				ref -> false,
 				rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 			)
 		);
 
 		final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
 		assertEquals(2, references.size());
+	}
+
+	@Test
+	@DisplayName("allows reusing freed representative values in duplicated references")
+	void allowReusingFreedRepresentativeAssociatedValuesInDuplicatedReference() {
+		final String ATTRIBUTE_COUNTRY = InitialEntityBuilderTest.ATTRIBUTE_COUNTRY;
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.verifySchemaStrictly()
+			.withReferenceTo(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				ref -> ref
+					.indexedForFiltering()
+					.withAttribute(
+						ATTRIBUTE_COUNTRY,
+						String.class,
+						thatIs -> thatIs.filterable().representative()
+					)
+			)
+			.toInstance();
+
+		final InitialEntityBuilder builder = new InitialEntityBuilder(schema, 1);
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
+		);
+		// different ATTRIBUTE_COUNTRY is ok
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
+		);
+		// now, we free DE and change it to FR
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_COUNTRY)),
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "FR")
+		);
+		// then we can reuse DE
+		builder.setReference(
+			BRAND,
+			1,
+			ref -> false,
+			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
+		);
+
+		final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
+		assertEquals(3, references.size());
 	}
 
 	private static void checkCollectionBrands(Collection<ReferenceContract> references, int... expectedPks) {
