@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.evitadb.store.serializer.AssociatedDataKeySerializer;
 import io.evitadb.store.serializer.AttributeKeySerializer;
 import io.evitadb.store.serializer.CompressiblePriceKeySerializer;
 import io.evitadb.store.serializer.ReferenceKeySerializer;
+import io.evitadb.store.serializer.ReferenceKeySerializer_2025_6;
 import io.evitadb.utils.Assert;
 
 import java.util.function.Consumer;
@@ -58,7 +59,12 @@ public class SharedClassesConfigurer implements Consumer<Kryo> {
 		kryo.register(AttributeKey.class, new SerialVersionBasedSerializer<>(new AttributeKeySerializer(), AttributeKey.class), index++);
 		kryo.register(AssociatedDataKey.class, new SerialVersionBasedSerializer<>(new AssociatedDataKeySerializer(), AssociatedDataKey.class), index++);
 		kryo.register(CompressiblePriceKey.class, new SerialVersionBasedSerializer<>(new CompressiblePriceKeySerializer(), CompressiblePriceKey.class), index++);
-		kryo.register(ReferenceKey.class, new SerialVersionBasedSerializer<>(new ReferenceKeySerializer(), ReferenceKey.class), index++);
+		kryo.register(
+			ReferenceKey.class,
+			new SerialVersionBasedSerializer<>(new ReferenceKeySerializer(), ReferenceKey.class)
+				.addBackwardCompatibleSerializer(-1234554594699404014L, new ReferenceKeySerializer_2025_6()),
+			index++
+		);
 		kryo.register(PriceInnerRecordHandling.class, new EnumNameSerializer<PriceInnerRecordHandling>(), index++);
 		kryo.register(AttributeUniquenessType.class, new EnumNameSerializer<AttributeUniquenessType>(), index++);
 		kryo.register(GlobalAttributeUniquenessType.class, new EnumNameSerializer<GlobalAttributeUniquenessType>(), index++);

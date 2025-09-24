@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
@@ -55,9 +54,8 @@ class ReferenceAttributesUpdateMutationTest extends AbstractMutationTest {
 			this.productSchema,
 			new Reference(
 				this.productSchema,
-				"category",
-				5,
-				"category", Cardinality.ZERO_OR_MORE,
+				this.productSchema.getReferenceOrThrowException("category"),
+				new ReferenceKey("category", 5),
 				null
 			)
 		);

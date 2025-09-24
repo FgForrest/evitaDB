@@ -28,21 +28,24 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -68,35 +71,15 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	 */
 	final EntitySchemaContract entitySchema;
 	/**
-	 * When this flag is set to true - verification on store is suppressed. It can be set to true only when verification
-	 * is encured by calling logic.
-	 */
-	final boolean suppressVerification;
-	/**
 	 * Contains locale insensitive attribute values - simple key → value association map.
 	 */
 	final Map<AttributeKey, AttributeValue> attributeValues;
-
-	static void verifyAttributeIsInSchemaAndTypeMatch(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String attributeName,
-		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Supplier<String> locationResolver
-	) {
-		final AttributeSchemaContract attributeSchema = entitySchema.getAttribute(attributeName).orElse(null);
-		verifyAttributeIsInSchemaAndTypeMatch(entitySchema, attributeName, aClass, null, attributeSchema, locationResolver);
-	}
-
-	static void verifyAttributeIsInSchemaAndTypeMatch(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String attributeName,
-		@Nullable Class<? extends Serializable> aClass,
-		@Nullable Locale locale,
-		@Nonnull Supplier<String> locationResolver
-	) {
-		final AttributeSchemaContract attributeSchema = entitySchema.getAttribute(attributeName).orElse(null);
-		verifyAttributeIsInSchemaAndTypeMatch(entitySchema, attributeName, aClass, locale, attributeSchema, locationResolver);
-	}
+	/**
+	 * Map of attribute types for the reference shared for all references of the same type.
+	 * Map is lazily initialized when the first implicit attribute schema is created.
+	 */
+	@Nullable
+	Map<String, S> attributeTypes;
 
 	static void verifyAttributeIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -183,8 +166,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 		@Nonnull EntitySchemaContract entitySchema
 	) {
 		this.entitySchema = entitySchema;
-		this.attributeValues = new HashMap<>();
-		this.suppressVerification = false;
+		this.attributeValues = CollectionUtils.createHashMap(32);
 	}
 
 	/**
@@ -192,11 +174,11 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	 */
 	InitialAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
-		boolean suppressVerification
+		@Nonnull Map<String, S> attributeTypes
 	) {
 		this.entitySchema = entitySchema;
-		this.attributeValues = new HashMap<>();
-		this.suppressVerification = suppressVerification;
+		this.attributeValues = CollectionUtils.createHashMap(32);
+		this.attributeTypes = attributeTypes;
 	}
 
 	@Override
@@ -215,12 +197,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			if (!this.suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(
-					this.entitySchema, attributeName, attributeValue.getClass(),
-					getLocationResolver()
-				);
-			}
+			createImplicitSchemaIfMissing(attributeName, attributeValue, null);
 			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
 			return (T) this;
@@ -234,9 +211,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
-			if (!this.suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(this.entitySchema, attributeName, attributeValue.getClass(), getLocationResolver());
-			}
+			createImplicitSchemaIfMissing(attributeName, attributeValue, null);
 			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
 			return (T) this;
@@ -259,9 +234,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			if (!this.suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(this.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver());
-			}
+			createImplicitSchemaIfMissing(attributeName, attributeValue, locale);
 			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
 			return (T) this;
@@ -275,9 +248,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-			if (!this.suppressVerification) {
-				verifyAttributeIsInSchemaAndTypeMatch(this.entitySchema, attributeName, attributeValue.getClass(), locale, getLocationResolver());
-			}
+			createImplicitSchemaIfMissing(attributeName, attributeValue, locale);
 			this.attributeValues.put(attributeKey, new AttributeValue(attributeKey, attributeValue));
 			//noinspection unchecked
 			return (T) this;
@@ -287,7 +258,13 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nonnull
 	@Override
 	public T mutateAttribute(@Nonnull AttributeMutation mutation) {
-		throw new UnsupportedOperationException("You cannot apply mutation when entity is just being created!");
+		final AttributeKey attributeKey = mutation.getAttributeKey();
+		final Optional<AttributeValue> existingValue = getAttributeValue(attributeKey);
+		final AttributeValue attributeValue = mutation.mutateLocal(this.entitySchema, existingValue.orElse(null));
+		createImplicitSchemaIfMissing(attributeKey.attributeName(), attributeValue.value(), attributeKey.locale());
+		this.attributeValues.put(attributeKey, attributeValue);
+		//noinspection unchecked
+		return (T) this;
 	}
 
 	@Override
@@ -412,7 +389,110 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Nonnull
 	@Override
 	public Stream<? extends AttributeMutation> buildChangeSet() {
-		throw new UnsupportedOperationException("Initial entity creation doesn't support change monitoring - it has no sense.");
+		return getAttributeValues()
+			.stream()
+			.filter(it -> it.value() != null)
+			.map(it -> new UpsertAttributeMutation(it.key(), it.value()));
 	}
+
+	/**
+	 * Retrieves a map of attribute types by combining the attribute definitions from the provided
+	 * {@link AttributeSchemaProvider} with any additional attributes defined in this context.
+	 * If no additional attributes are defined locally, it directly returns the attributes from the
+	 * {@link AttributeSchemaProvider}.
+	 *
+	 * @param attributeSchemaProvider the provider from which the initial set of attribute definitions
+	 *                                is obtained. Must not be null.
+	 * @return a map containing the combined attribute types, with attribute names as keys and their
+	 *         corresponding schema definitions as values. The resulting map is unmodifiable and must not be null.
+	 */
+	@Nonnull
+	protected Map<String, S> getAttributeTypes(@Nonnull AttributeSchemaProvider<S> attributeSchemaProvider) {
+		return this.attributeTypes == null ?
+			attributeSchemaProvider.getAttributes() :
+			Stream.concat(
+				      attributeSchemaProvider.getAttributes().entrySet().stream(),
+				      this.attributeTypes.entrySet().stream()
+			      )
+			      .collect(
+				      Collectors.toUnmodifiableMap(
+					      Entry::getKey,
+					      Entry::getValue
+				      )
+			      );
+	}
+
+	/**
+	 * Creates an implicit attribute schema if it is missing for the specified attribute name and value.
+	 * If an attribute schema already exists, verifies that the provided value matches the expected type.
+	 * Otherwise, adds a new attribute schema if the entity schema allows adding attributes dynamically.
+	 *
+	 * @param <U>          The type of the attribute value, which must extend {@link Serializable}.
+	 * @param attributeName The name of the attribute for which the schema needs to be created or verified. Must not be null.
+	 * @param attributeValue The value of the attribute to be used for schema creation or type verification. Nullable.
+	 */
+	protected <U extends Serializable> void createImplicitSchemaIfMissing(
+		@Nonnull String attributeName,
+		@Nullable U attributeValue,
+		@Nullable Locale locale
+	) {
+		if (attributeValue != null) {
+			final S attributeSchema = getAttributeSchemaFromSchemaOrLocally(attributeName);
+			if (attributeSchema != null) {
+				verifyAttributeIsInSchemaAndTypeMatch(
+					this.entitySchema, attributeName, attributeValue.getClass(), locale, attributeSchema,
+					getLocationResolver()
+				);
+			} else {
+				Assert.isTrue(
+					this.entitySchema.allows(EvolutionMode.ADDING_ATTRIBUTES),
+					() -> new InvalidMutationException(
+						"Cannot add new attribute `" + attributeName + "` to the " + getLocationResolver().get() +
+							" because entity schema doesn't allow adding new attributes!"
+					)
+				);
+				if (this.attributeTypes == null) {
+					this.attributeTypes = CollectionUtils.createHashMap(8);
+				}
+				final AttributeValue theAttributeValue = new AttributeValue(
+					locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale),
+					attributeValue
+				);
+				this.attributeTypes.put(
+					attributeName,
+					createImplicitSchema(theAttributeValue)
+				);
+			}
+		}
+	}
+
+	/**
+	 * Retrieves the schema for a specific attribute by first attempting to fetch it from the provided
+	 * {@link AttributeSchemaProvider}. If the attribute is not found in the provider, it checks the local
+	 * attribute types map (if available) for a matching schema.
+	 *
+	 * @param attributeName the name of the attribute whose schema is being retrieved. Must not be null.
+	 * @return the schema of the attribute if found, or null if the schema is not present in either the
+	 *         provider or the local attribute types map.
+	 */
+	@Nullable
+	S getAttributeSchemaFromSchemaOrLocally(
+		@Nonnull String attributeName
+	) {
+		return getAttributeSchema(attributeName)
+			.orElseGet(() -> this.attributeTypes == null ? null : this.attributeTypes.get(attributeName));
+	}
+
+	/**
+	 * Creates an implicit schema for the given attribute value. This method is expected to be implemented
+	 * in a way that ensures the appropriate schema is generated based on the provided attribute value.
+	 * Typically used to dynamically handle schema generation in scenarios where attributes are added without
+	 * predefined schemas.
+	 *
+	 * @param theAttributeValue The attribute value for which the implicit schema is to be created. Must not be null.
+	 * @return The generated schema corresponding to the provided attribute value. Must not be null.
+	 */
+	@Nonnull
+	protected abstract S createImplicitSchema(@Nonnull AttributeValue theAttributeValue);
 
 }

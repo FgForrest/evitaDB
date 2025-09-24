@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 
 		output.writeBoolean(attributeSchema.isLocalized());
 		output.writeBoolean(attributeSchema.isNullable());
+		output.writeBoolean(attributeSchema.isRepresentative());
 		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
 		if (attributeSchema.getDescription() != null) {
 			output.writeBoolean(true);
@@ -119,12 +120,13 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 
 		final boolean localized = input.readBoolean();
 		final boolean nullable = input.readBoolean();
+		final boolean representative = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable,
+			unique, filterable, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}

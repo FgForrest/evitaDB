@@ -112,7 +112,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -789,7 +788,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			CatalogState.WARMING_UP,
 			entityTypePrimaryKey,
 			entityType,
-			new HashMap<>(64),
+			64,
 			ioService,
 			entityCollectionPersistenceService,
 			NoCacheSupervisor.INSTANCE,
@@ -858,7 +857,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			CatalogState.WARMING_UP,
 			entityTypePrimaryKey,
 			entityType,
-			new HashMap<>(64),
+			64,
 			ioService,
 			entityCollectionPersistenceService,
 			NoCacheSupervisor.INSTANCE,

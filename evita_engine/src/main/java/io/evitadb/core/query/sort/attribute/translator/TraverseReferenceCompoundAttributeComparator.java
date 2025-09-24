@@ -28,10 +28,10 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.utils.Assert;
@@ -42,6 +42,8 @@ import java.io.Serial;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+
+import static io.evitadb.core.query.sort.EntityReferenceSensitiveComparator.getReferenceByRepresentativeReferenceKey;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
@@ -62,11 +64,11 @@ public class TraverseReferenceCompoundAttributeComparator
 	/**
 	 * The id of the referenced entity that is being traversed.
 	 */
-	@Nullable private ReferenceKey referenceKey;
+	@Nullable private RepresentativeReferenceKey referenceKey;
 
 	public TraverseReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection
@@ -82,7 +84,7 @@ public class TraverseReferenceCompoundAttributeComparator
 	}
 
 	@Override
-	public void withReferencedEntityId(@Nonnull ReferenceKey referenceKey, @Nonnull Runnable lambda) {
+	public void withReferencedEntityId(@Nonnull RepresentativeReferenceKey referenceKey, @Nonnull Runnable lambda) {
 		try {
 			Assert.isPremiseValid(this.referenceKey == null, "Cannot set referenced entity id twice!");
 			Assert.isPremiseValid(this.referenceName.equals(referenceKey.referenceName()), "Referenced entity id must be for the same reference!");
@@ -97,7 +99,7 @@ public class TraverseReferenceCompoundAttributeComparator
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
 		Assert.isPremiseValid(this.referenceKey != null, "Referenced entity id must be set!");
-		return entity.getReference(this.referenceKey);
+		return getReferenceByRepresentativeReferenceKey(entity, this.referenceSchema, this.referenceKey);
 	}
 
 	@Override

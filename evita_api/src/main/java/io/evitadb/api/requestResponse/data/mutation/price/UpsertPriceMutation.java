@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.price;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
@@ -131,6 +132,25 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		this.indexed = price.indexed();
 	}
 
+	private UpsertPriceMutation(
+		@Nonnull PriceKey priceKey,
+		@Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity,
+		boolean indexed,
+		long decisiveTimestamp
+	) {
+		super(priceKey, decisiveTimestamp);
+		this.innerRecordId = innerRecordId;
+		this.priceWithoutTax = priceWithoutTax;
+		this.taxRate = taxRate;
+		this.priceWithTax = priceWithTax;
+		this.validity = validity;
+		this.indexed = indexed;
+	}
+
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
@@ -213,6 +233,16 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new UpsertPriceMutation(
+			this.priceKey, this.innerRecordId,
+			this.priceWithoutTax, this.taxRate, this.priceWithTax,
+			this.validity, this.indexed, newDecisiveTimestamp
+		);
 	}
 
 	@Override

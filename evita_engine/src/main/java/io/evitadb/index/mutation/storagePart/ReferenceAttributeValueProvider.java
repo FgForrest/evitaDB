@@ -25,12 +25,16 @@ package io.evitadb.index.mutation.storagePart;
 
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -38,8 +42,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -56,9 +58,21 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	 */
 	private final int entityPrimaryKey;
 	/**
-	 * The array of references present in the initial version of the entity.
+	 * Index of the first reference that should be considered in the provided array.
 	 */
-	private final Map<ReferenceKey, ReferenceContract> referenceContracts;
+	private final int start;
+	/**
+	 * Index of the last reference that should be considered in the provided array.
+	 */
+	private final int end;
+	/**
+	 * The array of references present in the reference storage container.
+	 */
+	private final ReferenceContract[] referenceContracts;
+	/**
+	 * The array of references present in the reference storage container.
+	 */
+	private Map<ComparableReferenceKey, ReferenceContract> referenceIndex = null;
 
 	/**
 	 * Constructs a ReferenceAttributeValueProvider instance with the provided primary key and reference contracts.
@@ -68,11 +82,21 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	 */
 	public ReferenceAttributeValueProvider(
 		int entityPrimaryKey,
-		@Nonnull ReferenceContract... referenceContracts
+		int startIndex,
+		@Nonnull ReferenceContract[] referenceContracts,
+		@Nonnull String referenceName
 	) {
 		this.entityPrimaryKey = entityPrimaryKey;
-		this.referenceContracts = Arrays.stream(referenceContracts)
-			.collect(Collectors.toMap(ReferenceContract::getReferenceKey, Function.identity()));
+		this.start = startIndex;
+		this.referenceContracts = referenceContracts;
+		int theEnd = referenceContracts.length;
+		for (int i = startIndex; i < referenceContracts.length; i++) {
+			if (!referenceContracts[i].getReferenceKey().referenceName().equals(referenceName)) {
+				theEnd = i;
+				break;
+			}
+		}
+		this.end = theEnd;
 	}
 
 	@Nonnull
@@ -98,7 +122,15 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	@Nonnull
 	@Override
 	public Stream<ReferenceContract> getReferenceCarriers() {
-		return this.referenceContracts.values().stream();
+		return Arrays.stream(this.referenceContracts, this.start, this.end)
+		             .filter(Droppable::exists);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ReferenceContract> getReferenceCarriers(@Nonnull ReferenceKey genericReferenceKey) {
+		return getReferenceCarriers()
+			.filter(it -> it.getReferenceKey().equalsInGeneral(genericReferenceKey));
 	}
 
 	@Override
@@ -109,13 +141,29 @@ class ReferenceAttributeValueProvider implements ReflectedReferenceAttributeValu
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceContract referenceCarrier) {
-		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
+		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey, referenceCarrier.getReferenceKey().internalPrimaryKey());
 	}
 
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
-		return Optional.ofNullable(this.referenceContracts.get(referenceKey));
+		Assert.isPremiseValid(
+			!referenceKey.isUnknownReference(),
+			"Only non-unknown references are supported in this context!"
+		);
+		if (this.referenceIndex == null) {
+			this.referenceIndex = CollectionUtils.createHashMap(this.end - this.start);
+			for (int i = this.start; i < this.end; i++) {
+				final ReferenceContract referenceContract = this.referenceContracts[i];
+				if (referenceContract.exists()) {
+					this.referenceIndex.put(
+						new ComparableReferenceKey(referenceContract.getReferenceKey()),
+						referenceContract
+					);
+				}
+			}
+		}
+		return Optional.ofNullable(this.referenceIndex.get(new ComparableReferenceKey(referenceKey)));
 	}
 
 	@Nonnull

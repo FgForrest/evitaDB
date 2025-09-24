@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
@@ -898,7 +899,8 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					.findFirst();
 				return firstReference.map(
 						referenceContract -> proxyReferenceFactory.createEntityReferenceProxy(
-							mainType, itemType, sealedEntity, referencedEntitySchemas, referenceContract
+							mainType, itemType, sealedEntity, referencedEntitySchemas, referenceContract,
+							new LazyHashMap<>(4)
 						)
 					)
 					.orElse(null);
@@ -927,7 +929,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					return null;
 				} else {
 					return references.findFirst()
-						.map(referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract))
+						.map(
+							referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract)
+						)
 						.orElse(null);
 				}
 			}
@@ -948,8 +952,11 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
 				final EntityContract entity = theState.entity();
-				final Integer referencedId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
-				return referenceExtractor.apply(entity, referenceName, referencedId)
+				final Integer referencedId = Objects.requireNonNull(
+					EvitaDataTypes.toTargetType((Serializable) args[0], int.class)
+				);
+				return referenceExtractor
+					.apply(entity, referenceName, referencedId)
 					.map(referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract))
 					.orElse(null);
 			}
@@ -969,10 +976,20 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
+				//noinspection CastToIncompatibleInterface
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(
+						it -> proxyReferenceFactory.createEntityReferenceProxy(
+							mainType,
+							itemType,
+							sealedEntity,
+							referencedEntitySchemas,
+							it,
+							new LazyHashMap<>(4)
+						)
+					)
 					.toList();
 			} else {
 				return Collections.emptyList();
@@ -1042,7 +1059,12 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(
+						it -> proxyReferenceFactory.createEntityReferenceProxy(
+							mainType, itemType, sealedEntity, referencedEntitySchemas, it,
+							new LazyHashMap<>(4)
+						)
+					)
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
 				return Collections.emptySet();
@@ -1089,7 +1111,12 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(
+						it -> proxyReferenceFactory.createEntityReferenceProxy(
+							mainType, itemType, sealedEntity, referencedEntitySchemas, it,
+							new LazyHashMap<>(4)
+						)
+					)
 					.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 			} else {
 				return null;

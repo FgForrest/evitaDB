@@ -23,6 +23,8 @@
 
 package io.evitadb.core.buffer;
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.LongObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
@@ -45,8 +47,8 @@ import java.io.Serial;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static java.util.Optional.ofNullable;
 
@@ -69,10 +71,7 @@ public class DataStoreChanges {
 	 * modified and not yet persisted.
 	 */
 	private Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes = new HashMap<>(64);
-	/**
-	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
-	 */
-	@Nonnull private StoragePartPersistenceService persistenceService;
+	private IntObjectMap<Index<? extends IndexKey>> dirtyEntityIndexesByPk = new IntObjectHashMap<>(64);
 	/**
 	 * This map contains index of "dirty" storage parts - i.e. subset of {@link StoragePart storage parts} that were
 	 * modified and not yet persisted. Usually the storage parts are stored directly in the persistent storage but
@@ -80,6 +79,10 @@ public class DataStoreChanges {
 	 * store some of them in memory and flush them once in a while to the persistent storage.
 	 */
 	@Nullable private Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges;
+	/**
+	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
+	 */
+	@Nonnull private StoragePartPersistenceService persistenceService;
 
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService persistenceService) {
 		this.persistenceService = persistenceService;
@@ -106,11 +109,14 @@ public class DataStoreChanges {
 
 		final Map<IndexKey, Index<? extends IndexKey>> theDirtyEntityIndexes = this.dirtyEntityIndexes;
 		this.dirtyEntityIndexes = new HashMap<>(64);
+		this.dirtyEntityIndexesByPk = new IntObjectHashMap<>(64);
+
+		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> theTrappedChanges = this.trappedChanges;
+		this.trappedChanges = null;
+
 		for (Index<? extends IndexKey> index : theDirtyEntityIndexes.values()) {
 			index.getModifiedStorageParts(trappedChanges);
 		}
-		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> theTrappedChanges = this.trappedChanges;
-		this.trappedChanges = null;
 		if (theTrappedChanges != null) {
 			for (LongObjectMap<StoragePart> changesIndex : theTrappedChanges.values()) {
 				final ObjectContainer<StoragePart> values = changesIndex.values();
@@ -280,9 +286,16 @@ public class DataStoreChanges {
 	 */
 	@Nonnull
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK indexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		//noinspection unchecked,rawtypes
+		// noinspection unchecked
 		return (I) this.dirtyEntityIndexes.computeIfAbsent(
-			indexKey, (Function) accessorWhenMissing
+			indexKey,
+			ik -> {
+				final Index<? extends IndexKey> index = accessorWhenMissing.apply(indexKey);
+				if (index instanceof EntityIndex entityIndex) {
+					this.dirtyEntityIndexesByPk.put(entityIndex.getPrimaryKey(), entityIndex);
+				}
+				return index;
+			}
 		);
 	}
 
@@ -295,6 +308,17 @@ public class DataStoreChanges {
 		//noinspection unchecked
 		return ofNullable((I) this.dirtyEntityIndexes.get(indexKey))
 			.orElseGet(() -> accessorWhenMissing.apply(indexKey));
+	}
+
+	/**
+	 * Method checks and returns the requested index from the local "dirty" memory. If it isn't there, it's fetched
+	 * using `accessorWhenMissing` and returned without adding to "dirty" memory.
+	 */
+	@Nullable
+	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(int indexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing) {
+		//noinspection unchecked
+		return ofNullable((I) this.dirtyEntityIndexesByPk.get(indexPrimaryKey))
+			.orElseGet(() -> accessorWhenMissing.apply(indexPrimaryKey));
 	}
 
 	/**

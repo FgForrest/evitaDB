@@ -60,9 +60,10 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class AssociatedDataMutation implements NamedLocalMutation<AssociatedDataValue, AssociatedDataKey> {
 	@Serial private static final long serialVersionUID = 2877681453791825337L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Identification of the associated data that the mutation affects.
 	 */
@@ -72,6 +73,13 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 	protected AssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey) {
 		Assert.isTrue(associatedDataKey != null, "Associated data key cannot be null for set associated data mutation!");
 		this.associatedDataKey = associatedDataKey;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	protected AssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey, long decisiveTimestamp) {
+		Assert.isTrue(associatedDataKey != null, "Associated data key cannot be null for set associated data mutation!");
+		this.associatedDataKey = associatedDataKey;
+		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
 	@Nonnull
@@ -86,6 +94,7 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 		return ContainerType.ASSOCIATED_DATA;
 	}
 
+	@Nonnull
 	@Override
 	public AssociatedDataKey getComparableKey() {
 		return this.associatedDataKey;

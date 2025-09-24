@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,13 +26,18 @@ package io.evitadb.index.mutation.index.dataAccess;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,10 +51,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public final class EntityExistingDataFactory implements ExistingDataSupplierFactory {
 	private final Entity entity;
+	private final EntitySchema entitySchema;
 	private ExistingAttributeValueSupplier entityAttributeValueSupplier;
 	private EntityPriceSupplier entityPriceSupplier;
 	private ReferenceSupplier referenceSupplier;
-	private Map<ReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueSuppliers;
+	private Map<RepresentativeReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueSuppliers;
 
 	/**
 	 * Registers the removal of the attribute specified by the given key.
@@ -84,23 +90,49 @@ public final class EntityExistingDataFactory implements ExistingDataSupplierFact
 
 	@Nonnull
 	@Override
-	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey) {
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
 			this.referenceAttributeValueSuppliers;
 		return this.referenceAttributeValueSuppliers.computeIfAbsent(
 			referenceKey,
-			theRefKey -> new ReferenceAttributeValueSupplier(
-				this.entity,
-				this.entity.getReferenceWithoutSchemaCheck(theRefKey)
-					.orElseThrow(
-						() -> new ReferenceNotFoundException(
-							theRefKey.referenceName(),
-							theRefKey.primaryKey(),
+			rrk -> {
+				final ReferenceSchema referenceSchema = this.entitySchema.getReferenceOrThrowException(rrk.referenceName());
+				if (referenceSchema.getCardinality().allowsDuplicates()) {
+					final List<ReferenceContract> allReferences = this.entity.getReferences(rrk.referenceKey());
+					if (allReferences.isEmpty()) {
+						throw new ReferenceNotFoundException(
+							rrk.referenceName(),
+							rrk.primaryKey(),
 							this.entity
-						)
-					)
-			)
+						);
+					} else {
+						final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+						for (ReferenceContract theReference : allReferences) {
+							if (new RepresentativeReferenceKey(rrk.referenceKey(), rad.getRepresentativeValues(theReference)).equals(rrk)) {
+								return new ReferenceAttributeValueSupplier(this.entity, theReference);
+							}
+						}
+						throw new ReferenceNotFoundException(
+							rrk.referenceName(),
+							rrk.primaryKey(),
+							this.entity
+						);
+					}
+				} else {
+					return new ReferenceAttributeValueSupplier(
+						this.entity,
+						this.entity.getReference(rrk.referenceKey())
+						           .orElseThrow(
+							           () -> new ReferenceNotFoundException(
+								           rrk.referenceName(),
+								           rrk.primaryKey(),
+								           this.entity
+							           )
+						           )
+					);
+				}
+			}
 		);
 	}
 

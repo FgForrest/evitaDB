@@ -186,11 +186,30 @@ public interface PricesContract extends Versioned, Serializable {
 	/**
 	 * Returns true if single price differs between first and second instance.
 	 */
-	static boolean anyPriceDifferBetween(@Nonnull PricesContract first, @Nonnull PricesContract second) {
-		final Collection<PriceContract> thisValues = first.pricesAvailable() ? first.getPrices() : Collections.emptyList();
-		final Collection<PriceContract> otherValues = second.pricesAvailable() ? second.getPrices() : Collections.emptyList();
+	static boolean anyPriceOrStrategyDifferBetween(@Nonnull PricesContract first, @Nonnull PricesContract second) {
+		final PriceInnerRecordHandling thisStrategy;
+		final Collection<PriceContract> thisValues;
+		final PriceInnerRecordHandling otherStrategy;
+		final Collection<PriceContract> otherValues;
 
-		if (thisValues.size() != otherValues.size()) {
+		if (first.pricesAvailable()) {
+			thisStrategy = first.getPriceInnerRecordHandling();
+			thisValues = first.getPrices();
+		} else {
+			thisStrategy = PriceInnerRecordHandling.NONE;
+			thisValues = Collections.emptyList();
+		}
+		if (second.pricesAvailable()) {
+			otherStrategy = second.getPriceInnerRecordHandling();
+			otherValues = second.getPrices();
+		} else {
+			otherStrategy = PriceInnerRecordHandling.NONE;
+			otherValues = Collections.emptyList();
+		}
+
+		if (thisStrategy != otherStrategy) {
+			return true;
+		} else if (thisValues.size() != otherValues.size()) {
 			return true;
 		} else {
 			return thisValues

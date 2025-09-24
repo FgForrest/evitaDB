@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-
-import java.util.Arrays;
-import java.util.Comparator;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferencesStoragePart} from/to binary format.
@@ -43,17 +39,13 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 
 	@Override
 	public void write(Kryo kryo, Output output, ReferencesStoragePart object) {
+		// then continue with serialization
 		output.writeInt(object.getEntityPrimaryKey());
+		output.writeVarInt(object.getLastUsedPrimaryKey(), true);
 
-		final ReferenceContract[] references = object.getReferences();
+		final Reference[] references = object.getReferences();
 		output.writeVarInt(references.length, true);
-		// we need to sort the references here in order to allow LinkedHashMap in Entity/EntityDecorator implementation
-		// and still have deterministic tests
-		Arrays.sort(
-			references,
-			Comparator.comparing(ReferenceContract::getReferenceKey)
-		);
-		for (ReferenceContract reference : references) {
+		for (Reference reference : references) {
 			kryo.writeObject(output, reference);
 		}
 	}
@@ -63,14 +55,15 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 		final long totalBefore = input.total();
 		final int entityPrimaryKey = input.readInt();
 
+		final int lastAssignedPrimaryKey = input.readVarInt(true);
 		final int referenceCount = input.readVarInt(true);
-		final ReferenceContract[] references = new ReferenceContract[referenceCount];
+		final Reference[] references = new Reference[referenceCount];
 		for (int i = 0; i < referenceCount; i++) {
 			references[i] = kryo.readObject(input, Reference.class);
 		}
 
 		return new ReferencesStoragePart(
-			entityPrimaryKey, references,
+			entityPrimaryKey, lastAssignedPrimaryKey, references,
 			Math.toIntExact(input.total() - totalBefore)
 		);
 	}

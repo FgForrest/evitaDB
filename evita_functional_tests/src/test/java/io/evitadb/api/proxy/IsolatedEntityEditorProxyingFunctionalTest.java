@@ -122,7 +122,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 
 				final Optional<EntityMutation> mutation = newCategory.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(7, mutation.get().getLocalMutations().size());
+				assertEquals(6, mutation.get().getLocalMutations().size());
 
 				final CategoryInterface modifiedInstance = newCategory.toInstance();
 				assertEquals("root-category", modifiedInstance.getCode());

@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.attribute;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -74,6 +75,15 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 		this.value = value;
 	}
 
+	private UpsertAttributeMutation(@Nonnull AttributeKey attributeKey, @Nonnull Serializable value, long decisiveTimestamp) {
+		super(attributeKey, decisiveTimestamp);
+		Assert.notNull(value,
+		               "Value for attribute `" + attributeKey + "` must not be null. " +
+			               "Use `removeAttribute` mutation if you want to remove existing attribute."
+		);
+		this.value = value;
+	}
+
 	@Override
 	@Nonnull
 	public Serializable getAttributeValue() {
@@ -103,6 +113,12 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new UpsertAttributeMutation(this.attributeKey, this.value, newDecisiveTimestamp);
 	}
 
 	@Override

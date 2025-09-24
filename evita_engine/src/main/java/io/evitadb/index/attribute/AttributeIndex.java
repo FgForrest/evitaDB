@@ -25,8 +25,8 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -103,7 +103,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
 	 * is part of the global {@link GlobalEntityIndex}.
 	 */
-	@Nullable private final ReferenceKey referenceKey;
+	@Nullable private final RepresentativeReferenceKey referenceKey;
 	/**
 	 * This transactional map (index) contains for each attribute single instance of {@link UniqueIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
@@ -200,11 +200,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		}
 	}
 
-	public AttributeIndex(@Nonnull String entityType) {
-		this(entityType, null);
-	}
-
-	public AttributeIndex(@Nonnull String entityType, @Nullable ReferenceKey referenceKey) {
+	public AttributeIndex(@Nonnull String entityType, @Nullable RepresentativeReferenceKey referenceKey) {
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;
 		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), UniqueIndex.class, Function.identity());
@@ -215,7 +211,7 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	public AttributeIndex(
 		@Nonnull String entityType,
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull Map<AttributeKey, UniqueIndex> uniqueIndex,
 		@Nonnull Map<AttributeKey, FilterIndex> filterIndex,
 		@Nonnull Map<AttributeKey, SortIndex> sortIndex,

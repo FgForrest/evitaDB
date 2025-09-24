@@ -37,10 +37,10 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
@@ -384,7 +384,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
 		@Nonnull Map<AttributeKey, SortIndex> sortIndexes,
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexStorageKey attributeIndexKey
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
@@ -415,7 +415,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
 		@Nonnull Map<AttributeKey, ChainIndex> chainIndexes,
-		@Nullable ReferenceKey referenceKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexStorageKey attributeIndexKey
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
@@ -1149,7 +1149,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		//noinspection rawtypes
 		final Function<AttributeKey, Class> attributeTypeFetcher;
 		final EntityIndexKey entityIndexKey = entityIndexCnt.getEntityIndexKey();
-		final ReferenceKey referenceKey;
+		final RepresentativeReferenceKey referenceKey;
 		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			referenceKey = null;
 			attributeTypeFetcher = attributeKey -> entitySchema
@@ -1162,7 +1162,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				referenceKey = null;
 				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
-				referenceKey = Objects.requireNonNull((ReferenceKey) entityIndexKey.discriminator());
+				referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) entityIndexKey.discriminator());
 				referenceName = referenceKey.referenceName();
 			}
 			final ReferenceSchema referenceSchema = entitySchema
@@ -1228,8 +1228,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				),
 				hierarchyIndex,
 				facetIndex,
-				entityIndexCnt.getPrimaryKeyCardinality(),
-				cardinalityIndexes
+				entityIndexCnt.getIndexPrimaryKeyCardinality(),
+				cardinalityIndexes,
+				entityIndexCnt.getReferencedPrimaryKeysIndex()
 			);
 		} else {
 			final Scope scope = entityIndexKey.scope();
@@ -1439,9 +1440,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			headerInfoSupplier.getLastAssignedInternalPriceId(),
 			getStoragePartPersistenceService().offsetIndex.getActiveRecordShare(collectionFileReference.toFilePath(catalogStoragePath).toFile().length()),
 			newDescriptor,
-			headerInfoSupplier.getGlobalIndexKey().isPresent() ?
-				headerInfoSupplier.getGlobalIndexKey().getAsInt() : null,
-			headerInfoSupplier.getIndexKeys()
+			headerInfoSupplier.getGlobalIndexPrimaryKey().isPresent() ?
+				headerInfoSupplier.getGlobalIndexPrimaryKey().getAsInt() : null,
+			headerInfoSupplier.getIndexPrimaryKeys()
 		);
 	}
 
@@ -1548,7 +1549,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					return Stream.concat(
 						ofNullable(entityFetch)
 							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedIds(referenceName))
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedIds(referenceName))
 									.mapToObj(
 										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedEntityType())
 											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedEntityType(), entityFetch), session)
@@ -1558,7 +1559,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 							.orElse(Stream.empty()),
 						ofNullable(entityGroupFetch)
 							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedGroupIds(referenceName))
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedGroupIds(referenceName))
 									.mapToObj(
 										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedGroupType())
 											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedGroupType(), entityGroupFetch), session)
@@ -1656,15 +1657,15 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		@Nonnull
 		@Override
-		public OptionalInt getGlobalIndexKey() {
-			return this.currentHeader.globalEntityIndexId() == null ?
-				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexId());
+		public OptionalInt getGlobalIndexPrimaryKey() {
+			return this.currentHeader.globalEntityIndexPrimaryKey() == null ?
+				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexPrimaryKey());
 		}
 
 		@Nonnull
 		@Override
-		public List<Integer> getIndexKeys() {
-			return this.currentHeader.usedEntityIndexIds();
+		public List<Integer> getIndexPrimaryKeys() {
+			return this.currentHeader.usedEntityIndexPrimaryKeys();
 		}
 	}
 }

@@ -29,7 +29,7 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * This type represents a reference to any Evita entity and that ne returned by default for all
+ * This type represents a reference to any Evita entity and that is returned by default for all
  * queries that don't require loading additional data.
  * </pre>
  *
@@ -392,7 +392,7 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * This type represents a reference to any Evita entity and that ne returned by default for all
+   * This type represents a reference to any Evita entity and that is returned by default for all
    * queries that don't require loading additional data.
    * </pre>
    *

@@ -72,7 +72,7 @@ public interface SealedEntityProxy extends
 	 * @return an {@link Optional} that contains an {@link EntityBuilderWithCallback} instance, if present
 	 */
 	@Nonnull
-	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback();
+	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback(@Nonnull Propagation propagation);
 
 	/**
 	 * Types of generated proxies.
@@ -81,6 +81,29 @@ public interface SealedEntityProxy extends
 		PARENT,
 		REFERENCE,
 		REFERENCED_ENTITY
+	}
+
+	/**
+	 * Defines the mode of propagation to be used when performing specific operations
+	 * within the context of a sealed entity or its related components.
+	 *
+	 * This enum is typically used to specify whether the operation should propagate
+	 * in a shallow or deep manner to related entities or components.
+	 *
+	 * We rely on the fact, that the first generated proxy determines, whether the editor was created in shared or
+	 * isolated manner. If the first generated proxy doesn't contain builder, it means that the proxy is isolated, and
+	 * if there are any modifications present, they are in the second proxy instance and might be stored separately,
+	 * unless deep upsert is requested.
+	 */
+	enum Propagation {
+		/**
+		 * Indicates that the operation should only include the first generated proxy.
+		 */
+		SHALLOW,
+		/**
+		 * Indicates that the operation should include all the generated proxies.
+		 */
+		DEEP
 	}
 
 	/**
@@ -95,7 +118,7 @@ public interface SealedEntityProxy extends
 		/**
 		 * Method invokes the {@link #upsertCallback} callback if it is present.
 		 */
-		public void updateEntityReference(@Nonnull EntityReference entityReference) {
+		public void entityUpserted(@Nonnull EntityReference entityReference) {
 			if (this.upsertCallback != null) {
 				this.upsertCallback.accept(entityReference);
 			}

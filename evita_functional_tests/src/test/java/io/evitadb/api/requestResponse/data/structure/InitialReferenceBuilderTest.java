@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,13 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -37,6 +42,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -51,15 +58,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class InitialReferenceBuilderTest extends AbstractBuilderTest {
+	private HashMap<String, AttributeSchemaContract> attributeTypes = new HashMap<>(4);
 
 	@Test
 	void shouldCreateReference() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			Cardinality.ZERO_OR_ONE,
-			"brand"
+			-1,
+			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("country", Locale.ENGLISH, "Great Britain")
@@ -95,7 +104,7 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 		final CatalogSchemaBuilder catalogSchemaBuilder = new CatalogSchemaDecorator(CATALOG_SCHEMA).openForWrite();
 		final EntitySchemaBuilder entitySchemaBuilder = new EntitySchemaDecorator(() -> CATALOG_SCHEMA, PRODUCT_SCHEMA).openForWrite();
 		builder.buildChangeSet()
-			.filter(it -> it instanceof SchemaEvolvingLocalMutation)
+			.filter(SchemaEvolvingLocalMutation.class::isInstance)
 			.forEach(it -> ((SchemaEvolvingLocalMutation<?, ?>) it).verifyOrEvolveSchema(
 				catalogSchemaBuilder, entitySchemaBuilder
 			)
@@ -119,10 +128,11 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 	void shouldOverwriteReferenceData() {
 		final ReferenceBuilder builder = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
 			"brand",
 			5,
-			Cardinality.ZERO_OR_ONE,
-			"brand"
+			-4,
+			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
 			.setAttribute("brandPriority", 155L)
@@ -158,6 +168,47 @@ class InitialReferenceBuilderTest extends AbstractBuilderTest {
 		assertEquals(155L, (Long) reference.getAttribute("brandPriority"));
 		assertEquals("Great Britain #2", reference.getAttribute("country", Locale.ENGLISH));
 		assertEquals("Canada #2", reference.getAttribute("country", Locale.CANADA));
+	}
+
+
+	@Test
+	void shouldSetAndRemoveGroupWithoutType() {
+		final ReferenceBuilder builder = new InitialReferenceBuilder(
+			PRODUCT_SCHEMA,
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			"brand",
+			5,
+			-1,
+			this.attributeTypes
+		).setGroup("brandGroup", 42);
+
+		assertTrue(builder.getGroup().isPresent());
+		assertEquals(42, builder.getGroup().orElseThrow().primaryKey());
+		assertEquals("brandGroup", builder.getGroup().orElseThrow().getType());
+
+		builder.removeGroup();
+		assertTrue(builder.getGroup().isEmpty());
+	}
+
+	@Test
+	void shouldProduceProperChangeSetForReference() {
+		final ReferenceBuilder builder = new InitialReferenceBuilder(
+			PRODUCT_SCHEMA,
+			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			"brand",
+			5,
+			-1,
+			this.attributeTypes
+		)
+			.setAttribute("brandPriority", 154L)
+			.setGroup("group", 78);
+
+		final List<? extends ReferenceMutation<?>> mutations = builder.buildChangeSet().toList();
+
+		assertEquals(3, mutations.size());
+		assertTrue(mutations.stream().anyMatch(InsertReferenceMutation.class::isInstance));
+		assertTrue(mutations.stream().anyMatch(SetReferenceGroupMutation.class::isInstance));
+		assertTrue(builder.buildChangeSet().anyMatch(ReferenceAttributeMutation.class::isInstance));
 	}
 
 }

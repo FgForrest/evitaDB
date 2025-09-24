@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
@@ -49,15 +50,23 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalMutation<PricesContract, PriceInnerRecordHandling> {
 	@Serial private static final long serialVersionUID = -2047915704875849615L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Inner price record handling that needs to be set to the entity.
 	 */
 	@Getter private final PriceInnerRecordHandling priceInnerRecordHandling;
 
 	public SetPriceInnerRecordHandlingMutation(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
+		this.priceInnerRecordHandling = priceInnerRecordHandling;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	private SetPriceInnerRecordHandlingMutation(
+		long decisiveTimestamp, PriceInnerRecordHandling priceInnerRecordHandling) {
+		this.decisiveTimestamp = decisiveTimestamp;
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
 
@@ -84,6 +93,7 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 		return UpsertPriceMutation.PRICE_UPSERT_PRIORITY + 1;
 	}
 
+	@Nonnull
 	@Override
 	public PriceInnerRecordHandling getComparableKey() {
 		return this.priceInnerRecordHandling;
@@ -119,6 +129,12 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new SetPriceInnerRecordHandlingMutation(newDecisiveTimestamp, this.priceInnerRecordHandling);
 	}
 
 	@Override

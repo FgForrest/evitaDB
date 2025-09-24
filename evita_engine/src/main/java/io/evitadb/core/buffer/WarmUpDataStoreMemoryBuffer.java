@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import java.util.OptionalLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * WarmUpDataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
@@ -77,6 +78,12 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		return this.dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+	}
+
+	@Nullable
+	@Override
+	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(int entityIndexPrimaryKey, @Nonnull IntFunction<I> accessorWhenMissing) {
+		return this.dataStoreChanges.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 	}
 
 	@Override

@@ -3337,7 +3337,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			.stream()
 			.filter(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class) >= secondCategoryPriority)
 			.map(it -> new ReferenceKey(Entities.PARAMETER, it.getReferencedPrimaryKey()))
-			.sorted()
+			.sorted(ReferenceKey.GENERIC_COMPARATOR)
 			.toList();
 
 		evita.queryCatalog(
@@ -3381,7 +3381,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					.getReferences(Entities.PARAMETER)
 					.stream()
 					.map(ReferenceContract::getReferenceKey)
-					.sorted()
+					.sorted(ReferenceKey.FULL_COMPARATOR)
 					.toList();
 
 				assertEquals(expectedReferenceKeys, fetchedReferenceIds);
@@ -5764,13 +5764,13 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 					assertEquals(1, productByPk.getReferences(Entities.BRAND).size());
 
-					final StripList<ReferenceContract> foundParameters = productByPk.getReferenceChunk(Entities.PARAMETER);
+					final StripList<ReferenceContract> foundParameters = (StripList<ReferenceContract>) productByPk.getReferenceChunk(Entities.PARAMETER);
 					foundParameters
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.forEach(referencedParameters::add);
 
-					final PaginatedList<ReferenceContract> foundPriceLists = productByPk.getReferenceChunk(Entities.PRICE_LIST);
+					final PaginatedList<ReferenceContract> foundPriceLists = (PaginatedList<ReferenceContract>) productByPk.getReferenceChunk(Entities.PRICE_LIST);
 					foundPriceLists
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)

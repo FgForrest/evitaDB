@@ -297,5 +297,29 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue);
    */
   io.evitadb.externalApi.grpc.generated.GrpcCardinality getReferenceCardinality();
 
+  /**
+   * <pre>
+   * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+   * reference among other references. It is used when multiple references share same
+   * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+   *
+   * When a reference is created for the first time, internal id is set to a unique
+   * negative number that is not used by the server side, which assigns positive unique
+   * numbers to the references on first reference persistence. This allows distinguishing
+   * references that are not yet persisted from those that are already persistent.
+   *
+   * When standalone key is used:
+   *
+   * - negative number: means that the reference is new and hasn't been yet persisted
+   * - zero: means we don't know the internal PK
+   * - positive number: means that the reference is persistent and has been already stored
+   *   in the database
+   * </pre>
+   *
+   * <code>int32 internalPrimaryKey = 10;</code>
+   * @return The internalPrimaryKey.
+   */
+  int getInternalPrimaryKey();
+
   io.evitadb.externalApi.grpc.generated.GrpcReference.GroupReferenceTypeCase getGroupReferenceTypeCase();
 }

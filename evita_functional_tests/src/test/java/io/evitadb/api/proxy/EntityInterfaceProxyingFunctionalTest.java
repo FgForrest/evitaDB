@@ -693,9 +693,11 @@ if (currency != null) {
 			)
 		);
 
+		final ProductInterface queriedProduct = evitaSession.queryOne(query, ProductInterface.class).orElse(null);
+
 		assertProduct(
 			theProduct,
-			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
+			queriedProduct,
 			originalCategories,
 			null,
 			CURRENCY_CZK,

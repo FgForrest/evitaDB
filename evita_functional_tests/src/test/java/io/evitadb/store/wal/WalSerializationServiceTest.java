@@ -53,6 +53,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -78,7 +79,12 @@ class WalSerializationServiceTest {
 			/* product are not organized in the tree */
 			.withHierarchy()
 			/* prices are referencing another entity stored in Evita */
-			.withPrice()
+			.withPriceInCurrency(
+				Currency.getInstance("GBP"),
+				Currency.getInstance("EUR"),
+				Currency.getInstance("USD"),
+				Currency.getInstance("CZK")
+			)
 			/* en + cs localized attributes and associated data are allowed only */
 			.withLocale(Locale.ENGLISH, new Locale("cs", "CZ"))
 			/* here we define list of attributes with indexes for search / sort */

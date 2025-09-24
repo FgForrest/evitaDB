@@ -408,8 +408,7 @@ public class EntityObjectBuilder {
 				final OpenApiTypeReference referenceObject = buildReferenceObject(entitySchema, referenceSchema, localized);
 
 				final Cardinality referenceCardinality = referenceSchema.getCardinality();
-				final boolean referenceIsList = Cardinality.ZERO_OR_MORE.equals(referenceCardinality) ||
-					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
+				final boolean referenceIsList = referenceCardinality.getMax() > 1;
 
 				{ // base reference field
 					final OpenApiProperty.Builder referencePropertyBuilder = EntityDescriptor.REFERENCE
@@ -420,13 +419,13 @@ public class EntityObjectBuilder {
 
 					if (referenceIsList) {
 						referencePropertyBuilder.type(
-							referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE
+							referenceSchema.getCardinality().getMin() == 1
 								? nonNull(arrayOf(referenceObject))
 								: arrayOf(referenceObject)
 						);
 					} else {
 						referencePropertyBuilder.type(
-							referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE
+							referenceSchema.getCardinality().getMin() == 1
 								? nonNull(referenceObject)
 								: referenceObject
 						);

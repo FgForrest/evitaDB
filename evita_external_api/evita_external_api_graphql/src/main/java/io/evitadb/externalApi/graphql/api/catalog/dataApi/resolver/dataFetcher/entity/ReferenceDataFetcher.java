@@ -27,7 +27,6 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -59,7 +58,7 @@ public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
     public ReferenceContract get(DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = Objects.requireNonNull(environment.getSource());
         Assert.isPremiseValid(
-	        this.referenceSchema.getCardinality() == Cardinality.ZERO_OR_ONE || this.referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE,
+	        this.referenceSchema.getCardinality().getMax() == 1,
             () -> new GraphQLQueryResolvingInternalError(
                 "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of single reference but single reference were requested."
             )
@@ -74,7 +73,7 @@ public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
         );
 
         final ReferenceContract reference = references.isEmpty() ? null : references.iterator().next();
-        if (this.referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE && reference == null) {
+        if (this.referenceSchema.getCardinality().getMin() == 1 && reference == null) {
             throw new GraphQLInternalError(
                 "evitaDB should returned exactly one reference for name `" + this.referenceSchema.getName() + "` but zero found."
             );

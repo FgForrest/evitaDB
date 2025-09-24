@@ -1072,7 +1072,7 @@ class PricesContractTest extends AbstractBuilderTest {
 		);
 
 		// Test that identical price sets are correctly identified as not different
-		assertFalse(PricesContract.anyPriceDifferBetween(firstPrices, secondPrices));
+		assertFalse(PricesContract.anyPriceOrStrategyDifferBetween(firstPrices, secondPrices));
 
 		// Create a price set with different prices
 		final PricesContract differentPrices = new Prices(
@@ -1086,7 +1086,7 @@ class PricesContractTest extends AbstractBuilderTest {
 		);
 
 		// Test different prices
-		assertTrue(PricesContract.anyPriceDifferBetween(firstPrices, differentPrices));
+		assertTrue(PricesContract.anyPriceOrStrategyDifferBetween(firstPrices, differentPrices));
 
 		// Create a price set with different number of prices
 		final PricesContract fewerPrices = new Prices(
@@ -1100,7 +1100,7 @@ class PricesContractTest extends AbstractBuilderTest {
 		);
 
 		// Test different number of prices
-		assertTrue(PricesContract.anyPriceDifferBetween(firstPrices, fewerPrices));
+		assertTrue(PricesContract.anyPriceOrStrategyDifferBetween(firstPrices, fewerPrices));
 	}
 
 	/**

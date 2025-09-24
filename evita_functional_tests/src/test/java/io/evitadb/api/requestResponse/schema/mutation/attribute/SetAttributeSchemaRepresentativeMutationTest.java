@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -153,40 +154,20 @@ class SetAttributeSchemaRepresentativeMutationTest {
 	}
 
 	@Test
-	void shouldFailToMutateReferenceSchema() {
+	void shouldMakeReferenceSchemaAttributeRepresentative() {
 		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
 			ATTRIBUTE_NAME, true
 		);
+		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
 		Mockito.when(referenceSchema.isIndexed()).thenReturn(true);
 		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> {
-				mutation.mutate(
-					Mockito.mock(EntitySchemaContract.class),
-					referenceSchema
-				);
-			}
+		final ReferenceSchemaContract newReferenceSchema = mutation.mutate(
+			entitySchema,
+			referenceSchema
 		);
-	}
-
-	@Test
-	void shouldFailMutateReferenceSchemaIfNotIndexed() {
-		SetAttributeSchemaRepresentativeMutation mutation = new SetAttributeSchemaRepresentativeMutation(
-			ATTRIBUTE_NAME, true
-		);
-		final ReferenceSchemaContract referenceSchema = createMockedReferenceSchema();
-		Mockito.when(referenceSchema.getAttribute(ATTRIBUTE_NAME)).thenReturn(of(createExistingAttributeSchema()));
-		assertThrows(
-			InvalidSchemaMutationException.class,
-			() -> {
-				mutation.mutate(
-					Mockito.mock(EntitySchemaContract.class),
-					referenceSchema
-				);
-			}
-		);
+		final AttributeSchemaContract newAttributeSchema = newReferenceSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
+		assertTrue(newAttributeSchema.isRepresentative());
 	}
 
 	@Test

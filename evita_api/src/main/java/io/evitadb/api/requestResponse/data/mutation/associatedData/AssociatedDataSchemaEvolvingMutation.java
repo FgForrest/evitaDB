@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,12 +42,17 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, exclude = "decisiveTimestamp")
 public abstract class AssociatedDataSchemaEvolvingMutation extends AssociatedDataMutation implements SchemaEvolvingLocalMutation<AssociatedDataValue, AssociatedDataKey> {
 	@Serial private static final long serialVersionUID = -1200943946647440138L;
+	@Getter private final long decisiveTimestamp = System.nanoTime();
 
 	protected AssociatedDataSchemaEvolvingMutation(@Nonnull AssociatedDataKey associatedDataKey) {
 		super(associatedDataKey);
+	}
+
+	protected AssociatedDataSchemaEvolvingMutation(@Nonnull AssociatedDataKey associatedDataKey, long decisiveTimestamp) {
+		super(associatedDataKey, decisiveTimestamp);
 	}
 
 	@Nonnull

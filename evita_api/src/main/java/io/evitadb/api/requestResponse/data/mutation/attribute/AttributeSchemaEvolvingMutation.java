@@ -49,6 +49,10 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 		super(attributeKey);
 	}
 
+	protected AttributeSchemaEvolvingMutation(@Nonnull AttributeKey attributeKey, long decisiveTimestamp) {
+		super(attributeKey, decisiveTimestamp);
+	}
+
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {

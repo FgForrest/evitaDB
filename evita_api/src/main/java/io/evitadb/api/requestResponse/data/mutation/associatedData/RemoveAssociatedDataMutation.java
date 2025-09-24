@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -58,6 +59,10 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 		super(new AssociatedDataKey(associatedDataName, locale));
 	}
 
+	private RemoveAssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey, long decisiveTimestamp) {
+		super(associatedDataKey, decisiveTimestamp);
+	}
+
 	@Nonnull
 	@Override
 	public AssociatedDataValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AssociatedDataValue existingValue) {
@@ -80,6 +85,12 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemoveAssociatedDataMutation(this.associatedDataKey, newDecisiveTimestamp);
 	}
 
 	@Override

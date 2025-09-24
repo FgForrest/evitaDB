@@ -31,6 +31,22 @@ message GrpcRemoveReferenceMutation {
   // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
   // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
+  // internal PK is assigned by evitaDB engine and is used to uniquely identify the
+  // reference among other references. It is used when multiple references share same
+  // business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+  //
+  // When a reference is created for the first time, internal id is set to a unique
+  // negative number that is not used by the server side, which assigns positive unique
+  // numbers to the references on first reference persistence. This allows distinguishing
+  // references that are not yet persisted from those that are already persistent.
+  //
+  // When standalone key is used:
+  //
+  // - negative number: means that the reference is new and hasn't been yet persisted
+  // - zero: means we don't know the internal PK
+  // - positive number: means that the reference is persistent and has been already stored
+  //   in the database
+  int32 internalPrimaryKey = 3;
 }
 
 // This mutation allows to create / update group of the reference.
@@ -46,6 +62,22 @@ message GrpcSetReferenceGroupMutation {
   // Primary key of the referenced entity representing group. Might be also any integer that uniquely identifies
   // some external resource not maintained by Evita.
   int32 groupPrimaryKey = 4;
+  // internal PK is assigned by evitaDB engine and is used to uniquely identify the
+  // reference among other references. It is used when multiple references share same
+  // business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+  //
+  // When a reference is created for the first time, internal id is set to a unique
+  // negative number that is not used by the server side, which assigns positive unique
+  // numbers to the references on first reference persistence. This allows distinguishing
+  // references that are not yet persisted from those that are already persistent.
+  //
+  // When standalone key is used:
+  //
+  // - negative number: means that the reference is new and hasn't been yet persisted
+  // - zero: means we don't know the internal PK
+  // - positive number: means that the reference is persistent and has been already stored
+  //   in the database
+  int32 internalPrimaryKey = 5;
 }
 
 // This mutation allows to remove group in the reference.
@@ -55,6 +87,22 @@ message GrpcRemoveReferenceGroupMutation {
   // Primary key of the referenced entity. Might be also any integer that uniquely identifies some external
   // resource not maintained by Evita.
   int32 referencePrimaryKey = 2;
+  // internal PK is assigned by evitaDB engine and is used to uniquely identify the
+  // reference among other references. It is used when multiple references share same
+  // business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+  //
+  // When a reference is created for the first time, internal id is set to a unique
+  // negative number that is not used by the server side, which assigns positive unique
+  // numbers to the references on first reference persistence. This allows distinguishing
+  // references that are not yet persisted from those that are already persistent.
+  //
+  // When standalone key is used:
+  //
+  // - negative number: means that the reference is new and hasn't been yet persisted
+  // - zero: means we don't know the internal PK
+  // - positive number: means that the reference is persistent and has been already stored
+  //   in the database
+  int32 internalPrimaryKey = 3;
 }
 
 // This mutation allows to create / update / remove attribute of the reference.
@@ -66,6 +114,22 @@ message GrpcReferenceAttributeMutation {
   int32 referencePrimaryKey = 2;
   // One attribute mutation to update / insert / delete single attribute of the reference.
   GrpcAttributeMutation attributeMutation = 3;
+  // internal PK is assigned by evitaDB engine and is used to uniquely identify the
+  // reference among other references. It is used when multiple references share same
+  // business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+  //
+  // When a reference is created for the first time, internal id is set to a unique
+  // negative number that is not used by the server side, which assigns positive unique
+  // numbers to the references on first reference persistence. This allows distinguishing
+  // references that are not yet persisted from those that are already persistent.
+  //
+  // When standalone key is used:
+  //
+  // - negative number: means that the reference is new and hasn't been yet persisted
+  // - zero: means we don't know the internal PK
+  // - positive number: means that the reference is persistent and has been already stored
+  //   in the database
+  int32 internalPrimaryKey = 4;
 }
 
 // This structure is used as a wrapper around the attribute map for the purpose of separation the global attributes from the localized ones.

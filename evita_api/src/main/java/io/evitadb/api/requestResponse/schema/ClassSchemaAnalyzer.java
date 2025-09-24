@@ -35,8 +35,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSche
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
@@ -45,7 +43,6 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -390,13 +387,7 @@ public class ClassSchemaAnalyzer {
 				);
 			}
 			if (attributeAnnotation.representative()) {
-				if (editor instanceof EntityAttributeSchemaBuilder entityBuilder) {
-					entityBuilder.representative();
-				} else if (editor instanceof GlobalAttributeSchemaBuilder entityBuilder) {
-					entityBuilder.representative();
-				} else {
-					throw new GenericEvitaInternalError("Reference attribute cannot be made representative!");
-				}
+				editor.representative();
 			}
 			if (attributeAnnotation.localized()) {
 				editor.localized();

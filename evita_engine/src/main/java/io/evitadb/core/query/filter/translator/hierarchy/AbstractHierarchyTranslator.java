@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -40,12 +39,12 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.Index;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -56,6 +55,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -123,7 +123,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		@Nonnull HierarchyFilterConstraint hierarchyWithinConstraint,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Supplier<Formula> hierarchyNodesFormulaSupplier
-		) {
+	) {
 		final String referenceName = hierarchyWithinConstraint.getReferenceName().orElseThrow();
 		Assert.notNull(
 			filterByVisitor.getSchema().getReferenceOrThrowException(referenceName),
@@ -133,17 +133,22 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
 			final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Set<Scope> scopes = processingScope.getScopes();
+			Assert.isTrue(
+				scopes.isEmpty() || scopes.size() == 1,
+				() -> "Hierarchy queries cannot be executed in multiple scopes (" +
+					scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
+			);
 			return FormulaFactory.or(
 				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
-					.map(
-						hierarchyNodeId -> queryContext.getIndex(
-							new EntityIndexKey(
-								EntityIndexType.REFERENCED_ENTITY,
-								new ReferenceKey(referenceName, hierarchyNodeId)
-							)
-						).orElse(null)
+					.flatMap(
+						hierarchyNodeId -> filterByVisitor.getReferencedEntityIndexes(
+							Objects.requireNonNull(processingScope.getEntitySchema()),
+							Objects.requireNonNull(processingScope.getReferenceSchema()),
+							hierarchyNodeId
+						)
 					)
-					.map(EntityIndex.class::cast)
 					.filter(Objects::nonNull)
 					.map(EntityIndex::getAllPrimaryKeysFormula)
 					.toArray(Formula[]::new)

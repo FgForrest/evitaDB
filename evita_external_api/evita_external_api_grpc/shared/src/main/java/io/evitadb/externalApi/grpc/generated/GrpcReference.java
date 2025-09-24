@@ -566,6 +566,35 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCardinality.UNRECOGNIZED : result;
   }
 
+  public static final int INTERNALPRIMARYKEY_FIELD_NUMBER = 10;
+  private int internalPrimaryKey_ = 0;
+  /**
+   * <pre>
+   * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+   * reference among other references. It is used when multiple references share same
+   * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+   *
+   * When a reference is created for the first time, internal id is set to a unique
+   * negative number that is not used by the server side, which assigns positive unique
+   * numbers to the references on first reference persistence. This allows distinguishing
+   * references that are not yet persisted from those that are already persistent.
+   *
+   * When standalone key is used:
+   *
+   * - negative number: means that the reference is new and hasn't been yet persisted
+   * - zero: means we don't know the internal PK
+   * - positive number: means that the reference is persistent and has been already stored
+   *   in the database
+   * </pre>
+   *
+   * <code>int32 internalPrimaryKey = 10;</code>
+   * @return The internalPrimaryKey.
+   */
+  @java.lang.Override
+  public int getInternalPrimaryKey() {
+    return internalPrimaryKey_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -612,6 +641,9 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
         8);
     if (referenceCardinality_ != io.evitadb.externalApi.grpc.generated.GrpcCardinality.NOT_SPECIFIED.getNumber()) {
       output.writeEnum(9, referenceCardinality_);
+    }
+    if (internalPrimaryKey_ != 0) {
+      output.writeInt32(10, internalPrimaryKey_);
     }
     getUnknownFields().writeTo(output);
   }
@@ -669,6 +701,10 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(9, referenceCardinality_);
     }
+    if (internalPrimaryKey_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(10, internalPrimaryKey_);
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -703,6 +739,8 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
     if (!internalGetLocalizedAttributes().equals(
         other.internalGetLocalizedAttributes())) return false;
     if (referenceCardinality_ != other.referenceCardinality_) return false;
+    if (getInternalPrimaryKey()
+        != other.getInternalPrimaryKey()) return false;
     if (!getGroupReferenceTypeCase().equals(other.getGroupReferenceTypeCase())) return false;
     switch (groupReferenceTypeCase_) {
       case 5:
@@ -749,6 +787,8 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
     }
     hash = (37 * hash) + REFERENCECARDINALITY_FIELD_NUMBER;
     hash = (53 * hash) + referenceCardinality_;
+    hash = (37 * hash) + INTERNALPRIMARYKEY_FIELD_NUMBER;
+    hash = (53 * hash) + getInternalPrimaryKey();
     switch (groupReferenceTypeCase_) {
       case 5:
         hash = (37 * hash) + GROUPREFERENCEDENTITYREFERENCE_FIELD_NUMBER;
@@ -950,6 +990,7 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
       internalGetMutableGlobalAttributes().clear();
       internalGetMutableLocalizedAttributes().clear();
       referenceCardinality_ = 0;
+      internalPrimaryKey_ = 0;
       groupReferenceTypeCase_ = 0;
       groupReferenceType_ = null;
       return this;
@@ -1013,6 +1054,9 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
       }
       if (((from_bitField0_ & 0x00000100) != 0)) {
         result.referenceCardinality_ = referenceCardinality_;
+      }
+      if (((from_bitField0_ & 0x00000200) != 0)) {
+        result.internalPrimaryKey_ = internalPrimaryKey_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -1096,6 +1140,9 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
       bitField0_ |= 0x00000080;
       if (other.referenceCardinality_ != 0) {
         setReferenceCardinalityValue(other.getReferenceCardinalityValue());
+      }
+      if (other.getInternalPrimaryKey() != 0) {
+        setInternalPrimaryKey(other.getInternalPrimaryKey());
       }
       switch (other.getGroupReferenceTypeCase()) {
         case GROUPREFERENCEDENTITYREFERENCE: {
@@ -1197,6 +1244,11 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
               bitField0_ |= 0x00000100;
               break;
             } // case 72
+            case 80: {
+              internalPrimaryKey_ = input.readInt32();
+              bitField0_ |= 0x00000200;
+              break;
+            } // case 80
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2481,6 +2533,92 @@ io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue) {
     public Builder clearReferenceCardinality() {
       bitField0_ = (bitField0_ & ~0x00000100);
       referenceCardinality_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int internalPrimaryKey_ ;
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     *
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     *
+     * When standalone key is used:
+     *
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 10;</code>
+     * @return The internalPrimaryKey.
+     */
+    @java.lang.Override
+    public int getInternalPrimaryKey() {
+      return internalPrimaryKey_;
+    }
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     *
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     *
+     * When standalone key is used:
+     *
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 10;</code>
+     * @param value The internalPrimaryKey to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInternalPrimaryKey(int value) {
+
+      internalPrimaryKey_ = value;
+      bitField0_ |= 0x00000200;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     *
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     *
+     * When standalone key is used:
+     *
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 10;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInternalPrimaryKey() {
+      bitField0_ = (bitField0_ & ~0x00000200);
+      internalPrimaryKey_ = 0;
       onChanged();
       return this;
     }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,6 +67,18 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract {
+
+	/**
+	 * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
+	 * on reference level in the {@link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+	 * references to the same entity and is a key attribute for creating distinct indexes for such references.
+	 *
+	 * In overall, representative attributes should be used in developer tools along with the entity's primary key to
+	 * describe the entity or reference to that entity. If the flag is used correctly, it can be very helpful to
+	 * developers in quickly finding their way around the data. There should be very few representative attributes
+	 * in the entity / reference type, and the ones with uniqueness significance are usually the best to choose.
+	 */
+	boolean isRepresentative();
 
 	/**
 	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity

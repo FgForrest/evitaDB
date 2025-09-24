@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.associatedData;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ArrayUtils;
 
@@ -63,6 +64,11 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 		this.value = value;
 	}
 
+	private UpsertAssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey, @Nonnull Serializable value, long decisiveTimestamp) {
+		super(associatedDataKey, decisiveTimestamp);
+		this.value = value;
+	}
+
 	@Override
 	public long getPriority() {
 		return PRIORITY_UPSERT;
@@ -92,6 +98,12 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new UpsertAssociatedDataMutation(this.associatedDataKey, this.value, newDecisiveTimestamp);
 	}
 
 	@Override

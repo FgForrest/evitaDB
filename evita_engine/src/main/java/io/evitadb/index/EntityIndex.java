@@ -24,7 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -176,7 +176,7 @@ public abstract class EntityIndex implements
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
-		this.attributeIndex = new AttributeIndex(entityType, indexKey.discriminator() instanceof ReferenceKey rk ? rk : null);
+		this.attributeIndex = new AttributeIndex(entityType, indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null);
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;
@@ -471,8 +471,7 @@ public abstract class EntityIndex implements
 			attributeIndexStorageKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities,
-			null
+			facetIndexReferencedEntities
 		);
 	}
 

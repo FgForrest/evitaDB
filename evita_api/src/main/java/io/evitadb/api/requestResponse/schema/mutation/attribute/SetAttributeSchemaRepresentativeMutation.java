@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -146,9 +147,26 @@ public class SetAttributeSchemaRepresentativeMutation
 				);
 			}
 		} else {
-			throw new InvalidSchemaMutationException(
-				"Reference attribute cannot be made representative!"
-			);
+			if (attributeSchema.isRepresentative() == this.representative) {
+				return attributeSchema;
+			} else {
+				//noinspection unchecked,rawtypes
+				return (S) AttributeSchema._internalBuild(
+					this.name,
+					attributeSchema.getNameVariants(),
+					attributeSchema.getDescription(),
+					attributeSchema.getDeprecationNotice(),
+					attributeSchema.getUniquenessTypeInScopes(),
+					attributeSchema.getFilterableInScopes(),
+					attributeSchema.getSortableInScopes(),
+					attributeSchema.isLocalized(),
+					attributeSchema.isNullable(),
+					this.representative,
+					(Class)attributeSchema.getType(),
+					attributeSchema.getDefaultValue(),
+					attributeSchema.getIndexedDecimalPlaces()
+				);
+			}
 		}
 	}
 

@@ -23,43 +23,34 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.ReferencesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
-import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
-import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
-import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -67,17 +58,15 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -86,72 +75,140 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Builder that is used to create the entity.
- * Due to performance reasons (see {@link DirectWriteOrOperationLog} microbenchmark) there is special implementation
- * for the situation when entity is newly created. In this case we know everything is new and we don't need to closely
- * monitor the changes so this can speed things up.
+ * Due to performance reasons (see DirectWriteOrOperationLog microbenchmark) there is special
+ * implementation for the situation when entity is newly created. In this case we know everything
+ * is new and we don't need to closely monitor the changes so this can speed things up.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class InitialEntityBuilder implements EntityBuilder {
+public class InitialEntityBuilder implements InternalEntityBuilder {
 	@Serial private static final long serialVersionUID = -3674623071115207036L;
 
+	/**
+	 * Logical entity type (a.k.a. collection name) this builder creates.
+	 * Matches {@link #schema} name and is kept for quick access.
+	 */
 	private final String type;
+	/**
+	 * Schema snapshot used to validate attributes, associated data, references and prices.
+	 * For new entities we use lightweight {@link EntitySchema#_internalBuild(String)} when only type is known.
+	 */
 	private final EntitySchemaContract schema;
+	/**
+	 * Primary key of the entity if it is known upfront. For newly created entities it is usually {@code null}
+	 * and will be generated by the persistence layer.
+	 */
 	private final Integer primaryKey;
+	/**
+	 * Target {@link Scope} for the entity. Defaults to {@link Scope#DEFAULT_SCOPE}.
+	 */
 	private Scope scope;
-	@Delegate(types = AttributesContract.class)
-	private final InitialEntityAttributesBuilder attributesBuilder;
-	@Delegate(types = AssociatedDataContract.class)
-	private final InitialAssociatedDataBuilder associatedDataBuilder;
-	@Delegate(types = PricesContract.class, excludes = Versioned.class)
-	private final InitialPricesBuilder pricesBuilder;
-	private final Map<ReferenceKey, ReferenceContract> references;
+	/**
+	 * Lazy-initialized builder for entity attributes.
+	 */
+	@Nullable private InitialEntityAttributesBuilder attributesBuilder;
+	/**
+	 * Lazy-initialized builder for associated data.
+	 */
+	@Nullable private InitialAssociatedDataBuilder associatedDataBuilder;
+	/**
+	 * Lazy-initialized builder for prices.
+	 */
+	@Nullable private InitialPricesBuilder pricesBuilder;
+	/**
+	 * Lazy-initialized builder for references.
+	 */
+	@Nullable private InitialReferencesBuilder referencesBuilder;
+	/**
+	 * Optional parent primary key when hierarchy is used, otherwise {@code null}.
+	 */
 	@Nullable private Integer parent;
 
+	/**
+	 * Creates a builder for a new entity using only its type. A lightweight schema snapshot is
+	 * created internally via {@link EntitySchema#_internalBuild(String)}.
+	 *
+	 * @param type logical entity type (collection name)
+	 */
 	public InitialEntityBuilder(@Nonnull String type) {
 		this.type = type;
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = null;
-		this.scope =  Scope.DEFAULT_SCOPE;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
-		this.pricesBuilder = new InitialPricesBuilder(this.schema);
-		this.references = new LinkedHashMap<>();
+		this.scope = Scope.DEFAULT_SCOPE;
 	}
 
+	/**
+	 * Creates a builder for a new entity backed by a concrete {@link EntitySchemaContract}.
+	 *
+	 * @param schema schema to validate mutations against
+	 */
 	public InitialEntityBuilder(@Nonnull EntitySchemaContract schema) {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = null;
-		this.scope =  Scope.DEFAULT_SCOPE;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new LinkedHashMap<>();
+		this.scope = Scope.DEFAULT_SCOPE;
+		Assert.isTrue(
+			schema.isWithGeneratedPrimaryKey() || schema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+			() -> new InvalidMutationException(
+				"Schema `" + schema.getName() + "` is not configured to generate primary keys." +
+					" Please provide the primary key when creating the entity."
+			)
+		);
 	}
 
+	/**
+	 * Creates a builder for a new entity with a known primary key and only a type available.
+	 *
+	 * @param type       logical entity type (collection name)
+	 * @param primaryKey fixed primary key to be used for the entity, may be {@code null}
+	 */
 	public InitialEntityBuilder(@Nonnull String type, @Nullable Integer primaryKey) {
 		this.type = type;
 		this.primaryKey = primaryKey;
 		this.schema = EntitySchema._internalBuild(type);
-		this.scope =  Scope.DEFAULT_SCOPE;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
-		this.pricesBuilder = new InitialPricesBuilder(this.schema);
-		this.references = new LinkedHashMap<>();
+		this.scope = Scope.DEFAULT_SCOPE;
 	}
 
+	/**
+	 * Creates a builder for a new entity backed by a concrete schema with a known primary key.
+	 *
+	 * @param schema     schema to validate mutations against
+	 * @param primaryKey fixed primary key to be used for the entity, may be {@code null}
+	 */
 	public InitialEntityBuilder(@Nonnull EntitySchemaContract schema, @Nullable Integer primaryKey) {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
-		this.scope =  Scope.DEFAULT_SCOPE;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
-		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new LinkedHashMap<>();
+		this.scope = Scope.DEFAULT_SCOPE;
+		Assert.isTrue(
+			primaryKey == null || !schema.isWithGeneratedPrimaryKey() || schema.allows(EvolutionMode.ADAPT_PRIMARY_KEY_GENERATION),
+			() -> new InvalidMutationException(
+				"Schema `" + schema.getName() + "` is configured to generate primary keys." +
+					" Please call the constructor without primary key parameter."
+			)
+		);
 	}
 
+	/**
+	 * Creates a builder and seeds it with the provided state. This factory is primarily used by
+	 * deserializers or higher level APIs that already have all pieces computed.
+	 *
+	 * - All attributes and associated data are inserted via the corresponding initial builders.
+	 * - References are collected into a list and indexed into a map; duplicate keys are marked by
+	 * storing {@link References#DUPLICATE_REFERENCE} in the map and keeping all entries in the list.
+	 * - Price inner record handling is set when provided, then all prices are upserted into the
+	 * price builder.
+	 * - Scope defaults to {@link Scope#DEFAULT_SCOPE} when {@code null}.
+	 *
+	 * @param entitySchema             schema that defines the entity
+	 * @param primaryKey               optional fixed primary key
+	 * @param scope                    initial scope; when {@code null}, {@link Scope#DEFAULT_SCOPE} is used
+	 * @param attributeValues          attribute values to seed
+	 * @param associatedDataValues     associated data values to seed
+	 * @param referenceContracts       references to seed
+	 * @param priceInnerRecordHandling optional inner record handling for prices
+	 * @param prices                   prices to seed
+	 */
 	public InitialEntityBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable Integer primaryKey,
@@ -166,66 +223,31 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.schema = entitySchema;
 		this.primaryKey = primaryKey;
 		this.scope = scope == null ? Scope.DEFAULT_SCOPE : scope;
-		this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
-		for (AttributeValue attributeValue : attributeValues) {
-			final AttributeKey attributeKey = attributeValue.key();
-			if (attributeKey.localized()) {
-				this.attributesBuilder.setAttribute(
-					attributeKey.attributeName(),
-					attributeKey.localeOrThrowException(),
-					attributeValue.value()
-				);
-			} else {
-				this.attributesBuilder.setAttribute(
-					attributeKey.attributeName(),
-					attributeValue.value()
-				);
-			}
-		}
-		this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
-		for (AssociatedDataValue associatedDataValue : associatedDataValues) {
-			final AssociatedDataKey associatedDataKey = associatedDataValue.key();
-			if (associatedDataKey.localized()) {
-				this.associatedDataBuilder.setAssociatedData(
-					associatedDataKey.associatedDataName(),
-					associatedDataKey.localeOrThrowException(),
-					associatedDataValue.value()
-				);
-			} else {
-				this.associatedDataBuilder.setAssociatedData(
-					associatedDataKey.associatedDataName(),
-					associatedDataValue.value()
-				);
-			}
-		}
-		this.pricesBuilder = new InitialPricesBuilder(this.schema);
-		ofNullable(priceInnerRecordHandling)
-			.ifPresent(this.pricesBuilder::setPriceInnerRecordHandling);
-		for (PriceContract price : prices) {
-			this.pricesBuilder.setPrice(
-				price.priceId(),
-				price.priceList(),
-				price.currency(),
-				price.innerRecordId(),
-				price.priceWithoutTax(),
-				price.taxRate(),
-				price.priceWithTax(),
-				price.validity(),
-				price.indexed()
+		this.attributesBuilder = attributeValues.isEmpty() ?
+			null :
+			new InitialEntityAttributesBuilder(this.schema, attributeValues);
+		this.associatedDataBuilder = associatedDataValues.isEmpty() ?
+			null :
+			new InitialAssociatedDataBuilder(this.schema, associatedDataValues);
+
+		if (priceInnerRecordHandling == null && prices.isEmpty()) {
+			this.pricesBuilder = null;
+		} else {
+			this.pricesBuilder = new InitialPricesBuilder(
+				this.schema,
+				priceInnerRecordHandling,
+				prices
 			);
 		}
 
-		this.references = referenceContracts.stream()
-			.collect(
-				Collectors.toMap(
-					ReferenceContract::getReferenceKey,
-					Function.identity(),
-					(o, o2) -> {
-						throw new IllegalStateException("Duplicate key " + o);
-					},
-					LinkedHashMap::new
-				)
+		if (referenceContracts.isEmpty()) {
+			this.referencesBuilder = null;
+		} else {
+			this.referencesBuilder = new InitialReferencesBuilder(
+				this.schema,
+				referenceContracts
 			);
+		}
 	}
 
 	@Override
@@ -256,12 +278,6 @@ public class InitialEntityBuilder implements EntityBuilder {
 		return this.primaryKey;
 	}
 
-	@Nonnull
-	@Override
-	public Scope getScope() {
-		return this.scope;
-	}
-
 	@Override
 	public boolean parentAvailable() {
 		return true;
@@ -274,68 +290,27 @@ public class InitialEntityBuilder implements EntityBuilder {
 			.map(it -> new EntityReferenceWithParent(this.type, it, null));
 	}
 
-	@Override
-	public boolean referencesAvailable() {
-		return true;
-	}
-
-	@Override
-	public boolean referencesAvailable(@Nonnull String referenceName) {
-		return true;
-	}
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences() {
-		return this.references.values();
-	}
-
-	@Nonnull
-	@Override
-	public Set<String> getReferenceNames() {
-		return this.references.keySet()
-			.stream()
-			.map(ReferenceKey::referenceName)
-			.collect(Collectors.toCollection(TreeSet::new));
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		return this.references
-			.values()
-			.stream()
-			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
-			.collect(Collectors.toList());
-	}
-
-	@SuppressWarnings("unchecked")
-	@Nonnull
-	@Override
-	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
-		return new PlainChunk<>(this.getReferences(referenceName));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		return ofNullable(this.references.get(new ReferenceKey(referenceName, referencedEntityId)));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) throws ContextMissingException, ReferenceNotFoundException {
-		return ofNullable(this.references.get(referenceKey));
-	}
-
+	/**
+	 * Returns the union of all locales present in attributes and associated data currently staged
+	 * in this builder. This is a convenience for constructing the final entity and for validation.
+	 */
 	@Nonnull
 	public Set<Locale> getAllLocales() {
 		return Stream.concat(
-				this.attributesBuilder.getAttributeLocales().stream(),
-				this.associatedDataBuilder.getAssociatedDataLocales().stream()
-			)
-			.collect(Collectors.toSet());
+			             this.attributesBuilder == null ? Stream.empty() : this.attributesBuilder.getAttributeLocales().stream(),
+			             this.associatedDataBuilder == null ?
+				             Stream.empty() :
+				             this.associatedDataBuilder.getAssociatedDataLocales().stream()
+		             )
+		             .collect(Collectors.toSet());
 	}
 
+	/**
+	 * Returns the same set as {@link #getAllLocales()}.
+	 *
+	 * Kept for backwards compatibility and readability at call sites where the context is
+	 * clearly about the entity-wide locales.
+	 */
 	@Nonnull
 	public Set<Locale> getLocales() {
 		return getAllLocales();
@@ -343,262 +318,414 @@ public class InitialEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
+	public Scope getScope() {
+		return this.scope;
+	}
+
+	@Nonnull
+	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName) {
-		this.attributesBuilder.removeAttribute(attributeName);
+		getAttributesBuilder().removeAttribute(attributeName);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
-		this.attributesBuilder.setAttribute(attributeName, attributeValue);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName, @Nullable T attributeValue) {
+		getAttributesBuilder().setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
-		this.attributesBuilder.setAttribute(attributeName, attributeValue);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName, @Nullable T[] attributeValue) {
+		getAttributesBuilder().setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		this.attributesBuilder.removeAttribute(attributeName, locale);
+		getAttributesBuilder().removeAttribute(attributeName, locale);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
-		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
+		getAttributesBuilder().setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
-		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
+		getAttributesBuilder().setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
-		this.attributesBuilder.mutateAttribute(mutation);
+		getAttributesBuilder().mutateAttribute(mutation);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName) {
-		this.associatedDataBuilder.removeAssociatedData(associatedDataName);
+		getAssociatedDataBuilder().removeAssociatedData(associatedDataName);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nullable T associatedDataValue) {
-		this.associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName, @Nullable T associatedDataValue) {
+		getAssociatedDataBuilder().setAssociatedData(associatedDataName, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
-		this.associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
+		getAssociatedDataBuilder().setAssociatedData(associatedDataName, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		this.associatedDataBuilder.removeAssociatedData(associatedDataName, locale);
+		getAssociatedDataBuilder().removeAssociatedData(associatedDataName, locale);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
-		this.associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
+		getAssociatedDataBuilder().setAssociatedData(associatedDataName, locale, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T[] associatedDataValue) {
-		this.associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T[] associatedDataValue) {
+		getAssociatedDataBuilder().setAssociatedData(associatedDataName, locale, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
-		this.associatedDataBuilder.mutateAssociatedData(mutation);
+		getAssociatedDataBuilder().mutateAssociatedData(mutation);
 		return this;
 	}
 
-	@Override
-	public EntityBuilder setParent(int parentPrimaryKey) {
-		this.parent = parentPrimaryKey;
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removeParent() {
-		this.parent = null;
-		return this;
-	}
-
+	@Nonnull
 	@Override
 	public EntityBuilder setScope(@Nonnull Scope scope) {
 		this.scope = scope;
 		return this;
 	}
 
+	@Nonnull
 	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, int referencedPrimaryKey) {
-		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		return setReference(referenceName, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), referencedPrimaryKey, null);
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
-		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		return setReference(referenceName, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), referencedPrimaryKey, whichIs);
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey) {
-		return setReference(referenceName, referencedEntityType, cardinality, referencedPrimaryKey, null);
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
-		final InitialReferenceBuilder builder = new InitialReferenceBuilder(this.schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType);
-		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
-		final Reference reference = builder.build();
-		this.references.put(new ReferenceKey(referenceName, referencedPrimaryKey), reference);
-		return this;
-	}
-
-	@Override
-	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
-		this.references.put(referenceBuilder.getReferenceKey(), referenceBuilder.build());
-	}
-
-	@Override
-	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
-		this.references.remove(new ReferenceKey(referenceName, referencedPrimaryKey));
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
-		this.pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, indexed);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
-		this.pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, indexed);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed) {
-		this.pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
-		this.pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		this.pricesBuilder.removePrice(priceId, priceList, currency);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		this.pricesBuilder.setPriceInnerRecordHandling(priceInnerRecordHandling);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removePriceInnerRecordHandling() {
-		this.pricesBuilder.removePriceInnerRecordHandling();
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removeAllNonTouchedPrices() {
-		this.pricesBuilder.removeAllNonTouchedPrices();
+	public EntityBuilder setParent(int parentPrimaryKey) {
+		assertHierarchyAllowed();
+		this.parent = parentPrimaryKey;
 		return this;
 	}
 
 	@Nonnull
 	@Override
+	public EntityBuilder removeParent() {
+		assertHierarchyAllowed();
+		this.parent = null;
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder updateReferences(
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		getReferencesBuilder().updateReferences(filter, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey
+	) throws ReferenceNotKnownException {
+		getReferencesBuilder().setReference(referenceName, referencedPrimaryKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException {
+		getReferencesBuilder().setReference(referenceName, referencedPrimaryKey, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		getReferencesBuilder().setReference(referenceName, referencedPrimaryKey, filter, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey
+	) {
+		getReferencesBuilder().setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		getReferencesBuilder().setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		getReferencesBuilder().setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, filter, whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey
+	) throws ReferenceNotKnownException {
+		getReferencesBuilder().removeReference(referenceName, referencedPrimaryKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReference(@Nonnull ReferenceKey referenceKey) throws ReferenceNotKnownException {
+		getReferencesBuilder().removeReference(referenceKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey
+	) {
+		getReferencesBuilder().removeReferences(referenceName, referencedPrimaryKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull String referenceName) {
+		getReferencesBuilder().removeReferences(referenceName);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
+		getReferencesBuilder().removeReferences(referenceName, filter);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull Predicate<ReferenceContract> filter) {
+		getReferencesBuilder().removeReferences(filter);
+		return this;
+	}
+
+	@Override
+	public int getNextReferenceInternalId() {
+		return getReferencesBuilder().getNextReferenceInternalId();
+	}
+
+	@Override
+	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder, boolean methodAllowsDuplicates) {
+		getReferencesBuilder().addOrReplaceReferenceMutations(referenceBuilder, methodAllowsDuplicates);
+	}
+
+	@Override
+	public EntityBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed
+	) {
+		getPricesBuilder().setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, indexed);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		getPricesBuilder().setPrice(
+			priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, indexed);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed
+	) {
+		getPricesBuilder().setPrice(
+			priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder setPrice(
+		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity, boolean indexed
+	) {
+		getPricesBuilder().setPrice(
+			priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
+		getPricesBuilder().removePrice(priceId, priceList, currency);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
+		getPricesBuilder().setPriceInnerRecordHandling(priceInnerRecordHandling);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder removePriceInnerRecordHandling() {
+		getPricesBuilder().removePriceInnerRecordHandling();
+		return this;
+	}
+
+	@Override
+	public EntityBuilder removeAllNonTouchedPrices() {
+		getPricesBuilder().removeAllNonTouchedPrices();
+		return this;
+	}
+
+	/**
+	 * Builds a single {@link EntityMutation} representing an upsert of a brand new entity.
+	 *
+	 * Behavior specifics:
+	 * - Uses {@link EntityExistence#MUST_NOT_EXIST} to enforce initial creation semantics.
+	 * - Adds {@link SetEntityScopeMutation} only when the scope differs from LIVE (default is kept implicit).
+	 * - Adds {@link SetParentMutation} when a parent was set.
+	 * - Emits reference insert and their attribute/group mutations.
+	 * - Emits attribute, associated data and price mutations. Price inner record handling is always
+	 * set explicitly to guarantee deterministic state.
+	 */
+	@Nonnull
+	@Override
 	public Optional<EntityMutation> toMutation() {
+		final List<LocalMutation<?, ?>> mutations = new ArrayList<>(16);
+
+		// scope mutation (if not LIVE)
+		if (this.scope != Scope.LIVE) {
+			mutations.add(new SetEntityScopeMutation(this.scope));
+		}
+
+		// parent mutation (if present)
+		if (this.parent != null) {
+			mutations.add(new SetParentMutation(this.parent));
+		}
+
+		// reference mutations
+		if (this.referencesBuilder != null) {
+			this.referencesBuilder.buildChangeSet().forEach(mutations::add);
+		}
+
+		// entity attributes (non-null only)
+		if (this.attributesBuilder != null) {
+			this.attributesBuilder.buildChangeSet().forEach(mutations::add);
+		}
+
+		// associated data
+		if (this.associatedDataBuilder != null) {
+			this.associatedDataBuilder.buildChangeSet().forEach(mutations::add);
+		}
+
+		// prices
+		if (this.pricesBuilder != null) {
+			this.pricesBuilder.buildChangeSet().forEach(mutations::add);
+		}
+
 		return of(
 			new EntityUpsertMutation(
 				getType(),
 				getPrimaryKey(),
 				EntityExistence.MUST_NOT_EXIST,
-				Stream.of(
-						this.scope == Scope.LIVE ?
-							Stream.<LocalMutation<?,?>>empty() : Stream.of(new SetEntityScopeMutation(this.scope)),
-						ofNullable(this.parent)
-							.map(SetParentMutation::new)
-							.stream(),
-						this.references.values()
-							.stream()
-							.flatMap(it -> Stream.concat(
-									Stream.of(
-											new InsertReferenceMutation(it.getReferenceKey(), it.getReferenceCardinality(), it.getReferencedEntityType()),
-											it.getGroup().map(group -> new SetReferenceGroupMutation(it.getReferenceKey(), group.getType(), group.getPrimaryKey())).orElse(null)
-										)
-										.filter(Objects::nonNull),
-									it.getAttributeValues()
-										.stream()
-										.filter(x -> Objects.nonNull(x.value()))
-										.map(x ->
-											new ReferenceAttributeMutation(
-												it.getReferenceKey(),
-												new UpsertAttributeMutation(x.key(), x.value())
-											)
-										)
-								)
-							),
-						this.attributesBuilder
-							.getAttributeValues()
-							.stream()
-							.filter(it -> it.value() != null)
-							.map(it -> new UpsertAttributeMutation(it.key(), it.value())),
-						this.associatedDataBuilder
-							.getAssociatedDataValues()
-							.stream()
-							.map(it -> new UpsertAssociatedDataMutation(it.key(), it.valueOrThrowException())),
-						Stream.of(
-							new SetPriceInnerRecordHandlingMutation(this.pricesBuilder.getPriceInnerRecordHandling())
-						),
-						this.pricesBuilder
-							.getPrices()
-							.stream()
-							.map(it -> new UpsertPriceMutation(it.priceKey(), it))
-					)
-					.flatMap(it -> it)
-					.filter(Objects::nonNull)
-					.collect(Collectors.toList())
+				mutations
 			)
 		);
 	}
 
+	/**
+	 * Materializes the builder into an immutable {@link Entity}.
+	 *
+	 * Notes:
+	 * - Uses empty containers when a particular builder was never touched to minimize footprint.
+	 * - Combines schema-declared reference names with those added in this builder.
+	 * - The hierarchy flag is set when schema declares hierarchy or a parent was assigned.
+	 */
 	@Nonnull
 	@Override
 	public Entity toInstance() {
@@ -607,27 +734,73 @@ public class InitialEntityBuilder implements EntityBuilder {
 			version(),
 			this.schema,
 			this.parent,
-			this.references.values(),
-			this.attributesBuilder.build(),
-			this.associatedDataBuilder.build(),
-			this.pricesBuilder.build(),
+			this.referencesBuilder == null ?
+				new References(this.schema) : this.referencesBuilder.build(),
+			this.attributesBuilder == null ?
+				new EntityAttributes(this.schema) : this.attributesBuilder.build(),
+			this.associatedDataBuilder == null ?
+				new AssociatedData(this.schema) : this.associatedDataBuilder.build(),
+			this.pricesBuilder == null ?
+				new Prices(this.schema, PriceInnerRecordHandling.NONE) : this.pricesBuilder.build(),
 			getAllLocales(),
-			Stream.concat(
-				this.schema.getReferences().keySet().stream(),
-				this.references.keySet()
-					.stream()
-					.map(ReferenceKey::referenceName)
-			).collect(Collectors.toSet()),
-			this.schema.isWithHierarchy() || this.parent != null,
 			false
 		);
 	}
 
+	/**
+	 * Asserts that the hierarchy operation is allowed based on the current schema configuration.
+	 * This check validates that the schema either supports hierarchy explicitly or allows the
+	 * addition of hierarchy through its evolution mode settings. If neither condition is met,
+	 * an {@link InvalidMutationException} is thrown with a detailed message indicating that
+	 * hierarchy operations are not permitted.
+	 *
+	 * Throws:
+	 * - InvalidMutationException: Thrown if the schema does not support hierarchy
+	 * and does not allow adding hierarchy in evolution mode.
+	 */
+	private void assertHierarchyAllowed() {
+		Assert.isTrue(
+			this.schema.isWithHierarchy() || this.schema.allows(EvolutionMode.ADDING_HIERARCHY),
+			() -> new InvalidMutationException(
+				"Schema `" + this.schema.getName() + "` is not configured to support hierarchy."
+			)
+		);
+	}
+
+	@Delegate(types = AttributesContract.class)
 	@Nonnull
-	private ReferenceSchemaContract getReferenceSchemaOrThrowException(@Nonnull String referenceName) {
-		return getSchema()
-			.getReference(referenceName)
-			.orElseThrow(() -> new ReferenceNotKnownException(referenceName));
+	private InitialEntityAttributesBuilder getAttributesBuilder() {
+		if (this.attributesBuilder == null) {
+			this.attributesBuilder = new InitialEntityAttributesBuilder(this.schema);
+		}
+		return this.attributesBuilder;
+	}
+
+	@Delegate(types = AssociatedDataContract.class)
+	@Nonnull
+	private InitialAssociatedDataBuilder getAssociatedDataBuilder() {
+		if (this.associatedDataBuilder == null) {
+			this.associatedDataBuilder = new InitialAssociatedDataBuilder(this.schema);
+		}
+		return this.associatedDataBuilder;
+	}
+
+	@Delegate(types = PricesContract.class, excludes = Versioned.class)
+	@Nonnull
+	private InitialPricesBuilder getPricesBuilder() {
+		if (this.pricesBuilder == null) {
+			this.pricesBuilder = new InitialPricesBuilder(this.schema);
+		}
+		return this.pricesBuilder;
+	}
+
+	@Delegate(types = ReferencesContract.class)
+	@Nonnull
+	private InitialReferencesBuilder getReferencesBuilder() {
+		if (this.referencesBuilder == null) {
+			this.referencesBuilder = new InitialReferencesBuilder(this.schema);
+		}
+		return this.referencesBuilder;
 	}
 
 }

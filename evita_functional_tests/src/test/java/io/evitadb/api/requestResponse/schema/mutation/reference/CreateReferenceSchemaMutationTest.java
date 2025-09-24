@@ -97,6 +97,7 @@ public class CreateReferenceSchemaMutationTest {
 					Scope.NO_SCOPE,
 					false,
 					false,
+					false,
 					Integer.class,
 					null,
 					2
@@ -111,6 +112,7 @@ public class CreateReferenceSchemaMutationTest {
 					},
 					Scope.NO_SCOPE,
 					Scope.NO_SCOPE,
+					false,
 					false,
 					false,
 					Integer.class,

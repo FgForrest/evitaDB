@@ -434,6 +434,31 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T indexDecimalPlaces(int indexedDecimalPlaces);
 
 	/**
+	 * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+	 * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+	 * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+	 * helpful to developers in quickly finding their way around the data. There should be very few representative
+	 * attributes in the entity type, and the unique ones are usually the best to choose.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T representative();
+
+	/**
+	 * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+	 * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+	 * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+	 * helpful to developers in quickly finding their way around the data. There should be very few representative
+	 * attributes in the entity type, and the unique ones are usually the best to choose.
+	 *
+	 * @param decider returns true when attribute should be representative
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T representative(@Nonnull BooleanSupplier decider);
+
+	/**
 	 * Interface that simply combines {@link AttributeSchemaEditor} and {@link AttributeSchemaContract} entity contracts
 	 * together. Builder produces either {@link EntitySchemaMutation} that describes all changes to be made on
 	 * {@link EntitySchemaContract} instance to get it to "up-to-date" state or can provide already built

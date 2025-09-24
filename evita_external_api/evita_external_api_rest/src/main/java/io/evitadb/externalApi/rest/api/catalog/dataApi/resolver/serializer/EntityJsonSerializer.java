@@ -288,7 +288,7 @@ public class EntityJsonSerializer {
 
 		final DataChunk<ReferenceContract> groupedReferences = entity.getReferenceChunk(referenceName);
 
-		if (referenceCardinality == Cardinality.EXACTLY_ONE || referenceCardinality == Cardinality.ZERO_OR_ONE) {
+		if (referenceCardinality.getMax() == 1) {
 			Assert.isPremiseValid(
 				groupedReferences instanceof PlainChunk<ReferenceContract> && groupedReferences.getTotalRecordCount() <= 1,
 				"Reference cardinality is: " + referenceCardinality + " but found " +

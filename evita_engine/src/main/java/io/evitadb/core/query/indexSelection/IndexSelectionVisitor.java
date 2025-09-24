@@ -36,7 +36,6 @@ import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.filter.ReferenceHaving;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
@@ -50,9 +49,9 @@ import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
-import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
@@ -97,10 +96,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		if (this.queryContext.hasEntityGlobalIndex()) {
 			final List<GlobalEntityIndex> indexes = Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
-				.map(it -> this.queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, it)))
+				.map(this.queryContext::getGlobalEntityIndexIfExists)
 				.filter(Optional::isPresent)
 				.map(Optional::get)
-				.map(GlobalEntityIndex.class::cast)
 				.toList();
 			this.targetIndexes.add(
 				new TargetIndexes<>(
@@ -117,10 +115,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		} else {
 			final List<CatalogIndex> indexes = Arrays.stream(Scope.values())
 				.filter(allowedScopes::contains)
-				.map(it -> this.queryContext.getIndex(new CatalogIndexKey(it)))
+				.map(it -> this.queryContext.getIndexIfExists(new CatalogIndexKey(it), CatalogIndex.class))
 				.filter(Optional::isPresent)
 				.map(Optional::get)
-				.map(CatalogIndex.class::cast)
 				.toList();
 			if (!indexes.isEmpty()) {
 				this.targetIndexes.add(
@@ -212,18 +209,12 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final AtomicInteger cardinalityCounter = new AtomicInteger(0);
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						for (Scope scope : scopes) {
-							this.queryContext.getIndex(
-									new EntityIndexKey(
-										EntityIndexType.REFERENCED_ENTITY,
-										scope,
-										new ReferenceKey(referenceName, hierarchyEntityId)
-									)
-								)
-								.map(ReducedEntityIndex.class::cast)
-								.ifPresent(ix -> {
-									theTargetIndexes.add(ix);
-									cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
-								});
+							this.queryContext.getReducedEntityIndexes(
+								scope, hierarchyEntityId, entitySchema, referenceSchema, Functions.noOpBiFunction()
+							).forEach(ix -> {
+								theTargetIndexes.add(ix);
+								cardinalityCounter.addAndGet(ix.getAllPrimaryKeys().size());
+							});
 						}
 					}
 					// add indexes as potential target indexes

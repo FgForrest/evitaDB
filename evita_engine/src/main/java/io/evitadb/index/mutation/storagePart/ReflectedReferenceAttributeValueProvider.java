@@ -82,6 +82,17 @@ interface ReflectedReferenceAttributeValueProvider<T> {
 	Stream<T> getReferenceCarriers();
 
 	/**
+	 * Retrieves a stream of reference carriers of type T that match the provided generic reference key. The type depends
+	 * on the implementation and should provide performance optimal way of accessing the key information
+	 * about all the inserted (reflected) references that match the provided reference key.
+	 *
+	 * @param genericReferenceKey The generic reference key used to filter the reference carriers.
+	 * @return A non-null stream of reference holders that match the provided reference key.
+	 */
+	@Nonnull
+	Stream<T> getReferenceCarriers(@Nonnull ReferenceKey genericReferenceKey);
+
+	/**
 	 * Retrieves the primary key of the referenced entity associated with the given reference carrier.
 	 *
 	 * @param referenceCarrier The carrier containing the reference information from which to retrieve the primary key.
@@ -92,7 +103,7 @@ interface ReflectedReferenceAttributeValueProvider<T> {
 	);
 
 	/**
-	 * Retrieves the unique reference key associated with the given reference schema and reference carrier.
+	 * Retrieves the reference key associated with the given reference schema and reference carrier.
 	 *
 	 * @param referenceSchema The schema of the reference that provides the structural information of the reference.
 	 * @param referenceCarrier The carrier containing the reference information from which to retrieve the reference key.

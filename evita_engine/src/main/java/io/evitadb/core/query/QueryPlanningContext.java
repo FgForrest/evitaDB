@@ -44,7 +44,9 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -73,6 +75,8 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -88,6 +92,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -154,6 +159,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Collection of search indexes prepared to handle queries.
 	 */
 	@Nonnull private final Map<IndexKey, Index<?>> indexes;
+	/**
+	 * Collection of search indexes prepared to handle queries.
+	 */
+	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
 	 * by its {@link Formula#getHash()} method and when the supervisor identifies that certain
@@ -226,12 +235,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
+		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor
 	) {
 		this(
 			null, catalog, entityCollection,
 			evitaSession, evitaRequest,
-			telemetry, indexes, cacheSupervisor,
+			telemetry, indexes, indexesByPk,
+			cacheSupervisor,
 			new FinishedEvent(
 				catalog.getName(),
 				entityCollection == null ? null : entityCollection.getEntityType(),
@@ -248,11 +259,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
+		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor
 	) {
 		this(
 			parentQueryContext, catalog, entityCollection,
-			evitaSession, evitaRequest, telemetry, indexes, cacheSupervisor, null
+			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
+			cacheSupervisor, null
 		);
 	}
 
@@ -264,6 +277,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull EvitaRequest evitaRequest,
 		@Nullable QueryTelemetry telemetry,
 		@Nonnull Map<S, T> indexes,
+		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nullable FinishedEvent event
 	) {
@@ -291,6 +305,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
+		//noinspection unchecked
+		this.indexesByPk = (Map<Integer, Index<?>>) indexesByPk;
 		this.cacheSupervisor = cacheSupervisor;
 		this.queryFinishedEvent = event;
 		this.internalExecutionContext = createExecutionContext();
@@ -364,7 +380,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * Returns {@link EntityIndex} of external entity type by its key and entity type.
 	 */
 	@Nonnull
-	public <T extends EntityIndex> Optional<T> getIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
+	public <T extends EntityIndex> Optional<T> getEntityIndex(@Nonnull String entityType, @Nonnull EntityIndexKey entityIndexKey, @Nonnull Class<T> indexType) {
 		final EntityIndex entityIndex = getEntityCollectionOrThrowException(entityType, "access entity index")
 			.getIndexByKeyIfExists(entityIndexKey);
 		Assert.isPremiseValid(
@@ -376,16 +392,83 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns {@link EntityIndex} of external entity type by its primary key.
+	 */
+	@Nonnull
+	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(int indexPrimaryKey, @Nonnull Class<T> indexType) {
+		final Index<?> index = this.indexesByPk.get(indexPrimaryKey);
+		Assert.isPremiseValid(
+			indexType.isInstance(index),
+			() -> "Expected index of type " + indexType + " but got " + (index == null ? "NULL" : index.getClass()) + "!"
+		);
+		//noinspection unchecked
+		return (T) index;
+	}
+
+	/**
 	 * Returns {@link EntityIndex} by its key.
 	 */
 	@Nonnull
-	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndex(@Nonnull S indexKey) {
+	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndexIfExists(@Nonnull S indexKey, @Nonnull Class<T> indexType) {
 		if (indexKey instanceof CatalogIndexKey cik) {
 			//noinspection unchecked
 			return ofNullable((T) this.catalog.getCatalogIndex(cik.scope()));
 		} else {
+			final Index<?> index = this.indexes.get(indexKey);
+			Assert.isPremiseValid(
+				index == null || indexType.isInstance(index),
+				() -> "Expected index of type " + indexType + " but got " + (index == null ? "NULL" : index.getClass()) + "!"
+			);
 			//noinspection unchecked
-			return ofNullable((T) this.indexes.get(indexKey));
+			return ofNullable((T) index);
+		}
+	}
+
+	/**
+	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced entity ID,
+	 * entity schema, reference schema, and a supplier for handling missing indexes.
+	 *
+	 * @param scope the scope within which the entity indexes are retrieved
+	 * @param referencedEntityId the ID of the referenced entity
+	 * @param entitySchema the schema of the entity used for configuration
+	 * @param referenceSchema the schema of the reference defining the relationship to the referenced entity
+	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing
+	 * @return a stream of {@link ReducedEntityIndex} corresponding to the specified query criteria
+	 */
+	@Nonnull
+	public Stream<ReducedEntityIndex> getReducedEntityIndexes(
+		@Nonnull Scope scope,
+		int referencedEntityId,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingIndexSupplier
+	) {
+		final String referenceName = referenceSchema.getName();
+		if (referenceSchema.getCardinality().allowsDuplicates()) {
+			final EntityIndexKey entityIndexKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+			);
+			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReferencedTypeEntityIndex.class)
+				.map(referencedTypeEntityIndex -> {
+					final int[] allReducedEntityIndexPks = referencedTypeEntityIndex.getAllReferenceIndexes(
+						referencedEntityId
+					);
+					return Arrays.stream(allReducedEntityIndexPks)
+					             .mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
+				})
+				.orElseGet(() -> Stream.of(missingIndexSupplier.apply(entitySchema, entityIndexKey)));
+		} else {
+			final EntityIndexKey entityIndexKey = new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY,
+				scope,
+				new RepresentativeReferenceKey(
+					new ReferenceKey(referenceName, referencedEntityId)
+				)
+			);
+			return Stream.of(
+				getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
+				  .orElseGet(() -> missingIndexSupplier.apply(entitySchema, entityIndexKey))
+			).filter(Objects::nonNull);
 		}
 	}
 
@@ -549,7 +632,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull Scope scope) {
-		return getIndex(GLOBAL_INDEX_KEY.get(scope));
+		return getIndexIfExists(GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class);
 	}
 
 	/**
@@ -557,7 +640,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull Scope scope) {
-		return getGlobalEntityIndexIfExists(scope)
+		return getIndexIfExists(GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class)
 			.orElseThrow(() -> new GenericEvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
 
@@ -566,7 +649,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType, @Nonnull Scope scope) {
-		return getIndex(entityType, GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class);
+		return getEntityIndex(entityType, GLOBAL_INDEX_KEY.get(scope), GlobalEntityIndex.class);
 	}
 
 	/**
@@ -1030,9 +1113,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	) {
 		return getScopes().stream()
 			.map(scope -> {
-				final Optional<Index<EntityIndexKey>> refTypeIndex = getIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
-				return refTypeIndex
-					.map(GlobalEntityIndex.class::cast)
+				final Optional<GlobalEntityIndex> refGlobalIndex = getGlobalEntityIndexIfExists(scope);
+				return refGlobalIndex
 					.map(index -> index.getFacetingEntities().get(referenceName))
 					.map(facetIndex -> GlobalEntityIndex.createThrowingStub(
 							referencedGroupType,

@@ -70,7 +70,7 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 		super(
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes,
-			primaryKeyCardinality
+			primaryKeyCardinality, null
 		);
 		this.internalPriceIdSequence = internalPriceIdSequence;
 	}

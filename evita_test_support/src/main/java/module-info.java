@@ -39,4 +39,5 @@ module evita.test.support {
 	requires org.bouncycastle.provider;
 	requires com.linecorp.armeria;
 	requires roaringbitmap;
+	requires kotlin.stdlib;
 }

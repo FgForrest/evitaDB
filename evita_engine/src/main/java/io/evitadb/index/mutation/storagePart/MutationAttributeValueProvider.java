@@ -155,6 +155,13 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 
 	@Nonnull
 	@Override
+	public Stream<ReferenceMutation> getReferenceCarriers(@Nonnull ReferenceKey genericReferenceKey) {
+		return StreamSupport.stream(this.matchingMutations.spliterator(), false)
+			.filter(it -> it.getReferenceKey().equalsInGeneral(genericReferenceKey));
+	}
+
+	@Nonnull
+	@Override
 	public Optional<ReferenceMutation> getReferenceCarrier(@Nonnull ReferenceKey referenceKey) {
 		// we can use any mutation here, since this provider will always work with the reference key inside it
 		return Optional.ofNullable(this.referenceAttributesIndex.containsKey(referenceKey) ? new InsertReferenceMutation(referenceKey) : null);
@@ -168,12 +175,16 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceCarrier) {
-		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey);
+		return new ReferenceKey(referenceSchema.getName(), this.entityPrimaryKey, referenceCarrier.getReferenceKey().internalPrimaryKey());
 	}
 
 	@Nonnull
 	@Override
-	public Collection<AttributeValue> getAttributeValues(@Nonnull ReferenceSchema referenceSchema, @Nonnull ReferenceMutation referenceCarrier, @Nonnull String attributeName) {
+	public Collection<AttributeValue> getAttributeValues(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceMutation referenceCarrier,
+		@Nonnull String attributeName
+	) {
 		// we retrieve the attribute values from the index built in constructor from the input list of mutations
 		final Map<AttributeKey, AttributeValue> attributeValues = this.referenceAttributesIndex.get(referenceCarrier.getReferenceKey());
 		return attributeValues == null ?

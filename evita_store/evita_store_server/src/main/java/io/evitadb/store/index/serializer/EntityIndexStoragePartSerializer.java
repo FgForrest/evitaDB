@@ -43,10 +43,12 @@ import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -64,17 +66,108 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
+	/**
+	 * Writes the provided {@link CardinalityIndex} to the output stream.
+	 *
+	 * - When the index is `null`, writes `-1` to mark absence.
+	 * - Otherwise writes the number of entries and then pairs of `(recordId, cardinality)`.
+	 *
+	 * @param output           target output
+	 * @param cardinalityIndex index to serialize (may be `null`)
+	 */
+	private static void writeCardinalityIndex(
+		@Nonnull final Output output,
+		@Nullable final CardinalityIndex cardinalityIndex
+	) {
+		// write marker for null index to preserve backward compatibility
+		if (cardinalityIndex == null) {
+			output.writeInt(-1);
+			return;
+		}
+		final Map<CardinalityKey, Integer> cardinalities = cardinalityIndex.getCardinalities();
+		output.writeInt(cardinalities.size());
+		for (Entry<CardinalityKey, Integer> entry : cardinalities.entrySet()) {
+			output.writeVarInt(entry.getKey().recordId(), false);
+			output.writeVarInt(entry.getValue(), true);
+		}
+	}
+
+	/**
+	 * Reads {@link CardinalityIndex} serialized by {@link #writeCardinalityIndex(Output, CardinalityIndex)}.
+	 *
+	 * @param input input stream
+	 * @return reconstructed index or `null` when it was not present
+	 */
+	@Nullable
+	private static CardinalityIndex readCardinalityIndex(@Nonnull final Input input) {
+		final int count = input.readInt();
+		if (count == -1) {
+			return null;
+		}
+		final Map<CardinalityKey, Integer> index = createHashMap(count);
+		for (int i = 0; i < count; i++) {
+			final int cardinalityPrimaryKey = input.readVarInt(false);
+			index.put(
+				new CardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
+				input.readVarInt(true)
+			);
+		}
+		return new CardinalityIndex(Integer.class, index);
+	}
+
+	/**
+	 * Writes the referenced primary keys index map to the output stream.
+	 *
+	 * - When the map is `null`, writes `-1` to mark absence.
+	 * - Otherwise writes the size and then pairs of `(referencedPk, originalPk)`.
+	 *
+	 * @param output                     target output
+	 * @param referencedPrimaryKeysIndex map to serialize (may be `null`)
+	 */
+	private static void writeReferencedPrimaryKeysIndex(
+		@Nonnull final Output output,
+		@Nonnull final Kryo kryo,
+		@Nullable final Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex
+	) {
+		if (referencedPrimaryKeysIndex == null) {
+			output.writeInt(-1);
+			return;
+		}
+		output.writeInt(referencedPrimaryKeysIndex.size());
+		for (Entry<Integer, TransactionalBitmap> entry : referencedPrimaryKeysIndex.entrySet()) {
+			output.writeVarInt(entry.getKey(), false);
+			kryo.writeObject(output, entry.getValue());
+		}
+	}
+
+	/**
+	 * Reads map serialized by {@link #writeReferencedPrimaryKeysIndex(Output, Kryo, Map)}.
+	 *
+	 * @param input input stream
+	 * @return reconstructed map (never `null`; may be empty)
+	 */
+	@Nonnull
+	private static Map<Integer, TransactionalBitmap> readReferencedPrimaryKeysIndex(@Nonnull final Input input, @Nonnull final Kryo kryo) {
+		final int count = input.readInt();
+		if (count == -1) {
+			return Collections.emptyMap();
+		}
+		final Map<Integer, TransactionalBitmap> map = createHashMap(count);
+		for (int i = 0; i < count; i++) {
+			map.put(
+				input.readVarInt(false),
+				kryo.readObject(input, TransactionalBitmap.class)
+			);
+		}
+		return map;
+	}
+
 	@Override
 	public void write(Kryo kryo, Output output, EntityIndexStoragePart entityIndex) {
 		output.writeVarInt(entityIndex.getPrimaryKey(), true);
 		output.writeVarInt(entityIndex.getVersion(), true);
 
 		final EntityIndexKey entityIndexKey = entityIndex.getEntityIndexKey();
-		Assert.isPremiseValid(
-			entityIndexKey.type() != EntityIndexType.REFERENCED_HIERARCHY_NODE,
-			"Referenced hierarchy node index is deprecated and should no longer be stored!"
-		);
-
 		kryo.writeObject(output, entityIndexKey.type());
 		kryo.writeObject(output, entityIndexKey.scope());
 		if (entityIndexKey.discriminator() == null) {
@@ -104,7 +197,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Set<PriceIndexKey> priceIndexes = entityIndex.getPriceIndexes();
 		output.writeVarInt(priceIndexes.size(), true);
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
-			final CompressiblePriceKey cpk = new CompressiblePriceKey(priceIndexKey.getPriceList(), priceIndexKey.getCurrency());
+			final CompressiblePriceKey cpk = new CompressiblePriceKey(
+				priceIndexKey.getPriceList(), priceIndexKey.getCurrency());
 			output.writeVarInt(this.keyCompressor.getId(cpk), true);
 			output.writeVarInt(priceIndexKey.getRecordHandling().ordinal(), true);
 		}
@@ -117,17 +211,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			output.writeVarInt(this.keyCompressor.getId(referencedEntity), true);
 		}
 
-		final CardinalityIndex primaryKeyCardinality = entityIndex.getPrimaryKeyCardinality();
-		if (primaryKeyCardinality == null) {
-			output.writeInt(-1);
-		} else {
-			final Map<CardinalityKey, Integer> cardinalities = primaryKeyCardinality.getCardinalities();
-			output.writeInt(cardinalities.size());
-			for (Entry<CardinalityKey, Integer> entry : cardinalities.entrySet()) {
-				output.writeVarInt(entry.getKey().recordId(), false);
-				output.writeVarInt(entry.getValue(), true);
-			}
-		}
+		EntityIndexStoragePartSerializer.writeCardinalityIndex(output, entityIndex.getIndexPrimaryKeyCardinality());
+		EntityIndexStoragePartSerializer.writeReferencedPrimaryKeysIndex(output, kryo, entityIndex.getReferencedPrimaryKeysIndex());
 	}
 
 	@Override
@@ -139,7 +224,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Scope entityIndexScope = kryo.readObject(input, Scope.class);
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType, entityIndexScope) : new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
+			new EntityIndexKey(entityIndexType, entityIndexScope, null) :
+			new EntityIndexKey(entityIndexType, entityIndexScope, discriminator);
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 
@@ -163,7 +249,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Set<PriceIndexKey> priceIndexes = createHashSet(priceIndexesCount);
 		for (int i = 0; i < priceIndexesCount; i++) {
 			final CompressiblePriceKey priceKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
-			final PriceInnerRecordHandling innerRecordHandling = PriceInnerRecordHandling.values()[input.readVarInt(true)];
+			final PriceInnerRecordHandling innerRecordHandling = PriceInnerRecordHandling.values()[input.readVarInt(
+				true)];
 			priceIndexes.add(
 				new PriceIndexKey(priceKey.getPriceList(), priceKey.getCurrency(), innerRecordHandling)
 			);
@@ -178,28 +265,17 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			facetIndexes.add(entityType);
 		}
 
-		final int primaryKeyCardinalityCount = input.readInt();
-		final CardinalityIndex primaryKeyCardinality;
-		if (primaryKeyCardinalityCount == -1) {
-			primaryKeyCardinality = null;
-		} else {
-			final Map<CardinalityKey, Integer> index = createHashMap(primaryKeyCardinalityCount);
-			for (int i = 0; i < primaryKeyCardinalityCount; i++) {
-				final int cardinalityPrimaryKey = input.readVarInt(false);
-				index.put(
-					new CardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
-					input.readVarInt(true)
-				);
-			}
-			primaryKeyCardinality = new CardinalityIndex(Integer.class, index);
-		}
+		final CardinalityIndex primaryKeyCardinality = readCardinalityIndex(input);
+		final Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex = readReferencedPrimaryKeysIndex(input, kryo);
 
 		return new EntityIndexStoragePart(
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLocale,
 			attributeIndexes,
 			priceIndexes,
-			hierarchyIndex, facetIndexes, primaryKeyCardinality
+			hierarchyIndex, facetIndexes,
+			primaryKeyCardinality,
+			referencedPrimaryKeysIndex
 		);
 	}
 }

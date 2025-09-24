@@ -95,7 +95,7 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
 				proxyState.getOrCreateEntityReferenceProxy(
-					methodContext, proxyState.getReference()
+					methodContext, proxyState.getReference(), proxyState.getReferenceAttributeTypes()
 				)
 		);
 	}
@@ -120,7 +120,7 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				final LocalMutation<?, ?>[] mutations = (LocalMutation<?, ?>[]) args[0];
 				final Object theProxy = proxyState.getOrCreateEntityReferenceProxy(
-					methodContext, proxyState.getReference()
+					methodContext, proxyState.getReference(), proxyState.getReferenceAttributeTypes()
 				);
 				final SealedEntityReferenceProxyState targetProxyState = (SealedEntityReferenceProxyState) ((ProxyStateAccessor) theProxy).getProxyState();
 				targetProxyState.getReferenceBuilderWithMutations(Arrays.asList(mutations));
@@ -148,7 +148,7 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				@SuppressWarnings("unchecked") final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
 				final Object theProxy = proxyState.getOrCreateEntityReferenceProxy(
-					methodContext, proxyState.getReference()
+					methodContext, proxyState.getReference(), proxyState.getReferenceAttributeTypes()
 				);
 				final SealedEntityReferenceProxyState targetProxyState = (SealedEntityReferenceProxyState) ((ProxyStateAccessor) theProxy).getProxyState();
 				targetProxyState.getReferenceBuilderWithMutations(mutations);
@@ -187,7 +187,8 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 				.map(BuilderContract::build)
 				.map(
 					it -> (Object) proxyState.createNewReferenceProxy(
-						proxyState.getEntityProxyClass(), proxyState.getProxyClass(), proxyState.getEntity(), it
+						proxyState.getEntityProxyClass(), proxyState.getProxyClass(), proxyState.getEntity(), it,
+						proxyState.getReferenceAttributeTypes()
 					)
 				)
 				.orElse(proxy)

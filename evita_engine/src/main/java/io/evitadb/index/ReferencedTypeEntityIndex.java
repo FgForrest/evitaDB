@@ -31,18 +31,17 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Transaction;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.ReferencedTypeEntityIndex.ReferencedTypeEntityIndexChanges;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
@@ -57,6 +56,7 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.A
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -65,6 +65,8 @@ import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
+import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -73,7 +75,6 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -92,7 +93,8 @@ import static java.util.Optional.ofNullable;
  * relation. We need this index to be able to navigate to {@link ReducedEntityIndex} that were specially created to
  * speed up queries that involve the references.
  *
- * This indes doesn't maintain the prices of entities - only the attributes present on relations.
+ * This index doesn't maintain the prices of entities - only the attributes present on relations.
+ * TODO JNO - write migration logic for old data that index referenced entity ids
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -103,7 +105,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	/**
 	 * Matcher for all Object.class methods that just delegates calls to super implementation.
 	 */
-	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateContract> OBJECT_METHODS_IMPLEMENTATION = new PredicateMethodClassification<>(
+	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateThrowing> OBJECT_METHODS_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"Object methods",
 		(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, Object.class),
 		(method, state) -> null,
@@ -118,7 +120,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	/**
 	 * Matcher for {@link EntityIndex#getId()} method that returns 0 as the index id cannot be generated for the index.
 	 */
-	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateContract> GET_ID_IMPLEMENTATION = new PredicateMethodClassification<>(
+	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateThrowing> GET_ID_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getId",
 		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReducedEntityIndex.class, "getId"),
 		(method, state) -> null,
@@ -128,7 +130,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * Matcher for {@link ReferencedTypeEntityIndex#getIndexKey()} method that delegates to the super implementation
 	 * returning the index key passed in constructor.
 	 */
-	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateContract> GET_INDEX_KEY_IMPLEMENTATION = new PredicateMethodClassification<>(
+	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateThrowing> GET_INDEX_KEY_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getIndexKey",
 		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReferencedTypeEntityIndex.class, "getIndexKey"),
 		(method, state) -> null,
@@ -141,29 +143,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		}
 	);
 	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeys()} method that returns the super set of primary keys
-	 * from the proxy state object.
-	 */
-	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateContract> GET_ALL_PRIMARY_KEYS_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"getAllPrimaryKeys",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReferencedTypeEntityIndex.class, "getAllPrimaryKeys"),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getSuperSetOfPrimaryKeysBitmap(proxy)
-	);
-	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeysFormula()} method that returns the super set of primary keys
-	 * from the proxy state object.
-	 */
-	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateContract> GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"getAllPrimaryKeysFormula",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReferencedTypeEntityIndex.class, "getAllPrimaryKeysFormula"),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getSuperSetOfPrimaryKeysFormula(proxy)
-	);
-	/**
 	 * Matcher for all other methods that throws a {@link ReferenceNotIndexedException} exception.
 	 */
-	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateContract> THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION = new PredicateMethodClassification<>(
+	private static final PredicateMethodClassification<ReferencedTypeEntityIndex, Void, ReferencedTypeEntityIndexProxyStateThrowing> THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"All other methods",
 		(method, proxyState) -> true,
 		(method, state) -> null,
@@ -184,7 +166,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Delegate(types = PriceIndexContract.class)
 	private final PriceIndexContract priceIndex = VoidPriceIndex.INSTANCE;
 	/**
-	 * This index keeps information about cardinality of referenced primary keys for each owner entity primary key.
+	 * This index keeps information about cardinality of index primary keys for each owner entity primary key.
 	 * The referenced primary keys are indexed into {@link #entityIds} but they may be added to this index multiple times.
 	 * In order to know when they could be removed from {@link #entityIds} we need to know how many times they were added
 	 * and this is being tracked in this data structure.
@@ -193,12 +175,22 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * determined by the presence of the referenced primary key in {@link #entityIds}.
 	 */
 	@Nonnull
-	private final CardinalityIndex primaryKeyCardinality;
+	private final CardinalityIndex indexPrimaryKeyCardinality;
 	/**
 	 * This transactional map (index) contains for each attribute single instance of {@link FilterIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
 	 */
 	@Nonnull private final TransactionalMap<AttributeKey, CardinalityIndex> cardinalityIndexes;
+	/**
+	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
+	 * contains entity primary keys referencing this entity.
+	 */
+	@Nonnull private final TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
+	/**
+	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
+	 * {@link #referencedPrimaryKeysIndex}.
+	 */
+	private RoaringBitmap memoizedAllReferencedPrimaryKeys;
 
 	/**
 	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
@@ -222,54 +214,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				GET_ID_IMPLEMENTATION,
 				// index key is known and will be used in additional code
 				GET_INDEX_KEY_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty bitmap
-				GET_ALL_PRIMARY_KEYS_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty formula
-				GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION,
-				// for all other methods we will throw the exception that the reference is not indexed
-				THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION
-			),
-			new Class<?>[]{
-				ReferencedTypeEntityIndex.class
-			},
-			new Class<?>[]{
-				int.class,
-				String.class,
-				EntityIndexKey.class
-			},
-			new Object[]{
-				-1, entitySchema.getName(), entityIndexKey
-			}
-		);
-	}
-
-	/**
-	 * Creates a proxy instance of {@link ReferencedTypeEntityIndex} that throws a {@link ReferenceNotIndexedException}
-	 * for any methods not explicitly handled within the proxy.
-	 *
-	 * @param entitySchema The schema contract for the entity associated with the index.
-	 * @param entityIndexKey The key for the entity index.
-	 * @return A proxy instance of {@link ReferencedTypeEntityIndex} that conditionally throws exceptions.
-	 */
-	@Nonnull
-	public static ReferencedTypeEntityIndex createThrowingStub(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull Bitmap superSetOfPrimaryKeys
-	) {
-		return ByteBuddyProxyGenerator.instantiate(
-			new ByteBuddyDispatcherInvocationHandler<>(
-				new ReferencedTypeEntityIndexProxyStateWithSuperSet(entitySchema, superSetOfPrimaryKeys),
-				// objects method must pass through
-				OBJECT_METHODS_IMPLEMENTATION,
-				// index id will be provided as 0, because this id cannot be generated for the index
-				GET_ID_IMPLEMENTATION,
-				// index key is known and will be used in additional code
-				GET_INDEX_KEY_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty bitmap
-				GET_ALL_PRIMARY_KEYS_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty formula
-				GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION,
 				// for all other methods we will throw the exception that the reference is not indexed
 				THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION
 			),
@@ -293,8 +237,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
 		super(primaryKey, entityType, entityIndexKey);
-		this.primaryKeyCardinality = new CardinalityIndex(Integer.class);
-		this.cardinalityIndexes = new TransactionalMap<>(new HashMap<>(), CardinalityIndex.class, Function.identity());
+		this.indexPrimaryKeyCardinality = new CardinalityIndex(Integer.class);
+		this.cardinalityIndexes = new TransactionalMap<>(CollectionUtils.createHashMap(16), CardinalityIndex.class, Function.identity());
+		this.referencedPrimaryKeysIndex = new TransactionalMap<>(CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -306,16 +251,18 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
-		@Nonnull CardinalityIndex primaryKeyCardinality,
-		@Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes
+		@Nonnull CardinalityIndex indexPrimaryKeyCardinality,
+		@Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes,
+		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex
 	) {
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
 			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
 		);
-		this.primaryKeyCardinality = primaryKeyCardinality;
+		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
 		this.cardinalityIndexes = new TransactionalMap<>(cardinalityIndexes, CardinalityIndex.class, Function.identity());
+		this.referencedPrimaryKeysIndex = new TransactionalMap<>(referencedPrimaryKeysIndex, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
 	@Nonnull
@@ -333,8 +280,20 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Override
 	public boolean isEmpty() {
 		return super.isEmpty() &&
-			this.primaryKeyCardinality.isEmpty() &&
-			this.cardinalityIndexes.isEmpty();
+			this.referencedPrimaryKeysIndex.isEmpty();
+	}
+
+	/**
+	 * Retrieves all reference indexes associated with the given referenced entity primary key.
+	 *
+	 * @param referencedEntityPrimaryKey the primary key of the referenced entity for which the indexes are to be retrieved
+	 * @return an array of all reference indexes primary keys associated with the specified referenced entity primary key
+	 */
+	@Nonnull
+	public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
+		return ofNullable(this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey))
+			.map(TransactionalBitmap::getArray)
+			.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	@Override
@@ -351,7 +310,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
-			this.primaryKeyCardinality
+			this.indexPrimaryKeyCardinality,
+			this.referencedPrimaryKeysIndex
 		);
 	}
 
@@ -382,33 +342,114 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	/**
 	 * This method delegates call to {@link super#insertPrimaryKeyIfMissing(int)}
-	 * but tracks the cardinality of the referenced primary key in {@link #primaryKeyCardinality}.
+	 * but tracks the cardinality of the referenced primary key in {@link #indexPrimaryKeyCardinality}.
 	 *
-	 * @see #primaryKeyCardinality
+	 * @see #indexPrimaryKeyCardinality
 	 */
 	@Override
-	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey) {
+	public boolean insertPrimaryKeyIfMissing(int indexPrimaryKey) {
+		throw new UnsupportedOperationException(
+			"Use insertPrimaryKeyIfMissing(int indexPrimaryKey, int referencedEntityPrimaryKey) instead!"
+		);
+	}
+
+	/**
+	 * This method should be called instead of {@link #insertPrimaryKeyIfMissing(int)} because it tracks the cardinality
+	 * both of the indexed primary key and the referenced primary key.
+	 */
+	public boolean insertPrimaryKeyIfMissing(int indexPrimaryKey, int referencedEntityPrimaryKey) {
 		this.dirty.setToTrue();
-		if (this.primaryKeyCardinality.addRecord(entityPrimaryKey, entityPrimaryKey)) {
-			return super.insertPrimaryKeyIfMissing(entityPrimaryKey);
+		if (this.indexPrimaryKeyCardinality.addRecord(indexPrimaryKey, indexPrimaryKey)) {
+			super.insertPrimaryKeyIfMissing(indexPrimaryKey);
 		}
-		return false;
+		TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
+		if (indexIdBitmap == null) {
+			indexIdBitmap = new TransactionalBitmap();
+			this.referencedPrimaryKeysIndex.put(referencedEntityPrimaryKey, indexIdBitmap);
+		}
+		indexIdBitmap.add(indexPrimaryKey);
+		return true;
 	}
 
 	/**
 	 * This method delegates call to {@link super#removePrimaryKey(int)} but tracks
-	 * the cardinality of the referenced primary key in {@link #primaryKeyCardinality} and removes the referenced
+	 * the cardinality of the referenced primary key in {@link #indexPrimaryKeyCardinality} and removes the referenced
 	 * primary key from {@link #entityIds} only when the cardinality reaches 0.
 	 *
-	 * @see #primaryKeyCardinality
+	 * @see #indexPrimaryKeyCardinality
 	 */
 	@Override
-	public boolean removePrimaryKey(int entityPrimaryKey) {
+	public boolean removePrimaryKey(int indexPrimaryKey) {
+		throw new UnsupportedOperationException(
+			"Use removePrimaryKey(int, int) instead!"
+		);
+	}
+
+	/**
+	 * This method should be called instead of {@link #insertPrimaryKeyIfMissing(int)} because it tracks the cardinality
+	 * both of the indexed primary key and the referenced primary key.
+	 */
+	public boolean removePrimaryKey(int indexPrimaryKey, int referencedEntityPrimaryKey) {
 		this.dirty.setToTrue();
-		if (this.primaryKeyCardinality.removeRecord(entityPrimaryKey, entityPrimaryKey)) {
-			return super.removePrimaryKey(entityPrimaryKey);
+		if (this.indexPrimaryKeyCardinality.removeRecord(indexPrimaryKey, indexPrimaryKey)) {
+			super.removePrimaryKey(indexPrimaryKey);
 		}
-		return false;
+		final TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
+		Assert.isPremiseValid(
+			indexIdBitmap != null,
+			() -> new GenericEvitaInternalError("Referenced entity primary key " + referencedEntityPrimaryKey + " is unexpectedly not found in the index!")
+		);
+		// remove the index primary key from the bitmap
+		indexIdBitmap.remove(indexPrimaryKey);
+		return true;
+	}
+
+	/**
+	 * Constructs a Formula representing the intersection of the primary keys managed by this index
+	 * and the referenced entity primary keys provided as input.
+	 *
+	 * @param referencedEntityPrimaryKeys an array of referenced entity primary keys to be intersected with
+	 *                                    the primary keys managed by this index
+	 * @return a Formula representing the intersection of the primary keys; returns an empty formula if
+	 *         the input array is empty
+	 */
+	@Nonnull
+	public Bitmap getIndexPrimaryKeys(
+		@Nonnull RoaringBitmap referencedEntityPrimaryKeys
+	) {
+		if (referencedEntityPrimaryKeys.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		} else {
+			final RoaringBitmap allReferencedPrimaryKeys;
+			if (Transaction.isTransactionAvailable()) {
+				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+				for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
+					writer.add(referencedEntityId);
+				}
+				allReferencedPrimaryKeys = writer.get();
+			} else {
+				if (this.memoizedAllReferencedPrimaryKeys == null) {
+					final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+					for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
+						writer.add(referencedEntityId);
+					}
+					this.memoizedAllReferencedPrimaryKeys = writer.get();
+				}
+				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
+			}
+			final RoaringBitmap matchingReferencedEntityPks = RoaringBitmap.and(
+				allReferencedPrimaryKeys,
+				referencedEntityPrimaryKeys
+			);
+			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			for (Integer matchingReferencedEntityPk : matchingReferencedEntityPks) {
+				final TransactionalBitmap indexIds = Objects.requireNonNull(
+					this.referencedPrimaryKeysIndex.get(matchingReferencedEntityPk)
+				);
+				indexIds.forEach(writer::add);
+			}
+			return new BaseBitmap(writer.get());
+		}
 	}
 
 	/**
@@ -421,7 +462,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		Serializable value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -467,7 +508,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		Serializable value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
@@ -517,7 +558,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		Serializable value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -530,7 +571,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
-		Serializable value,
+		@Nonnull Serializable value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -543,7 +584,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
-		Serializable[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -555,7 +596,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
-		Serializable[] value,
+		@Nonnull Serializable[] value,
 		int recordId
 	) {
 		// the sort index of reference type index is not maintained, because the entity might reference multiple
@@ -589,8 +630,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.indexPrimaryKeyCardinality),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.referencedPrimaryKeysIndex)
 		);
 
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
@@ -600,8 +642,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.primaryKeyCardinality.removeLayer(transactionalLayer);
+		this.indexPrimaryKeyCardinality.removeLayer(transactionalLayer);
 		this.cardinalityIndexes.removeLayer(transactionalLayer);
+		this.referencedPrimaryKeysIndex.removeLayer(transactionalLayer);
 
 		final ReferencedTypeEntityIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
@@ -631,105 +674,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	}
 
-	/**
-	 * Shared contract for different implementations of the proxy state for {@link ReferencedTypeEntityIndex}.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
-	 */
-	public interface ReferencedTypeEntityIndexProxyStateContract extends Serializable {
-		/**
-		 * Retrieves the bitmap representation of the super set of primary keys.
-		 * This method ensures the bitmap is initialized and cached for subsequent calls.
-		 *
-		 * @return a {@link Bitmap} containing the super set of primary keys
-		 */
-		@Nonnull
-		Bitmap getSuperSetOfPrimaryKeysBitmap(@Nonnull ReferencedTypeEntityIndex entityIndex);
-
-		/**
-		 * Retrieves the formula representation of the super set of primary keys.
-		 * This method ensures the formula is initialized and cached for subsequent calls.
-		 *
-		 * @return a {@link Formula} containing the super set of primary keys
-		 */
-		@Nonnull
-		Formula getSuperSetOfPrimaryKeysFormula(@Nonnull ReferencedTypeEntityIndex entityIndex);
-
-		/**
-		 * Retrieves the entity schema associated with this proxy state.
-		 *
-		 * @return the {@link EntitySchemaContract} representing the schema of the entity
-		 */
-		@Nonnull
-		EntitySchemaContract getEntitySchema();
-
-	}
-
-	/**
-	 * ReducedIndexProxyState is a private static class that acts as a proxy state,
-	 * holding a super set of primary keys and providing cached access to their representations
-	 * as a Bitmap and a Formula.
-	 *
-	 * The class lazily initializes these representations to optimize performance
-	 * and reduce unnecessary computation.
-	 */
 	@RequiredArgsConstructor
-	private static class ReferencedTypeEntityIndexProxyStateWithSuperSet implements ReferencedTypeEntityIndexProxyStateContract {
-		@Serial private static final long serialVersionUID = 5964561548578664820L;
-		@Getter @Nonnull private final EntitySchemaContract entitySchema;
-		@Nullable private final int[] superSetOfPrimaryKeys;
-		@Nullable private Bitmap superSetOfPrimaryKeysBitmap;
-		@Nullable private Formula superSetOfPrimaryKeysFormula;
-
-		public ReferencedTypeEntityIndexProxyStateWithSuperSet(@Nonnull EntitySchemaContract entitySchema, @Nullable Bitmap superSetOfPrimaryKeys) {
-			this.entitySchema = entitySchema;
-			this.superSetOfPrimaryKeys = null;
-			this.superSetOfPrimaryKeysBitmap = superSetOfPrimaryKeys;
-		}
-
-		@Nonnull
-		@Override
-		public Bitmap getSuperSetOfPrimaryKeysBitmap(@Nonnull ReferencedTypeEntityIndex entityIndex) {
-			if (this.superSetOfPrimaryKeysBitmap == null) {
-				this.superSetOfPrimaryKeysBitmap = ArrayUtils.isEmpty(this.superSetOfPrimaryKeys) ?
-					EmptyBitmap.INSTANCE : new ArrayBitmap(this.superSetOfPrimaryKeys);
-			}
-			return this.superSetOfPrimaryKeysBitmap;
-		}
-
-		@Nonnull
-		@Override
-		public Formula getSuperSetOfPrimaryKeysFormula(@Nonnull ReferencedTypeEntityIndex entityIndex) {
-			if (this.superSetOfPrimaryKeysFormula == null) {
-				final Bitmap theBitmap = getSuperSetOfPrimaryKeysBitmap(entityIndex);
-				this.superSetOfPrimaryKeysFormula = theBitmap instanceof EmptyBitmap ?
-					EmptyFormula.INSTANCE : new ConstantFormula(theBitmap);
-			}
-			return this.superSetOfPrimaryKeysFormula;
-		}
-
-	}
-
-	@RequiredArgsConstructor
-	private static class ReferencedTypeEntityIndexProxyStateThrowing implements ReferencedTypeEntityIndexProxyStateContract {
+	private static class ReferencedTypeEntityIndexProxyStateThrowing implements Serializable {
 		@Serial private static final long serialVersionUID = 5594003658214725555L;
 		@Getter @Nonnull private final EntitySchemaContract entitySchema;
-
-		@Nonnull
-		@Override
-		public Bitmap getSuperSetOfPrimaryKeysBitmap(@Nonnull ReferencedTypeEntityIndex entityIndex) {
-			final EntityIndexKey theIndexKey = entityIndex.getIndexKey();
-			final String referenceName = Objects.requireNonNull((String) theIndexKey.discriminator());
-			throw new ReferenceNotIndexedException(referenceName, this.entitySchema, theIndexKey.scope());
-		}
-
-		@Nonnull
-		@Override
-		public Formula getSuperSetOfPrimaryKeysFormula(@Nonnull ReferencedTypeEntityIndex entityIndex) {
-			final EntityIndexKey theIndexKey = entityIndex.getIndexKey();
-			final String referenceName = Objects.requireNonNull((String) theIndexKey.discriminator());
-			throw new ReferenceNotIndexedException(referenceName, this.entitySchema, theIndexKey.scope());
-		}
 
 	}
 

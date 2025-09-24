@@ -607,6 +607,8 @@ public class EvitaEnumConverter {
 			case 2 -> of(Cardinality.EXACTLY_ONE);
 			case 3 -> of(Cardinality.ZERO_OR_MORE);
 			case 4 -> of(Cardinality.ONE_OR_MORE);
+			case 5 -> of(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES);
+			case 6 -> of(Cardinality.ONE_OR_MORE_WITH_DUPLICATES);
 			default -> empty();
 		};
 	}
@@ -627,6 +629,8 @@ public class EvitaEnumConverter {
 			case EXACTLY_ONE -> GrpcCardinality.EXACTLY_ONE;
 			case ZERO_OR_MORE -> GrpcCardinality.ZERO_OR_MORE;
 			case ONE_OR_MORE -> GrpcCardinality.ONE_OR_MORE;
+			case ZERO_OR_MORE_WITH_DUPLICATES -> GrpcCardinality.ZERO_OR_MORE_WITH_DUPLICATES;
+			case ONE_OR_MORE_WITH_DUPLICATES -> GrpcCardinality.ONE_OR_MORE_WITH_DUPLICATES;
 		};
 	}
 
@@ -676,6 +680,7 @@ public class EvitaEnumConverter {
 			case 5 -> EvolutionMode.ADDING_LOCALES;
 			case 6 -> EvolutionMode.ADDING_CURRENCIES;
 			case 7 -> EvolutionMode.ADDING_HIERARCHY;
+			case 8 -> EvolutionMode.UPDATING_REFERENCE_CARDINALITY;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
 		};
 	}
@@ -697,6 +702,7 @@ public class EvitaEnumConverter {
 			case ADDING_LOCALES -> GrpcEvolutionMode.ADDING_LOCALES;
 			case ADDING_CURRENCIES -> GrpcEvolutionMode.ADDING_CURRENCIES;
 			case ADDING_HIERARCHY -> GrpcEvolutionMode.ADDING_HIERARCHY;
+			case UPDATING_REFERENCE_CARDINALITY -> GrpcEvolutionMode.UPDATING_REFERENCE_CARDINALITY;
 		};
 	}
 

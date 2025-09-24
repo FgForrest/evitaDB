@@ -256,7 +256,7 @@ public class CreateAttributeSchemaMutation
 						makeMutationIfDifferent(
 							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
-							attributeSchemaContract -> ((EntityAttributeSchema) attributeSchemaContract).isRepresentative(),
+							AttributeSchemaContract::isRepresentative,
 							newValue -> new SetAttributeSchemaRepresentativeMutation(this.name, newValue)
 						)
 					)
@@ -285,7 +285,7 @@ public class CreateAttributeSchemaMutation
 			return (S) AttributeSchema._internalBuild(
 				this.name, this.description, this.deprecationNotice,
 				this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
-				this.localized, this.nullable,
+				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces
 			);
@@ -349,7 +349,7 @@ public class CreateAttributeSchemaMutation
 		@SuppressWarnings({"unchecked", "rawtypes"}) final AttributeSchema newAttributeSchema = AttributeSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
 			this.uniqueInScopes, this.filterableInScopes, this.sortableInScopes,
-			this.localized, this.nullable,
+			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces
 		);

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMuta
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -217,14 +218,21 @@ class LocalMutationExecutorCollector {
 			if (entityMutation instanceof EntityRemoveMutation) {
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
-			} else {
+			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
+				entityIndexUpdater.prepare(localMutations);
+			} else {
+				throw new GenericEvitaInternalError(
+					"Unsupported entity mutation type: " + entityMutation.getClass().getName()
+				);
 			}
 
 			for (LocalMutation<?, ?> localMutation : localMutations) {
 				entityIndexUpdater.applyMutation(localMutation);
 				changeCollector.applyMutation(localMutation);
 			}
+
+			changeCollector.finishLocalMutationExecutionPhase();
 
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(

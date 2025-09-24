@@ -178,7 +178,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
-			assertEquals(8, reverseCaptures.size());
+			assertEquals(6, reverseCaptures.size());
 
 			int index = Integer.MAX_VALUE;
 			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
@@ -210,7 +210,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
-			assertEquals(9, reverseCaptures.size());
+			assertEquals(7, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
 			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
@@ -237,7 +237,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.content(ChangeCaptureContent.BODY)
 					.build()
 			).toList();
-			assertEquals(19, reverseCaptures.size());
+			assertEquals(17, reverseCaptures.size());
 
 			// first mutation is transaction boundary mutation
 			assertInstanceOf(TransactionMutation.class, reverseCaptures.get(0).body());
@@ -351,7 +351,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.build()
 			).toList();
 
-			assertEquals(4, reverseCaptures.size());
+			assertEquals(2, reverseCaptures.size());
 
 			assertEquals(Entities.PRODUCT, reverseCaptures.get(0).entityType());
 			assertEquals(CURRENCY_USD, ((UpsertPriceMutation)reverseCaptures.get(0).body()).getPriceKey().currency());
@@ -383,7 +383,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.build()
 			).toList();
 
-			assertEquals(8, reverseCaptures.size());
+			assertEquals(7, reverseCaptures.size());
 
 			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
 				assertEquals(Entities.PRODUCT, reverseCapture.entityType());
@@ -412,7 +412,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.build()
 			).toList();
 
-			assertEquals(3, reverseCaptures.size());
+			assertEquals(2, reverseCaptures.size());
 
 			for (ChangeCatalogCapture reverseCapture : reverseCaptures) {
 				assertEquals(Entities.BRAND, reverseCapture.entityType());
@@ -454,7 +454,7 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 					.build()
 			).toList();
 
-			assertEquals(3, brandDataReverseCaptures.size());
+			assertEquals(2, brandDataReverseCaptures.size());
 
 			for (ChangeCatalogCapture reverseCapture : brandDataReverseCaptures) {
 				assertEquals(Entities.BRAND, reverseCapture.entityType());

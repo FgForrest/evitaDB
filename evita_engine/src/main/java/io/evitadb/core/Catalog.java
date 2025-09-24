@@ -478,12 +478,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 								catalogVersion, entityTypeFileIndex.entityType(), entityTypeFileIndex.entityTypePrimaryKey()
 							);
 							final EntityCollectionHeader entityHeader = entityCollectionPersistenceService.getEntityCollectionHeader();
-							final Map<EntityIndexKey, EntityIndex> entityIndexes = createHashMap(
-								entityHeader.usedEntityIndexIds().size()
-							);
 
 							return new ProgressingFuture<EntityCollection>(
-								entityHeader.usedEntityIndexIds().size(),
+								entityHeader.usedEntityIndexPrimaryKeys().size(),
 								() -> {
 									final Catalog catalog = initBulk.catalog();
 									final String entityType = entityTypeFileIndex.entityType();
@@ -494,7 +491,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 										catalogHeader.catalogState(),
 										entityTypePrimaryKey,
 										entityType,
-										entityIndexes,
+										entityHeader.usedEntityIndexPrimaryKeys().size(),
 										catalog.persistenceService,
 										entityCollectionPersistenceService,
 										catalog.cacheSupervisor,
@@ -507,7 +504,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 									initBulk.entitySchemaIndex().put(entityType, collection.getSchema());
 
 									// we need to load the global index first, this is the only one index containing all data
-									final Integer globalEntityIndex = entityHeader.globalEntityIndexId();
+									final Integer globalEntityIndex = entityHeader.globalEntityIndexPrimaryKey();
 									if (globalEntityIndex != null) {
 										final GlobalEntityIndex globalIndex = (GlobalEntityIndex) entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion,
@@ -524,7 +521,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 									return collection;
 								},
 								(entityCollection) -> entityHeader
-									.usedEntityIndexIds()
+									.usedEntityIndexPrimaryKeys()
 									.stream()
 									.map(eid -> new ProgressingFuture<EntityIndex>(
 										0,
@@ -1853,7 +1850,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			this.getCatalogState(),
 			entityTypePrimaryKey,
 			entityType,
-			new HashMap<>(64),
+			64,
 			this.persistenceService,
 			entityCollectionPersistenceService,
 			this.cacheSupervisor,
@@ -1959,7 +1956,8 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 			null,
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
-			Collections.emptyMap(),
+			Collections.<EntityIndexKey, EntityIndex>emptyMap(),
+			Collections.<Integer, EntityIndex>emptyMap(),
 			this.cacheSupervisor
 		);
 	}
@@ -2141,6 +2139,12 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 		public CatalogIndex getIndexIfExists(@Nonnull CatalogIndexKey catalogIndexKey) {
 			return catalogIndexKey.scope() == Scope.ARCHIVED ?
 				Catalog.this.archiveCatalogIndex : Catalog.this.catalogIndex;
+		}
+
+		@Nonnull
+		@Override
+		public CatalogIndex getIndexByPrimaryKey(int indexPrimaryKey) {
+			throw new UnsupportedOperationException("Catalog index doesn't support retrieval by primary key!");
 		}
 
 		/**

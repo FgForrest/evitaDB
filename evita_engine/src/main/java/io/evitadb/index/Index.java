@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
 public interface Index<T extends IndexKey> {
 
 	/**
-	 * Returns a key uniquely representing the index in persistent data store.
+	 * Returns a key uniquely representing the index in a persistent data store.
 	 * For each index key there must be exactly one index present in the data storage.
 	 */
 	@Nonnull

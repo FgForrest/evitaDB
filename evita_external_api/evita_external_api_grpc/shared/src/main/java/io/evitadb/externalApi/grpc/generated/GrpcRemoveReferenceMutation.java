@@ -130,6 +130,35 @@ private static final long serialVersionUID = 0L;
     return referencePrimaryKey_;
   }
 
+  public static final int INTERNALPRIMARYKEY_FIELD_NUMBER = 3;
+  private int internalPrimaryKey_ = 0;
+  /**
+   * <pre>
+   * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+   * reference among other references. It is used when multiple references share same
+   * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+   *
+   * When a reference is created for the first time, internal id is set to a unique
+   * negative number that is not used by the server side, which assigns positive unique
+   * numbers to the references on first reference persistence. This allows distinguishing
+   * references that are not yet persisted from those that are already persistent.
+   *
+   * When standalone key is used:
+   *
+   * - negative number: means that the reference is new and hasn't been yet persisted
+   * - zero: means we don't know the internal PK
+   * - positive number: means that the reference is persistent and has been already stored
+   *   in the database
+   * </pre>
+   *
+   * <code>int32 internalPrimaryKey = 3;</code>
+   * @return The internalPrimaryKey.
+   */
+  @java.lang.Override
+  public int getInternalPrimaryKey() {
+    return internalPrimaryKey_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -150,6 +179,9 @@ private static final long serialVersionUID = 0L;
     if (referencePrimaryKey_ != 0) {
       output.writeInt32(2, referencePrimaryKey_);
     }
+    if (internalPrimaryKey_ != 0) {
+      output.writeInt32(3, internalPrimaryKey_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -165,6 +197,10 @@ private static final long serialVersionUID = 0L;
     if (referencePrimaryKey_ != 0) {
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(2, referencePrimaryKey_);
+    }
+    if (internalPrimaryKey_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(3, internalPrimaryKey_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -185,6 +221,8 @@ private static final long serialVersionUID = 0L;
         .equals(other.getReferenceName())) return false;
     if (getReferencePrimaryKey()
         != other.getReferencePrimaryKey()) return false;
+    if (getInternalPrimaryKey()
+        != other.getInternalPrimaryKey()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -200,6 +238,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getReferenceName().hashCode();
     hash = (37 * hash) + REFERENCEPRIMARYKEY_FIELD_NUMBER;
     hash = (53 * hash) + getReferencePrimaryKey();
+    hash = (37 * hash) + INTERNALPRIMARYKEY_FIELD_NUMBER;
+    hash = (53 * hash) + getInternalPrimaryKey();
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -337,6 +377,7 @@ private static final long serialVersionUID = 0L;
       bitField0_ = 0;
       referenceName_ = "";
       referencePrimaryKey_ = 0;
+      internalPrimaryKey_ = 0;
       return this;
     }
 
@@ -375,6 +416,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000002) != 0)) {
         result.referencePrimaryKey_ = referencePrimaryKey_;
+      }
+      if (((from_bitField0_ & 0x00000004) != 0)) {
+        result.internalPrimaryKey_ = internalPrimaryKey_;
       }
     }
 
@@ -430,6 +474,9 @@ private static final long serialVersionUID = 0L;
       if (other.getReferencePrimaryKey() != 0) {
         setReferencePrimaryKey(other.getReferencePrimaryKey());
       }
+      if (other.getInternalPrimaryKey() != 0) {
+        setInternalPrimaryKey(other.getInternalPrimaryKey());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -466,6 +513,11 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000002;
               break;
             } // case 16
+            case 24: {
+              internalPrimaryKey_ = input.readInt32();
+              bitField0_ |= 0x00000004;
+              break;
+            } // case 24
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -618,6 +670,92 @@ private static final long serialVersionUID = 0L;
     public Builder clearReferencePrimaryKey() {
       bitField0_ = (bitField0_ & ~0x00000002);
       referencePrimaryKey_ = 0;
+      onChanged();
+      return this;
+    }
+
+    private int internalPrimaryKey_ ;
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     *
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     *
+     * When standalone key is used:
+     *
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 3;</code>
+     * @return The internalPrimaryKey.
+     */
+    @java.lang.Override
+    public int getInternalPrimaryKey() {
+      return internalPrimaryKey_;
+    }
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     *
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     *
+     * When standalone key is used:
+     *
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 3;</code>
+     * @param value The internalPrimaryKey to set.
+     * @return This builder for chaining.
+     */
+    public Builder setInternalPrimaryKey(int value) {
+
+      internalPrimaryKey_ = value;
+      bitField0_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * internal PK is assigned by evitaDB engine and is used to uniquely identify the
+     * reference among other references. It is used when multiple references share same
+     * business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+     *
+     * When a reference is created for the first time, internal id is set to a unique
+     * negative number that is not used by the server side, which assigns positive unique
+     * numbers to the references on first reference persistence. This allows distinguishing
+     * references that are not yet persisted from those that are already persistent.
+     *
+     * When standalone key is used:
+     *
+     * - negative number: means that the reference is new and hasn't been yet persisted
+     * - zero: means we don't know the internal PK
+     * - positive number: means that the reference is persistent and has been already stored
+     *   in the database
+     * </pre>
+     *
+     * <code>int32 internalPrimaryKey = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearInternalPrimaryKey() {
+      bitField0_ = (bitField0_ & ~0x00000004);
+      internalPrimaryKey_ = 0;
       onChanged();
       return this;
     }
