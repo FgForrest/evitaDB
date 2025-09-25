@@ -816,7 +816,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		@Nonnull List<ReferenceMutation<?>> existingChangeSet,
 		@Nonnull ReferenceMutation<?> newMutation
 	) {
-		boolean clearAllPreviousMutations = false;
 		boolean addNewMutation = true;
 		final Iterator<ReferenceMutation<?>> it = existingChangeSet.iterator();
 		while (it.hasNext()) {
@@ -826,7 +825,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 					!(newMutation instanceof RemoveReferenceMutation),
 					"Unexpected new mutation!"
 				);
-				clearAllPreviousMutations = true;
 			} else if (existingMutation instanceof SetReferenceGroupMutation) {
 				if (newMutation instanceof SetReferenceGroupMutation) {
 					it.remove();
@@ -1252,18 +1250,24 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		int existingInternalPkCount
 	) {
 		final InitialReferenceBuilder refBuilder;
+		// if the PK is negative is locally newly assigned and will represent a new reference
+		// if the PK is positive, it represents locally removed reference that is being reinserted
+		// so the count of existing references does not change
+		final int newCount = existingInternalPkCount + (internalPrimaryKey < 0 ? 1 : 0);
 		// but we allow implicit cardinality widening when needed
 		if (
-			existingInternalPkCount > 0 &&
+			newCount > 1 &&
 				referenceSchema.getCardinality().getMax() <= 1 &&
 				!entitySchema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)
 		) {
 			throw new ReferenceCardinalityViolatedException(
 				entitySchema.getName(),
-				List.of(new CardinalityViolation(
-					referenceName, referenceSchema.getCardinality(),
-				                                 existingInternalPkCount + 1
-				))
+				List.of(
+					new CardinalityViolation(
+						referenceName, referenceSchema.getCardinality(),
+						newCount
+					)
+				)
 			);
 		} else {
 			refBuilder = new InitialReferenceBuilder(

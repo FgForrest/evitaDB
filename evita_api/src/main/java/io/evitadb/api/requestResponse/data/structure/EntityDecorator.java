@@ -545,7 +545,9 @@ public class EntityDecorator implements SealedEntity {
 				);
 			}
 		}
-		for (String referenceName : referencesAccordingToSchema.keySet()) {
+		final Set<String> referenceNames = referencePredicate.getReferenceSet().isEmpty() ?
+			referencesAccordingToSchema.keySet() : referencePredicate.getReferenceSet().keySet();
+		for (String referenceName : referenceNames) {
 			if (referencePredicate.isReferenceRequested(referenceName)) {
 				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
 					.orElse(Collections.emptyList());
