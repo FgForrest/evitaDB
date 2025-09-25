@@ -23,9 +23,16 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+
 /**
  * This interface marks all mutations that needs to be executed on entire evitaDB level and not locally to
  * a single catalog schema instance.
+ *
+ * This is technical interface - the main purpose is to combine {@link CatalogSchemaMutation} and {@link TopLevelCatalogMutation}
+ * interfaces so that the top level catalog mutations that also alter the catalog schema (like {@link CreateEntitySchemaMutation}
+ * or {@link ModifyEntitySchemaMutation}) can implement this interface.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
