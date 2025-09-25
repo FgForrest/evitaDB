@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ReferenceAttributeSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.AttributeSchemaMutationAggregateConverter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -49,14 +49,14 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 	extends ReferenceSchemaMutationConverter<ModifyReferenceAttributeSchemaMutation> {
 
 	@Nonnull
-	private final ReferenceAttributeSchemaMutationAggregateConverter referenceAttributeSchemaMutationAggregateResolver;
+	private final AttributeSchemaMutationAggregateConverter referenceAttributeSchemaMutationAggregateResolver;
 
 	public ModifyReferenceAttributeSchemaMutationConverter(
 		@Nonnull MutationObjectParser objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);
-		this.referenceAttributeSchemaMutationAggregateResolver = new ReferenceAttributeSchemaMutationAggregateConverter(
+		this.referenceAttributeSchemaMutationAggregateResolver = new AttributeSchemaMutationAggregateConverter(
 			objectParser, exceptionFactory);
 	}
 

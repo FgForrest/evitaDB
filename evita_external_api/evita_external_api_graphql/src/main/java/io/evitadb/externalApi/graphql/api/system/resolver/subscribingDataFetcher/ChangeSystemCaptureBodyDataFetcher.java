@@ -28,7 +28,7 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.TopLevelCatalogSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EngineMutationAggregateConverter;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -45,7 +45,7 @@ import java.util.Objects;
 public class ChangeSystemCaptureBodyDataFetcher implements DataFetcher<Object> {
 
 	@Nonnull
-	private final TopLevelCatalogSchemaMutationAggregateConverter bodyConverter = new TopLevelCatalogSchemaMutationAggregateConverter(
+	private final EngineMutationAggregateConverter bodyConverter = new EngineMutationAggregateConverter(
 		new PassThroughMutationObjectParser(),
 		new GraphQLMutationResolvingExceptionFactory()
 	);

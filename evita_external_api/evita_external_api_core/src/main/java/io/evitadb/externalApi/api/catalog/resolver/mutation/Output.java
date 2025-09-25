@@ -48,6 +48,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.MapBuilder.map;
@@ -162,6 +163,7 @@ public class Output {
 		if (value instanceof LocalDate dateTime) return toSerializableValue(dateTime);
 		if (value instanceof LocalTime localTime) return toSerializableValue(localTime);
 		if (value instanceof Range<?> range) return toSerializableValue(range);
+		if (value instanceof UUID uuid) return toSerializableValue(uuid);
 		if (value.getClass().isEnum()) return toSerializableValue((Enum<?>) value);
 		if (value instanceof Class<?> type) return toSerializableValue(type);
 
@@ -262,6 +264,11 @@ public class Output {
 		serializedRange[0] = range.getPreciseFrom() != null ? toSerializableValue(range.getPreciseFrom()) : null;
 		serializedRange[1] = range.getPreciseTo() != null ? toSerializableValue(range.getPreciseTo()) : null;
 		return serializedRange;
+	}
+
+	@Nonnull
+	private static Serializable toSerializableValue(@Nonnull UUID uuid) {
+		return uuid.toString();
 	}
 
 	private static Serializable toSerializableValue(@Nonnull Class<?> type) {
