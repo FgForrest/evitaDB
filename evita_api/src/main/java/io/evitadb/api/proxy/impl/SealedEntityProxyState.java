@@ -197,7 +197,10 @@ public class SealedEntityProxyState
 			final Map<String, AttributeSchemaContract> attributeTypesForReference = getAttributeTypesForReference(
 				referenceSchema.getName()
 			);
-			return this.entity
+			final EntityContract theEntity = entityBuilderIfPresent()
+				.map(EntityContract.class::cast)
+				.orElse(this.entity);
+			return theEntity
 				.getReference(referenceSchema.getName(), primaryKey)
 				.filter(
 					ref -> !(theEntityBuilder instanceof ExistingEntityBuilder eeb) ||
