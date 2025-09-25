@@ -57,6 +57,7 @@ import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -359,15 +360,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	public boolean insertPrimaryKeyIfMissing(int indexPrimaryKey, int referencedEntityPrimaryKey) {
 		this.dirty.setToTrue();
-		if (this.indexPrimaryKeyCardinality.addRecord(indexPrimaryKey, indexPrimaryKey)) {
+		if (this.indexPrimaryKeyCardinality.addRecord(NumberUtils.join(0, indexPrimaryKey), indexPrimaryKey)) {
 			super.insertPrimaryKeyIfMissing(indexPrimaryKey);
 		}
-		TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
-		if (indexIdBitmap == null) {
-			indexIdBitmap = new TransactionalBitmap();
-			this.referencedPrimaryKeysIndex.put(referencedEntityPrimaryKey, indexIdBitmap);
+		if (this.indexPrimaryKeyCardinality.addRecord(NumberUtils.join(indexPrimaryKey, referencedEntityPrimaryKey), indexPrimaryKey)) {
+			TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
+			if (indexIdBitmap == null) {
+				indexIdBitmap = new TransactionalBitmap();
+				this.referencedPrimaryKeysIndex.put(referencedEntityPrimaryKey, indexIdBitmap);
+			}
+			indexIdBitmap.add(indexPrimaryKey);
 		}
-		indexIdBitmap.add(indexPrimaryKey);
 		return true;
 	}
 
@@ -391,16 +394,19 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	public boolean removePrimaryKey(int indexPrimaryKey, int referencedEntityPrimaryKey) {
 		this.dirty.setToTrue();
-		if (this.indexPrimaryKeyCardinality.removeRecord(indexPrimaryKey, indexPrimaryKey)) {
+		if (this.indexPrimaryKeyCardinality.removeRecord(NumberUtils.join(0, indexPrimaryKey), indexPrimaryKey)) {
 			super.removePrimaryKey(indexPrimaryKey);
 		}
-		final TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
-		Assert.isPremiseValid(
-			indexIdBitmap != null,
-			() -> new GenericEvitaInternalError("Referenced entity primary key " + referencedEntityPrimaryKey + " is unexpectedly not found in the index!")
-		);
-		// remove the index primary key from the bitmap
-		indexIdBitmap.remove(indexPrimaryKey);
+		if (this.indexPrimaryKeyCardinality.removeRecord(NumberUtils.join(indexPrimaryKey, referencedEntityPrimaryKey), indexPrimaryKey)) {
+			final TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
+			Assert.isPremiseValid(
+				indexIdBitmap != null,
+				() -> new GenericEvitaInternalError(
+					"Referenced entity primary key " + referencedEntityPrimaryKey + " is unexpectedly not found in the index!")
+			);
+			// remove the index primary key from the bitmap
+			indexIdBitmap.remove(indexPrimaryKey);
+		}
 		return true;
 	}
 

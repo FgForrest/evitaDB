@@ -59,6 +59,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	/**
 	 * Represents the type of values stored in this cardinality index.
 	 */
+	/* TODO JNO - tohle se k ničemu nepoužívá - adept na zrušení!!! */
 	@Getter private final Class<? extends Serializable> valueType;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
