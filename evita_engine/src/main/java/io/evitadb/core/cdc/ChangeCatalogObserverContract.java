@@ -77,6 +77,11 @@ public interface ChangeCatalogObserverContract extends ChangeObserverContract<Ch
 			// do nothing
 		}
 
+		@Override
+		public void emitObservabilityEvents() {
+			// do nothing
+		}
+
 		@Nonnull
 		@Override
 		public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
@@ -112,5 +117,11 @@ public interface ChangeCatalogObserverContract extends ChangeObserverContract<Ch
 	 * @param catalogVersion the catalog version after which all mutations should be forgotten
 	 */
 	void forgetMutationsAfter(@Nonnull Catalog catalog, long catalogVersion);
+
+	/**
+	 * Emits observability events related to the catalog change data capture. This method is intended to be called
+	 * periodically to provide insights into the state and performance of the CDC system.
+	 */
+	void emitObservabilityEvents();
 
 }

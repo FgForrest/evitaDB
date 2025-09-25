@@ -38,7 +38,6 @@ import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerAreaEve
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityTypeEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import jdk.jfr.FlightRecorder;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -84,7 +83,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 */
 	private final ExecutorService cdcExecutor;
 	/**
-	 * Lambda function that provides
+	 * Atomic reference to the current catalog being observed.
 	 */
 	private final AtomicReference<Catalog> currentCatalog;
 	/**
@@ -130,10 +129,6 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			scheduler,
 			this::cleanInactivePublishers,
 			1, TimeUnit.MINUTES
-		);
-		FlightRecorder.addPeriodicEvent(
-			ChangeCatalogCaptureStatisticsEvent.class,
-			this::emitChangeCaptureStatistics
 		);
 	}
 
@@ -261,7 +256,8 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 * - The total lagging subscriber count is computed by aggregating the lagging subscriber counts of all shared publishers.
 	 * - The total number of events published is computed by summing the event counts from all shared publishers.
 	 */
-	void emitChangeCaptureStatistics() {
+	@Override
+	public void emitObservabilityEvents() {
 		int subscriberCount = 0;
 		int laggingSubscriberCount = 0;
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {

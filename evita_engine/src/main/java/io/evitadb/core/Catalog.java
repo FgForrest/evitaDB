@@ -1678,6 +1678,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	 */
 	public void emitObservabilityEvents() {
 		this.persistenceService.emitObservabilityEvents();
+		this.transactionManager.getChangeObserver().emitObservabilityEvents();
 	}
 
 	/**
