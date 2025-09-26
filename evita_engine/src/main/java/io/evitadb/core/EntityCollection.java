@@ -139,6 +139,7 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -1010,7 +1011,7 @@ public final class EntityCollection implements
 			!Transaction.isTransactionAvailable(),
 			"Entity collection cannot be terminated within transaction!"
 		);
-		this.persistenceService.close();
+		IOUtils.closeQuietly(this.persistenceService::close);
 	}
 
 	/**

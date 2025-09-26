@@ -124,4 +124,11 @@ public interface ChangeCatalogObserverContract extends ChangeObserverContract<Ch
 	 */
 	void emitObservabilityEvents();
 
+	/**
+	 * Closes this observer and releases all resources associated with it.
+	 * Does not throw any exceptions.
+	 */
+	@Override
+	void close();
+
 }

@@ -632,13 +632,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final File[] walFiles = catalogFilePath
 			.toFile()
 			.listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
-		return walFiles == null || walFiles.length == 0 ?
-			null :
-			new CatalogWriteAheadLog(
+		if (walFiles == null || walFiles.length == 0) {
+			return null;
+		} else {
+			return new CatalogWriteAheadLog(
 				catalogVersion, catalogName, walFileNameProvider, catalogFilePath, kryoPool,
 				storageOptions, transactionOptions, scheduler,
 				bootstrapFileTrimFunction, onWalPurgeCallback.get()
 			);
+		}
 	}
 
 	/**
@@ -829,12 +831,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		return ofNullable(currentWalFileRef)
 			.map(
-				walFileReference -> new CatalogWriteAheadLog(
-					catalogVersion, catalogName, walFileNameProvider,
-					catalogStoragePath, catalogKryoPool,
-					storageOptions, transactionOptions, scheduler,
-					bootstrapFileTrimFunction, onWalPurgeCallback.get()
-				)
+				walFileReference -> {
+					return new CatalogWriteAheadLog(
+						catalogVersion, catalogName, walFileNameProvider,
+						catalogStoragePath, catalogKryoPool,
+						storageOptions, transactionOptions, scheduler,
+						bootstrapFileTrimFunction, onWalPurgeCallback.get()
+					);
+				}
 			)
 			.orElse(null);
 	}
@@ -2593,18 +2597,20 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			}
 			// close all services
 			IOUtils.closeQuietly(
-				this.entityCollectionPersistenceServices.values()
-				                                        .stream()
-				                                        .map(service -> (IOExceptionThrowingRunnable) service::close)
-				                                        .toArray(IOExceptionThrowingRunnable[]::new)
+				this.entityCollectionPersistenceServices
+					.values()
+					.stream()
+					.map(service -> (IOExceptionThrowingRunnable) service::close)
+					.toArray(IOExceptionThrowingRunnable[]::new)
 			);
 			this.entityCollectionPersistenceServices.clear();
 			// close current file offset index
 			IOUtils.closeQuietly(
-				this.catalogStoragePartPersistenceService.values()
-				                                         .stream()
-				                                         .map(service -> (IOExceptionThrowingRunnable) service::close)
-				                                         .toArray(IOExceptionThrowingRunnable[]::new)
+				this.catalogStoragePartPersistenceService
+					.values()
+					.stream()
+					.map(service -> (IOExceptionThrowingRunnable) service::close)
+					.toArray(IOExceptionThrowingRunnable[]::new)
 			);
 			this.catalogPersistenceServiceVersions = ArrayUtils.EMPTY_LONG_ARRAY;
 			this.catalogStoragePartPersistenceService.clear();

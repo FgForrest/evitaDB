@@ -46,12 +46,15 @@ import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -82,7 +85,7 @@ import java.util.function.UnaryOperator;
  */
 @Slf4j
 @ThreadSafe
-public class CacheAnteroom {
+public class CacheAnteroom implements Closeable {
 	/**
 	 * Contains limit of maximal entries held in CacheAnteroom. When this limit is exceeded the anteroom needs to be
 	 * re-evaluated and the adepts either cleared or moved to {@link CacheEden}. In other words it's the size of the
@@ -379,6 +382,13 @@ public class CacheAnteroom {
 		} else {
 			return cachedResult;
 		}
+	}
+
+	@Override
+	public void close() throws IOException {
+		IOUtils.closeQuietly(
+			this.edenGateKeeper::close
+		);
 	}
 
 	/**

@@ -34,6 +34,7 @@ import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
 import io.evitadb.core.metric.event.cdc.ChangeSystemCaptureStatisticsEvent;
+import io.evitadb.utils.IOUtils;
 import jdk.jfr.FlightRecorder;
 import lombok.extern.slf4j.Slf4j;
 
@@ -86,7 +87,6 @@ public class SystemChangeObserver
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
-	@SuppressWarnings({"FieldCanBeLocal", "unused"})
 	private final DelayedAsyncTask cleaner;
 	/**
 	 * Whether this observer is still active and can fire new events.
@@ -160,7 +160,10 @@ public class SystemChangeObserver
 	@Override
 	public void close() {
 		if (this.active.compareAndSet(false, true)) {
-			this.sharedPublisher.close();
+			IOUtils.closeQuietly(
+				this.sharedPublisher::close,
+				this.cleaner::close
+			);
 		}
 	}
 

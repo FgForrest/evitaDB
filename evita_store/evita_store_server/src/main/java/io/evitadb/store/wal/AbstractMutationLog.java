@@ -58,6 +58,7 @@ import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.IOUtils.IOExceptionThrowingRunnable;
 import lombok.extern.slf4j.Slf4j;
 
@@ -1168,8 +1169,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 	@Override
 	public void close() throws IOException {
-		this.currentWalFile.get().close();
-		this.transactionMutationOutputStream.close();
+		IOUtils.closeQuietly(
+			() -> this.currentWalFile.get().close(),
+			this.transactionMutationOutputStream::close,
+			this.cutWalCacheTask::close,
+			this.removeWalFileTask::close
+		);
 		removeWalFiles();
 	}
 

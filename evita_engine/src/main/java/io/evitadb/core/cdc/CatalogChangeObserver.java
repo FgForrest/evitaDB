@@ -38,6 +38,7 @@ import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerAreaEve
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityTypeEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -93,7 +94,6 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	/**
 	 * Cleaning task that removes inactive publishers from the list of unique publishers once a while.
 	 */
-	@SuppressWarnings({"FieldCanBeLocal", "unused"})
 	private final DelayedAsyncTask cleaner;
 	/**
 	 * Counter for the total number of events sent to subscribers. This is used for monitoring and performance analysis.
@@ -208,11 +208,14 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		if (this.active.compareAndSet(false, true)) {
-			this.uniquePublishers.values().forEach(ChangeCatalogCaptureSharedPublisher::close);
+			this.uniquePublishers
+				.values()
+				.forEach(it -> IOUtils.closeQuietly(it::close));
 			this.uniquePublishers.clear();
 			this.currentCatalog.set(null);
+			IOUtils.closeQuietly(this.cleaner::close);
 		}
 	}
 

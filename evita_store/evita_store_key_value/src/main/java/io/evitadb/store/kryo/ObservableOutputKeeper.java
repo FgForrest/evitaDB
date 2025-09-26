@@ -31,6 +31,7 @@ import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -179,41 +180,61 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	@Override
 	public void close() {
 		final long start = System.currentTimeMillis();
-		final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
-		do {
-			while (iterator.hasNext()) {
-				final OpenedOutputToFile outputToFile = iterator.next();
-				if (!outputToFile.isLeased()) {
-					outputToFile.close();
-					iterator.remove();
+		try {
+			IOUtils.closeQuietly(this.cutTask::close);
+			int attempts = 0;
+			do {
+				final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
+				while (iterator.hasNext()) {
+					final OpenedOutputToFile outputToFile = iterator.next();
+					if (!outputToFile.isLeased()) {
+						outputToFile.close();
+						iterator.remove();
+					}
 				}
-			}
-			Thread.onSpinWait();
-		} while (
-			!this.cachedOutputToFiles.isEmpty() &&
-				System.currentTimeMillis() - start < this.options.waitOnCloseSeconds() * 1000L
-		);
-
-		// emit event
-		if (this.catalogName == null) {
-			new ObservableOutputChangeEvent(
-				this.cachedOutputToFiles.size(),
-				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
-			).commit();
-		} else {
-			new ObservableOutputChangeEvent(
-				this.catalogName,
-				this.cachedOutputToFiles.size(),
-				(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
-			).commit();
-		}
-
-		if (!this.cachedOutputToFiles.isEmpty()) {
-			log.error(
-				"Failed to close all cached outputs in {} seconds, {} outputs left",
-				this.options.waitOnCloseSeconds(),
-				this.cachedOutputToFiles.size()
+				attempts++;
+				Thread.onSpinWait();
+				if (attempts % 10 == 0) {
+					log.warn(
+						"Waiting for {} cached outputs to be released before closing (waited {} seconds so far)",
+						this.cachedOutputToFiles.size(),
+						(System.currentTimeMillis() - start) / 1000
+					);
+				}
+			} while (
+				!this.cachedOutputToFiles.isEmpty() &&
+					System.currentTimeMillis() - start < this.options.waitOnCloseSeconds() * 1000L
 			);
+
+			// emit event
+			if (this.catalogName == null) {
+				new ObservableOutputChangeEvent(
+					this.cachedOutputToFiles.size(),
+					(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+				).commit();
+			} else {
+				new ObservableOutputChangeEvent(
+					this.catalogName,
+					this.cachedOutputToFiles.size(),
+					(long) this.cachedOutputToFiles.size() * this.options.outputBufferSize()
+				).commit();
+			}
+		} catch (RuntimeException ex) {
+			log.error("Failed to close all cached outputs in {} seconds, {} outputs left",
+				this.options.waitOnCloseSeconds(),
+				this.cachedOutputToFiles.size(),
+				ex
+			);
+			throw ex;
+		} finally {
+			if (!this.cachedOutputToFiles.isEmpty()) {
+				log.error(
+					"Failed to close all cached outputs in {} seconds, {} outputs left",
+					this.options.waitOnCloseSeconds(),
+					this.cachedOutputToFiles.size()
+				);
+				this.cachedOutputToFiles.clear();
+			}
 		}
 	}
 

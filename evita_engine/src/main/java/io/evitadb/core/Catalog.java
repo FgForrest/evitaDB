@@ -130,6 +130,7 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
 import lombok.AccessLevel;
@@ -2070,6 +2071,9 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 	private void terminateInternally() {
 		final String catalogName = getName();
 		try {
+			// close transaction manager
+			IOUtils.closeQuietly(this.transactionManager::close);
+			// flush all entity collections and store their headers
 			final List<EntityCollectionHeader> entityHeaders;
 			boolean changeOccurred = this.lastPersistedSchemaVersion != getInternalSchema().version();
 			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
