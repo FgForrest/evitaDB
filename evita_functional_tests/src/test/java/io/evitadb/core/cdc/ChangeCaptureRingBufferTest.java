@@ -877,7 +877,8 @@ class ChangeCaptureRingBufferTest {
                     // If this is not the first capture, verify it's exactly one more than the previous
                     assertEquals(
                         previousIndex + 1, capture.index(),
-                        "Index should increase by exactly 1, but found jump from " + previousIndex + " to " + capture.index()
+                        "Index should increase by exactly 1, but found jump from " + previousIndex +
+                            " to " + capture.index()
                     );
                 }
                 previousIndex = capture.index();
