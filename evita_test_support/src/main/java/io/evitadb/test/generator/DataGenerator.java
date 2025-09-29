@@ -555,7 +555,7 @@ public class DataGenerator {
 			final Map<ComparableReferenceKey, RepresentativeReferenceKey> representativeKeyIndex = new LazyHashMap<>(16);
 			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
 			if (referenceAllowsDuplicates) {
-				for (ReferenceContract reference : detachedBuilder.getReferences()) {
+				for (ReferenceContract reference : detachedBuilder.getReferences(referenceSchema.getName())) {
 					final ReferenceKey referenceKey = reference.getReferenceKey();
 					final RepresentativeReferenceKey newRRK = new RepresentativeReferenceKey(
 						referenceKey,
@@ -743,15 +743,13 @@ public class DataGenerator {
 					"Attribute " + attributeName + " cannot be sortable and representative at the same time! " +
 						"It has limited cardinality and there would be duplicates that might lead to non-repeatable test results!"
 				);
-				int counter = 0;
 				final Object finalValueCopy = value;
-				do {
-					value = managedAttributesChecker.getAttributeWithLimitedCardinality(
-						attributeName, cardinalityLimit, () -> finalValueCopy, fakerToUse
-					);
-				} while (acceptOnlyIf != null && !acceptOnlyIf.test(attributeName, value) && counter++ < 100);
-				if (counter >= 100) {
-					throw new GenericEvitaInternalError("Cannot generate " + attributeName + " that would satisfy the condition even in 100 iterations!");
+				value = managedAttributesChecker.getAttributeWithLimitedCardinality(
+					attributeName, cardinalityLimit, () -> finalValueCopy, fakerToUse
+				);
+				if (acceptOnlyIf != null && !acceptOnlyIf.test(attributeName, value)) {
+					// we need to regenerate the value
+					value = null;
 				}
 			} else if (valueGenerator == null && attribute.isSortable() && !(value instanceof Currency || value instanceof Locale)) {
 				value = managedAttributesChecker.getUniqueAttribute(attributeName, value);

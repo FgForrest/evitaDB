@@ -130,13 +130,15 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 			this.memoizedReferenceIndex = -1;
 			for (int i = 0; i < references.length; i++) {
 				final ReferenceContract reference = references[i];
-				final RepresentativeReferenceKey theReferenceKey = this.referenceSchema.getCardinality().allowsDuplicates() ?
-					new RepresentativeReferenceKey(
-						reference.getReferenceKey(),
-						this.referenceSchema.getRepresentativeAttributeDefinition().getRepresentativeValues(reference)
-					)
-					:
-					new RepresentativeReferenceKey(reference.getReferenceKey());
+				final RepresentativeReferenceKey theReferenceKey =
+					this.referenceSchema.getName().equals(reference.getReferenceName()) &&
+						this.referenceSchema.getCardinality().allowsDuplicates() ?
+						new RepresentativeReferenceKey(
+							reference.getReferenceKey(),
+							this.referenceSchema.getRepresentativeAttributeDefinition()
+							                    .getRepresentativeValues(reference)
+						) :
+						new RepresentativeReferenceKey(reference.getReferenceKey());
 				if (Objects.equals(theReferenceKey, this.referenceKey)) {
 					this.memoizedReference = Optional.of(reference);
 					this.memoizedReferenceIndex = i;
