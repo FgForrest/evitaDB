@@ -828,7 +828,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					attributeErrors,
 					Stream.of(
 						"Reference schema `" + this.name + "` allows duplicates but has no representative attribute defined! " +
-							"This would effectively prevent multiple references to the same entity is the duplicates need to be uniquely identified by their representative attributes."
+							"This would effectively prevent multiple references to the same entity if the duplicates need to be uniquely identified by their representative attributes."
 					)
 				);
 			}
