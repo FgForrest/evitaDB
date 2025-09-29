@@ -58,6 +58,8 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
+	public static final String ATTRIBUTE_PRODUCT_LABEL = "label";
+	public static final String ATTRIBUTE_RELATION_TYPE = "relationType";
 	public static final String ATTRIBUTE_MARKETS = "markets";
 	public static final String ATTRIBUTE_ENUM = "enum";
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
@@ -208,7 +210,23 @@ public class AbstractHundredProductsFunctionalTest {
 										.faceted()
 										.withGroupTypeRelatedToEntity(Entities.STORE)
 								)
-								.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ZERO_OR_MORE)
+								.withReferenceToEntity(
+									Entities.PRODUCT,
+									Entities.PRODUCT,
+									Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+									whichIs -> whichIs
+										.indexedForFiltering()
+										.withAttribute(
+											ATTRIBUTE_RELATION_TYPE,
+											String.class,
+											thatIs -> thatIs.filterable()
+											                .representative()
+										).withAttribute(
+											ATTRIBUTE_PRODUCT_LABEL,
+											String.class,
+											thatIs -> thatIs.localized()
+										)
+								)
 								.updateVia(session);
 							return builder.toInstance();
 						}
