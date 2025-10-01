@@ -1088,6 +1088,10 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				if (existingValue == null) {
 					this.referenceCollection.add(referenceWithAssignedInternalId);
 					return referenceWithAssignedInternalId;
+				} else if (existingValue == References.DUPLICATE_REFERENCE) {
+					replaceOrAddReference(referenceWithAssignedInternalId, this.referenceCollection);
+					// marking as duplicate
+					return References.DUPLICATE_REFERENCE;
 				} else {
 					final int existingPk = existingValue.getReferenceKey().internalPrimaryKey();
 					final int newPk = referenceWithAssignedInternalId.getReferenceKey().internalPrimaryKey();
@@ -1123,10 +1127,30 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		Assert.isPremiseValid(
 			theReferenceCollection.removeIf(
 				examinedRef -> examinedRef.getReferenceKey().equals(reference.getReferenceKey()) &&
-					examinedRef.getReferenceKey().internalPrimaryKey() == reference.getReferenceKey()
-					                                                               .internalPrimaryKey()
+					examinedRef.getReferenceKey().internalPrimaryKey() == reference.getReferenceKey().internalPrimaryKey()
 			),
 			"The reference to replace must exist in the collection!"
+		);
+		theReferenceCollection.add(reference);
+	}
+
+	/**
+	 * Replaces an existing reference in the provided collection with the given reference or adds it if not present.
+	 * The method removes the reference identified by its internal ID and adds the given reference to the collection.
+	 *
+	 * @param reference              the reference object with an assigned internal ID
+	 *                               that will replace an existing reference in the collection
+	 * @param theReferenceCollection the collection of references in which the replacement
+	 *                               occurs
+	 */
+	@SuppressWarnings("MethodMayBeStatic")
+	private void replaceOrAddReference(
+		@Nonnull ReferenceContract reference,
+		@Nonnull List<ReferenceContract> theReferenceCollection
+	) {
+		theReferenceCollection.removeIf(
+			examinedRef -> examinedRef.getReferenceKey().equals(reference.getReferenceKey()) &&
+				examinedRef.getReferenceKey().internalPrimaryKey() == reference.getReferenceKey().internalPrimaryKey()
 		);
 		theReferenceCollection.add(reference);
 	}
