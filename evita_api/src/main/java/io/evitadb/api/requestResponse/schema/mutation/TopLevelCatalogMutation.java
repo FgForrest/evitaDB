@@ -33,6 +33,9 @@ import javax.annotation.Nonnull;
  * This interface marks all mutations that needs to be executed on the entire evitaDB level and not locally to
  * a single catalog instance.
  *
+ * This is technical interface - it mainly serves as a marker for the engine mutations that are targeted at specific
+ * catalog and provides the catalog name via {@link #getCatalogName()} method.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public interface TopLevelCatalogMutation<T> extends EngineMutation<T> {
