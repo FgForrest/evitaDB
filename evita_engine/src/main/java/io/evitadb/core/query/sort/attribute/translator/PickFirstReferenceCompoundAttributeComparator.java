@@ -30,8 +30,8 @@ import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
 
 import javax.annotation.Nonnull;
@@ -65,7 +65,7 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 
 	public PickFirstReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection,

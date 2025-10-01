@@ -30,6 +30,7 @@ import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -39,11 +40,13 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
+import io.evitadb.api.requestResponse.data.structure.InternalEntityBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
@@ -72,7 +75,7 @@ public class SealedEntityProxyState
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
 	 * from internally wrapped entity {@link #entity()}.
 	 */
-	@Nullable protected EntityBuilder entityBuilder;
+	@Nullable protected InternalEntityBuilder entityBuilder;
 	/**
 	 * Optional information about the last {@link EntityReference} returned from {@link EvitaSessionContract#upsertEntity(EntityMutation)},
 	 * it may contain newly assigned {@link EntityContract#getPrimaryKey()} that is not available in the wrapped entity.
@@ -116,9 +119,10 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback() {
-		propagateReferenceMutations();
-		return Optional.ofNullable(this.entityBuilder)
+	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback(@Nonnull Propagation propagation) {
+		propagateReferenceMutations(propagation);
+		return Optional
+			.ofNullable(this.entityBuilder)
 			.map(
 				it -> new EntityBuilderWithCallback(
 					it,
@@ -134,18 +138,14 @@ public class SealedEntityProxyState
 							.entrySet()
 							.stream()
 							.filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
-							.flatMap(goEntry -> goEntry.getValue().proxies().stream())
-							.forEach(refProxy -> ((SealedEntityReferenceProxyState)((ProxyStateAccessor)refProxy).getProxyState())
-								.notifyBuilderUpserted()
+							.flatMap(goEntry -> goEntry.getValue().proxies(propagation).stream())
+							.forEach(
+								refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
+									.notifyBuilderUpserted()
 							);
 					}
 				)
 			);
-	}
-
-	@Nonnull
-	public Optional<EntityBuilder> entityBuilderIfPresent() {
-		return ofNullable(this.entityBuilder);
 	}
 
 	@Nonnull
@@ -164,19 +164,24 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
-	public EntityBuilder entityBuilder() {
+	public InternalEntityBuilder entityBuilder() {
 		if (this.entityBuilder == null) {
 			if (this.entity instanceof EntityDecorator entityDecorator) {
 				this.entityBuilder = new ExistingEntityBuilder(entityDecorator);
 			} else if (this.entity instanceof Entity theEntity) {
 				this.entityBuilder = new ExistingEntityBuilder(theEntity);
-			} else if (this.entity instanceof EntityBuilder theBuilder) {
+			} else if (this.entity instanceof InternalEntityBuilder theBuilder) {
 				this.entityBuilder = theBuilder;
 			} else {
 				throw new GenericEvitaInternalError("Unexpected entity type: " + this.entity.getClass().getName());
 			}
 		}
 		return this.entityBuilder;
+	}
+
+	@Nonnull
+	public Optional<EntityBuilder> entityBuilderIfPresent() {
+		return ofNullable(this.entityBuilder);
 	}
 
 	@Nonnull
@@ -188,72 +193,122 @@ public class SealedEntityProxyState
 		int primaryKey
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final Optional<EntityBuilder> entityBuilderRef = entityBuilderIfPresent();
-			final EntityContract entity = entityBuilderRef
+			final InternalEntityBuilder theEntityBuilder = entityBuilder();
+			final Map<String, AttributeSchemaContract> attributeTypesForReference = getAttributeTypesForReference(
+				referenceSchema.getName()
+			);
+			final EntityContract theEntity = entityBuilderIfPresent()
 				.map(EntityContract.class::cast)
-				.orElseGet(this::entity);
-			return entity.getReference(referenceSchema.getName(), primaryKey)
+				.orElse(this.entity);
+			return theEntity
+				.getReference(referenceSchema.getName(), primaryKey)
 				.filter(
-					ref -> entityBuilderRef
-						.filter(ExistingEntityBuilder.class::isInstance)
-						.map(ExistingEntityBuilder.class::cast)
-						.map(eb -> eb.isPresentInBaseEntity(ref))
-						.orElse(true)
+					ref -> !(theEntityBuilder instanceof ExistingEntityBuilder eeb) ||
+						eeb.isPresentInBaseEntity(ref)
 				)
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
-							this.entity, this::getPrimaryKey,
+							this.getProxyClass(), expectedType,
+							this.recipes,
+							this.collectedRecipes,
+							this.entity,
+							this::getPrimaryKey,
 							this.referencedEntitySchemas,
-							new ExistingReferenceBuilder(existingReference, getEntitySchema()),
+							new ExistingReferenceBuilder(
+								existingReference,
+								entitySchema,
+								attributeTypesForReference
+							),
+							attributeTypesForReference,
 							getReflectionLookup(),
 							this.generatedProxyObjects
 						)
 					)
 				)
-				.orElseGet(() -> new ProxyWithUpsertCallback(
+				.orElseGet(
+					() -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
-							this.entity, this::getPrimaryKey,
+							this.getProxyClass(), expectedType,
+							this.recipes,
+							this.collectedRecipes,
+							this.entity,
+							this::getPrimaryKey,
 							getReferencedEntitySchemas(),
 							new InitialReferenceBuilder(
 								entitySchema,
+								referenceSchema,
 								referenceSchema.getName(),
 								primaryKey,
-								referenceSchema.getCardinality(),
-								referenceSchema.getReferencedEntityType()
+								theEntityBuilder.getNextReferenceInternalId(),
+								attributeTypesForReference
 							),
+							attributeTypesForReference,
 							getReflectionLookup(),
 							this.generatedProxyObjects
 						)
 					)
 				);
 		};
-		return this.generatedProxyObjects.computeIfAbsent(
+		return this.generatedProxyObjects
+			.computeIfAbsent(
 				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
 				key -> instanceSupplier.get()
-			)
-			.proxy(expectedType, instanceSupplier);
+			).proxy(expectedType, instanceSupplier);
+	}
+
+	/**
+	 * Retrieves or initializes a map of attribute types for the specified reference schema.
+	 * This method ensures that the attribute types are stored in a local data store
+	 * associated with the given reference schema.
+	 *
+	 * @param referenceName the name of the reference schema
+	 * @return a map where the keys are attribute names and the values are attribute schema contracts for the reference schema
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	public Map<String, AttributeSchemaContract> getAttributeTypesForReference(@Nonnull String referenceName) {
+		return (Map<String, AttributeSchemaContract>)
+			getOrCreateLocalDataStore()
+				.computeIfAbsent(
+					"__referenceAttributes_" + referenceName,
+					k -> CollectionUtils.createHashMap(4)
+				);
+	}
+
+	/**
+	 * Creates new proxy for a reference.
+	 *
+	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
+	 * not known (the referenced entity needs to be persisted first).
+	 *
+	 * @param expectedType            contract that the proxy should implement
+	 * @param reference               reference instance to create proxy for
+	 * @param <T>                     type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 */
+	@Nonnull
+	public <T> T getOrCreateEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull ReferenceContract reference) {
+		return getOrCreateEntityReferenceProxy(expectedType, reference, getAttributeTypesForReference(reference.getReferenceName()));
 	}
 
 	/**
 	 * Method propagates all mutations in reference proxies to the {@link #entityBuilder()}.
 	 */
-	public void propagateReferenceMutations() {
-		this.generatedProxyObjects.entrySet().stream()
+	public void propagateReferenceMutations(@Nonnull Propagation propagation) {
+		final InternalEntityBuilder theEntityBuilder = entityBuilder();
+		this.generatedProxyObjects
+			.entrySet()
+			.stream()
 			.filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
 			.flatMap(
 				it -> it.getValue()
-					.proxy(
-						SealedEntityReferenceProxy.class,
-						() -> {
-							throw new EvitaInvalidUsageException("Unexpected proxy type!");
-						})
-					.getReferenceBuilderIfPresent()
-					.stream()
+				        .getSealedEntityReferenceProxies(propagation)
+				        .map(SealedEntityReferenceProxy::getReferenceBuilderIfPresent)
+				        .filter(Optional::isPresent)
+				        .map(Optional::get)
 			)
-			.forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
+			.forEach(refBuilder -> theEntityBuilder.addOrReplaceReferenceMutations(refBuilder, false));
 	}
 
 	@Override

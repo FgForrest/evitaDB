@@ -30,10 +30,12 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityAttributes;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.api.requestResponse.data.structure.References;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -98,19 +100,26 @@ public class EntityFactory {
 				)
 			);
 		return Entity._internalBuild(
+			entityStorageContainer.getPrimaryKey(),
 			entityStorageContainer.getVersion(),
-			entityStorageContainer.getPrimaryKey(), entitySchema,
+			entitySchema,
 			entityStorageContainer.getParent(),
 			// when references storage container is present use it, otherwise init references by empty collection
-			ofNullable(referencesStorageContainer)
-				.map(ReferencesStoragePart::getReferencesAsCollection)
-				.orElse(Collections.emptyList()),
+			new References(
+				entitySchema,
+				ofNullable(referencesStorageContainer)
+					.map(ReferencesStoragePart::getReferencesAsCollection)
+					.orElse(Collections.emptyList()),
+				entitySchema.getReferences().keySet(),
+				// transformation function used to wrap references into the data chunk
+				referenceChunkTransformer
+			),
 			// always initialize Attributes container
 			new EntityAttributes(
 				entitySchema,
 				// fill all contents of the attributes loaded from storage (may be empty)
 				attributeValues,
-				entitySchema.getAttributes()
+				new LazyHashMap<>(4)
 			),
 			// always initialize Associated data container
 			new AssociatedData(
@@ -129,9 +138,7 @@ public class EntityFactory {
 			// pass entity scope
 			entityStorageContainer.getScope(),
 			// loaded entity is never dropped - otherwise it could not have been read
-			false,
-			// transformation function used to wrap references into the data chunk
-			referenceChunkTransformer
+			false
 		);
 	}
 
@@ -184,19 +191,27 @@ public class EntityFactory {
 
 		return Entity._internalBuild(
 			entity,
-			ofNullable(entityStoragePart)
+			Objects.requireNonNull(entity.getPrimaryKey()), ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getVersion)
 				.orElse(entity.version()),
-			Objects.requireNonNull(entity.getPrimaryKey()),
 			entitySchema,
 			ofNullable(entityStoragePart)
 				.map(EntityBodyStoragePart::getParent)
 				.orElse(null),
 			// when references storage container is present use it
 			// otherwise use original references from previous entity contents
-			ofNullable(referencesStorageContainer)
-				.map(ReferencesStoragePart::getReferencesAsCollection)
-				.orElse(null),
+			referencesStorageContainer == null ?
+				// use original references when no new container is available
+				null :
+				// otherwise combine
+				new References(
+					entitySchema,
+					ofNullable(referencesStorageContainer)
+						.map(ReferencesStoragePart::getReferencesAsCollection)
+						.orElseGet(Collections::emptyList),
+					entity.getSchema().getReferences().keySet(),
+					entity.getReferenceChunkTransformer()
+				),
 			// when no additional attribute containers were loaded
 			attributesStorageContainers.isEmpty() ?
 				// use original attributes from the entity contents
@@ -205,7 +220,7 @@ public class EntityFactory {
 				new EntityAttributes(
 					entitySchema,
 					attributeValues,
-					entitySchema.getAttributes()
+					new LazyHashMap<>(4)
 				),
 			// when no additional associated data containers were loaded
 			associatedDataStorageContainers.isEmpty() ?
@@ -230,8 +245,7 @@ public class EntityFactory {
 				.map(EntityBodyStoragePart::getScope)
 				.orElseGet(entity::getScope),
 			// loaded entity is never dropped - otherwise it could not have been read
-			false,
-			entity.getReferenceChunkTransformer()
+			false
 		);
 	}
 

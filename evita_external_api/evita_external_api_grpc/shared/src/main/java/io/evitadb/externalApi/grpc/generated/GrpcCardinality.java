@@ -77,6 +77,24 @@ public enum GrpcCardinality
    * <code>ONE_OR_MORE = 4;</code>
    */
   ONE_OR_MORE(4),
+  /**
+   * <pre>
+   * There is always at least one relation of this type, but there may be also more than one.
+   * When there is more than one, they may refer the same target entity (and are distinguished by reference attributes)
+   * </pre>
+   *
+   * <code>ZERO_OR_MORE_WITH_DUPLICATES = 5;</code>
+   */
+  ZERO_OR_MORE_WITH_DUPLICATES(5),
+  /**
+   * <pre>
+   * There is always at least one relation of this type, but there may be also more than one.
+   * When there is more than one, they may refer the same target entity (and are distinguished by reference attributes)
+   * </pre>
+   *
+   * <code>ONE_OR_MORE_WITH_DUPLICATES = 6;</code>
+   */
+  ONE_OR_MORE_WITH_DUPLICATES(6),
   UNRECOGNIZED(-1),
   ;
 
@@ -120,6 +138,24 @@ public enum GrpcCardinality
    * <code>ONE_OR_MORE = 4;</code>
    */
   public static final int ONE_OR_MORE_VALUE = 4;
+  /**
+   * <pre>
+   * There is always at least one relation of this type, but there may be also more than one.
+   * When there is more than one, they may refer the same target entity (and are distinguished by reference attributes)
+   * </pre>
+   *
+   * <code>ZERO_OR_MORE_WITH_DUPLICATES = 5;</code>
+   */
+  public static final int ZERO_OR_MORE_WITH_DUPLICATES_VALUE = 5;
+  /**
+   * <pre>
+   * There is always at least one relation of this type, but there may be also more than one.
+   * When there is more than one, they may refer the same target entity (and are distinguished by reference attributes)
+   * </pre>
+   *
+   * <code>ONE_OR_MORE_WITH_DUPLICATES = 6;</code>
+   */
+  public static final int ONE_OR_MORE_WITH_DUPLICATES_VALUE = 6;
 
 
   public final int getNumber() {
@@ -151,6 +187,8 @@ public enum GrpcCardinality
       case 2: return EXACTLY_ONE;
       case 3: return ZERO_OR_MORE;
       case 4: return ONE_OR_MORE;
+      case 5: return ZERO_OR_MORE_WITH_DUPLICATES;
+      case 6: return ONE_OR_MORE_WITH_DUPLICATES;
       default: return null;
     }
   }

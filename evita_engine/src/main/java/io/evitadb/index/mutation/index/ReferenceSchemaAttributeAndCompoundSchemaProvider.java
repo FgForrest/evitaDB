@@ -28,12 +28,10 @@ import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -45,10 +43,6 @@ import java.util.stream.Stream;
  * to the parent {@link EntitySchemaContract} for context information. This provider gives access to:
  * - Reference attribute schemas for validation and indexing purposes
  * - Sortable attribute compound schemas that involve reference attributes
- *
- * Unlike the entity-level provider, this implementation operates in a reference context, but currently
- * the {@link #getReferenceSchema()} method returns {@code null} (this may be a placeholder for future
- * functionality or indicate that the reference schema is accessed through other means).
  *
  * This class is typically instantiated and used by {@link ReferenceIndexMutator} and related
  * components when processing reference attribute mutations. It requires both entity and reference
@@ -71,23 +65,6 @@ public final class ReferenceSchemaAttributeAndCompoundSchemaProvider implements 
 	private final ReferenceSchemaContract referenceSchema;
 
 	/**
-	 * {@inheritDoc}
-	 *
-	 * This implementation currently returns {@code null} despite operating in a reference context.
-	 * This may be a placeholder for future functionality or indicate that the reference schema
-	 * information is accessed through other means in the current implementation.
-	 *
-	 * @return currently always {@code null}, even for reference-level providers
-	 */
-	@Nullable
-	@Override
-	public ReferenceSchema getReferenceSchema() {
-		return null;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
 	 * This implementation retrieves the attribute schema from the reference schema using
 	 * {@link ReferenceSchemaContract#getAttribute(String)}. If the attribute is not found,
 	 * an {@link AttributeNotFoundException} is thrown with context information about both
@@ -100,26 +77,30 @@ public final class ReferenceSchemaAttributeAndCompoundSchemaProvider implements 
 	@Nonnull
 	@Override
 	public AttributeSchema getAttributeSchema(@Nonnull String attributeName) {
-		return this.referenceSchema.getAttribute(attributeName)
+		return this.referenceSchema
+			.getAttribute(attributeName)
 			.map(AttributeSchema.class::cast)
-			.orElseThrow(() -> new AttributeNotFoundException(attributeName, this.referenceSchema, this.entitySchema));
+			.orElseThrow(
+				() -> new AttributeNotFoundException(
+					attributeName, this.referenceSchema,
+					this.entitySchema
+				));
 	}
 
 	/**
-	 * {@inheritDoc}
-	 *
 	 * This implementation retrieves sortable attribute compound schemas from the reference schema using
 	 * {@link ReferenceSchemaContract#getSortableAttributeCompoundsForAttribute(String)}. The method returns
 	 * all compound schemas that include the specified reference attribute as one of their constituent attributes.
 	 *
 	 * @param attributeName the name of the reference attribute to find compound schemas for
 	 * @return a stream of sortable attribute compound schemas from the reference schema that include
-	 *         the specified attribute, may be empty if no compounds exist
+	 * the specified attribute, may be empty if no compounds exist
 	 */
 	@Nonnull
 	@Override
 	public Stream<SortableAttributeCompoundSchema> getCompoundAttributeSchemas(@Nonnull String attributeName) {
-		return this.referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName)
+		return this.referenceSchema
+			.getSortableAttributeCompoundsForAttribute(attributeName)
 			.stream()
 			.map(SortableAttributeCompoundSchema.class::cast);
 	}

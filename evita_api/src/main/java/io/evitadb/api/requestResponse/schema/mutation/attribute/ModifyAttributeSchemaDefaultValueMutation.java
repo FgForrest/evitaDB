@@ -158,6 +158,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
+				attributeSchema.isRepresentative(),
 				(Class) attributeSchema.getType(),
 				theDefaultValue,
 				attributeSchema.getIndexedDecimalPlaces()
@@ -247,6 +248,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				existingAttributeSchema.getSortableInScopes(),
 				existingAttributeSchema.isLocalized(),
 				existingAttributeSchema.isNullable(),
+				existingAttributeSchema.isRepresentative(),
 				(Class) existingAttributeSchema.getType(),
 				theDefaultValue,
 				existingAttributeSchema.getIndexedDecimalPlaces()

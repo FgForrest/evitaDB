@@ -102,11 +102,7 @@ import io.evitadb.store.wal.data.parent.SetParentMutationSerializer;
 import io.evitadb.store.wal.data.price.RemovePriceMutationSerializer;
 import io.evitadb.store.wal.data.price.SetPriceInnerRecordHandlingMutationSerializer;
 import io.evitadb.store.wal.data.price.UpsertPriceMutationSerializer;
-import io.evitadb.store.wal.data.reference.InsertReferenceMutationSerializer;
-import io.evitadb.store.wal.data.reference.ReferenceAttributeMutationSerializer;
-import io.evitadb.store.wal.data.reference.RemoveReferenceGroupMutationSerializer;
-import io.evitadb.store.wal.data.reference.RemoveReferenceMutationSerializer;
-import io.evitadb.store.wal.data.reference.SetReferenceGroupMutationSerializer;
+import io.evitadb.store.wal.data.reference.*;
 import io.evitadb.store.wal.data.scope.SetEntityScopeMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.CreateAssociatedDataSchemaMutationSerializer;
 import io.evitadb.store.wal.schema.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationSerializer;
@@ -296,11 +292,36 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(RemovePriceMutation.class, new SerialVersionBasedSerializer<>(new RemovePriceMutationSerializer(), RemovePriceMutation.class), index++);
 		kryo.register(SetPriceInnerRecordHandlingMutation.class, new SerialVersionBasedSerializer<>(new SetPriceInnerRecordHandlingMutationSerializer(), SetPriceInnerRecordHandlingMutation.class), index++);
 		kryo.register(UpsertPriceMutation.class, new SerialVersionBasedSerializer<>(new UpsertPriceMutationSerializer(), UpsertPriceMutation.class), index++);
-		kryo.register(InsertReferenceMutation.class, new SerialVersionBasedSerializer<>(new InsertReferenceMutationSerializer(), InsertReferenceMutation.class), index++);
-		kryo.register(ReferenceAttributeMutation.class, new SerialVersionBasedSerializer<>(new ReferenceAttributeMutationSerializer(), ReferenceAttributeMutation.class), index++);
-		kryo.register(RemoveReferenceGroupMutation.class, new SerialVersionBasedSerializer<>(new RemoveReferenceGroupMutationSerializer(), RemoveReferenceGroupMutation.class), index++);
-		kryo.register(RemoveReferenceMutation.class, new SerialVersionBasedSerializer<>(new RemoveReferenceMutationSerializer(), RemoveReferenceMutation.class), index++);
-		kryo.register(SetReferenceGroupMutation.class, new SerialVersionBasedSerializer<>(new SetReferenceGroupMutationSerializer(), SetReferenceGroupMutation.class), index++);
+		kryo.register(
+			InsertReferenceMutation.class,
+			new SerialVersionBasedSerializer<>(new InsertReferenceMutationSerializer(), InsertReferenceMutation.class)
+				.addBackwardCompatibleSerializer(6295749367283283232L, new InsertReferenceMutationSerializer_2025_6()),
+			index++
+		);
+		kryo.register(
+			ReferenceAttributeMutation.class,
+			new SerialVersionBasedSerializer<>(new ReferenceAttributeMutationSerializer(), ReferenceAttributeMutation.class)
+				.addBackwardCompatibleSerializer(-1403540167469945561L, new ReferenceAttributeMutationSerializer_2025_6()),
+			index++
+		);
+		kryo.register(
+			RemoveReferenceGroupMutation.class,
+			new SerialVersionBasedSerializer<>(new RemoveReferenceGroupMutationSerializer(), RemoveReferenceGroupMutation.class)
+				.addBackwardCompatibleSerializer(-564814790916765844L, new RemoveReferenceGroupMutationSerializer_2025_6()),
+			index++
+		);
+		kryo.register(
+			RemoveReferenceMutation.class,
+			new SerialVersionBasedSerializer<>(new RemoveReferenceMutationSerializer(), RemoveReferenceMutation.class)
+				.addBackwardCompatibleSerializer(5452632579216311397L, new RemoveReferenceMutationSerializer_2025_6()),
+			index++
+		);
+		kryo.register(
+			SetReferenceGroupMutation.class,
+			new SerialVersionBasedSerializer<>(new SetReferenceGroupMutationSerializer(), SetReferenceGroupMutation.class)
+				.addBackwardCompatibleSerializer(-8894714389485857588L, new SetReferenceGroupMutationSerializer_2025_6()),
+			index++
+		);
 		kryo.register(EntityRemoveMutation.class, new SerialVersionBasedSerializer<>(new EntityRemoveMutationSerializer(), EntityRemoveMutation.class), index++);
 		kryo.register(EntityUpsertMutation.class, new SerialVersionBasedSerializer<>(new EntityUpsertMutationSerializer(), EntityUpsertMutation.class), index++);
 

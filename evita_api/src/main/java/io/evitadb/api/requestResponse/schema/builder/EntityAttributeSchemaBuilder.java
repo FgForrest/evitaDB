@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
 import io.evitadb.dataType.Scope;
 import lombok.experimental.Delegate;
 
@@ -44,7 +43,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 /**
  * Internal {@link AttributeSchemaBuilder} builder used
@@ -96,36 +94,6 @@ public final class EntityAttributeSchemaBuilder
 	@Override
 	protected Class<EntityAttributeSchemaContract> getAttributeSchemaType() {
 		return EntityAttributeSchemaContract.class;
-	}
-
-	@Override
-	@Nonnull
-	public EntityAttributeSchemaBuilder representative() {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaRepresentativeMutation(
-					this.baseSchema.getName(),
-					true
-				)
-			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public EntityAttributeSchemaBuilder representative(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = updateMutationImpact(
-			this.updatedSchemaDirty,
-			addMutations(
-				new SetAttributeSchemaRepresentativeMutation(
-					this.baseSchema.getName(),
-					decider.getAsBoolean()
-				)
-			)
-		);
-		return this;
 	}
 
 	@Override

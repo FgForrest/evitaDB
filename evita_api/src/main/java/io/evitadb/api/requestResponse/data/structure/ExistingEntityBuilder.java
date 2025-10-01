@@ -24,11 +24,9 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
-import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.*;
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -36,22 +34,14 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
-import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate.ExistsPredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
@@ -61,13 +51,13 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.DataChunk;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -77,10 +67,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -93,7 +81,10 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class ExistingEntityBuilder implements EntityBuilder {
+public class ExistingEntityBuilder implements InternalEntityBuilder {
+	/**
+	 * Explicit serialization id to keep binary compatibility of the builder across versions.
+	 */
 	@Serial private static final long serialVersionUID = -1422927537304173188L;
 
 	/**
@@ -120,56 +111,73 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	 * This predicate filters out prices that were not fetched in query.
 	 */
 	@Getter private final PriceContractSerializablePredicate pricePredicate;
-
+	/**
+	 * Immutable snapshot of the original entity the builder mutates upon.
+	 */
 	private final Entity baseEntity;
+	/**
+	 * Optional decorator providing access predicates and decorated access to the base entity.
+	 * When present, it is consulted for context-aware reads.
+	 */
 	private final EntityDecorator baseEntityDecorator;
+	/**
+	 * Builder accumulating attribute-related mutations on top of base entity state.
+	 */
 	@Delegate(types = AttributesContract.class, excludes = AttributesAvailabilityChecker.class)
 	private final ExistingEntityAttributesBuilder attributesBuilder;
+	/**
+	 * Builder accumulating associated-data mutations on top of base entity state.
+	 */
 	@Delegate(types = AssociatedDataContract.class, excludes = AssociatedDataAvailabilityChecker.class)
 	private final ExistingAssociatedDataBuilder associatedDataBuilder;
+	/**
+	 * Builder accumulating price mutations on top of base entity state.
+	 */
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	private final ExistingPricesBuilder pricesBuilder;
-	private final Map<ReferenceKey, List<ReferenceMutation<?>>> referenceMutations;
-	private final Set<ReferenceKey> removedReferences = new HashSet<>();
+	/**
+	 * Builder accumulating reference mutations on top of base entity state.
+	 */
+	@Delegate(types = ReferencesContract.class, excludes = ReferenceAvailabilityChecker.class)
+	private final ExistingReferencesBuilder referencesBuilder;
+	/**
+	 * Pending scope mutation, if any, applied when materializing the builder to a mutation.
+	 */
 	@Nullable private SetEntityScopeMutation scopeMutation;
+	/**
+	 * Pending hierarchy parent mutation, if any, applied when materializing the builder to a mutation.
+	 */
 	@Nullable private ParentMutation hierarchyMutation;
 
-	private static void assertPricesFetched(PriceContractSerializablePredicate pricePredicate) {
-		Assert.isTrue(
-			pricePredicate.getPriceContentMode() == PriceContentMode.ALL,
-			"Prices were not fetched and cannot be updated. Please enrich the entity first or load it with all the prices."
-		);
-	}
-
-	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
-		this.baseEntity = baseEntity.getDelegate();
-		this.baseEntityDecorator = baseEntity;
-		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
-		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
-		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
-		this.referenceMutations = new HashMap<>();
-		this.localePredicate = baseEntity.getLocalePredicate();
-		this.hierarchyPredicate = baseEntity.getHierarchyPredicate();
-		this.attributePredicate = baseEntity.getAttributePredicate();
-		this.associatedDataPredicate = baseEntity.getAssociatedDataPredicate();
-		this.pricePredicate = baseEntity.getPricePredicate();
-		this.referencePredicate = baseEntity.getReferencePredicate();
-		for (LocalMutation<?, ?> localMutation : localMutations) {
-			addMutation(localMutation);
-		}
-	}
-
-	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity) {
-		this(baseEntity, Collections.emptyList());
-	}
-
-	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
+	/**
+	 * Creates a builder for a plain base entity (no decorator) and optionally enqueues local mutations.
+	 *
+	 * Predicates default to permissive DEFAULT_INSTANCE variants to reflect no fetch filtering context.
+	 *
+	 * @param baseEntity     non-null base entity to build upon
+	 * @param localMutations non-null collection of local mutations to enqueue (may be empty)
+	 */
+	public ExistingEntityBuilder(
+		@Nonnull Entity baseEntity,
+		@Nonnull Collection<LocalMutation<?, ?>> localMutations
+	) {
 		this.baseEntity = baseEntity;
 		this.baseEntityDecorator = null;
-		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
-		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
-		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
-		this.referenceMutations = new HashMap<>();
+		this.attributesBuilder = new ExistingEntityAttributesBuilder(
+			this.baseEntity.schema, this.baseEntity.attributes,
+			ExistsPredicate.instance(), new LazyHashMap<>(4)
+		);
+		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
+			this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance()
+		);
+		this.pricesBuilder = new ExistingPricesBuilder(
+			this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate()
+		);
+		this.referencesBuilder = new ExistingReferencesBuilder(
+			this.baseEntity.schema, this.baseEntity.references,
+			ReferenceContractSerializablePredicate.DEFAULT_INSTANCE,
+			referenceKey -> Optional.empty()
+		);
 		this.localePredicate = LocaleSerializablePredicate.DEFAULT_INSTANCE;
 		this.hierarchyPredicate = HierarchySerializablePredicate.DEFAULT_INSTANCE;
 		this.attributePredicate = AttributeValueSerializablePredicate.DEFAULT_INSTANCE;
@@ -181,13 +189,84 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		}
 	}
 
+	/**
+	 * Creates a builder for an existing entity that may already be decorated and optionally pre-filled
+	 * with local mutations to apply on top of the base entity state.
+	 *
+	 * - Copies predicates from the provided decorator so that access rules match the fetched content.
+	 * - Initializes internal builders for attributes, associated data and prices.
+	 * - Queues provided local mutations via {@link #addMutation(LocalMutation)} in the given order.
+	 *
+	 * @param baseEntity     non-null decorator containing the base entity and fetch predicates
+	 * @param localMutations non-null collection of local mutations to enqueue (may be empty)
+	 */
+	public ExistingEntityBuilder(
+		@Nonnull EntityDecorator baseEntity,
+		@Nonnull Collection<LocalMutation<?, ?>> localMutations
+	) {
+		this.baseEntity = baseEntity.getDelegate();
+		this.baseEntityDecorator = baseEntity;
+		this.attributesBuilder = new ExistingEntityAttributesBuilder(
+			this.baseEntity.schema, this.baseEntity.attributes,
+			baseEntity.getAttributePredicate(), new LazyHashMap<>(4)
+		);
+		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(
+			this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate()
+		);
+		this.pricesBuilder = new ExistingPricesBuilder(
+			this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate()
+		);
+		this.referencesBuilder = new ExistingReferencesBuilder(
+			this.baseEntity.schema, this.baseEntity.references,
+			baseEntity.getReferencePredicate(),
+			baseEntity::getReference
+		);
+		this.localePredicate = baseEntity.getLocalePredicate();
+		this.hierarchyPredicate = baseEntity.getHierarchyPredicate();
+		this.attributePredicate = baseEntity.getAttributePredicate();
+		this.associatedDataPredicate = baseEntity.getAssociatedDataPredicate();
+		this.pricePredicate = baseEntity.getPricePredicate();
+		this.referencePredicate = baseEntity.getReferencePredicate();
+		for (LocalMutation<?, ?> localMutation : localMutations) {
+			addMutation(localMutation);
+		}
+	}
+
+	/**
+	 * Convenience constructor that creates a builder for a decorated entity without any initial mutations.
+	 *
+	 * @param baseEntity non-null decorated entity serving as the source state and predicates
+	 */
+	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity) {
+		this(baseEntity, Collections.emptyList());
+	}
+
+	/**
+	 * Convenience constructor that creates a builder for a plain base entity without any initial mutations.
+	 *
+	 * @param baseEntity non-null base entity to build upon
+	 */
 	public ExistingEntityBuilder(@Nonnull Entity baseEntity) {
 		this(baseEntity, Collections.emptyList());
 	}
 
+	/**
+	 * Enqueues a single local mutation to this builder, dispatching it to the appropriate sub-builder
+	 * or internal accumulator based on its concrete type.
+	 *
+	 * Supported mutations include:
+	 * - Scope and hierarchy mutations (applied directly on the builder)
+	 * - Attribute and associated data mutations (delegated to respective builders)
+	 * - Reference mutations (stored and coalesced per reference key and internal ID)
+	 * - Price mutations and inner record handling (delegated to price builder)
+	 *
+	 * @param localMutation non-null local mutation to apply
+	 * @throws GenericEvitaInternalError when an unknown mutation type is encountered
+	 */
 	public void addMutation(@Nonnull LocalMutation<?, ?> localMutation) {
-		if (localMutation instanceof SetEntityScopeMutation scopeMutation) {
-			this.scopeMutation = scopeMutation;
+		localMutation = localMutation.withDecisiveTimestamp(System.nanoTime());
+		if (localMutation instanceof SetEntityScopeMutation setScopeMutation) {
+			this.scopeMutation = setScopeMutation;
 		} else if (localMutation instanceof ParentMutation hierarchicalPlacementMutation) {
 			this.hierarchyMutation = hierarchicalPlacementMutation;
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
@@ -195,9 +274,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
 			this.associatedDataBuilder.addMutation(associatedDataMutation);
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
-			this.referenceMutations
-				.computeIfAbsent(referenceMutation.getReferenceKey(), rk -> new LinkedList<>())
-				.add(referenceMutation);
+			this.referencesBuilder.addMutation(referenceMutation);
 		} else if (localMutation instanceof PriceMutation priceMutation) {
 			this.pricesBuilder.addMutation(priceMutation);
 		} else if (localMutation instanceof SetPriceInnerRecordHandlingMutation innerRecordHandlingMutation) {
@@ -230,21 +307,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		return this.baseEntity.getSchema();
 	}
 
-	@Nonnull
-	@Override
-	public Scope getScope() {
-		return ofNullable(this.scopeMutation)
-			.map(SetEntityScopeMutation::getScope)
-			.orElseGet(this.baseEntity::getScope);
-	}
-
-	@Override
-	public EntityBuilder setScope(@Nonnull Scope scope) {
-		this.scopeMutation = Objects.equals(this.baseEntity.getScope(), scope) ?
-			null : new SetEntityScopeMutation(scope);
-		return this;
-	}
-
 	@Override
 	@Nullable
 	public Integer getPrimaryKey() {
@@ -253,7 +315,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public boolean parentAvailable() {
-		return this.baseEntity.parentAvailable();
+		return this.hierarchyMutation != null || this.baseEntity.parentAvailable();
 	}
 
 	@Nonnull
@@ -262,129 +324,89 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		if (!parentAvailable()) {
 			throw ContextMissingException.hierarchyContextMissing();
 		}
-		return ofNullable(this.hierarchyMutation)
-			.map(it ->
-				it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent())
-					.stream()
-					.mapToObj(pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(getType(), pId, null))
-					.findFirst()
-			)
-			.orElseGet(
-				() -> this.baseEntityDecorator == null ?
-					this.baseEntity.getParentEntity() : this.baseEntityDecorator.getParentEntity()
-			);
-	}
-
-	@Override
-	public boolean referencesAvailable() {
-		return this.baseEntityDecorator == null ?
-			this.baseEntity.referencesAvailable() : this.baseEntityDecorator.referencesAvailable();
-	}
-
-	@Override
-	public boolean referencesAvailable(@Nonnull String referenceName) {
-		return this.baseEntityDecorator == null ?
-			this.baseEntity.referencesAvailable(referenceName) : this.baseEntityDecorator.referencesAvailable(referenceName);
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences() {
-		if (!referencesAvailable()) {
-			throw ContextMissingException.referenceContextMissing();
-		}
-		return Stream.concat(
-				this.baseEntity.getReferences()
-					.stream()
-					.filter(Droppable::exists)
-					.map(it ->
-						ofNullable(this.referenceMutations.get(it.getReferenceKey()))
-							.map(mutations -> evaluateReferenceMutations(it, mutations))
-							.filter(mutatedReference -> mutatedReference.differsFrom(it))
-							.orElse(it)
-					),
-				this.referenceMutations
-					.entrySet()
-					.stream()
-					.filter(it -> this.baseEntity.getReference(it.getKey().referenceName(), it.getKey().primaryKey()).isEmpty())
-					.map(Entry::getValue)
-					.map(it -> evaluateReferenceMutations(null, it))
-			)
-			.filter(this.referencePredicate)
-			.collect(Collectors.toList());
-	}
-
-	@Nonnull
-	@Override
-	public Set<String> getReferenceNames() {
-		return getReferences()
-			.stream()
-			.map(ReferenceContract::getReferenceName)
-			.collect(Collectors.toCollection(TreeSet::new));
-	}
-
-	@Nonnull
-	@Override
-	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
-		if (!referencesAvailable(referenceName)) {
-			throw ContextMissingException.referenceContextMissing(referenceName);
-		}
-		return getReferences()
-			.stream()
-			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
-			.collect(Collectors.toList());
-	}
-
-	@SuppressWarnings("unchecked")
-	@Nonnull
-	@Override
-	public DataChunk<ReferenceContract> getReferenceChunk(@Nonnull String referenceName) throws ContextMissingException {
-		return new PlainChunk<>(this.getReferences(referenceName));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
-		return getReference(new ReferenceKey(referenceName, referencedEntityId));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<ReferenceContract> getReference(@Nonnull ReferenceKey referenceKey) throws ContextMissingException, ReferenceNotFoundException {
-		if (!referencesAvailable(referenceKey.referenceName())) {
-			throw ContextMissingException.referenceContextMissing(referenceKey.referenceName());
-		}
-		final Optional<ReferenceContract> reference = this.baseEntity.getReference(referenceKey)
-			.map(it -> ofNullable(this.referenceMutations.get(referenceKey))
-				.map(mutations -> evaluateReferenceMutations(it, mutations))
-				.orElseGet(() -> this.baseEntityDecorator == null ?
-					it : this.baseEntityDecorator.getReference(referenceKey).orElse(it))
-			)
-			.or(() ->
-				ofNullable(this.referenceMutations.get(referenceKey))
-					.map(mutations -> evaluateReferenceMutations(null, mutations))
-			);
-		return reference.filter(this.referencePredicate);
+		return getParentEntityWithoutSchemaCheck();
 	}
 
 	@Nonnull
 	@Override
 	public Set<Locale> getAllLocales() {
-		return Stream.concat(
-				this.attributesBuilder.getAttributeLocales().stream(),
-				this.associatedDataBuilder.getAssociatedDataLocales().stream()
-			)
-			.collect(Collectors.toSet());
+		final Set<Locale> attributeLocales = this.attributesBuilder.getAttributeLocales();
+		final Set<Locale> associatedDataLocales = this.associatedDataBuilder.getAssociatedDataLocales();
+
+		final int expectedSize = attributeLocales.size() + associatedDataLocales.size();
+		final Set<Locale> result = CollectionUtils.createHashSet(Math.max(16, expectedSize));
+		result.addAll(attributeLocales);
+		result.addAll(associatedDataLocales);
+		return result;
+	}
+
+	/**
+	 * Returns the set of locales that are currently visible according to the locale predicate
+	 * derived from the fetched content. In contrast to {@link #getAllLocales()}, this method filters
+	 * out locales that were not fetched or are otherwise hidden by the predicate.
+	 *
+	 * @return non-null set of visible locales respecting fetch constraints
+	 */
+	@Nonnull
+	public Set<Locale> getLocales() {
+		final Set<Locale> attributeLocales = this.attributesBuilder.getAttributeLocales();
+		final Set<Locale> associatedDataLocales = this.associatedDataBuilder.getAssociatedDataLocales();
+
+		final int expectedSize = attributeLocales.size() + associatedDataLocales.size();
+		final Set<Locale> result = CollectionUtils.createHashSet(Math.max(16, expectedSize));
+		for (Locale attributeLocale : attributeLocales) {
+			if (this.localePredicate.test(attributeLocale)) {
+				result.add(attributeLocale);
+			}
+		}
+		for (Locale associatedDataLocale : associatedDataLocales) {
+			if (this.localePredicate.test(associatedDataLocale)) {
+				result.add(associatedDataLocale);
+			}
+		}
+		return result;
 	}
 
 	@Nonnull
-	public Set<Locale> getLocales() {
-		return Stream.concat(
-				this.attributesBuilder.getAttributeLocales().stream(),
-				this.associatedDataBuilder.getAssociatedDataLocales().stream()
-			)
-			.filter(this.localePredicate)
-			.collect(Collectors.toSet());
+	@Override
+	public Scope getScope() {
+		return ofNullable(this.scopeMutation)
+			.map(SetEntityScopeMutation::getScope)
+			.orElseGet(this.baseEntity::getScope);
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setScope(@Nonnull Scope scope) {
+		this.scopeMutation = Objects.equals(this.baseEntity.getScope(), scope) ?
+			null : new SetEntityScopeMutation(scope);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setParent(int parentPrimaryKey) {
+		final EntitySchemaContract schema = getSchema();
+		if (!schema.isWithHierarchy() && !schema.allows(EvolutionMode.ADDING_HIERARCHY)) {
+			throw new InvalidMutationException(
+				"Entity `" + getType() + "` is not hierarchical and its schema doesn't allow to become hierarchical on first hierarchy mutation!"
+			);
+		}
+		this.hierarchyMutation = !Objects.equals(
+			this.baseEntity.getParentWithoutSchemaCheck(), OptionalInt.of(parentPrimaryKey)) ?
+			new SetParentMutation(parentPrimaryKey) : null;
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeParent() {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
+		Assert.notNull(this.baseEntity.getParent(), "Cannot remove parent that is not present!");
+		this.hierarchyMutation = this.baseEntity.getParent().isPresent() ? new RemoveParentMutation() : null;
+		return this;
 	}
 
 	@Override
@@ -402,13 +424,15 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Override
 	public boolean attributeAvailable(@Nonnull String attributeName) {
 		return this.baseEntityDecorator == null ?
-			this.baseEntity.attributeAvailable(attributeName) : this.baseEntityDecorator.attributeAvailable(attributeName);
+			this.baseEntity.attributeAvailable(attributeName) : this.baseEntityDecorator.attributeAvailable(
+			attributeName);
 	}
 
 	@Override
 	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return this.baseEntityDecorator == null ?
-			this.baseEntity.attributeAvailable(attributeName, locale) : this.baseEntityDecorator.attributeAvailable(attributeName, locale);
+			this.baseEntity.attributeAvailable(attributeName, locale) : this.baseEntityDecorator.attributeAvailable(
+			attributeName, locale);
 	}
 
 	@Override
@@ -426,95 +450,72 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Override
 	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
 		return this.baseEntityDecorator == null ?
-			this.baseEntity.associatedDataAvailable(associatedDataName) : this.baseEntityDecorator.associatedDataAvailable(associatedDataName);
+			this.baseEntity.associatedDataAvailable(associatedDataName) :
+			this.baseEntityDecorator.associatedDataAvailable(associatedDataName);
 	}
 
 	@Override
 	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		return this.baseEntityDecorator == null ?
-			this.baseEntity.associatedDataAvailable(associatedDataName, locale) : this.baseEntityDecorator.associatedDataAvailable(associatedDataName, locale);
+			this.baseEntity.associatedDataAvailable(associatedDataName, locale) :
+			this.baseEntityDecorator.associatedDataAvailable(associatedDataName, locale);
 	}
 
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName) {
-		if (!attributeAvailable(attributeName)) {
-			throw ContextMissingException.attributeContextMissing(attributeName);
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
-			"Attribute " + attributeName + " was not fetched and cannot be removed. Please enrich the entity first or load it with attributes."
-		);
 		this.attributesBuilder.removeAttribute(attributeName);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
-		if (!attributeAvailable(attributeName)) {
-			throw ContextMissingException.attributeContextMissing(attributeName);
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
-			"Attributes were not fetched and cannot be updated. Please enrich the entity first or load it with attributes. Please enrich the entity first or load it with attributes."
-		);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName,
+		@Nullable T attributeValue
+	) {
 		this.attributesBuilder.setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
-		if (!attributeAvailable(attributeName)) {
-			throw ContextMissingException.attributeContextMissing(attributeName);
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
-			"Attributes were not fetched and cannot be updated. Please enrich the entity first or load it with attributes. Please enrich the entity first or load it with attributes."
-		);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName,
+		@Nullable T[] attributeValue
+	) {
 		this.attributesBuilder.setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public EntityBuilder removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		if (!attributeAvailable(attributeName)) {
-			throw ContextMissingException.attributeContextMissing(attributeName);
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
-			"Attribute " + attributeName + " in locale " + locale + " was not fetched and cannot be removed. Please enrich the entity first or load it with attributes."
-		);
+	public EntityBuilder removeAttribute(
+		@Nonnull String attributeName,
+		@Nonnull Locale locale
+	) {
 		this.attributesBuilder.removeAttribute(attributeName, locale);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
-		if (!attributeAvailable(attributeName)) {
-			throw ContextMissingException.attributeContextMissing(attributeName);
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
-			"Attributes in locale " + locale + " were not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
-		);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName,
+		@Nonnull Locale locale,
+		@Nullable T attributeValue
+	) {
 		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
-		if (!attributeAvailable(attributeName)) {
-			throw ContextMissingException.attributeContextMissing(attributeName);
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
-			"Attributes in locale " + locale + " were not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
-		);
+	public <T extends Serializable> EntityBuilder setAttribute(
+		@Nonnull String attributeName,
+		@Nonnull Locale locale,
+		@Nullable T[] attributeValue
+	) {
 		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
@@ -522,13 +523,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
-		if (!attributeAvailable(mutation.getAttributeKey().attributeName())) {
-			throw ContextMissingException.attributeContextMissing(mutation.getAttributeKey().attributeName());
-		}
-		Assert.isTrue(
-			this.attributePredicate.test(new AttributeValue(mutation.getAttributeKey(), -1)),
-			"Attribute " + mutation.getAttributeKey() + " was not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
-		);
 		this.attributesBuilder.mutateAttribute(mutation);
 		return this;
 	}
@@ -536,83 +530,58 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName) {
-		if (!associatedDataAvailable(associatedDataName)) {
-			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
-			"Associated data " + associatedDataName + " was not fetched and cannot be removed. Please enrich the entity first or load it with the associated data."
-		);
 		this.associatedDataBuilder.removeAssociatedData(associatedDataName);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nullable T associatedDataValue) {
-		if (!associatedDataAvailable(associatedDataName)) {
-			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
-			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
-		);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName,
+		@Nullable T associatedDataValue
+	) {
 		this.associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
-		if (!associatedDataAvailable(associatedDataName)) {
-			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
-			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
-		);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName,
+		@Nonnull T[] associatedDataValue
+	) {
 		this.associatedDataBuilder.setAssociatedData(associatedDataName, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		if (!associatedDataAvailable(associatedDataName)) {
-			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
-			"Associated data " + associatedDataName + " was not fetched and cannot be removed. Please enrich the entity first or load it with the associated data."
-		);
+	public EntityBuilder removeAssociatedData(
+		@Nonnull String associatedDataName,
+		@Nonnull Locale locale
+	) {
 		this.associatedDataBuilder.removeAssociatedData(associatedDataName, locale);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
-		if (!associatedDataAvailable(associatedDataName)) {
-			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
-			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
-		);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName,
+		@Nonnull Locale locale,
+		@Nullable T associatedDataValue
+	) {
 		this.associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T[] associatedDataValue) {
-		if (!associatedDataAvailable(associatedDataName)) {
-			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
-			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
-		);
+	public <T extends Serializable> EntityBuilder setAssociatedData(
+		@Nonnull String associatedDataName,
+		@Nonnull Locale locale,
+		@Nullable T[] associatedDataValue
+	) {
 		this.associatedDataBuilder.setAssociatedData(associatedDataName, locale, associatedDataValue);
 		return this;
 	}
@@ -620,309 +589,282 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
-		if (!associatedDataAvailable(mutation.getAssociatedDataKey().associatedDataName())) {
-			throw ContextMissingException.associatedDataContextMissing(mutation.getAssociatedDataKey().associatedDataName());
-		}
-		Assert.isTrue(
-			this.associatedDataPredicate.test(new AssociatedDataValue(mutation.getAssociatedDataKey(), -1)),
-			"Associated data " + mutation.getAssociatedDataKey() + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
-		);
 		this.associatedDataBuilder.mutateAssociatedData(mutation);
 		return this;
 	}
 
 	@Override
-	public EntityBuilder setParent(int parentPrimaryKey) {
-		if (!parentAvailable()) {
-			throw ContextMissingException.hierarchyContextMissing();
-		}
-		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParent(), OptionalInt.of(parentPrimaryKey)) ?
-			new SetParentMutation(parentPrimaryKey) : null;
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removeParent() {
-		if (!parentAvailable()) {
-			throw ContextMissingException.hierarchyContextMissing();
-		}
-		Assert.notNull(this.baseEntity.getParent(), "Cannot remove parent that is not present!");
-		this.hierarchyMutation = this.baseEntity.getParent().isPresent() ? new RemoveParentMutation() : null;
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, int referencedPrimaryKey) {
-		return setReference(referenceName, referencedPrimaryKey, null);
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
-		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		return setReference(referenceName, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), referencedPrimaryKey, whichIs);
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey) {
-		return setReference(referenceName, referencedEntityType, cardinality, referencedPrimaryKey, null);
-	}
-
-	@Override
-	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
-		if (!referencesAvailable(referenceName)) {
-			throw ContextMissingException.referenceContextMissing(referenceName);
-		}
-		Assert.isTrue(
-			this.referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referencedEntityType, cardinality, null)),
-			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
-		);
-		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
-		final EntitySchemaContract schema = getSchema();
-		final Optional<ReferenceContract> existingReference = this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
-		final ReferenceBuilder referenceBuilder = existingReference
-			.map(it -> (ReferenceBuilder) new ExistingReferenceBuilder(it, schema))
-			.filter(this.referencePredicate)
-			.orElseGet(
-				() -> new InitialReferenceBuilder(
-					schema, referenceName, referencedPrimaryKey, cardinality, referencedEntityType
-				)
-			);
-		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
-		addOrReplaceReferenceMutations(referenceBuilder);
-		return this;
-	}
-
-	@Override
-	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
-		if (!referencesAvailable(referenceBuilder.getReferenceName())) {
-			throw ContextMissingException.referenceContextMissing(referenceBuilder.getReferenceName());
-		}
-		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
-		final Optional<ReferenceContract> existingReference = this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
-		final List<ReferenceMutation<?>> changeSet = referenceBuilder.buildChangeSet().collect(Collectors.toList());
-		if (existingReference.isEmpty()) {
-			this.referenceMutations.put(
-				referenceKey,
-				changeSet
-			);
-		} else {
-			final Optional<ReferenceContract> referenceInBaseEntity = this.baseEntity.getReference(referenceKey)
-				.filter(Droppable::exists);
-			if (referenceInBaseEntity.map(it -> it.exists() && !this.removedReferences.contains(referenceKey)).orElse(true)) {
-				this.referenceMutations.put(
-					referenceKey,
-					changeSet
-				);
-			} else {
-				boolean groupUpserted = false;
-				Set<AttributeKey> attributesUpserted = new HashSet<>();
-				for (ReferenceMutation<?> referenceMutation : changeSet) {
-					if (referenceMutation instanceof SetReferenceGroupMutation) {
-						groupUpserted = true;
-					} else if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributeMutation) {
-						if (referenceAttributeMutation.getAttributeMutation() instanceof UpsertAttributeMutation) {
-							attributesUpserted.add(referenceAttributeMutation.getAttributeMutation().getAttributeKey());
-						}
-					}
-				}
-				this.referenceMutations.put(
-					referenceKey,
-					Stream.concat(
-							Stream.concat(
-								// if the group was not upserted we need to remove it (because the entire reference was
-								// removed before
-								groupUpserted ?
-									Stream.<ReferenceMutation<?>>empty() :
-									referenceInBaseEntity
-										.flatMap(ReferenceContract::getGroup)
-										.filter(Droppable::exists)
-										.stream()
-										.map(it -> (ReferenceMutation<?>) new RemoveReferenceGroupMutation(referenceKey)),
-								// if the attribute was not upserted we need to remove it (because the entire reference
-								// was removed before
-								referenceInBaseEntity
-									.map(AttributesContract::getAttributeValues)
-									.orElse(Collections.emptyList())
-									.stream()
-									.filter(Droppable::exists)
-									.filter(it -> !attributesUpserted.contains(it.key()))
-									.map(it ->
-										new ReferenceAttributeMutation(
-											referenceKey,
-											new RemoveAttributeMutation(it.key())
-										)
-									)
-							),
-							changeSet
-								.stream()
-								.filter(it -> {
-									if (it instanceof InsertReferenceMutation) {
-										// we don't need to insert the reference, since it was there before the removal
-										return false;
-									} else if (it instanceof SetReferenceGroupMutation referenceGroupMutation) {
-										// we don't need to reset the group if the group is the same as the previous one
-										final Boolean groupSameAsPreviousOne = this.baseEntity.getReference(referenceGroupMutation.getReferenceKey())
-											.flatMap(ReferenceContract::getGroup)
-											.map(group -> Objects.equals(group.getPrimaryKey(), referenceGroupMutation.getGroupPrimaryKey()))
-											.orElse(false);
-										return !groupSameAsPreviousOne;
-									} else if (it instanceof ReferenceAttributeMutation referenceAttributeMutation) {
-										// we don't need to reset the attribute if the attribute is the same as the previous one
-										final AttributeMutation attributeMutation = referenceAttributeMutation.getAttributeMutation();
-										final AttributeKey attributeKey = attributeMutation.getAttributeKey();
-										if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
-											final boolean attributeSameAsPreviousOne = this.baseEntity.getReference(referenceAttributeMutation.getReferenceKey())
-												.flatMap(ref -> ref.getAttributeSchema(attributeKey.attributeName()).isPresent() ? ref.getAttributeValue(attributeKey) : Optional.empty())
-												.map(attribute -> Objects.equals(attribute.value(), upsertAttributeMutation.getAttributeValue()))
-												.orElse(false);
-											return !attributeSameAsPreviousOne;
-										} else {
-											return true;
-										}
-									} else {
-										return true;
-									}
-								})
-						)
-						.collect(Collectors.toList())
-				);
-			}
-		}
-	}
-
-	@Override
-	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
-		if (!referencesAvailable(referenceName)) {
-			throw ContextMissingException.referenceContextMissing(referenceName);
-		}
-		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		Assert.isTrue(
-			this.referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), null)),
-			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
-		);
-		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
-		Assert.isTrue(getReference(referenceName, referencedPrimaryKey).isPresent(), "There's no reference of type " + referenceName + " and primary key " + referencedPrimaryKey + "!");
-
-		// remove possibly added / updated reference mutation
-		this.referenceMutations.remove(referenceKey);
-
-		final Optional<ReferenceContract> theReference = this.baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
-			.filter(Droppable::exists)
-			.filter(this.referencePredicate);
-		if (theReference.isPresent()) {
-			// if the reference was part of the previous entity version we build upon, remove it as-well
-			this.referenceMutations.put(
-				referenceKey,
-				Collections.singletonList(
-					new RemoveReferenceMutation(referenceKey)
-				)
-			);
-			this.removedReferences.add(referenceKey);
-		}
-
-		return this;
-	}
-
-	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
-		assertPricesFetched(this.pricePredicate);
-		Assert.isTrue(
-			this.pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
-			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
-		);
+	public EntityBuilder setPrice(
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
 		this.pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, indexed);
 		return this;
 	}
 
 	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed) {
-		assertPricesFetched(this.pricePredicate);
-		Assert.isTrue(
-			this.pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
-			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
+	public EntityBuilder setPrice(
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		this.pricesBuilder.setPrice(
+			priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, indexed
 		);
-		this.pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, indexed);
 		return this;
 	}
 
 	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
-		assertPricesFetched(this.pricePredicate);
-		Assert.isTrue(
-			this.pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
-			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
+	public EntityBuilder setPrice(
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity,
+		boolean indexed
+	) {
+		this.pricesBuilder.setPrice(
+			priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, validity, indexed
 		);
-		this.pricesBuilder.setPrice(priceId, priceList, currency, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		return this;
 	}
 
 	@Override
-	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed) {
-		assertPricesFetched(this.pricePredicate);
-		Assert.isTrue(
-			this.pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
-			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
+	public EntityBuilder setPrice(
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity,
+		boolean indexed
+	) {
+		this.pricesBuilder.setPrice(
+			priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed
 		);
-		this.pricesBuilder.setPrice(priceId, priceList, currency, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed);
 		return this;
 	}
 
 	@Override
-	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		assertPricesFetched(this.pricePredicate);
-		Assert.isTrue(
-			this.pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
-			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
-		);
+	public EntityBuilder removePrice(
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency
+	) {
 		this.pricesBuilder.removePrice(priceId, priceList, currency);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		assertPricesFetched(this.pricePredicate);
 		this.pricesBuilder.setPriceInnerRecordHandling(priceInnerRecordHandling);
 		return this;
 	}
 
 	@Override
 	public EntityBuilder removePriceInnerRecordHandling() {
-		assertPricesFetched(this.pricePredicate);
 		this.pricesBuilder.removePriceInnerRecordHandling();
 		return this;
 	}
 
 	@Override
 	public EntityBuilder removeAllNonTouchedPrices() {
-		assertPricesFetched(this.pricePredicate);
 		this.pricesBuilder.removeAllNonTouchedPrices();
+		return this;
+	}
+
+	@Override
+	public boolean referencesAvailable() {
+		return this.baseEntityDecorator == null ?
+			this.baseEntity.referencesAvailable() : this.baseEntityDecorator.referencesAvailable();
+	}
+
+	@Override
+	public boolean referencesAvailable(@Nonnull String referenceName) {
+		return this.baseEntityDecorator == null ?
+			this.baseEntity.referencesAvailable(referenceName) :
+			this.baseEntityDecorator.referencesAvailable(referenceName);
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder updateReferences(
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		this.referencesBuilder.updateReferences(filter, whichIs);
 		return this;
 	}
 
 	@Nonnull
 	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey
+	) throws ReferenceNotKnownException {
+		this.referencesBuilder.setReference(referenceName, referencedPrimaryKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException {
+		this.referencesBuilder.setReference(referenceName, referencedPrimaryKey, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setOrUpdateReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		this.referencesBuilder.setOrUpdateReference(referenceName, referencedPrimaryKey, filter, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey
+	) {
+		this.referencesBuilder.setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		this.referencesBuilder.setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder setOrUpdateReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nonnull Predicate<ReferenceContract> filter,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) {
+		this.referencesBuilder.setOrUpdateReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, filter, whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey
+	) throws ReferenceNotKnownException {
+		this.referencesBuilder.removeReference(referenceName, referencedPrimaryKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReference(@Nonnull ReferenceKey referenceKey) throws ReferenceNotKnownException {
+		this.referencesBuilder.removeReference(referenceKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull String referenceName, int referencedPrimaryKey) {
+		this.referencesBuilder.removeReferences(referenceName, referencedPrimaryKey);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull String referenceName) {
+		this.referencesBuilder.removeReferences(referenceName);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull String referenceName, @Nonnull Predicate<ReferenceContract> filter) {
+		this.referencesBuilder.removeReferences(referenceName, filter);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder removeReferences(@Nonnull Predicate<ReferenceContract> filter) {
+		this.referencesBuilder.removeReferences(filter);
+		return this;
+	}
+
+	@Override
+	public int getNextReferenceInternalId() {
+		return this.referencesBuilder.getNextReferenceInternalId();
+	}
+
+	@Override
+	public void addOrReplaceReferenceMutations(
+		@Nonnull ReferenceBuilder referenceBuilder,
+		boolean methodAllowsDuplicates
+	) {
+		this.referencesBuilder.addOrReplaceReferenceMutations(referenceBuilder, methodAllowsDuplicates);
+	}
+
+	@Nonnull
+	@Override
 	public Optional<EntityMutation> toMutation() {
-		final Map<ReferenceKey, ReferenceContract> builtReferences = new HashMap<>(this.baseEntity.references);
-		final List<? extends LocalMutation<?, ? extends Comparable<?>>> mutations = Stream.of(
-				Stream.of(this.scopeMutation).filter(Objects::nonNull),
-				Stream.of(this.hierarchyMutation).filter(Objects::nonNull),
-				this.attributesBuilder.buildChangeSet(),
-				this.associatedDataBuilder.buildChangeSet(),
-				this.pricesBuilder.buildChangeSet(),
-				this.referenceMutations.values()
-					.stream()
-					.flatMap(Collection::stream)
-					.filter(it -> {
-						final ReferenceContract existingReference = builtReferences.get(it.getReferenceKey());
-						final ReferenceContract newReference = it.mutateLocal(getSchema(), existingReference);
-						builtReferences.put(it.getReferenceKey(), newReference);
-						return existingReference == null || newReference.version() > existingReference.version();
-					})
-			)
-			.flatMap(it -> it)
-			.filter(Objects::nonNull)
-			.sorted()
-			.collect(Collectors.toList());
+		final List<LocalMutation<?, ? extends Comparable<?>>> mutations = new ArrayList<>(16);
+		if (this.scopeMutation != null) {
+			mutations.add(this.scopeMutation);
+		}
+		if (this.hierarchyMutation != null) {
+			mutations.add(this.hierarchyMutation);
+		}
+		this.attributesBuilder.buildChangeSet().forEach(mutations::add);
+		this.associatedDataBuilder.buildChangeSet().forEach(mutations::add);
+		this.pricesBuilder.buildChangeSet().forEach(mutations::add);
+		this.referencesBuilder.buildChangeSet().forEach(mutations::add);
+
+		//noinspection unchecked
+		mutations.sort(
+			Comparator.comparing(LocalMutation.class::cast)
+		);
 
 		if (mutations.isEmpty()) {
 			return Optional.empty();
@@ -941,9 +883,28 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Entity toInstance() {
-		return toMutation()
-			.map(it -> it.mutate(this.baseEntity.getSchema(), this.baseEntity))
-			.orElse(this.baseEntity);
+		final boolean modified = this.scopeMutation != null ||
+			this.hierarchyMutation != null ||
+			this.attributesBuilder.isThereAnyChangeInMutations() ||
+			this.associatedDataBuilder.isThereAnyChangeInMutations() ||
+			this.pricesBuilder.isThereAnyChangeInMutations() ||
+			this.referencesBuilder.isThereAnyChangeInMutations();
+		if (modified) {
+			return Entity._internalBuild(
+				this.getPrimaryKey(),
+				this.version(),
+				this.getSchema(),
+				this.getParentEntityWithoutSchemaCheck().map(EntityClassifier::getPrimaryKey).orElse(null),
+				this.referencesBuilder.build(),
+				this.attributesBuilder.build(),
+				this.associatedDataBuilder.build(),
+				this.pricesBuilder.build(),
+				this.getLocales(),
+				this.getScope()
+			);
+		} else {
+			return this.baseEntity;
+		}
 	}
 
 	/**
@@ -954,49 +915,43 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	 */
 	public boolean isPresentInBaseEntity(@Nonnull ReferenceContract reference) {
 		return this.baseEntity.getReference(reference.getReferenceKey())
-			.map(Droppable::exists)
-			.orElse(false);
+		                      .map(Droppable::exists)
+		                      .orElse(false);
 	}
 
-	@Nullable
-	private ReferenceContract evaluateReferenceMutations(@Nullable ReferenceContract reference, @Nonnull List<ReferenceMutation<?>> mutations) {
-		ReferenceContract mutatedReference = reference;
-		for (ReferenceMutation<?> mutation : mutations) {
-			mutatedReference = mutation.mutateLocal(this.baseEntity.schema, mutatedReference);
-		}
-		final ReferenceContract theReference = mutatedReference != null && mutatedReference.differsFrom(reference) ? mutatedReference : reference;
-		if (this.baseEntityDecorator != null && theReference != null) {
-			final Optional<ReferenceContract> originalReference = this.baseEntityDecorator.getReference(
-				theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey()
-			);
-			final Optional<SealedEntity> originalReferencedEntity = originalReference
-				.flatMap(ReferenceContract::getReferencedEntity);
-			final Optional<SealedEntity> originalReferencedEntityGroup = originalReference
-				.flatMap(ReferenceContract::getGroupEntity);
-			final Boolean entityValid = originalReferencedEntity
-				.map(EntityContract::getPrimaryKey)
-				.map(it -> it == theReference.getReferencedPrimaryKey())
-				.orElse(false);
-			final Boolean entityGroupValid = originalReferencedEntityGroup
-				.map(EntityContract::getPrimaryKey)
-				.map(it -> theReference.getGroup().map(group -> Objects.equals(it, group.getPrimaryKey())).orElse(false))
-				.orElse(false);
-			if (entityValid || entityGroupValid) {
-				return new ReferenceDecorator(
-					theReference,
-					entityValid ? originalReferencedEntity.get() : null,
-					entityGroupValid ? originalReferencedEntityGroup.get() : null,
-					this.referencePredicate.getAttributePredicate(theReference.getReferenceName())
-				);
-			}
-		}
-		return theReference;
-	}
-
+	/**
+	 * Retrieves the parent entity without performing a schema check. This method utilizes the current state of
+	 * the hierarchy mutation, schema, base entity, and optional base entity decorators to compute and return
+	 * the parent entity, if present. If hierarchy-related functionality is not enabled in the schema, the method
+	 * will derive the parent entity from the base entity directly.
+	 *
+	 * @return an Optional containing the parent entity as an {@link EntityClassifierWithParent} if present;
+	 * otherwise, an empty Optional is returned.
+	 */
 	@Nonnull
-	private ReferenceSchemaContract getReferenceSchemaOrThrowException(@Nonnull String referenceName) {
-		return getSchema().getReference(referenceName)
-			.orElseThrow(() -> new ReferenceNotKnownException(referenceName));
+	private Optional<EntityClassifierWithParent> getParentEntityWithoutSchemaCheck() {
+		return ofNullable(this.hierarchyMutation)
+			.map(it ->
+			     {
+				     final EntitySchemaContract schema = getSchema();
+				     return it.mutateLocal(
+					              schema,
+					              this.baseEntity.parent == null ?
+						              OptionalInt.empty() : OptionalInt.of(this.baseEntity.parent)
+				              )
+				              .stream()
+				              .mapToObj(
+					              pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(
+						              getType(), pId, null
+					              )
+				              )
+				              .findFirst();
+			     }
+			)
+			.orElseGet(
+				() -> this.baseEntityDecorator == null || !this.getSchema().isWithHierarchy() ?
+					this.baseEntity.getParentEntityWithoutSchemaCheck() : this.baseEntityDecorator.getParentEntity()
+			);
 	}
 
 }

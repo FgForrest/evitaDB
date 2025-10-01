@@ -415,11 +415,14 @@ private static final long serialVersionUID = 0L;
   private boolean representative_ = false;
   /**
    * <pre>
-   * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
-   * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
-   * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
-   * helpful to developers in quickly finding their way around the data. There should be very few representative
-   * attributes in the entity type, and the unique ones are usually the best to choose.
+   * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
+   * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+   * references to the same entity and is a key attribute for creating distinct indexes for such references.
+   *
+   * In overall, representative attributes should be used in developer tools along with the entity's primary key to
+   * describe the entity or reference to that entity. If the flag is used correctly, it can be very helpful to
+   * developers in quickly finding their way around the data. There should be very few representative attributes
+   * in the entity / reference type, and the ones with uniqueness significance are usually the best to choose.
    * </pre>
    *
    * <code>bool representative = 11;</code>
@@ -2962,11 +2965,14 @@ private static final long serialVersionUID = 0L;
     private boolean representative_ ;
     /**
      * <pre>
-     * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
-     * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
-     * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
-     * helpful to developers in quickly finding their way around the data. There should be very few representative
-     * attributes in the entity type, and the unique ones are usually the best to choose.
+     * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
+     * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+     * references to the same entity and is a key attribute for creating distinct indexes for such references.
+     *
+     * In overall, representative attributes should be used in developer tools along with the entity's primary key to
+     * describe the entity or reference to that entity. If the flag is used correctly, it can be very helpful to
+     * developers in quickly finding their way around the data. There should be very few representative attributes
+     * in the entity / reference type, and the ones with uniqueness significance are usually the best to choose.
      * </pre>
      *
      * <code>bool representative = 11;</code>
@@ -2978,11 +2984,14 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
-     * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
-     * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
-     * helpful to developers in quickly finding their way around the data. There should be very few representative
-     * attributes in the entity type, and the unique ones are usually the best to choose.
+     * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
+     * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+     * references to the same entity and is a key attribute for creating distinct indexes for such references.
+     *
+     * In overall, representative attributes should be used in developer tools along with the entity's primary key to
+     * describe the entity or reference to that entity. If the flag is used correctly, it can be very helpful to
+     * developers in quickly finding their way around the data. There should be very few representative attributes
+     * in the entity / reference type, and the ones with uniqueness significance are usually the best to choose.
      * </pre>
      *
      * <code>bool representative = 11;</code>
@@ -2998,11 +3007,14 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
-     * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
-     * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
-     * helpful to developers in quickly finding their way around the data. There should be very few representative
-     * attributes in the entity type, and the unique ones are usually the best to choose.
+     * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
+     * on reference level in the {&#64;link ReferenceSchemaContract} it marks attributes distinguishing duplicated
+     * references to the same entity and is a key attribute for creating distinct indexes for such references.
+     *
+     * In overall, representative attributes should be used in developer tools along with the entity's primary key to
+     * describe the entity or reference to that entity. If the flag is used correctly, it can be very helpful to
+     * developers in quickly finding their way around the data. There should be very few representative attributes
+     * in the entity / reference type, and the ones with uniqueness significance are usually the best to choose.
      * </pre>
      *
      * <code>bool representative = 11;</code>

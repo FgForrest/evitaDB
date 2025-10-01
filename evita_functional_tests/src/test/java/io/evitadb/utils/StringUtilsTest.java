@@ -304,4 +304,33 @@ class StringUtilsTest {
 		assertEquals("Test Object", StringUtils.toString(obj));
 	}
 
+	@Test
+	void shouldConvertSerializableArrayToStringForEmptyArray() {
+		final java.io.Serializable[] input = new java.io.Serializable[]{};
+		assertEquals("", StringUtils.serializableArrayToString(input));
+	}
+
+	@Test
+	void shouldConvertSerializableArrayToStringForSingleElement() {
+		final java.io.Serializable[] input = new java.io.Serializable[]{"A"};
+		assertEquals("A", StringUtils.serializableArrayToString(input));
+	}
+
+	@Test
+	void shouldConvertSerializableArrayToStringForMultipleElements() {
+		final java.io.Serializable[] input = new java.io.Serializable[]{"A", "B", "C"};
+		assertEquals("A, B, C", StringUtils.serializableArrayToString(input));
+	}
+
+	@Test
+	void shouldConvertSerializableArrayToStringWithNullElements() {
+		final java.io.Serializable[] input = new java.io.Serializable[]{"A", null, "C"};
+		assertEquals("A, NULL, C", StringUtils.serializableArrayToString(input));
+	}
+
+	@Test
+	void shouldConvertSerializableArrayToStringWithMixedTypes() {
+		final java.io.Serializable[] input = new java.io.Serializable[]{"X", Integer.valueOf(5), new java.math.BigDecimal("3.14")};
+		assertEquals("X, 5, 3.14", StringUtils.serializableArrayToString(input));
+	}
 }

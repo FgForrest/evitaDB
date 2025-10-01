@@ -50,13 +50,13 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
@@ -139,6 +139,7 @@ import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
@@ -148,11 +149,13 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -223,6 +226,11 @@ public final class EntityCollection implements
 	 * Collection of search indexes prepared to handle queries.
 	 */
 	private final TransactionalMap<EntityIndexKey, EntityIndex> indexes;
+	/**
+	 * Collection of search indexes indexed by their primary keys. Contains identical data as {@link #indexes} but
+	 * the key in the map is their {@link EntityIndex#getPrimaryKey()}.
+	 */
+	private final TransactionalMap<Integer, EntityIndex> indexesByPrimaryKey;
 	/**
 	 * True if collection was already terminated. No other termination will be allowed.
 	 */
@@ -297,11 +305,11 @@ public final class EntityCollection implements
 		long catalogVersion
 	) {
 		// if entity header has no last internal price id, initialized and there is global index available
-		return entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexId() != null ?
+		return entityHeader.lastInternalPriceId() == -1 && entityHeader.globalEntityIndexPrimaryKey() != null ?
 			// try to initialize sequence from deprecated storage key format
 			entityCollectionPersistenceService.fetchLastAssignedInternalPriceIdFromGlobalIndex(
 				catalogVersion,
-				entityHeader.globalEntityIndexId()
+				entityHeader.globalEntityIndexPrimaryKey()
 			).orElse(0) :
 			// otherwise initialize from the last internal price id - when it's initialized, othewise start from 0
 			entityHeader.lastInternalPriceId() == -1 ? 0 : entityHeader.lastInternalPriceId();
@@ -317,7 +325,7 @@ public final class EntityCollection implements
 		@Nonnull CatalogState catalogState,
 		int entityTypePrimaryKey,
 		@Nonnull String entityType,
-		@Nonnull Map<EntityIndexKey, EntityIndex> entityIndexes,
+		int entityIndexesExpectedCount,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull EntityCollectionPersistenceService entityCollectionPersistenceService,
 		@Nonnull CacheSupervisor cacheSupervisor,
@@ -354,6 +362,7 @@ public final class EntityCollection implements
 			this.dataStoreReader = new DataStoreReaderBridge(
 				this.dataStoreBuffer,
 				this::getIndexByKeyIfExists,
+				this::getIndexByPrimaryKeyIfExists,
 				this::getInternalSchema
 			);
 			// initialize schema - still in constructor
@@ -369,18 +378,29 @@ public final class EntityCollection implements
 					}
 				});
 			// init entity indexes
-			if (entityHeader.globalEntityIndexId() == null) {
+			if (entityHeader.globalEntityIndexPrimaryKey() == null) {
 				Assert.isPremiseValid(
-					entityHeader.usedEntityIndexIds().isEmpty(),
+					entityHeader.usedEntityIndexPrimaryKeys().isEmpty(),
 					"Unexpected situation - global index doesn't exist but there are " +
-						entityHeader.usedEntityIndexIds().size() + " reduced indexes!"
+						entityHeader.usedEntityIndexPrimaryKeys().size() + " reduced indexes!"
 				);
 				this.indexes = new TransactionalMap<>(
 					CollectionUtils.createHashMap(64),
 					EntityIndex.class::cast
 				);
+				this.indexesByPrimaryKey = new TransactionalMap<>(
+					CollectionUtils.createHashMap(64),
+					EntityIndex.class::cast
+				);
 			} else {
-				this.indexes = new TransactionalMap<>(entityIndexes, EntityIndex.class::cast);
+				this.indexes = new TransactionalMap<>(
+					CollectionUtils.createHashMap(entityIndexesExpectedCount),
+					EntityIndex.class::cast
+				);
+				this.indexesByPrimaryKey = new TransactionalMap<>(
+					CollectionUtils.createHashMap(entityIndexesExpectedCount),
+					EntityIndex.class::cast
+				);
 			}
 
 			// sanity check whether we deserialized the file offset index we expect to
@@ -443,10 +463,16 @@ public final class EntityCollection implements
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
 			this::getIndexByKeyIfExists,
+			this::getIndexByPrimaryKeyIfExists,
 			this::getInternalSchema
 		);
+		final IndexTuple indexTuple = previousCollection.createIndexCopiesForNewCatalogAttachment(catalogState);
 		this.indexes = new TransactionalMap<>(
-			previousCollection.createIndexCopiesForNewCatalogAttachment(catalogState),
+			indexTuple.indexes(),
+			EntityIndex.class::cast
+		);
+		this.indexesByPrimaryKey = new TransactionalMap<>(
+			indexTuple.indexesByPk(),
 			EntityIndex.class::cast
 		);
 		this.cacheSupervisor = previousCollection.cacheSupervisor;
@@ -476,6 +502,41 @@ public final class EntityCollection implements
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
+		this(
+			catalogVersion,
+			catalogState,
+			entityTypePrimaryKey,
+			entitySchema,
+			pkSequence,
+			indexPkSequence,
+			pricePkSequence,
+			catalogPersistenceService,
+			persistenceService,
+			indexes,
+			createIndexByPk(indexes),
+			cacheSupervisor,
+			trafficRecorder
+		);
+	}
+
+	/**
+	 * Private constructor used for creating new entity collection instance on transaction commit.
+	 */
+	private EntityCollection(
+		long catalogVersion,
+		@Nonnull CatalogState catalogState,
+		int entityTypePrimaryKey,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull AtomicInteger pkSequence,
+		@Nonnull AtomicInteger indexPkSequence,
+		@Nonnull AtomicInteger pricePkSequence,
+		@Nonnull CatalogPersistenceService catalogPersistenceService,
+		@Nonnull EntityCollectionPersistenceService persistenceService,
+		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
+		@Nonnull Map<Integer, EntityIndex> indexesByPk,
+		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nonnull TrafficRecordingEngine trafficRecorder
+	) {
 		this.trafficRecorder = trafficRecorder;
 		this.entityType = entitySchema.getName();
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
@@ -491,9 +552,11 @@ public final class EntityCollection implements
 		this.dataStoreReader = new DataStoreReaderBridge(
 			this.dataStoreBuffer,
 			this::getIndexByKeyIfExists,
+			this::getIndexByPrimaryKeyIfExists,
 			this::getInternalSchema
 		);
 		this.indexes = new TransactionalMap<>(indexes, EntityIndex.class::cast);
+		this.indexesByPrimaryKey = new TransactionalMap<>(indexesByPk, EntityIndex.class::cast);
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
@@ -948,7 +1011,7 @@ public final class EntityCollection implements
 			!Transaction.isTransactionAvailable(),
 			"Entity collection cannot be terminated within transaction!"
 		);
-		this.persistenceService.close();
+		IOUtils.closeQuietly(this.persistenceService::close);
 	}
 
 	/**
@@ -1352,8 +1415,16 @@ public final class EntityCollection implements
 	 * Returns entity index by its key. If such index doesn't exist, NULL is returned.
 	 */
 	@Nullable
-	public EntityIndex getIndexByKeyIfExists(EntityIndexKey entityIndexKey) {
+	public EntityIndex getIndexByKeyIfExists(@Nonnull EntityIndexKey entityIndexKey) {
 		return this.dataStoreBuffer.getIndexIfExists(entityIndexKey, this.indexes::get);
+	}
+
+	/**
+	 * Returns entity index by its key. If such index doesn't exist, NULL is returned.
+	 */
+	@Nullable
+	public EntityIndex getIndexByPrimaryKeyIfExists(int entityIndexPrimaryKey) {
+		return this.dataStoreBuffer.getIndexIfExists(entityIndexPrimaryKey, this.indexesByPrimaryKey::get);
 	}
 
 	/**
@@ -1414,6 +1485,7 @@ public final class EntityCollection implements
 			session, evitaRequest,
 			queryContext.getCurrentStep(),
 			this.indexes,
+			this.indexesByPrimaryKey,
 			this.cacheSupervisor
 		);
 	}
@@ -1429,6 +1501,7 @@ public final class EntityCollection implements
 			session, evitaRequest,
 			evitaRequest.isQueryTelemetryRequested() ? new QueryTelemetry(QueryPhase.OVERALL) : null,
 			this.indexes,
+			this.indexesByPrimaryKey,
 			this.cacheSupervisor
 		);
 	}
@@ -1564,6 +1637,7 @@ public final class EntityCollection implements
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.schema.removeLayer(transactionalLayer);
 		this.indexes.removeLayer(transactionalLayer);
+		this.indexesByPrimaryKey.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -1577,6 +1651,10 @@ public final class EntityCollection implements
 		if (transactionalChanges != null) {
 			// when we register all storage parts for persisting, we can now release transactional memory
 			transactionalLayer.removeTransactionalMemoryLayer(this);
+			// this creates copy of the indexes with all changes applied
+			final Map<EntityIndexKey, EntityIndex> modifiedIndexes = transactionalLayer.getStateCopyWithCommittedChanges(this.indexes);
+			// now we need to remove the transactional layer for the secondary index as well
+			this.indexesByPrimaryKey.removeLayer(transactionalLayer);
 			return new EntityCollection(
 				catalogVersion,
 				CatalogState.ALIVE,
@@ -1589,7 +1667,7 @@ public final class EntityCollection implements
 				this.pricePkSequence,
 				this.catalogPersistenceService,
 				newPersistenceService,
-				transactionalLayer.getStateCopyWithCommittedChanges(this.indexes),
+				modifiedIndexes,
 				this.cacheSupervisor,
 				this.trafficRecorder
 			);
@@ -1606,9 +1684,14 @@ public final class EntityCollection implements
 				transactionalLayer.getTransactionalMemoryLayerIfExists(this.indexes) == null,
 				"Indexes are unexpectedly modified!"
 			);
+			Assert.isPremiseValid(
+				transactionalLayer.getTransactionalMemoryLayerIfExists(this.indexesByPrimaryKey) == null,
+				"Indexes are unexpectedly modified!"
+			);
 			if (this.persistenceService != newPersistenceService) {
 				// if the compaction occurred, the persistence service may have changed
 				// we just create a new collection with the new persistence service, but leave the rest of the state intact
+				final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment(CatalogState.ALIVE);
 				return new EntityCollection(
 					catalogVersion,
 					CatalogState.ALIVE,
@@ -1619,7 +1702,8 @@ public final class EntityCollection implements
 					this.pricePkSequence,
 					this.catalogPersistenceService,
 					newPersistenceService,
-					createIndexCopiesForNewCatalogAttachment(CatalogState.ALIVE),
+					indexTuple.indexes(),
+					indexTuple.indexesByPk(),
 					this.cacheSupervisor,
 					this.trafficRecorder
 				);
@@ -1654,6 +1738,7 @@ public final class EntityCollection implements
 			this.catalogPersistenceService,
 			newPersistenceService,
 			this.indexes,
+			this.indexesByPrimaryKey,
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
@@ -1673,6 +1758,7 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public EntityCollection createCopyForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+		final IndexTuple indexTuple = createIndexCopiesForNewCatalogAttachment(catalogState);
 		return new EntityCollection(
 			this.catalog.getVersion(),
 			catalogState,
@@ -1683,7 +1769,8 @@ public final class EntityCollection implements
 			this.pricePkSequence,
 			this.catalogPersistenceService,
 			this.persistenceService,
-			createIndexCopiesForNewCatalogAttachment(catalogState),
+			indexTuple.indexes(),
+			indexTuple.indexesByPk(),
 			this.cacheSupervisor,
 			this.trafficRecorder
 		);
@@ -1700,6 +1787,7 @@ public final class EntityCollection implements
 			crds.attachToCatalog(this.entityType, this.catalog);
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
+		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
 	}
 
 	/**
@@ -2088,8 +2176,8 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method loads all indexes mentioned in {@link EntityCollectionHeader#globalEntityIndexId()} and
-	 * {@link EntityCollectionHeader#usedEntityIndexIds()} into a transactional map indexed by their
+	 * Method loads all indexes mentioned in {@link EntityCollectionHeader#globalEntityIndexPrimaryKey()} and
+	 * {@link EntityCollectionHeader#usedEntityIndexPrimaryKeys()} into a transactional map indexed by their
 	 * {@link EntityIndex#getIndexKey()}.
 	 */
 	private void loadIndexes(
@@ -2100,14 +2188,14 @@ public final class EntityCollection implements
 		// we need to load the global index first, this is the only one index containing all data
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) this.persistenceService.readEntityIndex(
 			catalogVersion,
-			Objects.requireNonNull(entityHeader.globalEntityIndexId()),
+			Objects.requireNonNull(entityHeader.globalEntityIndexPrimaryKey()),
 			this.initialSchema
 		);
 		Assert.isPremiseValid(
 			globalIndex != null,
 			() -> "Global index must never be null for the entity type `" + this.initialSchema.getName() + "`!"
 		);
-		for (Integer eid : entityHeader.usedEntityIndexIds()) {
+		for (Integer eid : entityHeader.usedEntityIndexPrimaryKeys()) {
 			final EntityIndex entityIndex = this.persistenceService.readEntityIndex(
 				catalogVersion, eid, this.initialSchema
 			);
@@ -2436,18 +2524,22 @@ public final class EntityCollection implements
 	 * @return a map containing keys and their corresponding index copies or original indexes
 	 */
 	@Nonnull
-	private Map<EntityIndexKey, EntityIndex> createIndexCopiesForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
-		//noinspection unchecked
-		return this.indexes.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Map.Entry::getKey,
-					it -> it.getValue() instanceof CatalogRelatedDataStructure ?
-						((CatalogRelatedDataStructure<? extends EntityIndex>) it.getValue()).createCopyForNewCatalogAttachment(catalogState) :
-						it.getValue()
-				)
-			);
+	private IndexTuple createIndexCopiesForNewCatalogAttachment(@Nonnull CatalogState catalogState) {
+		final Map<EntityIndexKey, EntityIndex> indexes = CollectionUtils.createHashMap(this.indexes.size());
+		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(this.indexes.size());
+		for (Entry<EntityIndexKey, EntityIndex> entry : this.indexes.entrySet()) {
+			if (entry.getValue() instanceof CatalogRelatedDataStructure) {
+				//noinspection unchecked
+				final EntityIndex copyForNewCatalogAttachment = ((CatalogRelatedDataStructure<? extends EntityIndex>) entry.getValue())
+					.createCopyForNewCatalogAttachment(catalogState);
+				indexes.put(entry.getKey(), copyForNewCatalogAttachment);
+				indexesByPk.put(copyForNewCatalogAttachment.getPrimaryKey(), copyForNewCatalogAttachment);
+			} else {
+				indexes.put(entry.getKey(), entry.getValue());
+				indexesByPk.put(entry.getValue().getPrimaryKey(), entry.getValue());
+			}
+		}
+		return new IndexTuple(indexes, indexesByPk);
 	}
 
 	/**
@@ -2476,7 +2568,7 @@ public final class EntityCollection implements
 	private void assertReferences(@Nonnull EntitySchema newSchema) {
 		for (ReferenceSchemaContract referenceSchema : newSchema.getReferences().values()) {
 			final Cardinality cardinality = referenceSchema.getCardinality();
-			if (cardinality == Cardinality.ONE_OR_MORE || cardinality == Cardinality.ZERO_OR_MORE) {
+			if (cardinality.getMax() > 1) {
 				final String[] invalidAttributes = referenceSchema.getAttributes()
 					.values()
 					.stream()
@@ -2496,6 +2588,21 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Creates a map of {@link EntityIndex} objects indexed by their primary key.
+	 *
+	 * @param indexes a map of {@link EntityIndexKey} to {@link EntityIndex} from which the primary key-indexed map will be created
+	 * @return a map of {@link EntityIndex} objects indexed by their primary key
+	 */
+	@Nonnull
+	private static Map<Integer, EntityIndex> createIndexByPk(@Nonnull Map<EntityIndexKey, EntityIndex> indexes) {
+		final Map<Integer, EntityIndex> indexesByPk = CollectionUtils.createHashMap(indexes.size());
+		for (final EntityIndex entityIndex : indexes.values()) {
+			indexesByPk.put(entityIndex.getPrimaryKey(), entityIndex);
+		}
+		return indexesByPk;
+	}
+
+	/**
 	 * A bridge implementation of the DataStoreReader interface that delegates its operations to another DataStoreReader
 	 * while providing additional context by setting the schema through the EntitySchemaContext. This instance should
 	 * be used primarily for fetching data from the underlying storage.
@@ -2504,6 +2611,7 @@ public final class EntityCollection implements
 	private static class DataStoreReaderBridge implements DataStoreReader {
 		private final DataStoreReader dataStoreReader;
 		private final Function<EntityIndexKey, EntityIndex> indexAccessor;
+		private final IntFunction<EntityIndex> indexByPrimaryKeyAccessor;
 		private final Supplier<EntitySchema> schemaSupplier;
 
 		@Override
@@ -2567,6 +2675,23 @@ public final class EntityCollection implements
 			);
 		}
 
+		@Nullable
+		@Override
+		public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(
+			int entityIndexPrimaryKey,
+			@Nonnull IntFunction<I> accessorWhenMissing
+		) {
+			return this.dataStoreReader.getIndexIfExists(
+				entityIndexPrimaryKey,
+				pk -> {
+					// we need first to fall-back on index search in this collection index
+					//noinspection unchecked
+					final I index = (I) this.indexByPrimaryKeyAccessor.apply(pk);
+					// and apply accessor when missing only if no index in collection is found
+					return index == null ? accessorWhenMissing.apply(pk) : index;
+				}
+			);
+		}
 	}
 
 	/**
@@ -2590,38 +2715,38 @@ public final class EntityCollection implements
 							final EntityIndex entityIndex;
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
-								entityIndex = new GlobalEntityIndex(EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain);
-							} else {
-								final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
-								Assert.isPremiseValid(
-									globalIndex instanceof GlobalEntityIndex,
-									"When reduced index is created global one must already exist!"
+								entityIndex = new GlobalEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.entityType,
+									eikAgain
 								);
-								final Serializable discriminator = eikAgain.discriminator();
-								if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
-									Assert.isPremiseValid(
-										discriminator instanceof String,
-										"Referenced type entity index must have discriminator of type String, but got " + (discriminator == null ? "NULL" : discriminator.getClass().getName())
-									);
-									entityIndex = new ReferencedTypeEntityIndex(
-										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
-									);
-								} else {
-									Assert.isPremiseValid(
-										discriminator instanceof ReferenceKey,
-										"Reduced index must have discriminator of type ReferenceKey, but got " + (discriminator == null ? "NULL" : discriminator.getClass().getName())
-									);
-									final ReferenceSchemaContract referenceSchema = EntityCollection.this.getSchema()
-										.getReferenceOrThrowException(((ReferenceKey) discriminator).referenceName());
-									entityIndex = new ReducedEntityIndex(
-										EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
-									);
-								}
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+								assertReferenceIndexPrerequisities(
+									((String) Objects.requireNonNull(eikAgain.discriminator()))
+								);
+								entityIndex = new ReferencedTypeEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
+								);
+							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
+								assertReferenceIndexPrerequisities(
+									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
+										.referenceName()
+								);
+								entityIndex = new ReducedEntityIndex(
+									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.entityType,
+									eikAgain
+								);
+							} else {
+								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());
 							}
 
 							if (entityIndex instanceof CatalogRelatedDataStructure<?> lateInitializationIndex) {
 								lateInitializationIndex.attachToCatalog(EntityCollection.this.entityType, EntityCollection.this.catalog);
 							}
+
+							// register index also in the map by primary key for fast access
+							EntityCollection.this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
 
 							return entityIndex;
 						}
@@ -2639,6 +2764,38 @@ public final class EntityCollection implements
 		}
 
 		/**
+		 * Retrieves an existing index by its unique primary key.
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex getIndexByPrimaryKey(int indexPrimaryKey) {
+			final EntityIndex index = EntityCollection.this.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+			Assert.isPremiseValid(
+				index != null,
+				() -> new GenericEvitaInternalError("Entity index for primary key " + indexPrimaryKey + " doesn't exists!")
+			);
+			return index;
+		}
+
+		/**
+		 * Ensures that the reference index prerequisites are satisfied before proceeding.
+		 * Verifies the existence of a global index and the presence of the specified reference in the entity schema.
+		 *
+		 * @param referenceName the name of the reference to check in the schema; must not be null
+		 */
+		private void assertReferenceIndexPrerequisities(@Nonnull String referenceName) {
+			final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
+			Assert.isPremiseValid(
+				globalIndex instanceof GlobalEntityIndex,
+				"When a reduced index is created global one must already exist!"
+			);
+			// check that the reference exists in the schema
+			EntityCollection.this
+				.getSchema()
+				.getReferenceOrThrowException(referenceName);
+		}
+
+		/**
 		 * Removes entity index by its key. If such index doesn't exist, exception is thrown.
 		 *
 		 * @throws IllegalArgumentException when entity index doesn't exist
@@ -2646,7 +2803,17 @@ public final class EntityCollection implements
 		@Override
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			final EntityIndex removedIndex = EntityCollection.this.dataStoreBuffer.removeIndex(
-				entityIndexKey, EntityCollection.this.indexes::remove
+				entityIndexKey, eik -> {
+					final EntityIndex index = EntityCollection.this.indexes.remove(eik);
+					final EntityIndex indexByPk = EntityCollection.this.indexesByPrimaryKey.remove(index.getPrimaryKey());
+					Assert.isPremiseValid(
+						index == indexByPk,
+						() -> new GenericEvitaInternalError(
+							"Index by key " + eik + " and index by primary key " + index.getPrimaryKey() + " are not the same!"
+						)
+					);
+					return index;
+				}
 			);
 			if (removedIndex == null) {
 				throw new GenericEvitaInternalError("Entity index for key " + entityIndexKey + " doesn't exists!");
@@ -2681,7 +2848,7 @@ public final class EntityCollection implements
 
 		@Nonnull
 		@Override
-		public OptionalInt getGlobalIndexKey() {
+		public OptionalInt getGlobalIndexPrimaryKey() {
 			return ofNullable(EntityCollection.this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)))
 				.map(it -> OptionalInt.of(it.getPrimaryKey()))
 				.orElseGet(OptionalInt::empty);
@@ -2689,7 +2856,7 @@ public final class EntityCollection implements
 
 		@Nonnull
 		@Override
-		public List<Integer> getIndexKeys() {
+		public List<Integer> getIndexPrimaryKeys() {
 			return EntityCollection.this.indexes
 				.values()
 				.stream()
@@ -2708,4 +2875,16 @@ public final class EntityCollection implements
 		boolean changeOccurred
 	) {}
 
+	/**
+	 * Represents a tuple containing two mappings related to entity indexes.
+	 * This class is primarily used to aggregate and organize entity index data.
+	 *
+	 * The `indexes` map associates {@link EntityIndexKey} objects with corresponding {@link EntityIndex} instances.
+	 * The `indexesByPk` map ties primary key integers to their respective {@link EntityIndex} instances.
+	 */
+	private record IndexTuple(
+		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
+		@Nonnull Map<Integer, EntityIndex> indexesByPk
+	) {
+	}
 }

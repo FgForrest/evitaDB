@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ import java.io.Serializable;
 public interface EntityClassifier extends Serializable {
 
 	/**
-	 * Reference to {@link EntitySchemaContract#getName()} of the entity. Might be also anything {@link Serializable}
-	 * that identifies type some external resource not maintained by Evita.
+	 * Reference to {@link EntitySchemaContract#getName()} of the entity. Might be also any unique string that
+	 * identifies type some external resource not maintained by Evita.
 	 */
 	@Nonnull
 	String getType();

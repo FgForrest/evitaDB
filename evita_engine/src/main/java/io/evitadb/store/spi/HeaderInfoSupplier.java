@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ public interface HeaderInfoSupplier {
 	 * or {@link OptionalInt#empty()} if the global index was not yet created (collection is empty)
 	 */
 	@Nonnull
-	OptionalInt getGlobalIndexKey();
+	OptionalInt getGlobalIndexPrimaryKey();
 
 	/**
 	 * Retrieves the list of index keys in the {@link EntityCollection} excluding the global index key.
@@ -76,6 +76,6 @@ public interface HeaderInfoSupplier {
 	 * @return a list of primary keys representing the index keys in the collection
 	 */
 	@Nonnull
-	List<Integer> getIndexKeys();
+	List<Integer> getIndexPrimaryKeys();
 
 }

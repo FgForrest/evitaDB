@@ -41,6 +41,7 @@ import io.evitadb.api.exception.*;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
@@ -1236,10 +1237,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
 				});
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			return sealedEntityProxy.getEntityBuilderWithCallback()
+			return sealedEntityProxy.getEntityBuilderWithCallback(Propagation.SHALLOW)
 				.map(entityMutation -> {
 					final EntityReference entityReference = upsertEntity(entityMutation.builder());
-					entityMutation.updateEntityReference(entityReference);
+					entityMutation.entityUpserted(entityReference);
 					return entityReference;
 				})
 				.orElseGet(() -> {
@@ -1263,10 +1264,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 		if (customEntity instanceof SealedEntityReferenceProxy sealedEntityReferenceProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
-					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback()
+					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback(Propagation.DEEP)
 						.map(entityBuilderWithCallback -> {
 							final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
-							entityBuilderWithCallback.updateEntityReference(entityReference);
+							entityBuilderWithCallback.entityUpserted(entityReference);
 							return entityReference;
 						}),
 					// and then the reference itself
@@ -1291,13 +1292,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
-					sealedEntityProxy.getReferencedEntityBuildersWithCallback(),
+					sealedEntityProxy.getReferencedEntityBuildersWithCallback(Propagation.DEEP),
 					// then the entity itself
-					sealedEntityProxy.getEntityBuilderWithCallback().stream()
+					sealedEntityProxy.getEntityBuilderWithCallback(Propagation.DEEP).stream()
 				)
 				.map(entityBuilderWithCallback -> {
 					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
-					entityBuilderWithCallback.updateEntityReference(entityReference);
+					entityBuilderWithCallback.entityUpserted(entityReference);
 					return entityReference;
 				})
 				.toList();
@@ -2023,14 +2024,25 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @param <T>    return type of the function
 	 * @return result of the applied function
 	 */
+	@Nonnull
 	private <T> T executeWithBlockingEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceFutureStub, ListenableFuture<T>> lambda
 	) {
 		final Timeout timeout = getCurrentTimeout();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			return lambda.apply(this.evitaSessionServiceFutureStub.withDeadlineAfter(timeout.timeout(), timeout.timeoutUnit()))
-				.get(timeout.timeout(), timeout.timeoutUnit());
+			final T result = lambda
+				.apply(
+					this.evitaSessionServiceFutureStub.withDeadlineAfter(
+						timeout.timeout(),
+						timeout.timeoutUnit()
+					)
+				)
+				.get(
+					timeout.timeout(),
+					timeout.timeoutUnit()
+				);
+			return Objects.requireNonNull(result);
 		} catch (ExecutionException e) {
 			final Throwable theException = e.getCause() == null ? e : e.getCause();
 			throw EvitaClient.transformException(

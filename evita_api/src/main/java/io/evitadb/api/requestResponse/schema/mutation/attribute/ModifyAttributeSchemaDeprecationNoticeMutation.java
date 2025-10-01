@@ -151,6 +151,7 @@ public class ModifyAttributeSchemaDeprecationNoticeMutation
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
+				attributeSchema.isRepresentative(),
 				(Class) attributeSchema.getType(),
 				attributeSchema.getDefaultValue(),
 				attributeSchema.getIndexedDecimalPlaces()

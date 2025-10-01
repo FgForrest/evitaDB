@@ -1306,7 +1306,9 @@ public final class Evita implements EvitaContract {
 			// first close all sessions
 			CompletableFuture.allOf(
 				CompletableFuture.runAsync(this::closeAllSessions),
-				CompletableFuture.runAsync(this.changeObserver::close)
+				CompletableFuture.runAsync(this.changeObserver::close),
+				CompletableFuture.runAsync(this.cacheSupervisor::close),
+				CompletableFuture.runAsync(this.sessionKiller::close)
 			).join();
 		} catch (RuntimeException ex) {
 			exception = ex;

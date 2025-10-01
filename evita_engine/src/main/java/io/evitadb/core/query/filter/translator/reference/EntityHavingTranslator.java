@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
+import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -163,12 +164,13 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	@Override
 	public Formula translate(@Nonnull EntityHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
 		final EntitySchemaContract entitySchema = Objects.requireNonNull(filterByVisitor.getProcessingScope().getEntitySchema());
-		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
+		final ReferenceSchemaContract referenceSchema = filterByVisitor
+			.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
-					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
-						"parent constraint that allows to resolve the entity `" +
-						entitySchema.getName() + "` referenced entity type."
-				)
+				             "Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
+					             "parent constraint that allows to resolve the entity `" +
+					             entitySchema.getName() + "` referenced entity type."
+			             )
 			);
 		Assert.isTrue(
 			referenceSchema.isReferencedEntityTypeManaged(),
@@ -192,7 +194,21 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					.stream()
 					.map(nestedResult -> {
 						if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-							return nestedResult.filter();
+							return FormulaFactory.or(
+								processingScope
+									.getIndexStream()
+									.map(ReferencedTypeEntityIndex.class::cast)
+									.map(
+										it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
+										     referenceSchema,
+										     filterByVisitor::getGlobalEntityIndexIfExists,
+										     it,
+										     nestedResult.filter(),
+										     processingScope.getScopes()
+									     )
+									)
+									.toArray(Formula[]::new)
+							);
 						} else {
 							return filterByVisitor.computeOnlyOnce(
 								processingScope.getIndexes(),
@@ -207,7 +223,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 										it -> {
 											// leave the return here, so that we can easily debug it
 											final RoaringBitmap combinedResult = RoaringBitmap.or(
-												filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
+												filterByVisitor.getReferencedEntityIndexes(entitySchema, referenceSchema, it)
 													.map(EntityIndex::getAllPrimaryKeys)
 													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 													.toArray(RoaringBitmap[]::new)

@@ -30,9 +30,9 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.EntityComparator;
@@ -117,7 +117,7 @@ public class AttributeNaturalTranslator
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeOrCompoundName);
-		final ReferenceSchemaContract referenceSchema = processingScope.referenceSchema();
+		final ReferenceSchema referenceSchema = processingScope.referenceSchema();
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
 			Assert.notNull(
@@ -164,7 +164,6 @@ public class AttributeNaturalTranslator
 			// we cannot use attribute comparator for predecessor attributes, we always need index here
 			if (referenceSchema == null) {
 				entityComparator = new PredecessorAttributeComparator(
-					attributeOrCompoundName,
 					sortedRecordsSupplier
 				);
 			} else {
@@ -326,6 +325,7 @@ public class AttributeNaturalTranslator
 		) {
 			if (orderDirection == ASC) {
 				comparator = new ReferencePredecessorComparator(
+					orderByVisitor.getReferenceSchema(),
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
@@ -335,6 +335,7 @@ public class AttributeNaturalTranslator
 				);
 			} else {
 				comparator = new ReferencePredecessorComparator(
+					orderByVisitor.getReferenceSchema(),
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
@@ -348,6 +349,7 @@ public class AttributeNaturalTranslator
 		) {
 			if (orderDirection == ASC) {
 				comparator = new ReferencePredecessorComparator(
+					orderByVisitor.getReferenceSchema(),
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
@@ -357,6 +359,7 @@ public class AttributeNaturalTranslator
 				);
 			} else {
 				comparator = new ReferencePredecessorComparator(
+					orderByVisitor.getReferenceSchema(),
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,

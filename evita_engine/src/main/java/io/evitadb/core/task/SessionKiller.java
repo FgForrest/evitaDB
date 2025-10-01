@@ -30,9 +30,11 @@ import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.session.KilledEvent;
+import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class SessionKiller implements Runnable {
+public class SessionKiller implements Runnable, Closeable {
 	/**
 	 * The allowed inactivity time in seconds.
 	 */
@@ -101,7 +103,11 @@ public class SessionKiller implements Runnable {
 						this.evita.terminateSession(session);
 						counter.incrementAndGet();
 
-						log.info("Killed session " + session.getId() + " (" + this.allowedInactivityInSeconds + "s of inactivity).");
+						log.info(
+							"Killed session {} ({}s of inactivity).",
+							session.getId(),
+							this.allowedInactivityInSeconds
+						);
 						// emit the event
 						new KilledEvent(catalogName).commit();
 					} catch (InstanceTerminatedException ex) {
@@ -110,11 +116,18 @@ public class SessionKiller implements Runnable {
 				});
 
 			if (counter.get() > 0) {
-				log.debug("Killed " + counter.get() + " timed out sessions (" + this.allowedInactivityInSeconds + "s of inactivity).");
+				log.debug(
+					"Killed {} timed out sessions ({}s of inactivity).", counter.get(),
+					this.allowedInactivityInSeconds
+				);
 			}
 		} catch (Exception ex) {
 			log.error("Session killer terminated unexpectedly: " + ex.getMessage(), ex);
 		}
 	}
 
+	@Override
+	public void close() {
+		IOUtils.closeQuietly(this.killerTask::close);
+	}
 }

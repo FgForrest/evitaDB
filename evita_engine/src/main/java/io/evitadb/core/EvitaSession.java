@@ -33,6 +33,7 @@ import io.evitadb.api.observability.trace.RepresentsQuery;
 import io.evitadb.api.observability.trace.Traced;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -90,6 +91,7 @@ import io.evitadb.core.traffic.task.TrafficRecorderTask;
 import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -957,10 +959,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
 		if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			return sealedEntityProxy.getEntityBuilderWithCallback()
+			return sealedEntityProxy.getEntityBuilderWithCallback(Propagation.SHALLOW)
 				.map(entityBuilderWithCallback -> {
 					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
-					entityBuilderWithCallback.updateEntityReference(entityReference);
+					/* TODO JNO - tady (i na úrovni celé metody) se musí vrace i přiřazené interní PK referencí (a musí se to předávat až na klienta)
+					*   aby bylo možné to v metodě `io.evitadb.api.proxy.impl.SealedEntityProxyState.getEntityBuilderWithCallback` nasetovat do generovaných proxy
+					*   referenčních objektů (kvůli tomu neprochází dva testy) - konkrétně `io.evitadb.api.proxy.EntityEditorProxyingFunctionalTest.shouldSetReferenceGroupByIdAndUpdateIt` */
+					entityBuilderWithCallback.entityUpserted(entityReference);
 					return entityReference;
 				})
 				.orElseGet(() -> {
@@ -975,8 +980,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				.orElseGet(() -> {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
-					final EntityContract entity = (EntityContract) ie.toInstance();
-					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
+					final Serializable instance = ie.toInstance();
+					if (instance instanceof EntityContract ec) {
+						return new EntityReference(ec.getType(), ec.getPrimaryKeyOrThrowException());
+					} else if (instance instanceof SealedEntityProxy sep) {
+						final EntityContract entity = sep.entity();
+						return new EntityReference(entity.getType(), entity.getPrimaryKeyOrThrowException());
+					} else if (instance instanceof SealedEntityReferenceProxy serp) {
+						final EntityClassifier entityClassifier = serp.getEntityClassifier();
+						return new EntityReference(entityClassifier.getType(), entityClassifier.getPrimaryKeyOrThrowException());
+					} else {
+						throw new GenericEvitaInternalError(
+							"InstanceEditor returned instance of type `" + instance.getClass() + "` which is not supported!",
+							"Unsupported instance type!"
+						);
+					}
 				});
 		} else {
 			throw new EvitaInvalidUsageException(
@@ -996,10 +1014,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (customEntity instanceof SealedEntityReferenceProxy sealedEntityReferenceProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
-					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback()
+					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback(Propagation.DEEP)
 						.map(entityBuilderWithCallback -> {
 							final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
-							entityBuilderWithCallback.updateEntityReference(entityReference);
+							entityBuilderWithCallback.entityUpserted(entityReference);
 							return entityReference;
 						}),
 					// and then the reference itself
@@ -1024,13 +1042,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
-					sealedEntityProxy.getReferencedEntityBuildersWithCallback(),
+					sealedEntityProxy.getReferencedEntityBuildersWithCallback(Propagation.DEEP),
 					// then the entity itself
-					sealedEntityProxy.getEntityBuilderWithCallback().stream()
+					sealedEntityProxy.getEntityBuilderWithCallback(Propagation.DEEP).stream()
 				)
 				.map(entityBuilderWithCallback -> {
 					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
-					entityBuilderWithCallback.updateEntityReference(entityReference);
+					entityBuilderWithCallback.entityUpserted(entityReference);
 					return entityReference;
 				})
 				.toList();

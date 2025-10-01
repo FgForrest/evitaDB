@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -38,41 +39,63 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Map;
 
 /**
  * This mutation allows to remove {@link Reference} from the {@link Entity}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
-public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
-	@Serial private static final long serialVersionUID = 5452632579216311397L;
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
+public class RemoveReferenceMutation extends ReferenceMutation<ComparableReferenceKey> {
+	@Serial private static final long serialVersionUID = 6043892124186555883L;
+	/**
+	 * Full identification of the mutation that is used for sorting mutations.
+	 */
+	@Nonnull
+	private final ComparableReferenceKey comparableKey;
 
 	public RemoveReferenceMutation(@Nonnull ReferenceKey referenceKey) {
 		super(referenceKey);
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	public RemoveReferenceMutation(@Nonnull String referenceName, int primaryKey) {
 		this(new ReferenceKey(referenceName, primaryKey));
 	}
 
+	private RemoveReferenceMutation(@Nonnull ReferenceKey referenceKey, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
+	}
+
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(entitySchema, existingValue, Map.of());
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue, @Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot remove reference " + this.referenceKey + " - reference doesn't exist!")
 		);
 		return new Reference(
 			entitySchema,
+			existingValue.getReferenceSchemaOrThrow(),
 			existingValue.version() + 1,
-			existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-			existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+			existingValue.getReferenceKey(),
 			existingValue.getGroup()
-				.filter(Droppable::exists)
-				.map(it -> new GroupEntityReference(it.referencedEntity(), it.primaryKey(), it.version() + 1, true))
-				.orElse(null),
+			             .filter(Droppable::exists)
+			             .map(it -> new GroupEntityReference(it.referencedEntity(), it.primaryKey(), it.version() + 1, true))
+			             .orElse(null),
 			existingValue.getAttributeValues(),
+			attributeTypes,
 			true
 		);
 	}
@@ -82,15 +105,31 @@ public class RemoveReferenceMutation extends ReferenceMutation<ReferenceKey> {
 		return LocalMutation.PRIORITY_REMOVAL;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
+	public ComparableReferenceKey getComparableKey() {
+		return this.comparableKey;
 	}
 
 	@Nonnull
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemoveReferenceMutation(this.referenceKey, newDecisiveTimestamp);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new RemoveReferenceMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.decisiveTimestamp
+		);
 	}
 
 	@Override

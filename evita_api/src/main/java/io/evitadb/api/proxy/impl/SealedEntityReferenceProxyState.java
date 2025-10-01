@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.Assert;
@@ -76,30 +77,36 @@ public class SealedEntityReferenceProxyState
 	/**
 	 * Proxy class of the main entity class this reference proxy belongs to.
 	 */
-	@Nonnull private Class<?> entityProxyClass;
+	@Nonnull private final Class<?> entityProxyClass;
+	/**
+	 * Map of attribute types for the reference shared for all references of the same type.
+	 */
+	@Nonnull private final Map<String, AttributeSchemaContract> attributeTypes;
 
 	public SealedEntityReferenceProxyState(
 		@Nonnull EntityContract entity,
 		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
 		@Nonnull Class<?> entityProxyClass,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
+		@Nonnull Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
 	) {
 		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup, entityInstanceCache);
 		this.entityProxyClass = entityProxyClass;
 		this.entityPrimaryKeySupplier = entityPrimaryKeySupplier;
 		this.reference = reference;
+		this.attributeTypes = attributeTypes;
 	}
 
 	@Nonnull
 	@Override
 	public EntityClassifier getEntityClassifier() {
-		return new EntityReference(getType(), getPrimaryKey());
+		return new EntityReference(getType(), getPrimaryKeyOrThrowException());
 	}
 
 	/**
@@ -118,7 +125,7 @@ public class SealedEntityReferenceProxyState
 			Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
 		} else {
 			this.referenceBuilder = new ExistingReferenceBuilder(
-				this.reference, getEntitySchema(), mutations
+				this.reference, getEntitySchema(), mutations, this.attributeTypes
 			);
 		}
 		return this.referenceBuilder;
@@ -132,7 +139,7 @@ public class SealedEntityReferenceProxyState
 				this.referenceBuilder = theBuilder;
 			} else {
 				this.referenceBuilder = new ExistingReferenceBuilder(
-					this.reference, getEntitySchema()
+					this.reference, getEntitySchema(), this.attributeTypes
 				);
 			}
 		}
@@ -143,7 +150,7 @@ public class SealedEntityReferenceProxyState
 	public void notifyBuilderUpserted() {
 		if (this.referenceBuilder != null) {
 			this.referenceBuilder = new ExistingReferenceBuilder(
-				this.referenceBuilder.build(), getEntitySchema()
+				this.referenceBuilder.build(), getEntitySchema(), this.attributeTypes
 			);
 		}
 	}
@@ -159,6 +166,16 @@ public class SealedEntityReferenceProxyState
 	public ReferenceContract getReference() {
 		return this.referenceBuilder == null ?
 			this.reference : this.referenceBuilder;
+	}
+
+	/**
+	 * Returns map of attribute types for the reference shared for all references of the same type.
+	 *
+	 * @return map of attribute types for the reference shared for all references of the same type
+	 */
+	@Nonnull
+	public Map<String, AttributeSchemaContract> getReferenceAttributeTypes() {
+		return this.attributeTypes;
 	}
 
 	@Nonnull

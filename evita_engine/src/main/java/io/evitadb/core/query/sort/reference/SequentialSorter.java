@@ -116,7 +116,7 @@ public class SequentialSorter implements Sorter {
 				nextSortingContext.endIndex(),
 				nextSortingContext.peak(),
 				nextSortingContext.skipped(),
-				atomicBlock[0].getReferenceKey()
+				atomicBlock[0].getRepresentativeReferenceKey()
 			);
 
 			final int previousPeak = nextSortingContext.peak();

@@ -185,7 +185,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	public Entity mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable Entity entity) {
 		return Entity.mutateEntity(
 			entitySchema,
-			Objects.requireNonNullElseGet(entity, () -> new Entity(this.entityType, this.entityPrimaryKey)),
+			Objects.requireNonNullElseGet(entity, () -> new Entity(entitySchema, this.entityPrimaryKey)),
 			this.localMutations
 		);
 	}

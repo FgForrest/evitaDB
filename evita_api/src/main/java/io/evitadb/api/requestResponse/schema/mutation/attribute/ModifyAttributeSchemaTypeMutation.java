@@ -192,6 +192,7 @@ public class ModifyAttributeSchemaTypeMutation
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
+				attributeSchema.isRepresentative(),
 				newType,
 				ofNullable(attributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))

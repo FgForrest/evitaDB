@@ -31,8 +31,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Extension of {@link Attributes} for reference attributes.
@@ -45,18 +47,6 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 	 * Definition of the reference schema.
 	 */
 	final ReferenceSchemaContract referenceSchema;
-
-	public ReferenceAttributes(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		super(
-			entitySchema,
-			Collections.emptyList(),
-			referenceSchema.getAttributes()
-		);
-		this.referenceSchema = referenceSchema;
-	}
 
 	public ReferenceAttributes(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -76,6 +66,13 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 	) {
 		super(entitySchema, attributeValues, attributeTypes);
 		this.referenceSchema = referenceSchema;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
+		return this.referenceSchema.getAttribute(attributeName)
+		                           .or(() -> ofNullable(this.attributeTypes.get(attributeName)));
 	}
 
 	@Nonnull

@@ -31,7 +31,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,7 +49,7 @@ import java.util.function.LongSupplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class DelayedAsyncTask {
+public class DelayedAsyncTask implements Closeable {
 	/**
 	 * The default minimal gap between two scheduling moments.
 	 */
@@ -81,7 +84,7 @@ public class DelayedAsyncTask {
 	 * The task that is executed asynchronously after the specified delay and returns negative value when it should be
 	 * paused or positive value when it should be re-scheduled (with shortened delay).
 	 */
-	private final Runnable lambda;
+	private final AtomicReference<Runnable> lambda;
 	/**
 	 * The next planned cache cut time - if there is scheduled action planned in the current scheduled executor service,
 	 * the time is stored here to avoid scheduling the same action multiple times.
@@ -99,6 +102,14 @@ public class DelayedAsyncTask {
 	 * The flag indicating whether the task should be re-scheduled after it finishes run.
 	 */
 	private final AtomicBoolean reSchedule = new AtomicBoolean();
+	/**
+	 * The future representing the scheduled task.
+	 */
+	private final AtomicReference<ScheduledFuture<?>> scheduledFuture = new AtomicReference<>();
+	/**
+	 * The flag indicating whether the task has been closed. Closed task cannot be scheduled anymore.
+	 */
+	private final AtomicBoolean closed = new AtomicBoolean();
 
 	public DelayedAsyncTask(
 		@Nullable String catalogName,
@@ -128,7 +139,7 @@ public class DelayedAsyncTask {
 		this.minimalSchedulingGap = minimalSchedulingGap;
 		this.catalogName = catalogName;
 		this.taskName = taskName;
-		this.lambda = () -> runTask(runnable);
+		this.lambda = new AtomicReference<>(() -> runTask(runnable));
 	}
 
 	/**
@@ -138,11 +149,7 @@ public class DelayedAsyncTask {
 	public void scheduleImmediately() {
 		final OffsetDateTime now = OffsetDateTime.now();
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
-			this.scheduler.schedule(
-				this.lambda,
-				computeMinimalSchedulingGap(now.toInstant().toEpochMilli()),
-				TimeUnit.MILLISECONDS
-			);
+			scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
 		} else if (this.running.get()) {
 			// if this task is currently running, we need to schedule it again after it finishes
 			this.reSchedule.set(true);
@@ -168,14 +175,40 @@ public class DelayedAsyncTask {
 				nextTick.toInstant().toEpochMilli() - nowMillis,
 				computeMinimalSchedulingGap(nowMillis)
 			);
-			this.scheduler.schedule(
-				this.lambda,
-				computedDelay,
-				TimeUnit.MILLISECONDS
-			);
+			scheduleTask(computedDelay);
 		} else if (this.running.get()) {
 			// if this task is currently running, we need to schedule it again after it finishes
 			this.reSchedule.set(true);
+		}
+	}
+
+	@Override
+	public void close() throws IOException {
+		if (this.closed.compareAndSet(false, true)) {
+			final ScheduledFuture<?> future = this.scheduledFuture.getAndSet(null);
+			if (future != null && !future.isDone()) {
+				future.cancel(false);
+			}
+			// release the lambda to allow garbage collection
+			this.lambda.set(null);
+		}
+	}
+
+	/**
+	 * Schedules the task for execution after the specified computed delay if the task is not already closed.
+	 * The task is scheduled using the scheduler's schedule method with the computed delay and time unit specified in milliseconds.
+	 *
+	 * @param computedDelay the delay time in milliseconds after which the task should be executed
+	 */
+	private void scheduleTask(long computedDelay) {
+		if (!this.closed.get()) {
+			this.scheduledFuture.set(
+				this.scheduler.schedule(
+					this.lambda.get(),
+					computedDelay,
+					TimeUnit.MILLISECONDS
+				)
+			);
 		}
 	}
 
@@ -190,7 +223,9 @@ public class DelayedAsyncTask {
 		if (lastFinishedExecutionTime.equals(OffsetDateTime.MIN)) {
 			return 0;
 		} else {
-			return Math.max(0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant().toEpochMilli()));
+			return Math.max(0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant()
+			                                                                                     .toEpochMilli())
+			);
 		}
 	}
 
@@ -218,11 +253,7 @@ public class DelayedAsyncTask {
 			nextTick.toInstant().toEpochMilli() - nowMillis,
 			computeMinimalSchedulingGap(nowMillis)
 		);
-		this.scheduler.schedule(
-			this.lambda,
-			computedDelay,
-			TimeUnit.MILLISECONDS
-		);
+		scheduleTask(computedDelay);
 	}
 
 	/**
@@ -230,7 +261,9 @@ public class DelayedAsyncTask {
 	 */
 	private void runTask(@Nonnull LongSupplier runnable) {
 		final long planWithShorterDelay;
-		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(this.catalogName, this.taskName);
+		final BackgroundTaskFinishedEvent finishEvent = new BackgroundTaskFinishedEvent(
+			this.catalogName, this.taskName
+		);
 		try {
 			Assert.isPremiseValid(
 				this.running.compareAndSet(false, true),

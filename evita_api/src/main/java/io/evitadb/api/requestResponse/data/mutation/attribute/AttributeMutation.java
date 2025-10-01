@@ -64,9 +64,10 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class AttributeMutation implements NamedLocalMutation<AttributeValue, AttributeKey> {
 	@Serial private static final long serialVersionUID = 8615227519108169551L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Identification of the attribute that the mutation affects.
 	 */
@@ -75,6 +76,12 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 
 	protected AttributeMutation(@Nonnull AttributeKey attributeKey) {
 		this.attributeKey = attributeKey;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	public AttributeMutation(@Nonnull AttributeKey attributeKey, long decisiveTimestamp) {
+		this.attributeKey = attributeKey;
+		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
 	@Nonnull
@@ -89,6 +96,7 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 		return ContainerType.ATTRIBUTE;
 	}
 
+	@Nonnull
 	@Override
 	public AttributeKey getComparableKey() {
 		return this.attributeKey;

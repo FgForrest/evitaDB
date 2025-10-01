@@ -59,11 +59,14 @@ import io.evitadb.function.Functions;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -94,7 +97,7 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class TransactionManager {
+public class TransactionManager implements Closeable {
 	/**
 	 * Represents reference to the currently active catalog version in the "live view" of the evitaDB engine.
 	 */
@@ -847,6 +850,17 @@ public class TransactionManager {
 	@Nonnull
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
 		return this.changeObserver.registerObserver(request);
+	}
+
+	@Override
+	public void close() throws IOException {
+		IOUtils.closeQuietly(
+			this.transactionalPipeline::close,
+			this.changeObserver::close,
+			this.walDrainingTask::close
+		);
+		this.livingCatalog.set(null);
+		this.lastFinalizedCatalog.set(null);
 	}
 
 	/**

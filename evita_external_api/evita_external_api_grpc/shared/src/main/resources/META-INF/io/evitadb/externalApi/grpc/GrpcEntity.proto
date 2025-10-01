@@ -11,7 +11,7 @@ import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
 import "google/protobuf/wrappers.proto";
 
-// This type represents a reference to any Evita entity and that ne returned by default for all
+// This type represents a reference to any Evita entity and that is returned by default for all
 // queries that don't require loading additional data.
 message GrpcEntityReference {
   // Type of entity.
@@ -165,6 +165,22 @@ message GrpcReference {
   map<string, GrpcLocalizedAttribute> localizedAttributes = 8;
   // Contains reference cardinality.
   GrpcCardinality referenceCardinality = 9;
+  // internal PK is assigned by evitaDB engine and is used to uniquely identify the
+  // reference among other references. It is used when multiple references share same
+  // business key - entityType and primaryKey - but differ by other properties (fe. reference group or attributes).
+  //
+  // When a reference is created for the first time, internal id is set to a unique
+  // negative number that is not used by the server side, which assigns positive unique
+  // numbers to the references on first reference persistence. This allows distinguishing
+  // references that are not yet persisted from those that are already persistent.
+  //
+  // When standalone key is used:
+  //
+  // - negative number: means that the reference is new and hasn't been yet persisted
+  // - zero: means we don't know the internal PK
+  // - positive number: means that the reference is persistent and has been already stored
+  //   in the database
+  int32 internalPrimaryKey = 10;
 }
 
 // The OffsetAndLimit record represents pagination parameters including offset, limit, and the last page number.

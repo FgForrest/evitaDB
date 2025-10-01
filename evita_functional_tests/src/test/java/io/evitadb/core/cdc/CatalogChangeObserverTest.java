@@ -196,7 +196,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 			// Verify that the subscriber received exactly 40 items
 			// For each upserted entity there are 2 mutations - entity creation and attribute update
-			assertEquals(20, subscriber.getItems().size(), "Should receive 420 mutations (20 entities)");
+			assertEquals(20, subscriber.getItems().size(), "Should receive 20 mutations (20 entities)");
 		}
 	}
 
@@ -413,7 +413,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 			partialWalPublisher.subscribe(partialWalSubscriber);
 
 			// Verify initial subscribers received expected data
-			assertEquals(20, entireWalSubscriber.getItems().size(), "Should receive 20 mutations (20 entities)");
+			assertEquals(20, entireWalSubscriber.getItems().size(), "Should receive 40 mutations (20 entities)");
 			assertEquals(10, partialWalSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 			// Create 10 new entities in the catalog
@@ -468,8 +468,8 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				assertEquals(10, onlyNewPartialSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
 
 				// Verify initial subscribers received new data as well
-				assertEquals(20 + 10, entireWalSubscriber.getItems().size(), "Should receive 20 mutations (20 entities)");
-				assertEquals(10 + 10, partialWalSubscriber.getItems().size(), "Should receive 10 mutations (10 entities)");
+				assertEquals(20 + 10, entireWalSubscriber.getItems().size(), "Should receive 30 mutations (10 old + 20 new entities)");
+				assertEquals(10 + 10, partialWalSubscriber.getItems().size(), "Should receive 20 mutations (10 old + 10 new entities)");
 
 				// Create another 5 new entities in the catalog
 				evita.updateCatalog(
@@ -574,7 +574,7 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 
 		// Verify the subscriber received mutations
 		// For each upserted entity there are 2 mutations - entity creation and attribute update
-		assertEquals(5, subscriber.getItems().size(), "Should receive 10 mutations (5 entities)");
+		assertEquals(5, subscriber.getItems().size(), "Should receive 5 mutations (5 entities)");
 
 		// Close the publisher, which will unregister the observer
 		assertTrue(tested.unregisterObserver(subscriber.getSubscriptionId()));

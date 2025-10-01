@@ -70,7 +70,7 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	 */
 	private final int worstCardinality;
 	/**
-	 * The function that lazily computes the relevant entity primary keys, for each found referenced entity primary key.
+	 * The function that lazily computes the relevant primary keys, for each found referenced entity primary key.
 	 * The input is referenced entity primary key, output is a bitmap of all entity primary keys that refer to it.
 	 */
 	private final IntFunction<Bitmap> primaryKeyExpander;

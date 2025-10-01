@@ -34,6 +34,7 @@ import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -105,6 +106,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Last observed completed task count of the scheduler.
 	 */
 	private long schedulerCompletedTasks;
+	/**
+	 * Task that periodically purges finished tasks from the queue.
+	 */
+	private final DelayedAsyncTask purgingTask;
 
 	/**
 	 * Creates a predicate to evaluate {@link TaskStatus} objects based on the specified task types and simplified states.
@@ -139,18 +144,20 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		);
 		theExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
 		theExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+		theExecutor.setRemoveOnCancelPolicy(true);
 		this.executorService = theExecutor;
 		// create queue with double the size of the configured queue size to have some breathing room
 		this.queueCapacity = options.queueSize();
 		this.queue = new ArrayBlockingQueue<>(this.queueCapacity << 1);
 		// schedule automatic purging task
-		new DelayedAsyncTask(
+		this.purgingTask = new DelayedAsyncTask(
 			null,
 			"Scheduler queue purging task",
 			this,
 			this::purgeFinishedAndLongWaitingTasks,
 			1, TimeUnit.MINUTES
-		).schedule();
+		);
+		this.purgingTask.schedule();
 	}
 
 	/**
@@ -163,17 +170,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		this.queue = new ArrayBlockingQueue<>(64);
 		this.queueCapacity = 64;
 		this.rejectingExecutorHandler = null;
-	}
-
-	/**
-	 * Returns the internal executor service used by the scheduler. This method is intended for observability purposes
-	 * and should not be used for task scheduling.
-	 *
-	 * @return the internal executor service
-	 */
-	@Nonnull
-	public ScheduledThreadPoolExecutor getExecutorServiceInternal() {
-		return this.executorService;
+		this.purgingTask = null;
 	}
 
 	@Nonnull
@@ -268,6 +265,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	@Override
 	public void shutdown() {
+		if (this.purgingTask != null) {
+			IOUtils.closeQuietly(this.purgingTask::close);
+		}
 		// cancel all tasks in the queue
 		for (ServerTask<?, ?> serverTask : this.queue) {
 			if (serverTask instanceof InfiniteTask<?,?> it) {

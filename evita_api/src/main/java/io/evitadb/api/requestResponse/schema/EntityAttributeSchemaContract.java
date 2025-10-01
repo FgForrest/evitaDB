@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,14 +30,5 @@ package io.evitadb.api.requestResponse.schema;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface EntityAttributeSchemaContract extends AttributeSchemaContract {
-
-	/**
-	 * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
-	 * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
-	 * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
-	 * helpful to developers in quickly finding their way around the data. There should be very few representative
-	 * attributes in the entity type, and the unique ones are usually the best to choose.
-	 */
-	boolean isRepresentative();
 
 }

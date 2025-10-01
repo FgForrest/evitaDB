@@ -34,21 +34,29 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.data.DataItem;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
+import io.evitadb.dataType.map.LazyHashMap;
+import io.evitadb.dataType.set.LazyHashSet;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.Assert;
@@ -80,12 +88,14 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -172,7 +182,7 @@ public class DataGenerator {
 	 * Holds information about number of unique values.
 	 */
 	final Map<Serializable, Map<Object, Integer>> uniqueSequencer = new ConcurrentHashMap<>();
-	final Map<Serializable, SortableAttributesChecker> sortableAttributesChecker = new ConcurrentHashMap<>();
+	final Map<Serializable, ManagedAttributesChecker> sortableAttributesChecker = new ConcurrentHashMap<>();
 	final Map<String, Map<Integer, Integer>> parameterIndex = new ConcurrentHashMap<>();
 	/**
 	 * Holds function that is used for generating price inner record handling strategy.
@@ -284,7 +294,7 @@ public class DataGenerator {
 		@Nonnull Collection<? extends AttributeSchemaContract> attributeSchema,
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
-		@Nonnull SortableAttributesChecker sortableAttributesHolder,
+		@Nonnull ManagedAttributesChecker managedAttributesHolder,
 		@Nonnull Predicate<String> attributeFilter, Function<Locale, Faker> localeFaker,
 		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
 		@Nonnull Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators,
@@ -294,7 +304,9 @@ public class DataGenerator {
 		@Nonnull Set<String> priceLists,
 		@Nonnull Collection<Locale> usedLocales,
 		@Nonnull Collection<Locale> allLocales,
-		@Nullable ReferenceKey referenceKey
+		@Nullable ReferenceKey referenceKey,
+		int cardinalityLimit,
+		@Nullable BiPredicate<String, Object> acceptOnlyIf
 	) {
 		for (AttributeSchemaContract attribute : attributeSchema) {
 			final Class<? extends Serializable> type = attribute.getType();
@@ -321,19 +333,23 @@ public class DataGenerator {
 				final Collection<Locale> localesToGenerate = attribute.isNullable() ? usedLocales : allLocales;
 				for (Locale usedLocale : localesToGenerate) {
 					generateAndSetAttribute(
-						globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
+						globalUniqueSequencer, uniqueSequencer, managedAttributesHolder,
 						attributesEditor, attribute, currencies, priceLists, usedLocale, type, entityType, attributeName,
 						valueGenerator,
 						localeFaker.apply(usedLocale),
-						value -> attributesEditor.setAttribute(attributeName, usedLocale, value)
+						value -> attributesEditor.setAttribute(attributeName, usedLocale, value),
+						cardinalityLimit,
+						acceptOnlyIf
 					);
 				}
 			} else {
 				generateAndSetAttribute(
-					globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
+					globalUniqueSequencer, uniqueSequencer, managedAttributesHolder,
 					attributesEditor, attribute, currencies, priceLists, null, type, entityType, attributeName,
 					valueGenerator, genericFaker,
-					value -> attributesEditor.setAttribute(attributeName, value)
+					value -> attributesEditor.setAttribute(attributeName, value),
+					cardinalityLimit,
+					acceptOnlyIf
 				);
 			}
 		}
@@ -451,7 +467,7 @@ public class DataGenerator {
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull Map<String, Map<Integer, Integer>> parameterGroupIndex,
-		@Nonnull SortableAttributesChecker sortableAttributesHolder,
+		@Nonnull ManagedAttributesChecker sortableAttributesHolder,
 		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
 		@Nonnull Map<EntityAttribute, BiFunction<ReferenceKey, Faker, Object>> referenceValueGenerators,
 		@Nonnull Function<Locale, Faker> localeFaker,
@@ -475,14 +491,14 @@ public class DataGenerator {
 					.stream()
 					.filter(it -> !(it instanceof ReflectedReferenceSchemaContract))
 					.filter(it -> it.isReferencedEntityTypeManaged())
-					.filter(it -> it.getCardinality() == Cardinality.ONE_OR_MORE || it.getCardinality() == Cardinality.EXACTLY_ONE)
+					.filter(it -> it.getCardinality().getMin() == 1)
 					.map(it -> it.getName())
 			)
 			.distinct()
 			.toList();
 		for (String referenceName : referenceNames) {
-			final ReferenceSchemaContract referenceSchema = schema.getReference(referenceName).orElseThrow();
-			final boolean multiple = referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE || referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE;
+			final ReferenceSchema referenceSchema = (ReferenceSchema) schema.getReference(referenceName).orElseThrow();
+			final boolean multiple = referenceSchema.getCardinality().getMax() > 1;
 			final String referencedType = referenceSchema.getReferencedEntityType();
 			final int initialCount;
 			if (Entities.CATEGORY.equals(referencedType) && multiple) {
@@ -501,54 +517,137 @@ public class DataGenerator {
 				initialCount = 1;
 			}
 
-			final int existingCount = detachedBuilder.getReferences(referenceName).size();
+			final Collection<ReferenceContract> existingReferences = detachedBuilder.getReferences(referenceName);
+			final int existingCount = existingReferences.size();
 			final int count;
+
+			// if the detached builder already contains references that allow duplicates
+			// select some of them to be updated
+			final Set<ComparableReferenceKey> updatedReferences;
+			final boolean referenceAllowsDuplicates = referenceSchema.getCardinality().allowsDuplicates();
+			if (referenceAllowsDuplicates) {
+				updatedReferences = new HashSet<>(existingCount / 2);
+				for (ReferenceContract existingReference : existingReferences) {
+					if (genericFaker.random().nextInt(3) == 0) {
+						updatedReferences.add(
+							new ComparableReferenceKey(existingReference.getReferenceKey())
+						);
+					}
+				}
+			} else {
+				updatedReferences = Collections.emptySet();
+			}
 
 			switch (referenceSchema.getCardinality()) {
 				case ZERO_OR_ONE -> count = Math.min(initialCount, 1 - existingCount);
 				case EXACTLY_ONE -> count = 1 - existingCount;
-				case ZERO_OR_MORE -> count = Math.min(initialCount, 30 - existingCount);
-				case ONE_OR_MORE -> count = Math.min(Math.max(initialCount, 1), 30 - existingCount);
+				case ZERO_OR_MORE, ZERO_OR_MORE_WITH_DUPLICATES -> count = Math.min(initialCount, 30 - existingCount);
+				case ONE_OR_MORE, ONE_OR_MORE_WITH_DUPLICATES -> count = Math.min(Math.max(initialCount, 1), 30 - existingCount);
 				default -> throw new IllegalStateException("Unknown cardinality!");
 			}
 
 			final Predicate<String> attributePredicate = new SingleSortableAttributePredicate(
 				referenceSchema, detachedBuilder
 			);
+
+			// prepare already used representative keys to avoid generating conflicting duplicates
+			final Set<RepresentativeReferenceKey> representativeKeys = new LazyHashSet<>(16);
+			final Map<ComparableReferenceKey, RepresentativeReferenceKey> representativeKeyIndex = new LazyHashMap<>(16);
+			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
+			if (referenceAllowsDuplicates) {
+				for (ReferenceContract reference : detachedBuilder.getReferences()) {
+					final ReferenceKey referenceKey = reference.getReferenceKey();
+					final RepresentativeReferenceKey newRRK = new RepresentativeReferenceKey(
+						referenceKey,
+						rad.getRepresentativeValues(reference)
+					);
+					representativeKeys.add(newRRK);
+					representativeKeyIndex.put(new ComparableReferenceKey(referenceKey), newRRK);
+				}
+			}
+			// prepare shared function to set-up reference
+			final Consumer<ReferenceBuilder> referenceBuilder = refBuilder -> {
+				final int referencedEntity = refBuilder.getReferencedPrimaryKey();
+				if (referenceSchema.isReferencedGroupTypeManaged()) {
+					refBuilder.setGroup(
+						referenceSchema.getReferencedGroupType(),
+						parameterGroupIndex.computeIfAbsent(
+							referencedType, __ -> new ConcurrentHashMap<>()
+						).computeIfAbsent(
+							referencedEntity,
+							parameterId -> referencedEntityResolver.apply(referenceSchema.getReferencedGroupType(), genericFaker)
+						)
+					);
+				}
+
+				final RepresentativeReferenceKey currentRRK = ofNullable(
+					representativeKeyIndex.get(new ComparableReferenceKey(refBuilder.getReferenceKey()))
+				).orElseGet(
+					() -> new RepresentativeReferenceKey(refBuilder.getReferenceKey(), rad.getRepresentativeValues(null))
+				);
+				sortableAttributesHolder.executeWithPredicate(
+					Set::isEmpty,
+					() -> generateRandomAttributes(
+						schema.getName(),
+						referenceSchema.getAttributes().values(),
+						globalUniqueSequencer,
+						uniqueSequencer,
+						sortableAttributesHolder,
+						attributePredicate,
+						localeFaker, valueGenerators, referenceValueGenerators,
+						genericFaker, refBuilder, currencies, priceLists, usedLocales, allLocales,
+						new ReferenceKey(referenceName, referencedEntity),
+						count * 2,
+						(attributeName, value) -> {
+							final Serializable[] currentAVs = currentRRK.representativeAttributeValues();
+							final Serializable[] potentialAVs = Arrays.copyOf(currentAVs, currentAVs.length);
+							potentialAVs[rad.getAttributeNameIndex(attributeName).orElseThrow()] = (Serializable) value;
+							return !representativeKeys.contains(
+								new RepresentativeReferenceKey(
+									refBuilder.getReferenceKey(),
+									potentialAVs
+								)
+							);
+						}
+					)
+				);
+
+				if (referenceAllowsDuplicates) {
+					final ReferenceKey referenceKey = refBuilder.getReferenceKey();
+					final RepresentativeReferenceKey newRRK = new RepresentativeReferenceKey(
+						referenceKey,
+						rad.getRepresentativeValues(refBuilder)
+					);
+					representativeKeys.add(newRRK);
+					representativeKeyIndex.put(new ComparableReferenceKey(referenceKey), newRRK);
+				}
+			};
+
+			// generate new or update existing references
 			for (int i = 0; i < count; i++) {
 				final Integer referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
 					referencedEntityResolver.apply(referencedType, genericFaker) : ((Integer) genericFaker.random().nextInt(100_000));
 				if (referencedEntity != null) {
-					detachedBuilder.setReference(
-						referenceName,
-						Objects.requireNonNull(referencedEntity),
-						thatIs -> {
-							if (referenceSchema.isReferencedGroupTypeManaged()) {
-								thatIs.setGroup(
-									referenceSchema.getReferencedGroupType(),
-									parameterGroupIndex.computeIfAbsent(
-										referencedType, __ -> new ConcurrentHashMap<>()
-									).computeIfAbsent(
-										referencedEntity,
-										parameterId -> referencedEntityResolver.apply(referenceSchema.getReferencedGroupType(), genericFaker)
-									)
-								);
+					if (referenceAllowsDuplicates) {
+						final int finalIndex = i;
+						detachedBuilder.setOrUpdateReference(
+							referenceName,
+							Objects.requireNonNull(referencedEntity),
+							// if we update existing entity, we rewrite contents of every third refererence
+							ref -> { return updatedReferences.contains(new ComparableReferenceKey(ref.getReferenceKey())); },
+							thatIs -> {
+								referenceBuilder.accept(thatIs);
 							}
-							sortableAttributesHolder.executeWithPredicate(
-								Set::isEmpty,
-								() -> generateRandomAttributes(
-									schema.getName(), referenceSchema.getAttributes().values(),
-									globalUniqueSequencer,
-									uniqueSequencer,
-									sortableAttributesHolder,
-									attributePredicate,
-									localeFaker, valueGenerators, referenceValueGenerators,
-									genericFaker, thatIs, currencies, priceLists, usedLocales, allLocales,
-									new ReferenceKey(referenceName, referencedEntity)
-								)
-							);
-						}
-					);
+						);
+					} else {
+						detachedBuilder.setReference(
+							referenceName,
+							Objects.requireNonNull(referencedEntity),
+							thatIs -> {
+								referenceBuilder.accept(thatIs);
+							}
+						);
+					}
 				}
 			}
 		}
@@ -558,7 +657,7 @@ public class DataGenerator {
 	private static <T extends Serializable> void generateAndSetAttribute(
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
-		@Nonnull SortableAttributesChecker sortableAttributesChecker,
+		@Nonnull ManagedAttributesChecker managedAttributesChecker,
 		@Nonnull AttributesEditor<?, ?> attributesBuilder,
 		@Nonnull AttributeSchemaContract attribute,
 		@Nonnull Set<Currency> currencies,
@@ -569,7 +668,9 @@ public class DataGenerator {
 		@Nonnull String attributeName,
 		@Nullable Function<Faker, Object> valueGenerator,
 		@Nonnull Faker fakerToUse,
-		@Nonnull Consumer<T> generatedValueWriter
+		@Nonnull Consumer<T> generatedValueWriter,
+		int cardinalityLimit,
+		@Nullable BiPredicate<String, Object> acceptOnlyIf
 	) {
 		Object value;
 		int sanityCheck = 0;
@@ -633,10 +734,27 @@ public class DataGenerator {
 				final Object[] values = type.getEnumConstants();
 				value = values[fakerToUse.random().nextInt(values.length)];
 			} else {
-				throw new IllegalArgumentException("Unsupported auto-generated value type: " + type);
+				throw new IllegalArgumentException("Unsupported auto-generated value type: " + type + " for attribute " + attributeName);
 			}
-			if (valueGenerator == null && attribute.isSortable() && !(value instanceof Currency || value instanceof Locale)) {
-				value = sortableAttributesChecker.getUniqueAttribute(attributeName, value);
+			// if the attribute is reference attribute and is representative, we need to limit its cardinality
+			if (!(attribute instanceof EntityAttributeSchema || attribute instanceof GlobalAttributeSchema) && attribute.isRepresentative()) {
+				Assert.isPremiseValid(
+					!attribute.isSortable(),
+					"Attribute " + attributeName + " cannot be sortable and representative at the same time! " +
+						"It has limited cardinality and there would be duplicates that might lead to non-repeatable test results!"
+				);
+				int counter = 0;
+				final Object finalValueCopy = value;
+				do {
+					value = managedAttributesChecker.getAttributeWithLimitedCardinality(
+						attributeName, cardinalityLimit, () -> finalValueCopy, fakerToUse
+					);
+				} while (acceptOnlyIf != null && !acceptOnlyIf.test(attributeName, value) && counter++ < 100);
+				if (counter >= 100) {
+					throw new GenericEvitaInternalError("Cannot generate " + attributeName + " that would satisfy the condition even in 100 iterations!");
+				}
+			} else if (valueGenerator == null && attribute.isSortable() && !(value instanceof Currency || value instanceof Locale)) {
+				value = managedAttributesChecker.getUniqueAttribute(attributeName, value);
 			}
 		} while (value == null && sanityCheck++ < 1000);
 
@@ -976,9 +1094,9 @@ public class DataGenerator {
 			schema.getName(),
 			serializable -> new ConcurrentHashMap<>()
 		);
-		final SortableAttributesChecker sortableAttributesHolder = this.sortableAttributesChecker.computeIfAbsent(
+		final ManagedAttributesChecker sortableAttributesHolder = this.sortableAttributesChecker.computeIfAbsent(
 			schema.getName(),
-			serializable -> new SortableAttributesChecker()
+			serializable -> new ManagedAttributesChecker()
 		);
 		final Map<Locale, Faker> localeFaker = new ConcurrentHashMap<>();
 		final Function<Locale, Faker> localizedFakerFetcher = locale -> localeFaker.computeIfAbsent(locale, theLocale -> new Faker(new Random(seed)));
@@ -1004,7 +1122,8 @@ public class DataGenerator {
 				schema.getName(), schema.getAttributes().values(),
 				globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder, TRUE_PREDICATE, localizedFakerFetcher,
 				this.valueGenerators, this.referenceValueGenerators,
-				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null
+				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null,
+				Integer.MAX_VALUE, null
 			);
 			generateRandomAssociatedData(schema, genericFaker, detachedBuilder, usedLocales, allLocales);
 
@@ -1461,12 +1580,40 @@ public class DataGenerator {
 		private final String entityType;
 	}
 
-	private static class SortableAttributesChecker {
-		private final Map<String, Map<Object, Integer>> sortableAttributes = new ConcurrentHashMap<>();
+	private static class ManagedAttributesChecker {
+		private final Map<String, Map<Object, Integer>> managedAttributes = new ConcurrentHashMap<>();
 		private Predicate<Set<Object>> canAddAttribute;
 
+		@Nonnull
+		private Object getAttributeWithLimitedCardinality(
+			@Nonnull String attributeName,
+			int cardinalityLimit,
+			@Nonnull Supplier<Object> nextValueSupplier,
+			@Nonnull Faker faker
+		) {
+			final Map<Object, Integer> values = managedAttributes.computeIfAbsent(attributeName, an -> new ConcurrentHashMap<>());
+			if (values.size() >= cardinalityLimit) {
+				final int selectedIndex = faker.random().nextInt(values.size());
+				final Iterator<Entry<Object, Integer>> it = values.entrySet().iterator();
+				int index = -1;
+				while (it.hasNext() && ++index <= selectedIndex) {
+					final Entry<Object, Integer> entry = it.next();
+					if (index == selectedIndex) {
+						entry.setValue(entry.getValue() + 1);
+						return entry.getKey();
+					}
+				}
+				throw new GenericEvitaInternalError("Failed to select random attribute value!");
+			} else {
+				final Object value = nextValueSupplier.get();
+				values.put(value, 1);
+				return value;
+			}
+		}
+
+		@Nullable
 		public Object getUniqueAttribute(@Nonnull String attributeName, @Nonnull Object value) {
-			final Map<Object, Integer> uniqueValueMap = sortableAttributes.computeIfAbsent(attributeName, an -> new ConcurrentHashMap<>());
+			final Map<Object, Integer> uniqueValueMap = managedAttributes.computeIfAbsent(attributeName, an -> new ConcurrentHashMap<>());
 			final Integer count = uniqueValueMap.get(value);
 			if (count != null) {
 				if (value instanceof String) {
@@ -1531,7 +1678,7 @@ public class DataGenerator {
 		private final Faker genericFaker;
 		private final PMPTT hierarchies;
 		private final Map<Serializable, Map<Object, Integer>> uniqueSequencer;
-		private final Map<Serializable, SortableAttributesChecker> sortableAttributesChecker;
+		private final Map<Serializable, ManagedAttributesChecker> sortableAttributesChecker;
 		private final Set<Currency> allCurrencies;
 		private final Set<String> allPriceLists;
 		private final Function<Faker, PriceInnerRecordHandling> priceInnerRecordHandlingGenerator;
@@ -1555,9 +1702,9 @@ public class DataGenerator {
 				schema.getName(),
 				serializable -> new ConcurrentHashMap<>()
 			);
-			final SortableAttributesChecker sortableAttributesHolder = this.sortableAttributesChecker.computeIfAbsent(
+			final ManagedAttributesChecker sortableAttributesHolder = this.sortableAttributesChecker.computeIfAbsent(
 				schema.getName(),
-				serializable -> new SortableAttributesChecker()
+				serializable -> new ManagedAttributesChecker()
 			);
 
 			// randomly delete hierarchy placement
@@ -1580,7 +1727,8 @@ public class DataGenerator {
 			generateRandomAttributes(
 				schema.getName(), schema.getAttributes().values(), globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
 				TRUE_PREDICATE, localizedFakerFetcher, valueGenerators, referenceValueGenerators,
-				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null
+				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null,
+				Integer.MAX_VALUE, null
 			);
 
 			// randomly delete associated data
@@ -1605,10 +1753,16 @@ public class DataGenerator {
 			);
 
 			// randomly delete references
-			final Collection<ReferenceKey> references = detachedBuilder.getReferences().stream().map(ReferenceContract::getReferenceKey).sorted().collect(Collectors.toList());
+			final Collection<ReferenceKey> references =
+				detachedBuilder
+					.getReferences()
+					.stream()
+					.map(ReferenceContract::getReferenceKey)
+					.sorted(ReferenceKey.FULL_COMPARATOR)
+					.collect(Collectors.toList());
 			for (ReferenceKey reference : references) {
 				if (genericFaker.random().nextInt(4) == 0) {
-					detachedBuilder.removeReference(reference.referenceName(), reference.primaryKey());
+					detachedBuilder.removeReference(reference);
 				}
 			}
 			generateRandomReferences(

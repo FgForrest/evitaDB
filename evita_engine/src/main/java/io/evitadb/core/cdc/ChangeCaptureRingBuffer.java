@@ -235,14 +235,16 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> {
 			this.effectiveStartIndex = 0;
 			boolean finished = false;
 			if (this.startIndex >= this.endIndex && this.wrappedAround) {
-				// we've cleared the entire tail, now we need to clear the head
 				finished = clearSegmentUntil(this.startIndex, this.workspace.length, untilCatalogVersion);
 				if (!finished) {
+					// we've cleared the entire tail, now we need to clear the head
 					this.startIndex = 0;
 					finished = clearSegmentUntil(0, this.endIndex, untilCatalogVersion);
+					this.wrappedAround = false;
 				}
 			} else if (this.startIndex < this.endIndex) {
 				finished = clearSegmentUntil(this.startIndex, this.endIndex, untilCatalogVersion);
+				this.wrappedAround = false;
 			}
 			if (finished) {
 				this.effectiveStartCatalogVersion = Objects.requireNonNull(this.workspace[this.startIndex]).version();
@@ -289,6 +291,7 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> {
 				// Buffer hasn't wrapped around, clear in a single segment
 				final int lastValidEntry = findLastValidEntry(this.startIndex, this.endIndex, catalogVersion);
 				this.endIndex = lastValidEntry == -1 ? this.startIndex : lastValidEntry + 1;
+				this.wrappedAround = false;
 			}
 			// If buffer is empty, nothing to clear
 		} finally {
@@ -432,6 +435,11 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> {
 		 */
 		@Override
 		public int applyAsInt(ChangeCapture capture, WalPointer walPointer) {
+			// nulls are always greater
+			if (capture == null) {
+				return 1;
+			}
+			// compare by version first, then by index
 			if (capture.version() == walPointer.version()) {
 				return Integer.compare(capture.index(), walPointer.index());
 			} else if (capture.version() < walPointer.version()) {

@@ -27,8 +27,10 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -42,6 +44,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -49,9 +52,10 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
-public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKey> {
-	@Serial private static final long serialVersionUID = -8894714389485857588L;
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
+public class SetReferenceGroupMutation extends ReferenceMutation<ComparableReferenceKey>
+	implements SchemaEvolvingLocalMutation<ReferenceContract, ComparableReferenceKey> {
+	@Serial private static final long serialVersionUID = 7138410321528617748L;
 	/**
 	 * Group type is mandatory only when {@link EntitySchemaContract} hasn't yet known the group type, but can learn it due
 	 * to {@link EvolutionMode#ADDING_REFERENCES}. For the first time the group is set for the reference the group
@@ -66,30 +70,47 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	 * Internal temporary information about the group type either copied from {@link #groupType} or retrieved from
 	 * the current {@link EntitySchemaContract} definition.
 	 */
-	private String resolvedGroupType;
+	@Nullable private String resolvedGroupType;
+	/**
+	 * Full identification of the mutation that is used for sorting mutations.
+	 */
+	@Nonnull
+	private final ComparableReferenceKey comparableKey;
 
 	public SetReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, int groupPrimaryKey) {
 		super(referenceKey);
 		this.groupType = null;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	public SetReferenceGroupMutation(@Nonnull ReferenceKey referenceKey, @Nullable String groupType, int groupPrimaryKey) {
 		super(referenceKey);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	public SetReferenceGroupMutation(@Nonnull String referenceName, int referencedEntityPrimaryKey, int groupPrimaryKey) {
 		super(referenceName, referencedEntityPrimaryKey);
 		this.groupType = null;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
 	}
 
 	public SetReferenceGroupMutation(@Nonnull String referenceName, int referencedEntityPrimaryKey, @Nullable String groupType, int groupPrimaryKey) {
 		super(referenceName, referencedEntityPrimaryKey);
 		this.groupType = groupType;
 		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(this.referenceKey);
+	}
+
+	private SetReferenceGroupMutation(
+		@Nonnull ReferenceKey referenceKey, @Nullable String groupType, int groupPrimaryKey, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
+		this.groupType = groupType;
+		this.groupPrimaryKey = groupPrimaryKey;
+		this.comparableKey = new ComparableReferenceKey(referenceKey);
 	}
 
 	@Nonnull
@@ -162,6 +183,16 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(entitySchema, existingValue, Map.of());
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot set reference group " + this.referenceKey + " - reference doesn't exist!")
@@ -174,26 +205,27 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		} else {
 			return new Reference(
 				entitySchema,
+				existingValue.getReferenceSchemaOrThrow(),
 				existingValue.version() + 1,
-				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+				existingValue.getReferenceKey(),
 				existingReferenceGroup
 					.map(it ->
-						new GroupEntityReference(
-							getGroupType(entitySchema),
-							this.groupPrimaryKey,
-							it.version() + 1,
-							false
-						)
+						     new GroupEntityReference(
+							     getGroupType(entitySchema),
+							     this.groupPrimaryKey,
+							     it.version() + 1,
+							     false
+						     )
 					)
 					.orElseGet(() ->
-						new GroupEntityReference(
-							getGroupType(entitySchema),
-							this.groupPrimaryKey,
-							1, false
-						)
+						           new GroupEntityReference(
+							           getGroupType(entitySchema),
+							           this.groupPrimaryKey,
+							           1, false
+						           )
 					),
 				existingValue.getAttributeValues(),
+				attributeTypes,
 				existingValue.dropped()
 			);
 		}
@@ -208,7 +240,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 				Assert.isTrue(
 					this.resolvedGroupType != null,
 					() -> new InvalidMutationException(
-						"Cannot update reference group - no group type defined in schema and also not provided in the mutation!"
+						"Cannot update the reference group - no group type defined in schema and also not provided in the mutation!"
 					)
 				);
 			} else {
@@ -223,9 +255,10 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		return PRIORITY_UPSERT;
 	}
 
+	@Nonnull
 	@Override
-	public ReferenceKey getComparableKey() {
-		return this.referenceKey;
+	public ComparableReferenceKey getComparableKey() {
+		return this.comparableKey;
 	}
 
 	@Nonnull
@@ -234,9 +267,26 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 		return Operation.UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new SetReferenceGroupMutation(this.referenceKey, this.groupType, this.groupPrimaryKey,
+		                                     newDecisiveTimestamp
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new SetReferenceGroupMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.groupType, this.groupPrimaryKey, this.decisiveTimestamp
+		);
+	}
+
 	@Override
 	public String toString() {
-		return "Set reference group to `" + this.referenceKey + "`: " + this.groupPrimaryKey +
+		return "Set the reference group to `" + this.referenceKey + "`: " + this.groupPrimaryKey +
 			(this.groupType == null ? "" : " of type `" + this.groupType + "`");
 	}
 }

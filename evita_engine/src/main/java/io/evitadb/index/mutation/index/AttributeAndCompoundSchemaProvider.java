@@ -25,11 +25,9 @@ package io.evitadb.index.mutation.index;
 
 
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.stream.Stream;
 
 /**
@@ -51,19 +49,6 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public sealed interface AttributeAndCompoundSchemaProvider permits EntitySchemaAttributeAndCompoundSchemaProvider, ReferenceSchemaAttributeAndCompoundSchemaProvider {
-
-	/**
-	 * Returns the reference schema if this provider operates in a reference context, or null if it operates
-	 * in an entity context.
-	 *
-	 * This method is used to distinguish between entity-level and reference-level schema providers.
-	 * Entity-level providers will always return null, while reference-level providers should return
-	 * the associated reference schema.
-	 *
-	 * @return the reference schema for reference-level providers, null for entity-level providers
-	 */
-	@Nullable
-	ReferenceSchema getReferenceSchema();
 
 	/**
 	 * Retrieves the attribute schema for the specified attribute name from the appropriate schema context

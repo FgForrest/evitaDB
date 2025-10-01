@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,8 +50,6 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode(callSuper = true)
 public final class EntityAttributeSchema extends AttributeSchema implements EntityAttributeSchemaContract {
 	@Serial private static final long serialVersionUID = 8168305590483159082L;
-
-	@Getter private final boolean representative;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of GlobalAttributeSchema from
@@ -270,10 +267,9 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		super(
 			name, nameVariants, description, deprecationNotice,
 			uniqueInScopes, filterableInScopes, sortableInScopes,
-			localized, nullable,
+			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces
 		);
-		this.representative = representative;
 	}
 
 	@Override
@@ -285,6 +281,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
+			", representative=" + this.representative +
 			", type=" + this.type +
 			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
 			", defaultValue=" + this.defaultValue +

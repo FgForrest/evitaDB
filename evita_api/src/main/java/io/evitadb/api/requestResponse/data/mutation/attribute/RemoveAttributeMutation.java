@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -50,6 +51,10 @@ public class RemoveAttributeMutation extends AttributeMutation {
 
 	public RemoveAttributeMutation(@Nonnull AttributeKey attributeKey) {
 		super(attributeKey);
+	}
+
+	private RemoveAttributeMutation(@Nonnull AttributeKey attributeKey, long decisiveTimestamp) {
+		super(attributeKey, decisiveTimestamp);
 	}
 
 	public RemoveAttributeMutation(@Nonnull String attributeName) {
@@ -86,6 +91,12 @@ public class RemoveAttributeMutation extends AttributeMutation {
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemoveAttributeMutation(this.attributeKey, newDecisiveTimestamp);
 	}
 
 	@Override

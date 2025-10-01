@@ -67,6 +67,7 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	) {
 		final String catalogName = mutation.getCatalogName();
+		final CatalogContract catalogToRemove = evita.getCatalogInstanceOrThrowException(catalogName);
 
 		transitionEngineStateUpdater.accept(
 			new AbstractEngineStateUpdater(transactionId, mutation) {
@@ -96,7 +97,6 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 
 				theFuture.updateProgress(1);
 
-				final CatalogContract catalogToRemove = evita.getCatalogInstanceOrThrowException(catalogName);
 				completionEngineStateUpdater.accept(
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override

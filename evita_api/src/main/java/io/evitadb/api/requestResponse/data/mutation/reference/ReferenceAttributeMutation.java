@@ -28,15 +28,14 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation.ReferenceKeyWithAttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -51,8 +50,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Objects;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -60,9 +58,9 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
 public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey> implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKeyWithAttributeKey> {
-	@Serial private static final long serialVersionUID = -1403540167469945561L;
+	@Serial private static final long serialVersionUID = -5135310891814031602L;
 	/**
 	 * Contains wrapped attribute mutation that affects the attribute of the reference.
 	 */
@@ -88,6 +86,13 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 	public ReferenceAttributeMutation(@Nonnull String referenceName, int primaryKey, @Nonnull AttributeMutation attributeMutation) {
 		this(new ReferenceKey(referenceName, primaryKey), attributeMutation);
+	}
+
+	private ReferenceAttributeMutation(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeMutation attributeMutation, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
+		this.attributeMutation = attributeMutation;
+		this.attributeKey = attributeMutation.getAttributeKey();
+		this.comparableKey = new ReferenceKeyWithAttributeKey(referenceKey, this.attributeKey);
 	}
 
 	@Nonnull
@@ -147,6 +152,20 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(
+			entitySchema,
+			existingValue,
+			Map.of()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> locallyAddedAttributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException("Cannot update attributes on reference " + this.referenceKey + " - reference doesn't exist!")
@@ -154,19 +173,9 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
 		final ExistingReferenceAttributesBuilder attributeBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
-			existingValue.getReferenceSchema()
-				.orElseGet(
-					() -> Reference.createImplicitSchema(
-						existingValue.getReferenceName(),
-						existingValue.getReferencedEntityType(),
-						existingValue.getReferenceCardinality(),
-						existingValue.getGroup().orElse(null)
-					)
-				),
+			existingValue.getReferenceSchemaOrThrow(),
 			existingValue.getAttributeValues(),
-			existingValue.getReferenceSchema()
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			locallyAddedAttributeTypes
 		);
 		final Attributes<AttributeSchemaContract> newAttributes = attributeBuilder
 			.mutateAttribute(this.attributeMutation)
@@ -174,10 +183,9 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 		if (attributeBuilder.differs(newAttributes)) {
 			return new Reference(
-				entitySchema,
+				existingValue.getReferenceSchemaOrThrow(),
 				existingValue.version() + 1,
-				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+				existingValue.getReferenceKey(),
 				existingValue.getGroup().orElse(null),
 				newAttributes,
 				false
@@ -204,6 +212,21 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		return Operation.UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new ReferenceAttributeMutation(this.referenceKey, this.attributeMutation, newDecisiveTimestamp);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceMutation<ReferenceKeyWithAttributeKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new ReferenceAttributeMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.attributeMutation, this.decisiveTimestamp
+		);
+	}
+
 	@Override
 	public String toString() {
 		return "reference `" + this.referenceKey + "` attribute mutation: " + this.attributeMutation;
@@ -213,40 +236,6 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Override
 	public ReferenceKeyWithAttributeKey getComparableKey() {
 		return this.comparableKey;
-	}
-
-	public static class ReferenceKeyWithAttributeKey implements Comparable<ReferenceKeyWithAttributeKey>, Serializable {
-		@Serial private static final long serialVersionUID = 773755868610382953L;
-		private final ReferenceKey referenceKey;
-		private final AttributeKey attributeKey;
-
-		public ReferenceKeyWithAttributeKey(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
-			this.referenceKey = referenceKey;
-			this.attributeKey = attributeKey;
-		}
-
-		@Override
-		public int compareTo(ReferenceKeyWithAttributeKey o) {
-			final int entityReferenceComparison = this.referenceKey.compareTo(o.referenceKey);
-			if (entityReferenceComparison == 0) {
-				return this.attributeKey.compareTo(o.attributeKey);
-			} else {
-				return entityReferenceComparison;
-			}
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(this.referenceKey, this.attributeKey);
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
-			ReferenceKeyWithAttributeKey that = (ReferenceKeyWithAttributeKey) o;
-			return Objects.equals(this.referenceKey, that.referenceKey) && Objects.equals(this.attributeKey, that.attributeKey);
-		}
 	}
 
 }

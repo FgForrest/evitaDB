@@ -29,7 +29,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import lombok.Data;
@@ -50,7 +51,8 @@ import java.util.stream.Stream;
 @Data
 class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	private final EntityStoragePartAccessor containerAccessor;
-	private final ReferenceKey referenceKey;
+	private final ReferenceSchema referenceSchema;
+	private final RepresentativeReferenceKey referenceKey;
 	private final String entityType;
 	private final int entityPrimaryKey;
 	private Set<Locale> memoizedLocales;
@@ -128,7 +130,14 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 			this.memoizedReferenceIndex = -1;
 			for (int i = 0; i < references.length; i++) {
 				final ReferenceContract reference = references[i];
-				if (Objects.equals(reference.getReferenceKey(), this.referenceKey)) {
+				final RepresentativeReferenceKey theReferenceKey = this.referenceSchema.getCardinality().allowsDuplicates() ?
+					new RepresentativeReferenceKey(
+						reference.getReferenceKey(),
+						this.referenceSchema.getRepresentativeAttributeDefinition().getRepresentativeValues(reference)
+					)
+					:
+					new RepresentativeReferenceKey(reference.getReferenceKey());
+				if (Objects.equals(theReferenceKey, this.referenceKey)) {
 					this.memoizedReference = Optional.of(reference);
 					this.memoizedReferenceIndex = i;
 					break;

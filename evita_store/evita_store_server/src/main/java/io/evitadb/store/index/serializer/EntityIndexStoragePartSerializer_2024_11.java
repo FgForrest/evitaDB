@@ -30,6 +30,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -77,7 +78,7 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 			EntityIndexType.REFERENCED_ENTITY : readEntityIndexType;
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
 		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, discriminator);
+			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, discriminator);
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 

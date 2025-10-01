@@ -92,26 +92,29 @@ public final class GrpcReferenceMutations {
       "ty\030\003 \001(\01626.io.evitadb.externalApi.grpc.g" +
       "enerated.GrpcCardinality\022:\n\024referencedEn" +
       "tityType\030\004 \001(\0132\034.google.protobuf.StringV" +
-      "alue\"Q\n\033GrpcRemoveReferenceMutation\022\025\n\rr" +
+      "alue\"m\n\033GrpcRemoveReferenceMutation\022\025\n\rr" +
       "eferenceName\030\001 \001(\t\022\033\n\023referencePrimaryKe" +
-      "y\030\002 \001(\005\"\235\001\n\035GrpcSetReferenceGroupMutatio" +
-      "n\022\025\n\rreferenceName\030\001 \001(\t\022\033\n\023referencePri" +
-      "maryKey\030\002 \001(\005\022/\n\tgroupType\030\003 \001(\0132\034.googl" +
-      "e.protobuf.StringValue\022\027\n\017groupPrimaryKe" +
-      "y\030\004 \001(\005\"V\n GrpcRemoveReferenceGroupMutat" +
-      "ion\022\025\n\rreferenceName\030\001 \001(\t\022\033\n\023referenceP" +
-      "rimaryKey\030\002 \001(\005\"\255\001\n\036GrpcReferenceAttribu" +
-      "teMutation\022\025\n\rreferenceName\030\001 \001(\t\022\033\n\023ref" +
-      "erencePrimaryKey\030\002 \001(\005\022W\n\021attributeMutat" +
-      "ion\030\003 \001(\0132<.io.evitadb.externalApi.grpc." +
-      "generated.GrpcAttributeMutation\"\377\001\n#Grpc" +
-      "LocalizedAttributeMutationValue\022n\n\nattri" +
-      "butes\030\001 \003(\0132Z.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcLocalizedAttributeMutati" +
-      "onValue.AttributesEntry\032h\n\017AttributesEnt" +
-      "ry\022\013\n\003key\030\001 \001(\t\022D\n\005value\030\002 \001(\01325.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcEvita" +
-      "Value:\0028\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "y\030\002 \001(\005\022\032\n\022internalPrimaryKey\030\003 \001(\005\"\271\001\n\035" +
+      "GrpcSetReferenceGroupMutation\022\025\n\rreferen" +
+      "ceName\030\001 \001(\t\022\033\n\023referencePrimaryKey\030\002 \001(" +
+      "\005\022/\n\tgroupType\030\003 \001(\0132\034.google.protobuf.S" +
+      "tringValue\022\027\n\017groupPrimaryKey\030\004 \001(\005\022\032\n\022i" +
+      "nternalPrimaryKey\030\005 \001(\005\"r\n GrpcRemoveRef" +
+      "erenceGroupMutation\022\025\n\rreferenceName\030\001 \001" +
+      "(\t\022\033\n\023referencePrimaryKey\030\002 \001(\005\022\032\n\022inter" +
+      "nalPrimaryKey\030\003 \001(\005\"\311\001\n\036GrpcReferenceAtt" +
+      "ributeMutation\022\025\n\rreferenceName\030\001 \001(\t\022\033\n" +
+      "\023referencePrimaryKey\030\002 \001(\005\022W\n\021attributeM" +
+      "utation\030\003 \001(\0132<.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcAttributeMutation\022\032\n\022i" +
+      "nternalPrimaryKey\030\004 \001(\005\"\377\001\n#GrpcLocalize" +
+      "dAttributeMutationValue\022n\n\nattributes\030\001 " +
+      "\003(\0132Z.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcLocalizedAttributeMutationValue." +
+      "AttributesEntry\032h\n\017AttributesEntry\022\013\n\003ke" +
+      "y\030\001 \001(\t\022D\n\005value\030\002 \001(\01325.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcEvitaValue:\0028" +
+      "\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -132,25 +135,25 @@ public final class GrpcReferenceMutations {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceMutation_descriptor,
-        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", });
+        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", "InternalPrimaryKey", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetReferenceGroupMutation_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetReferenceGroupMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetReferenceGroupMutation_descriptor,
-        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", "GroupType", "GroupPrimaryKey", });
+        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", "GroupType", "GroupPrimaryKey", "InternalPrimaryKey", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceGroupMutation_descriptor =
       getDescriptor().getMessageTypes().get(3);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceGroupMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveReferenceGroupMutation_descriptor,
-        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", });
+        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", "InternalPrimaryKey", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceAttributeMutation_descriptor =
       getDescriptor().getMessageTypes().get(4);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceAttributeMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceAttributeMutation_descriptor,
-        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", "AttributeMutation", });
+        new java.lang.String[] { "ReferenceName", "ReferencePrimaryKey", "AttributeMutation", "InternalPrimaryKey", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalizedAttributeMutationValue_descriptor =
       getDescriptor().getMessageTypes().get(5);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalizedAttributeMutationValue_fieldAccessorTable = new

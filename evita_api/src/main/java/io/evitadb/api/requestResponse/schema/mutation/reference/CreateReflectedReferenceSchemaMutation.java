@@ -148,6 +148,12 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 			ArrayUtils.EMPTY_STRING_ARRAY : attributeInheritanceFilter;
 	}
 
+	/**
+	 * Checks if the reference is faceted, which is determined by whether there is at least one scope
+	 * in the `facetedInScopes` array that matches the default scope.
+	 *
+	 * @return true if the reference is faceted (contains at least one default scope), false otherwise
+	 */
 	public boolean isFaceted() {
 		return this.facetedInScopes != null &&
 			Arrays.stream(this.facetedInScopes).anyMatch(scope -> scope == Scope.DEFAULT_SCOPE);

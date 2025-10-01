@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
 
 		serializeKeys(object.compressedKeys(), output, kryo);
-		kryo.writeObjectOrNull(output, object.globalEntityIndexId(), Integer.class);
+		kryo.writeObjectOrNull(output, object.globalEntityIndexPrimaryKey(), Integer.class);
 		serializeEntityIndexIds(output, object);
 	}
 
@@ -101,10 +101,10 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 	}
 
 	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
-		final int entityIndexCount = catalogEntityHeader.usedEntityIndexIds().size();
+		final int entityIndexCount = catalogEntityHeader.usedEntityIndexPrimaryKeys().size();
 		output.writeVarInt(entityIndexCount, true);
 		output.writeInts(
-			catalogEntityHeader.usedEntityIndexIds()
+			catalogEntityHeader.usedEntityIndexPrimaryKeys()
 				.stream()
 				.mapToInt(it -> it)
 				.toArray(),

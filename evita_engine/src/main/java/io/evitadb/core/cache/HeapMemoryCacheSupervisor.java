@@ -35,6 +35,7 @@ import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.utils.IOUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,16 +63,12 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	 */
 	private final CacheAnteroom cacheAnteroom;
 	/**
-	 * Eden cache.
-	 */
-	private final CacheEden cacheEden;
-	/**
 	 * Task that reevaluates the cache contents.
 	 */
 	private final DelayedAsyncTask reevaluationTask;
 
 	public HeapMemoryCacheSupervisor(@Nonnull CacheOptions cacheOptions, @Nonnull Scheduler scheduler) {
-		this.cacheEden = new CacheEden(
+		final CacheEden cacheEden = new CacheEden(
 			cacheOptions.cacheSizeInBytes(),
 			cacheOptions.minimalUsageThreshold(),
 			cacheOptions.minimalComplexityThreshold(),
@@ -80,7 +77,7 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		this.cacheAnteroom = new CacheAnteroom(
 			cacheOptions.anteroomRecordCount(),
 			cacheOptions.minimalComplexityThreshold(),
-			this.cacheEden, scheduler
+			cacheEden, scheduler
 		);
 		// initialize function that will frequently evaluate contents of the cache, discard unused entries and introduce
 		// new ones from the CacheAnteroom
@@ -202,4 +199,11 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
+	@Override
+	public void close() {
+		IOUtils.closeQuietly(
+			this.cacheAnteroom::close,
+			this.reevaluationTask::close
+		);
+	}
 }

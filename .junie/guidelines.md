@@ -14,9 +14,14 @@ It is intended to ensure consistency, readability, and maintainability across th
 - prefer performance to readability in performance-critical code
 - automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types
 - use `final` for local variables
-- use `this` for instance variables 
+- use `this` for instance variables
+- never use `var` - always use explicit types
 - automatically add JavaDoc to all generated classes and methods
 - add line comments to complex logic
+- avoid unnecessary memory allocations in performance-critical code
+- avoid unnecessary object boxing in performance-critical code
+- avoid using exceptions for control flow
+- prefer performance to readability in performance-critical code
 
 ### Key external libraries
 

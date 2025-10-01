@@ -56,7 +56,6 @@ import static io.evitadb.core.query.filter.FilterByVisitor.isConjunctiveFormula;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class FormulaOptimizer extends FormulaCloner implements FormulaPostProcessor {
-	private boolean conjunctiveScope = true;
 
 	/**
 	 * Creates a new optimizer backed by the {@link Optimizer} strategy used by {@link FormulaCloner}.
@@ -71,48 +70,39 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 		if (alreadyProcessedFormula != null) {
 			storeFormula(alreadyProcessedFormula);
 		} else {
-			final boolean formerConjunctiveScope = this.conjunctiveScope;
-			try {
-				if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
-					this.conjunctiveScope = false;
-				}
+			final Formula formulaToStore;
+			pushContext(this.treeStack, formula);
+			this.parents.push(formula);
+			for (Formula innerFormula : formula.getInnerFormulas()) {
+				innerFormula.accept(this);
+			}
+			this.parents.pop();
+			final SubTree subTree = popContext(this.treeStack);
+			final Set<Formula> updatedChildren = subTree.getChildren();
+			final boolean childrenHaveNotChanged = updatedChildren.size() == formula.getInnerFormulas().length &&
+				Arrays.stream(formula.getInnerFormulas()).allMatch(updatedChildren::contains);
 
-				final Formula formulaToStore;
-				pushContext(this.treeStack, formula);
-				this.parents.push(formula);
-				for (Formula innerFormula : formula.getInnerFormulas()) {
-					innerFormula.accept(this);
-				}
-				this.parents.pop();
-				final SubTree subTree = popContext(this.treeStack);
-				final Set<Formula> updatedChildren = subTree.getChildren();
-				final boolean childrenHaveNotChanged = updatedChildren.size() == formula.getInnerFormulas().length &&
-					Arrays.stream(formula.getInnerFormulas()).allMatch(updatedChildren::contains);
+			if (childrenHaveNotChanged) {
+				// use entire formula tree block
+				formulaToStore = this.mutator.apply(this, formula);
+			} else if (formula instanceof NotFormula && updatedChildren.size() == 1) {
+				formulaToStore = updatedChildren.iterator().next();
+			} else if (updatedChildren.isEmpty() && formula instanceof ChildrenDependentFormula) {
+				// remove the formula if it has no children after optimization
+				formulaToStore = null;
+			} else {
+				// recreate parent formula with new children
+				formulaToStore = this.mutator.apply(
+					this,
+					formula.getCloneWithInnerFormulas(
+						updatedChildren.toArray(Formula[]::new)
+					)
+				);
+			}
 
-				if (childrenHaveNotChanged) {
-					// use entire formula tree block
-					formulaToStore = this.mutator.apply(this, formula);
-				} else if (formula instanceof NotFormula && updatedChildren.size() == 1) {
-					formulaToStore = updatedChildren.iterator().next();
-				} else if (updatedChildren.isEmpty() && formula instanceof ChildrenDependentFormula) {
-					// remove the formula if it has no children after optimization
-					formulaToStore = null;
-				} else {
-					// recreate parent formula with new children
-					formulaToStore = this.mutator.apply(
-						this,
-						formula.getCloneWithInnerFormulas(
-							updatedChildren.toArray(Formula[]::new)
-						)
-					);
-				}
-
-				if (formulaToStore != null) {
-					this.formulasProcessed.put(formula, formulaToStore);
-					storeFormula(formulaToStore);
-				}
-			} finally {
-				this.conjunctiveScope = formerConjunctiveScope;
+			if (formulaToStore != null) {
+				this.formulasProcessed.put(formula, formulaToStore);
+				storeFormula(formulaToStore);
 			}
 		}
 	}
@@ -164,25 +154,17 @@ public class FormulaOptimizer extends FormulaCloner implements FormulaPostProces
 				for (final Formula innerFormula : formula.getInnerFormulas()) {
 					// Any EmptyFormula inside AND makes the whole conjunction unsatisfiable.
 					if (innerFormula instanceof EmptyFormula) {
-						if (((FormulaOptimizer)formulaCloner).conjunctiveScope) {
-							// in conjunctive scope, replace the entire container with an empty formula
-							return EmptyFormula.INSTANCE;
-						} else {
-							// in disjunctive scope, drop this entire container from the cloned tree
-							return null;
-						}
+						// in conjunctive scope, replace the entire container with an empty formula
+						return EmptyFormula.INSTANCE;
 					}
 				}
 			// If this is an OR with a single child, the container is redundant – unwrap it.
-			} else if (
-				formula instanceof OrFormula orFormula &&
-					orFormula.getInnerFormulas().length == 1
-			) {
+			} else if (formula instanceof OrFormula orFormula && orFormula.getInnerFormulas().length > 0) {
 				Formula impactfulChild = null;
 				for (Formula innerFormula : orFormula.getInnerFormulas()) {
 					if (!(innerFormula instanceof EmptyFormula)) {
 						if (impactfulChild != null) {
-							// more than one non-empty child – cannot optimize
+							// more than one non-empty child – cannot optimize and OR must stay as is
 							return formula;
 						} else {
 							impactfulChild = innerFormula;

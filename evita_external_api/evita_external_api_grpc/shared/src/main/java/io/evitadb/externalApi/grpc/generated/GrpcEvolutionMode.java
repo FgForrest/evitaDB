@@ -113,6 +113,15 @@ public enum GrpcEvolutionMode
    * <code>ADDING_HIERARCHY = 7;</code>
    */
   ADDING_HIERARCHY(7),
+  /**
+   * <pre>
+   * When a new duplicate reference is added to the entity, evitaDB automatically updates the schema
+   * to allow such duplicities. By default, references are set up with cardinality ZERO_OR_MORE
+   * </pre>
+   *
+   * <code>UPDATING_REFERENCE_CARDINALITY = 8;</code>
+   */
+  UPDATING_REFERENCE_CARDINALITY(8),
   UNRECOGNIZED(-1),
   ;
 
@@ -191,6 +200,15 @@ public enum GrpcEvolutionMode
    * <code>ADDING_HIERARCHY = 7;</code>
    */
   public static final int ADDING_HIERARCHY_VALUE = 7;
+  /**
+   * <pre>
+   * When a new duplicate reference is added to the entity, evitaDB automatically updates the schema
+   * to allow such duplicities. By default, references are set up with cardinality ZERO_OR_MORE
+   * </pre>
+   *
+   * <code>UPDATING_REFERENCE_CARDINALITY = 8;</code>
+   */
+  public static final int UPDATING_REFERENCE_CARDINALITY_VALUE = 8;
 
 
   public final int getNumber() {
@@ -225,6 +243,7 @@ public enum GrpcEvolutionMode
       case 5: return ADDING_LOCALES;
       case 6: return ADDING_CURRENCIES;
       case 7: return ADDING_HIERARCHY;
+      case 8: return UPDATING_REFERENCE_CARDINALITY;
       default: return null;
     }
   }

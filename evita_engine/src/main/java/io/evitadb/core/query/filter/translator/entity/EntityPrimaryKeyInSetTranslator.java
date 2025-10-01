@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,11 +33,15 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
+import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.Index;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -46,6 +50,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -66,15 +71,35 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 			() -> new SuperSetMatchingPostProcessor(filterByVisitor),
 			FilterInScopeTranslator.InScopeFormulaPostProcessor.class
 		);
+
 		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
-		final Formula requiredBitmap = ArrayUtils.isEmpty(primaryKeys) ?
-			EmptyFormula.INSTANCE :
-			new ConstantFormula(
+		if (ArrayUtils.isEmpty(primaryKeys)) {
+			return EmptyFormula.INSTANCE;
+		} else {
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Class<? extends Index<?>> indexType = processingScope.getIndexType();
+			final ConstantFormula standardResult = new ConstantFormula(
 				new BaseBitmap(primaryKeys)
 			);
-		return filterByVisitor.applyOnIndexes(
-			entityIndex -> requiredBitmap
-		);
+			if (indexType == ReferencedTypeEntityIndex.class) {
+				return FormulaFactory.or(
+					processingScope
+						.getIndexStream()
+						.map(ReferencedTypeEntityIndex.class::cast)
+						.map(it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
+							     Objects.requireNonNull(processingScope.getReferenceSchema()),
+							     filterByVisitor::getGlobalEntityIndexIfExists,
+							     it,
+							     standardResult,
+							     processingScope.getScopes()
+						     )
+						)
+						.toArray(Formula[]::new)
+				);
+			} else {
+				return standardResult;
+			}
+		}
 	}
 
 	/**

@@ -219,6 +219,12 @@ enum GrpcCardinality {
   ZERO_OR_MORE = 3;
   // There is always at least one relation of this type, but there may be also more than one.
   ONE_OR_MORE = 4;
+  // There is always at least one relation of this type, but there may be also more than one.
+  // When there is more than one, they may refer the same target entity (and are distinguished by reference attributes)
+  ZERO_OR_MORE_WITH_DUPLICATES = 5;
+  // There is always at least one relation of this type, but there may be also more than one.
+  // When there is more than one, they may refer the same target entity (and are distinguished by reference attributes)
+  ONE_OR_MORE_WITH_DUPLICATES = 6;
 }
 
 // Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first
@@ -252,6 +258,9 @@ enum GrpcEvolutionMode {
   ADDING_CURRENCIES = 6;
   // When hierarchy placement for the entity is encountered, it is silently added.
   ADDING_HIERARCHY = 7;
+  // When a new duplicate reference is added to the entity, evitaDB automatically updates the schema
+  // to allow such duplicities. By default, references are set up with cardinality ZERO_OR_MORE
+  UPDATING_REFERENCE_CARDINALITY = 8;
 }
 
 // Evolution mode allows to specify how strict is evitaDB when unknown information is presented to her for the first

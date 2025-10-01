@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAt
 		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		output.writeString(referenceKey.referenceName());
 		output.writeInt(referenceKey.primaryKey());
+		output.writeInt(referenceKey.internalPrimaryKey());
 		kryo.writeClassAndObject(output, mutation.getAttributeMutation());
 	}
 
@@ -51,6 +52,7 @@ public class ReferenceAttributeMutationSerializer extends Serializer<ReferenceAt
 		return new ReferenceAttributeMutation(
 			new ReferenceKey(
 				input.readString(),
+				input.readInt(),
 				input.readInt()
 			),
 			(AttributeMutation) kryo.readClassAndObject(input)

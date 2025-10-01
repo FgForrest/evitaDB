@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -132,6 +132,7 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 		 * Method creates implicit attribute type for the attribute value that doesn't map to any existing (known) attribute
 		 * type of the {@link EntitySchemaContract} schema.
 		 */
+		@Nonnull
 		static EntityAttributeSchemaContract createImplicitEntityAttributeSchema(@Nonnull AttributeValue attributeValue) {
 			return EntityAttributeSchema._internalBuild(
 				attributeValue.key().attributeName(),
@@ -144,6 +145,7 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 		 * Method creates implicit attribute type for the attribute value that doesn't map to any existing (known) attribute
 		 * type of the {@link EntitySchemaContract} schema.
 		 */
+		@Nonnull
 		static AttributeSchemaContract createImplicitReferenceAttributeSchema(@Nonnull AttributeValue attributeValue) {
 			return AttributeSchema._internalBuild(
 				attributeValue.key().attributeName(),

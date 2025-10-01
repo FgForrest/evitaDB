@@ -31,9 +31,9 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -88,7 +88,7 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 	/**
 	 * Mandatory reference to reference schema, if the attribute is a reference attribute.
 	 */
-	@Nonnull protected final ReferenceSchemaContract referenceSchema;
+	@Nonnull protected final ReferenceSchema referenceSchema;
 	/**
 	 * Memoized normalized value arrays for the entities. Memoization is used because the very same entity may occur
 	 * in compare method multiple times.
@@ -101,7 +101,7 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 
 	public AbstractReferenceCompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection

@@ -42,4 +42,5 @@ module evita.test.support {
 	requires org.reactivestreams;
 	requires io.netty.common;
 	requires awaitility;
+	requires kotlin.stdlib;
 }

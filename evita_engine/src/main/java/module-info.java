@@ -101,8 +101,6 @@ module evita.engine {
 	requires jdk.jfr;
 	requires net.bytebuddy;
 	requires proxycian.bytebuddy;
-	requires jdk.xml.dom;
-	requires jdk.compiler;
 
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
