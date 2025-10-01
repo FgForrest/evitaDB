@@ -27,17 +27,19 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingAttributeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.ReferenceAttributeMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.AttributeMutationAggregateConverter;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,14 +51,16 @@ import java.util.Optional;
  */
 public class ReferenceAttributeMutationConverter extends ReferenceMutationConverter<ReferenceAttributeMutation> {
 
-	@Nullable
-	private final EntitySchemaContract entitySchema;
+	@Nonnull
+	private final AttributeMutationAggregateConverter attributeMutationAggregateConverter;
+	@Nonnull
+	private final DelegatingAttributeMutationConverter delegatingAttributeMutationConverter;
 
-	public ReferenceAttributeMutationConverter(@Nullable EntitySchemaContract entitySchema,
-	                                           @Nonnull MutationObjectParser objectParser,
+	public ReferenceAttributeMutationConverter(@Nonnull MutationObjectMapper objectMapper,
 	                                           @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
-		super(objectParser, exceptionFactory);
-		this.entitySchema = entitySchema;
+		super(objectMapper, exceptionFactory);
+		this.attributeMutationAggregateConverter = new AttributeMutationAggregateConverter(objectMapper, exceptionFactory);
+		this.delegatingAttributeMutationConverter = new DelegatingAttributeMutationConverter(objectMapper, exceptionFactory);
 	}
 
 	@Nonnull
@@ -84,16 +88,19 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 			() -> getExceptionFactory().createInvalidArgumentException("`ReferenceAttributesUpdateMutation` supports only one attribute mutation inside.")
 		);
 
+		final EntitySchemaContract entitySchema = input.getContextValue(MutationConverterContext.ENTITY_SCHEMA_KEY);
 		Assert.isPremiseValid(
-			this.entitySchema != null,
+			entitySchema != null,
 			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
 		);
-		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
-			this.entitySchema.getReferenceOrThrowException(referenceKey.referenceName()),
-			getObjectParser(),
-			getExceptionFactory()
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(
+			referenceKey.referenceName());
+		final List<AttributeMutation> attributeMutations = this.attributeMutationAggregateConverter.convertFromInput(
+			inputAttributeMutation,
+			input.createChildContext(Map.of(
+				MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY, referenceSchema
+			))
 		);
-		final List<AttributeMutation> attributeMutations = attributeMutationAggregateResolver.convertFromInput(inputAttributeMutation);
 		Assert.isTrue(
 			attributeMutations.size() == 1,
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
@@ -104,18 +111,10 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 
 	@Override
 	protected void convertToOutput(@Nonnull ReferenceAttributeMutation mutation, @Nonnull Output output) {
-		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
-			Optional.ofNullable(this.entitySchema)
-				.map(it -> it.getReferenceOrThrowException(mutation.getReferenceKey().referenceName()))
-				.orElse(null),
-			getObjectParser(),
-			getExceptionFactory()
-		);
 		output.setProperty(
 			ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION,
-			attributeMutationAggregateResolver.convertToOutput(mutation.getAttributeMutation())
+			this.delegatingAttributeMutationConverter.convertToOutput(mutation.getAttributeMutation())
 		);
-
 		super.convertToOutput(mutation, output);
 	}
 }

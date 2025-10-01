@@ -26,9 +26,10 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ class ModifyReferenceSchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyReferenceSchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceSchemaDeprecationNoticeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -103,6 +104,7 @@ class ModifyReferenceSchemaDeprecationNoticeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyReferenceSchemaDeprecationNoticeMutation.class.getSimpleName())
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 					.build()

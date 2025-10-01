@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.CreateAssociatedDataSchemaMutationConverter;
@@ -67,7 +67,7 @@ public class EntitySchemaMutationAggregateConverter extends MutationAggregateCon
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, SchemaMutationConverter<LocalEntitySchemaMutation>> converters = createHashMap(55);
 
-	public EntitySchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
+	public EntitySchemaMutationAggregateConverter(@Nonnull MutationObjectMapper objectParser,
 	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 

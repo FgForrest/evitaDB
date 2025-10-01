@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -55,7 +57,7 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class MutationConverter<M extends Mutation> {
 
 	/**
@@ -77,7 +79,7 @@ public abstract class MutationConverter<M extends Mutation> {
 	 */
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final MutationObjectParser objectParser;
+	private final MutationObjectMapper objectMapper;
 	/**
 	 * Handles exception creation that can occur during resolving.
 	 */
@@ -94,15 +96,39 @@ public abstract class MutationConverter<M extends Mutation> {
 	 */
 	@Nonnull
 	public M convertFromInput(@Nullable Object rawInputMutationObject) {
-		final Object inputMutationObject = this.objectParser.parse(rawInputMutationObject);
-		return convertFromInput(new Input(getMutationName(), inputMutationObject, this.exceptionFactory));
+		return this.convertFromInput(rawInputMutationObject, MutationConverterContext.EMPTY);
 	}
 
+	/**
+	 * Resolve raw input local mutation parsed from JSON into actual {@link Mutation} based on implementation of
+	 * resolver.
+	 * Context map can be passed down to pass custom data for nested mutation converters.
+	 */
+	@Nonnull
+	public M convertFromInput(@Nullable Object rawInputMutationObject, @Nonnull Map<String, Object> context) {
+		final Object inputMutationObject = this.objectMapper.parse(rawInputMutationObject);
+		return this.convertFromInput(new Input(getMutationName(), inputMutationObject, this.exceptionFactory, context));
+	}
+
+	/**
+	 * Converts local mutation into a serialized version based on implementation of
+	 * resolver.
+	 */
 	@Nullable
 	public Object convertToOutput(@Nonnull M mutation) {
-		final Output output = new Output(getMutationName(), this.exceptionFactory);
+		return this.convertToOutput(mutation, MutationConverterContext.EMPTY);
+	}
+
+	/**
+	 * Converts local mutation into a serialized version based on implementation of
+	 * resolver.
+	 * Context map can be passed down to pass custom data for nested mutation converters.
+	 */
+	@Nullable
+	public Object convertToOutput(@Nonnull M mutation, @Nonnull Map<String, Object> context) {
+		final Output output = new Output(getMutationName(), this.exceptionFactory, context);
 		convertToOutput(mutation, output);
-		return this.objectParser.serialize(output.getOutputMutationObject());
+		return this.objectMapper.serialize(output.getOutputMutationObject());
 	}
 
 	/**
@@ -124,79 +150,86 @@ public abstract class MutationConverter<M extends Mutation> {
 		final Class<?> objectType = object.getClass();
 		final Constructor<?> constructor = resolveCreatorConstructor(objectType);
 
-		if (constructor.getParameterCount() == 0) {
+		if (constructor.getParameterCount() == 0 && !(object instanceof Mutation)) {
 			output.setValue(true);
-		} else {
-			final Parameter[] parameters = constructor.getParameters();
-			for (int i = 0; i < constructor.getParameterCount(); i++) {
-				final Parameter parameter = parameters[i];
+			return;
+		}
 
-				final String name = parameter.getName();
-				if (output.hasProperty(name)) {
-					// the property has been set manually, we don't want to override it
-					continue;
-				}
+		if (object instanceof Mutation) {
+			output.setProperty(MutationDescriptor.MUTATION_TYPE.name(), object.getClass().getSimpleName());
+		}
 
-				final Object originalValue;
-				final Method getter = this.reflectionLookup.findGetter(objectType, name);
-				if (getter != null) {
-					try {
-						originalValue = getter.invoke(object);
-					} catch (IllegalAccessException | InvocationTargetException e) {
-						throw this.exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
-					}
-				} else {
-					final Field propertyField = this.reflectionLookup.findPropertyField(objectType, name);
-					if (propertyField != null) {
-						try {
-							originalValue = propertyField.get(object);
-						} catch (IllegalAccessException e) {
-							throw this.exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
-						}
-					} else {
-						throw this.exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
-					}
-				}
+		final Parameter[] parameters = constructor.getParameters();
+		for (int i = 0; i < constructor.getParameterCount(); i++) {
+			final Parameter parameter = parameters[i];
 
-
-				Class<?> targetType = parameter.getType();
-				if (Serializable.class.equals(targetType)) {
-					if (Serializable.class.isAssignableFrom(originalValue.getClass())) {
-						targetType = originalValue.getClass();
-					} else {
-						throw this.exceptionFactory.createInternalError(
-							"Could not serialize property `" + name + "` in mutation `" + getMutationName() + "`. " +
-								"Value to serialize is not serializable as expected, it is `" + originalValue.getClass().getName() + "`."
-						);
-					}
-				}
-				final Object targetValue;
-
-				if (
-					Class.class.isAssignableFrom(targetType) ||
-					EvitaDataTypes.isSupportedTypeOrItsArray(targetType) ||
-					targetType.isEnum() ||
-					(targetType.isArray() && targetType.getComponentType().isEnum())
-				) {
-					targetValue = originalValue;
-				} else if (targetType.isArray()) {
-					final int arraySize = Array.getLength(originalValue);
-					final List<Object> targetList = new ArrayList<>(arraySize);
-					for (int j = 0; j < arraySize; j++) {
-						final Object item = Array.get(originalValue, j);
-
-						final Output innerItemOutput = new Output(getMutationName(), this.exceptionFactory);
-						convertObjectToOutput(item, innerItemOutput);
-						targetList.add(innerItemOutput);
-					}
-					targetValue = targetList;
-				} else {
-					final Output innerOutput = new Output(getMutationName(), this.exceptionFactory);
-					convertObjectToOutput(originalValue, innerOutput);
-					targetValue = innerOutput;
-				}
-				output.setProperty(name, targetValue);
+			final String name = parameter.getName();
+			if (output.hasProperty(name)) {
+				// the property has been set manually, we don't want to override it
+				continue;
 			}
+
+			final Object originalValue;
+			final Method getter = this.reflectionLookup.findGetter(objectType, name);
+			if (getter != null) {
+				try {
+					originalValue = getter.invoke(object);
+				} catch (IllegalAccessException | InvocationTargetException e) {
+					throw this.exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+				}
+			} else {
+				final Field propertyField = this.reflectionLookup.findPropertyField(objectType, name);
+				if (propertyField != null) {
+					try {
+						originalValue = propertyField.get(object);
+					} catch (IllegalAccessException e) {
+						throw this.exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+					}
+				} else {
+					throw this.exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
+				}
+			}
+
+
+			Class<?> targetType = parameter.getType();
+			if (Serializable.class.equals(targetType) && originalValue != null) {
+				if (Serializable.class.isAssignableFrom(originalValue.getClass())) {
+					targetType = originalValue.getClass();
+				} else {
+					throw this.exceptionFactory.createInternalError(
+						"Could not serialize property `" + name + "` in mutation `" + getMutationName() + "`. " +
+							"Value to serialize is not serializable as expected, it is `" + originalValue.getClass().getName() + "`."
+					);
+				}
+			}
+			final Object targetValue;
+
+			if (originalValue == null) {
+				targetValue = null;
+			} else if (
+				Class.class.isAssignableFrom(targetType) ||
+				EvitaDataTypes.isSupportedTypeOrItsArray(targetType) ||
+				targetType.isEnum() ||
+				(targetType.isArray() && targetType.getComponentType().isEnum())
+			) {
+				targetValue = originalValue;
+			} else if (targetType.isArray()) {
+				final int arraySize = Array.getLength(originalValue);
+				final List<Object> targetList = new ArrayList<>(arraySize);
+				for (int j = 0; j < arraySize; j++) {
+					final Object item = Array.get(originalValue, j);
+
+					final Output innerItemOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
+					convertObjectToOutput(item, innerItemOutput);
+					targetList.add(innerItemOutput);
+				}
+				targetValue = targetList;
+			} else {
+				final Output innerOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
+				convertObjectToOutput(originalValue, innerOutput);
+				targetValue = innerOutput;
+			}
+			output.setProperty(name, targetValue);
 		}
 	}
 
@@ -257,7 +290,7 @@ public abstract class MutationConverter<M extends Mutation> {
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawPropertyValue;
-				return convertObjectFromInput(new Input(getMutationName(), element, this.exceptionFactory), type);
+				return convertObjectFromInput(Input.from(input, getMutationName(), element, this.exceptionFactory), type);
 			}
 		);
 	}
@@ -283,7 +316,7 @@ public abstract class MutationConverter<M extends Mutation> {
 						);
 
 						final Map<String, Object> element = (Map<String, Object>) rawElement;
-						return convertObjectFromInput(new Input(getMutationName(), element, this.exceptionFactory), componentType);
+						return convertObjectFromInput(Input.from(input, getMutationName(), element, this.exceptionFactory), componentType);
 					})
 					.toArray(size -> (T[]) Array.newInstance(componentType, size));
 			}

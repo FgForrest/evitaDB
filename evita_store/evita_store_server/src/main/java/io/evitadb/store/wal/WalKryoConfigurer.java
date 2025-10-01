@@ -85,7 +85,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
@@ -338,7 +338,7 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
 
 		kryo.register(SetEntityScopeMutation.class, new SerialVersionBasedSerializer<>(new SetEntityScopeMutationSerializer(), SetEntityScopeMutation.class), index++);
-		kryo.register(SetSortableAttributeCompoundIndexedMutation.class, new SerialVersionBasedSerializer<>(new SetSortableAttributeCompoundIndexedMutationSerializer(), SetSortableAttributeCompoundIndexedMutation.class), index++);
+		kryo.register(SetSortableAttributeCompoundSchemaIndexedMutation.class, new SerialVersionBasedSerializer<>(new SetSortableAttributeCompoundIndexedMutationSerializer(), SetSortableAttributeCompoundSchemaIndexedMutation.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 		kryo.register(ReferenceIndexType.class, new EnumNameSerializer<>(), index++);
 

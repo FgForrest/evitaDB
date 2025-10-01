@@ -31,12 +31,13 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttr
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -60,7 +61,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new CreateGlobalAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateGlobalAttributeSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -217,6 +218,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), CreateGlobalAttributeSchemaMutation.class.getSimpleName())
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")

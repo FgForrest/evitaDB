@@ -26,9 +26,10 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableA
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifySortableAttributeCompoundSchemaDescriptionMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -100,6 +101,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifySortableAttributeCompoundSchemaDescriptionMutation.class.getSimpleName())
 					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 					.build()

@@ -29,11 +29,12 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateAttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +59,7 @@ class CreateAttributeSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new CreateAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateAttributeSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -201,6 +202,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), CreateAttributeSchemaMutation.class.getSimpleName())
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(CreateAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 					.e(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")

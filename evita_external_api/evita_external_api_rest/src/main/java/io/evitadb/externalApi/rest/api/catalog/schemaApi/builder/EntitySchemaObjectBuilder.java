@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -50,7 +51,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -142,7 +143,8 @@ public class EntitySchemaObjectBuilder {
 		this.buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			AttributeSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// sortable attribute compound schema mutations
 		this.buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
@@ -151,7 +153,8 @@ public class EntitySchemaObjectBuilder {
 		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			SortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		// reference schema mutations
 		this.buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());

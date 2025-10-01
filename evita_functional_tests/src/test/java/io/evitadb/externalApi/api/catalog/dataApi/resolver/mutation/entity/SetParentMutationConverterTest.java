@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +49,7 @@ class SetParentMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new SetParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetParentMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -96,6 +96,7 @@ class SetParentMutationConverterTest {
 
 		assertEquals(
 			map()
+				.e(SetParentMutationDescriptor.MUTATION_TYPE.name(),  SetParentMutation.class.getSimpleName())
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
 				.build(),
 			this.converter.convertToOutput(inputMutation)

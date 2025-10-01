@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associate
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +50,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new CreateAssociatedDataSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateAssociatedDataSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -147,6 +147,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(CreateAssociatedDataSchemaMutationDescriptor.MUTATION_TYPE.name(), CreateAssociatedDataSchemaMutation.class.getSimpleName())
 					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 					.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")

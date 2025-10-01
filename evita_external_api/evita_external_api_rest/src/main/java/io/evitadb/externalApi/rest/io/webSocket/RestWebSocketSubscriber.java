@@ -1,0 +1,123 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2025
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.externalApi.rest.io.webSocket;
+
+import com.linecorp.armeria.common.annotation.Nullable;
+import com.linecorp.armeria.common.websocket.WebSocketFrame;
+import com.linecorp.armeria.common.websocket.WebSocketWriter;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+final class RestWebSocketSubscriber implements Subscriber<WebSocketFrame> {
+    private static final Logger logger = LoggerFactory.getLogger(RestWebSocketSubscriber.class);
+
+    private final RestWSSubProtocol graphqlWSSubProtocol;
+    private final WebSocketWriter outgoing;
+    @Nullable
+    private Subscription subscription;
+
+    RestWebSocketSubscriber(RestWSSubProtocol graphqlWSSubProtocol, WebSocketWriter outgoing) {
+        this.graphqlWSSubProtocol = graphqlWSSubProtocol;
+        this.outgoing = outgoing;
+    }
+
+    @Override
+    public void onSubscribe(Subscription s) {
+	    this.subscription = s;
+        s.request(1);
+    }
+
+    /**
+     * Calling onSubscribe, onNext, onError or onComplete MUST return normally except when any provided
+     * parameter is null in which case it MUST throw a java.lang.NullPointerException to the caller, for all
+     * other situations the only legal way for a Subscriber to signal failure is by cancelling its
+     * Subscription. In the case that this rule is violated, any associated Subscription to the Subscriber
+     * MUST be considered as cancelled, and the caller MUST raise this error condition in a fashion that is
+     * adequate for the runtime environment.
+     */
+    @Override
+    public void onNext(WebSocketFrame webSocketFrame) {
+        logger.trace("onNext: {}", webSocketFrame);
+        assert this.subscription != null;
+        switch (webSocketFrame.type()) {
+            case BINARY:
+	            this.graphqlWSSubProtocol.handleBinary(this.outgoing);
+                break;
+            case TEXT:
+                // Parse the graphql-ws sub protocol. Maybe this could be done in a different thread so not
+                // to block the publisher?
+	            this.graphqlWSSubProtocol.handleText(webSocketFrame.text(), this.outgoing);
+                /*
+                It is RECOMMENDED that Subscribers request the upper limit of what they are able to process,
+                as requesting only one element at a time results in an inherently
+                inefficient "stop-and-wait" protocol.
+                 */
+	            this.subscription.request(1);
+                break;
+            case PING:
+	            this.outgoing.writePong();
+	            this.subscription.request(1);
+                break;
+            case CLOSE:
+	            this.outgoing.close();
+                break;
+            // PONG is a noop
+            case PONG:
+	            this.subscription.request(1);
+                break;
+            // Continuation is not mentioned in the spec. Should never happen.
+            case CONTINUATION:
+                logger.trace("Ignoring frame type: {}", webSocketFrame.type());
+	            this.subscription.request(1);
+                break;
+            default:
+                // Should never reach here.
+                throw new Error();
+        }
+    }
+
+    @Override
+    public void onError(Throwable t) {
+        /*
+        Subscriber.onComplete() and Subscriber.onError(Throwable t) MUST consider
+        the Subscription cancelled after having received the signal.
+         */
+        logger.trace("onError", t);
+	    this.graphqlWSSubProtocol.cancel();
+	    this.subscription = null;
+    }
+
+    @Override
+    public void onComplete() {
+        /*
+        Subscriber.onComplete() and Subscriber.onError(Throwable t) MUST consider
+        the Subscription cancelled after having received the signal.
+         */
+        logger.trace("onComplete");
+	    this.graphqlWSSubProtocol.cancel();
+	    this.subscription = null;
+    }
+}

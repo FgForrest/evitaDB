@@ -27,8 +27,9 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWith
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithPriceMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new SetEntitySchemaWithPriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetEntitySchemaWithPriceMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -159,6 +160,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(SetEntitySchemaWithPriceMutationDescriptor.MUTATION_TYPE.name(), SetEntitySchemaWithPriceMutation.class.getSimpleName())
 					.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), true)
 					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), new String[] { "LIVE", "ARCHIVED" })
 					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 2)
@@ -182,6 +184,7 @@ class SetEntitySchemaWithPriceMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), SetEntitySchemaWithPriceMutation.class.getSimpleName())
 					.e(SetEntitySchemaWithPriceMutationDescriptor.WITH_PRICE.name(), false)
 					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_IN_SCOPES.name(), new String[0]) // Scope.NO_SCOPE is an empty array
 					.e(SetEntitySchemaWithPriceMutationDescriptor.INDEXED_PRICE_PLACES.name(), 0)

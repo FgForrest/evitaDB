@@ -27,9 +27,10 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSche
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.SetReferenceSchemaFacetedMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +54,7 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new SetReferenceSchemaFacetedMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetReferenceSchemaFacetedMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -109,6 +110,7 @@ class SetReferenceSchemaFacetedMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), SetReferenceSchemaFacetedMutation.class.getSimpleName())
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(SetReferenceSchemaFacetedMutationDescriptor.FACETED_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))

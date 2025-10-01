@@ -44,7 +44,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.Re
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.RemoveReferenceMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.SetReferenceGroupMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -64,51 +64,42 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public class LocalMutationAggregateConverter extends MutationAggregateConverter<LocalMutation<?, ?>, LocalMutationConverter<LocalMutation<?, ?>>> {
 
 	@Nonnull
-	@Getter(AccessLevel.PRIVATE)
-	private final EntitySchemaContract entitySchema;
-
-	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, LocalMutationConverter<LocalMutation<?, ?>>> converters = createHashMap(20);
 
 	public LocalMutationAggregateConverter(
 		@Nonnull ObjectMapper objectMapper,
-		@Nullable EntitySchemaContract entitySchema,
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper mutationObjectMapper,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
-		super(objectParser, exceptionFactory);
-		// todo lho nullability comes from io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher
-		//  we need to decide what we want when we generate schema for this use case
-		this.entitySchema = entitySchema;
+		super(mutationObjectMapper, exceptionFactory);
 
 		// associated data
-		registerConverter(REMOVE_ASSOCIATED_DATA_MUTATION.name(), new RemoveAssociatedDataMutationConverter(objectParser, exceptionFactory));
-		registerConverter(UPSERT_ASSOCIATED_DATA_MUTATION.name(), new UpsertAssociatedDataMutationConverter(objectMapper, entitySchema, objectParser, exceptionFactory));
+		registerConverter(REMOVE_ASSOCIATED_DATA_MUTATION.name(), new RemoveAssociatedDataMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(UPSERT_ASSOCIATED_DATA_MUTATION.name(), new UpsertAssociatedDataMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory));
 		// attributes
-		registerConverter(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
-		registerConverter(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
-		registerConverter(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
+		registerConverter(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(mutationObjectMapper, exceptionFactory));
 		// entity
-		registerConverter(REMOVE_PARENT_MUTATION.name(), new RemoveParentMutationConverter(objectParser, exceptionFactory));
-		registerConverter(SET_PARENT_MUTATION.name(), new SetParentMutationConverter(objectParser, exceptionFactory));
-		registerConverter(SET_ENTITY_SCOPE_MUTATION.name(), new SetEntityScopeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_PARENT_MUTATION.name(), new RemoveParentMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(SET_PARENT_MUTATION.name(), new SetParentMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(SET_ENTITY_SCOPE_MUTATION.name(), new SetEntityScopeMutationConverter(mutationObjectMapper, exceptionFactory));
 		// price
-		registerConverter(SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), new SetPriceInnerRecordHandlingMutationConverter(objectParser, exceptionFactory));
-		registerConverter(REMOVE_PRICE_MUTATION.name(), new RemovePriceMutationConverter(objectParser, exceptionFactory));
-		registerConverter(UPSERT_PRICE_MUTATION.name(), new UpsertPriceMutationConverter(objectParser, exceptionFactory));
+		registerConverter(SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), new SetPriceInnerRecordHandlingMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(REMOVE_PRICE_MUTATION.name(), new RemovePriceMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(UPSERT_PRICE_MUTATION.name(), new UpsertPriceMutationConverter(mutationObjectMapper, exceptionFactory));
 		// reference
-		registerConverter(INSERT_REFERENCE_MUTATION.name(), new InsertReferenceMutationConverter(objectParser, exceptionFactory));
-		registerConverter(REMOVE_REFERENCE_MUTATION.name(), new RemoveReferenceMutationConverter(objectParser, exceptionFactory));
-		registerConverter(SET_REFERENCE_GROUP_MUTATION.name(), new SetReferenceGroupMutationConverter(objectParser, exceptionFactory));
-		registerConverter(REMOVE_REFERENCE_GROUP_MUTATION.name(), new RemoveReferenceGroupMutationConverter(objectParser, exceptionFactory));
-		registerConverter(REFERENCE_ATTRIBUTE_MUTATION.name(), new ReferenceAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
+		registerConverter(INSERT_REFERENCE_MUTATION.name(), new InsertReferenceMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(REMOVE_REFERENCE_MUTATION.name(), new RemoveReferenceMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(SET_REFERENCE_GROUP_MUTATION.name(), new SetReferenceGroupMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(REMOVE_REFERENCE_GROUP_MUTATION.name(), new RemoveReferenceGroupMutationConverter(mutationObjectMapper, exceptionFactory));
+		registerConverter(REFERENCE_ATTRIBUTE_MUTATION.name(), new ReferenceAttributeMutationConverter(mutationObjectMapper, exceptionFactory));
 	}
 
 	@Nonnull
 	@Override
 	protected String getMutationAggregateName() {
-		// we need separate converter for each schema because each schema has different mutations allowed
-		return LocalMutationAggregateDescriptor.THIS.name(this.entitySchema);
+		return "LocalMutationAggregate";
 	}
 }

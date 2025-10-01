@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHan
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +50,7 @@ class SetPriceInnerRecordHandlingMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new SetPriceInnerRecordHandlingMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetPriceInnerRecordHandlingMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -84,6 +84,7 @@ class SetPriceInnerRecordHandlingMutationConverterTest {
 
 		assertEquals(
 			map()
+				.e(SetPriceInnerRecordHandlingMutationDescriptor.MUTATION_TYPE.name(), SetPriceInnerRecordHandlingMutation.class.getSimpleName())
 				.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name())
 				.build(),
 			this.converter.convertToOutput(inputMutation)

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetSortableAttributeCompoundIndexedMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -35,17 +35,17 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 
 /**
- * Converts between {@link SetSortableAttributeCompoundIndexedMutation} and {@link GrpcSetSortableAttributeCompoundIndexedMutation} in both directions.
+ * Converts between {@link SetSortableAttributeCompoundSchemaIndexedMutation} and {@link GrpcSetSortableAttributeCompoundIndexedMutation} in both directions.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2023
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class SetSortableAttributeCompoundIndexedMutationConverter implements SchemaMutationConverter<SetSortableAttributeCompoundIndexedMutation, GrpcSetSortableAttributeCompoundIndexedMutation> {
+public class SetSortableAttributeCompoundIndexedMutationConverter implements SchemaMutationConverter<SetSortableAttributeCompoundSchemaIndexedMutation, GrpcSetSortableAttributeCompoundIndexedMutation> {
 	public static final SetSortableAttributeCompoundIndexedMutationConverter INSTANCE = new SetSortableAttributeCompoundIndexedMutationConverter();
 
 	@Nonnull
-	public SetSortableAttributeCompoundIndexedMutation convert(@Nonnull GrpcSetSortableAttributeCompoundIndexedMutation mutation) {
-		return new SetSortableAttributeCompoundIndexedMutation(
+	public SetSortableAttributeCompoundSchemaIndexedMutation convert(@Nonnull GrpcSetSortableAttributeCompoundIndexedMutation mutation) {
+		return new SetSortableAttributeCompoundSchemaIndexedMutation(
 			mutation.getName(),
 			mutation.getIndexedInScopesList()
 				.stream()
@@ -55,7 +55,7 @@ public class SetSortableAttributeCompoundIndexedMutationConverter implements Sch
 	}
 
 	@Nonnull
-	public GrpcSetSortableAttributeCompoundIndexedMutation convert(@Nonnull SetSortableAttributeCompoundIndexedMutation mutation) {
+	public GrpcSetSortableAttributeCompoundIndexedMutation convert(@Nonnull SetSortableAttributeCompoundSchemaIndexedMutation mutation) {
 		final GrpcSetSortableAttributeCompoundIndexedMutation.Builder builder = GrpcSetSortableAttributeCompoundIndexedMutation.newBuilder()
 			.setName(mutation.getName())
 			.addAllIndexedInScopes(

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -107,7 +108,7 @@ public class PropertyObjectListMapper<T extends Serializable> implements Functio
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawElement;
-				return this.objectMapper.apply(new Input(this.mutationName, element, this.exceptionFactory));
+				return this.objectMapper.apply(new Input(this.mutationName, element, this.exceptionFactory, MutationConverterContext.EMPTY));
 			})
 			.toArray(size -> (T[]) Array.newInstance(this.objectType, size));
 	}

@@ -27,12 +27,13 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +55,7 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyReferenceAttributeSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceAttributeSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -68,7 +69,8 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name(), map()
-					.e(ReferenceAttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+					.e(
+						AttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 						.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 						.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 						.build())
@@ -122,12 +124,12 @@ class ModifyReferenceAttributeSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyReferenceAttributeSchemaMutation.class.getSimpleName())
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name(), map()
-						.e(ReferenceAttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
-							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-							.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
-							.build())
+						.e(AttributeSchemaMutationDescriptor.MUTATION_TYPE.name(), ModifyAttributeSchemaDescriptionMutation.class.getSimpleName())
+						.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+						.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 						.build())
 					.build()
 			);

@@ -123,7 +123,11 @@ public class GraphQLManager {
 		this.graphQLRouter = new GraphQLRouter(this.objectMapper, evita, headers);
 
 		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY))
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(
+			this.evita.getEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
+			null,
+			ChangeCaptureContent.BODY
+		))
 			.subscribe(new SystemGraphQLRefreshingObserver(this));
 
 		// register initial endpoints
@@ -156,7 +160,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return new PathNormalizingHandler(this.graphQLRouter);
+		return this.graphQLRouter.decorate(PathNormalizingHandler::new);
 	}
 
 	/**

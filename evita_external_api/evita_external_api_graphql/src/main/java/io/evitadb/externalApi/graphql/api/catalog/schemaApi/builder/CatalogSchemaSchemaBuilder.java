@@ -43,7 +43,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnCatalogSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAssociatedDataSchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAttributeSchemasDataFetcher;
@@ -55,7 +55,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogEntitySchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateCatalogSchemaMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnSchemaChangeSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnCatalogSchemaChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
 import javax.annotation.Nonnull;
@@ -306,14 +306,15 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private BuiltFieldDescriptor buildOnCatalogSchemaChangeField() {
 		final GraphQLFieldDefinition onCatalogSchemaChangeField = CatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
-			.argument(OnChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			onCatalogSchemaChangeField,
-			new OnSchemaChangeSubscribingDataFetcher(this.buildingContext.getEvita())
+			new OnCatalogSchemaChangeCaptureSubscribingDataFetcher(this.buildingContext.getEvita())
 		);
 	}
 }

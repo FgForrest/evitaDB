@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySche
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
+import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
@@ -60,8 +60,8 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 	public UpdateEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
-			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
-			new RestMutationResolvingExceptionFactory()
+			new RestMutationObjectMapper(restApiHandlingContext.getObjectMapper()),
+			RestMutationResolvingExceptionFactory.INSTANCE
 		);
 	}
 

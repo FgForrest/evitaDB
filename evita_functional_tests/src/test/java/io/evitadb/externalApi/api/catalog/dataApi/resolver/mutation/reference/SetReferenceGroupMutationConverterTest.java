@@ -30,7 +30,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +53,7 @@ class SetReferenceGroupMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new SetReferenceGroupMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetReferenceGroupMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -128,6 +128,7 @@ class SetReferenceGroupMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(SetReferenceGroupMutationDescriptor.MUTATION_TYPE.name(), SetReferenceGroupMutation.class.getSimpleName())
 					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_TYPE.name(), "TagsGroup")

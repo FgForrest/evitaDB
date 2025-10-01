@@ -27,8 +27,9 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +52,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new AllowEvolutionModeInCatalogSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowEvolutionModeInCatalogSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -108,6 +109,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), AllowEvolutionModeInCatalogSchemaMutation.class.getSimpleName())
 					.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), new String[] {
 						CatalogEvolutionMode.ADDING_ENTITY_TYPES.name()
 					})

@@ -72,6 +72,7 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromOrderedArray;
  * - Passing an actual {@link Catalog} instance to {@link #withUpdatedCatalogInstance(CatalogContract)} marks the
  * catalog as active; passing a non-runtime representation keeps it inactive.
  *
+ * @param startVersion     the version of the engine state at the time of the evitaDB startup
  * @param engineState      persisted snapshot of engine-level state
  * @param catalogs         map of catalog instances keyed by their names
  * @param readOnlyCatalogs names of catalogs considered read-only in this snapshot
@@ -79,6 +80,7 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromOrderedArray;
  */
 @Immutable
 public record ExpandedEngineState(
+	long startVersion,
 	@Nonnull EngineState engineState,
 	@Nonnull Map<String, CatalogWrapper> catalogs,
 	@Nonnull Set<String> readOnlyCatalogs
@@ -111,6 +113,7 @@ public record ExpandedEngineState(
 		@Nonnull Map<String, CatalogContract> catalogs
 	) {
 		return new ExpandedEngineState(
+			engineState.version(),
 			engineState,
 			Collections.unmodifiableMap(
 				catalogs.entrySet().stream()
@@ -142,10 +145,12 @@ public record ExpandedEngineState(
 	 * @param catalogs    catalog instances keyed by name (will be wrapped as unmodifiable)
 	 */
 	private ExpandedEngineState(
+		long startVersion,
 		@Nonnull EngineState engineState,
 		@Nonnull Map<String, CatalogWrapper> catalogs
 	) {
 		this(
+			startVersion,
 			engineState,
 			Collections.unmodifiableMap(catalogs),
 			Set.copyOf(
@@ -272,6 +277,7 @@ public record ExpandedEngineState(
 				insertRecordIntoOrderedArray(catalog.getName(), this.engineState.inactiveCatalogs()));
 		}
 		return new ExpandedEngineState(
+			this.startVersion,
 			engineStateBuilder.build(),
 			updatedCatalogs
 		);
@@ -305,6 +311,7 @@ public record ExpandedEngineState(
 	 */
 	public static class Builder {
 		@Nonnull private final ExpandedEngineState base;
+		private long startVersion;
 		private long version;
 		@Nonnull private final HashMap<String, CatalogWrapper> catalogs;
 		@Nonnull private String[] activeCatalogs;
@@ -316,6 +323,7 @@ public record ExpandedEngineState(
 		 */
 		Builder(@Nonnull ExpandedEngineState base) {
 			this.base = base;
+			this.startVersion = base.startVersion;
 			this.version = this.base.engineState.version();
 			this.catalogs = new HashMap<>(base.catalogs);
 			this.activeCatalogs = base.engineState.activeCatalogs();
@@ -406,6 +414,7 @@ public record ExpandedEngineState(
 				.inactiveCatalogs(this.inactiveCatalogs)
 				.readOnlyCatalogs(this.readOnlyCatalogs);
 			return new ExpandedEngineState(
+				this.startVersion,
 				engineStateBuilder.build(),
 				this.catalogs
 			);

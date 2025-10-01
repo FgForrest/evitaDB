@@ -114,7 +114,11 @@ public class RestManager {
 		this.restRouter = new RestRouter(objectMapper, headerOptions, restOptions);
 
 		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY))
+		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(
+			this.evita.getEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
+			null,
+			ChangeCaptureContent.BODY
+		))
 			.subscribe(new SystemRestRefreshingObserver(this));
 
 		// register initial endpoints
@@ -147,7 +151,7 @@ public class RestManager {
 
 	@Nonnull
 	public HttpService getRestRouter() {
-		return new PathNormalizingHandler(this.restRouter);
+		return this.restRouter.decorate(PathNormalizingHandler::new);
 	}
 
 	/**

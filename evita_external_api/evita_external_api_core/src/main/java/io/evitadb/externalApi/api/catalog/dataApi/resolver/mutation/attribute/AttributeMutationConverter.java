@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
  */
 public abstract class AttributeMutationConverter<M extends AttributeMutation> extends LocalMutationConverter<M> {
 
-	protected AttributeMutationConverter(@Nonnull MutationObjectParser objectParser,
+	protected AttributeMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
@@ -56,6 +56,7 @@ public abstract class AttributeMutationConverter<M extends AttributeMutation> ex
 
 	@Override
 	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		output.setProperty(AttributeMutationDescriptor.MUTATION_TYPE, mutation.getClass().getSimpleName());
 		output.setProperty(AttributeMutationDescriptor.NAME, mutation.getAttributeKey().attributeName());
 		if (mutation.getAttributeKey().localized()) {
 			//noinspection DataFlowIssue

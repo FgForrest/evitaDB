@@ -31,7 +31,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +54,7 @@ class InsertReferenceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new InsertReferenceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new InsertReferenceMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -128,6 +128,7 @@ class InsertReferenceMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(InsertReferenceMutationDescriptor.MUTATION_TYPE.name(), InsertReferenceMutation.class.getSimpleName())
 					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE.name())

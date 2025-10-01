@@ -26,13 +26,16 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -47,7 +50,7 @@ class RemoveParentMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new RemoveParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new RemoveParentMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -68,9 +71,16 @@ class RemoveParentMutationConverterTest {
 
 	@Test
 	void shouldSerializeLocalMutationToOutput() {
-		assertEquals(
-			true, // this mutation doesn't have any parameter, therefore it defaults to "true" (this makes sense within mutation aggregator where the value is prefixed with mutation name)
-			this.converter.convertToOutput(new RemoveParentMutation())
-		);
+		final RemoveParentMutation inputMutation = new RemoveParentMutation();
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(RemoveParentMutationDescriptor.MUTATION_TYPE.name(), RemoveParentMutation.class.getSimpleName())
+					.build()
+			);
 	}
 }

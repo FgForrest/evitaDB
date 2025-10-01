@@ -40,7 +40,8 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.AssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import lombok.AllArgsConstructor;
@@ -73,18 +74,25 @@ class UpsertAssociatedDataMutationConverterTest {
 	private static final String ASSOCIATED_DATA_LABELS = "labels";
 	private static final String ASSOCIATED_DATA_CODE = "code";
 	private static final String ASSOCIATED_DATA_QUANTITY = "quantity";
+
+	private EntitySchemaContract entitySchema;
+	private Map<String, Object> mutationConverterContext;
 	private UpsertAssociatedDataMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
+		this.entitySchema = new InternalEntitySchemaBuilder(
 			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)
 			.withAssociatedData(ASSOCIATED_DATA_CODE, String.class)
 			.toInstance();
-		this.converter =  new UpsertAssociatedDataMutationConverter(new ObjectMapper(), entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.mutationConverterContext = Map.of(
+			MutationConverterContext.ENTITY_SCHEMA_KEY, this.entitySchema,
+			MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY, this.entitySchema
+		);
+		this.converter =  new UpsertAssociatedDataMutationConverter(new ObjectMapper(), PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -96,7 +104,8 @@ class UpsertAssociatedDataMutationConverterTest {
 				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(AssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "phone")
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 
@@ -105,7 +114,8 @@ class UpsertAssociatedDataMutationConverterTest {
 				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(AssociatedDataMutationDescriptor.LOCALE.name(), "en")
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "phone")
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation2);
 	}
@@ -116,7 +126,8 @@ class UpsertAssociatedDataMutationConverterTest {
 			map()
 				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "some")
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(
 			new UpsertAssociatedDataMutation(ASSOCIATED_DATA_CODE, "some"),
@@ -131,7 +142,8 @@ class UpsertAssociatedDataMutationConverterTest {
 				.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_QUANTITY)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "1.2")
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(), BigDecimal.class)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 
 		assertEquals(
@@ -148,7 +160,8 @@ class UpsertAssociatedDataMutationConverterTest {
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), map()
 					.e("s", "string")
 					.build())
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 
 		assertEquals(
@@ -171,7 +184,8 @@ class UpsertAssociatedDataMutationConverterTest {
 				.e(AssociatedDataMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), range)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(), LongNumberRange.class)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(
 			new UpsertAssociatedDataMutation("longNumberRangeAttribute", LongNumberRange.to(20L)),
@@ -200,7 +214,8 @@ class UpsertAssociatedDataMutationConverterTest {
 					)
 				)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(), LongNumberRange[].class)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals("arrayOfRangesAttribute", localMutation.getAssociatedDataKey().associatedDataName());
 		assertArrayEquals(
@@ -220,7 +235,8 @@ class UpsertAssociatedDataMutationConverterTest {
 			() -> this.converter.convertFromInput(
 				map()
 					.e(AssociatedDataMutationDescriptor.NAME.name(), "labels")
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(
@@ -228,7 +244,8 @@ class UpsertAssociatedDataMutationConverterTest {
 			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "some")
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 	}
@@ -242,7 +259,8 @@ class UpsertAssociatedDataMutationConverterTest {
 					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "phone")
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(), Integer.class)
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 	}
@@ -255,7 +273,8 @@ class UpsertAssociatedDataMutationConverterTest {
 				map()
 					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_QUANTITY)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "1.2")
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 	}
@@ -276,6 +295,7 @@ class UpsertAssociatedDataMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(UpsertAssociatedDataMutationDescriptor.MUTATION_TYPE.name(), UpsertAssociatedDataMutation.class.getSimpleName())
 					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 					.e(AssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "phone")

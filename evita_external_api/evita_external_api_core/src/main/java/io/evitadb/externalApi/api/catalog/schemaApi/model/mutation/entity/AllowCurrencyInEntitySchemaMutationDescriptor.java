@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface AllowCurrencyInEntitySchemaMutationDescriptor {
+public interface AllowCurrencyInEntitySchemaMutationDescriptor extends EntitySchemaMutationDescriptor {
 
 	PropertyDescriptor CURRENCIES = PropertyDescriptor.builder()
 		.name("currencies")
@@ -54,6 +54,6 @@ public interface AllowCurrencyInEntitySchemaMutationDescriptor {
 			Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(CURRENCIES))
+		.staticFields(List.of(MUTATION_TYPE, CURRENCIES))
 		.build();
 }

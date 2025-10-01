@@ -56,8 +56,6 @@ public class CatalogSchemaApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuil
 	@Override
 	@Nonnull
 	public GraphQLSchema build() {
-		// todo lho ChangeSystemCapture integration like in CatalogDataApiGraphQLSchemaBuilder.java ?
-
 		// internal evita schema
 		new CommonEvitaSchemaSchemaBuilder(this.buildingContext).build();
 		new EntitySchemaSchemaBuilder(this.buildingContext).build();

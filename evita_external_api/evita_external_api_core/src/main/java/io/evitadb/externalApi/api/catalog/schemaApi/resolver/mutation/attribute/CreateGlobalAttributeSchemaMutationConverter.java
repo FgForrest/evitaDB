@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeU
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
@@ -50,7 +50,7 @@ public class CreateGlobalAttributeSchemaMutationConverter
 	extends AttributeSchemaMutationConverter<CreateGlobalAttributeSchemaMutation> {
 
 	public CreateGlobalAttributeSchemaMutationConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);

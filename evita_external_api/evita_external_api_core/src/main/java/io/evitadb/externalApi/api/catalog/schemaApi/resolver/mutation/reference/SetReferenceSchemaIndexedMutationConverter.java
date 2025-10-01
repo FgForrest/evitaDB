@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
@@ -46,7 +46,7 @@ public class SetReferenceSchemaIndexedMutationConverter
 	extends ReferenceSchemaMutationConverter<SetReferenceSchemaIndexedMutation> {
 
 	public SetReferenceSchemaIndexedMutationConverter(
-		@Nonnull MutationObjectParser objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+		@Nonnull MutationObjectMapper objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 

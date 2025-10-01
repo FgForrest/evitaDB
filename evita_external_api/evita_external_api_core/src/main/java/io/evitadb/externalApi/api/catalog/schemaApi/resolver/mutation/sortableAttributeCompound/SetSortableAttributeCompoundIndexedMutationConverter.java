@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -37,10 +37,10 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class SetSortableAttributeCompoundIndexedMutationConverter
-	extends SortableAttributeCompoundSchemaMutationConverter<SetSortableAttributeCompoundIndexedMutation> {
+	extends SortableAttributeCompoundSchemaMutationConverter<SetSortableAttributeCompoundSchemaIndexedMutation> {
 
 	public SetSortableAttributeCompoundIndexedMutationConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);
@@ -48,8 +48,8 @@ public class SetSortableAttributeCompoundIndexedMutationConverter
 
 	@Nonnull
 	@Override
-	protected Class<SetSortableAttributeCompoundIndexedMutation> getMutationClass() {
-		return SetSortableAttributeCompoundIndexedMutation.class;
+	protected Class<SetSortableAttributeCompoundSchemaIndexedMutation> getMutationClass() {
+		return SetSortableAttributeCompoundSchemaIndexedMutation.class;
 	}
 
 

@@ -27,8 +27,9 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowEvolutionModeInEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowEvolutionModeInEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +52,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new AllowEvolutionModeInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowEvolutionModeInEntitySchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -116,6 +117,7 @@ class AllowEvolutionModeInEntitySchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), AllowEvolutionModeInEntitySchemaMutation.class.getSimpleName())
 					.e(AllowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES.name(), new String[]{
 						"ADAPT_PRIMARY_KEY_GENERATION",
 						"ADDING_LOCALES"

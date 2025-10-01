@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,6 @@ public interface RemoveAttributeMutationDescriptor extends AttributeMutationDesc
 			Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone
 			on it.
 			""")
-		.staticFields(List.of(NAME, LOCALE))
+		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE))
 		.build();
 }

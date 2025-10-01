@@ -48,6 +48,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Wrapper for raw input mutation maps to provide helper methods.
  *
@@ -59,6 +61,40 @@ public class Input {
 	@Nonnull private final String mutationName;
 	@Nullable private final Object inputMutationObject;
 	@Nonnull private final MutationResolvingExceptionFactory exceptionFactory;
+
+	@Nonnull private final Map<String, Object> context;
+
+	@Nonnull
+	public static Input from(
+		@Nonnull Input input,
+		@Nonnull String mutationName,
+		@Nonnull Object inputMutationObject,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
+		return new Input(mutationName, inputMutationObject, exceptionFactory, input.context);
+	}
+
+	@Nonnull
+	public Map<String, Object> createChildContext() {
+		return this.context;
+	}
+
+	/**
+	 * Creates a new context with merged parent context values with new child context values. Child context values overwrite parent context values.
+	 */
+	@Nonnull
+	public Map<String, Object> createChildContext(@Nonnull Map<String, Object> childContext) {
+		final Map<String, Object> result = createHashMap(this.context.size() + childContext.size());
+		result.putAll(this.context);
+		result.putAll(childContext);
+		return result;
+	}
+
+	@Nullable
+	public <T> T getContextValue(@Nonnull String key) {
+		//noinspection unchecked
+		return (T) this.context.get(key);
+	}
 
 	@Nonnull
 	public <T> Optional<T> getOptionalValue() {

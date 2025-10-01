@@ -27,10 +27,11 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.ModifyEntitySchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +54,7 @@ class ModifyEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyEntitySchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -131,12 +132,12 @@ class ModifyEntitySchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyEntitySchemaMutation.class.getSimpleName())
 					.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 					.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
-							.e(EntitySchemaMutationAggregateDescriptor.MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), map()
-								.e(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
-								.build())
+							.e(ModifyEntitySchemaDescriptionMutationDescriptor.MUTATION_TYPE.name(), ModifyEntitySchemaDescriptionMutation.class.getSimpleName())
+							.e(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 							.build()
 					))
 					.build()

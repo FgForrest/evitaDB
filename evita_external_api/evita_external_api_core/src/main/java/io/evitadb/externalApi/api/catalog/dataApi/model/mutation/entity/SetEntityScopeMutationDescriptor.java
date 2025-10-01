@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import java.util.List;
 
@@ -39,7 +40,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface SetEntityScopeMutationDescriptor {
+public interface SetEntityScopeMutationDescriptor extends MutationDescriptor {
 
 	PropertyDescriptor SCOPE = PropertyDescriptor.builder()
 		.name("scope")
@@ -55,6 +56,6 @@ public interface SetEntityScopeMutationDescriptor {
 		.description("""
 			This mutation allows to change entity scope from live data set to archived and vice versa.
 			""")
-		.staticFields(List.of(SCOPE))
+		.staticFields(List.of(MUTATION_TYPE, SCOPE))
 		.build();
 }

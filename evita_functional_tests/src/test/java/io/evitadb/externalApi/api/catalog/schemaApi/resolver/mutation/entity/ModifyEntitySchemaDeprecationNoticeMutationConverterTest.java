@@ -26,8 +26,9 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDeprecationNoticeMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.ModifyEntitySchemaDeprecationNoticeMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +50,7 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyEntitySchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyEntitySchemaDeprecationNoticeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -98,6 +99,7 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyEntitySchemaDeprecationNoticeMutation.class.getSimpleName())
 					.e(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 					.build()
 			);

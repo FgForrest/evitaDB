@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,6 +65,6 @@ public interface UpsertAssociatedDataMutationDescriptor extends AssociatedDataMu
 		.description("""
 			Upsert associatedData mutation will either update existing associatedData or create new one.
 			""")
-		.staticFields(List.of(NAME, LOCALE, VALUE, VALUE_TYPE))
+		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE, VALUE, VALUE_TYPE))
 		.build();
 }

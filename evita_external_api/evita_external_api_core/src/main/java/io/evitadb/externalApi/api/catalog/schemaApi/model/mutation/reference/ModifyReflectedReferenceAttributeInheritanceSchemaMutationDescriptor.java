@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ public interface ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescr
 			`ReflectedReferenceSchema.attributeInheritanceFilter` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(NAME, ATTRIBUTE_INHERITANCE_BEHAVIOR, ATTRIBUTE_INHERITANCE_FILTER))
+		.staticFields(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_INHERITANCE_BEHAVIOR, ATTRIBUTE_INHERITANCE_FILTER))
 		.build();
 
 }

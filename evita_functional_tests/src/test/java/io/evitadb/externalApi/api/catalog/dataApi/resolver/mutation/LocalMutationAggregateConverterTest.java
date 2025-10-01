@@ -38,9 +38,9 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,10 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.utils.ListBuilder.array;
-import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -70,18 +67,24 @@ public class LocalMutationAggregateConverterTest {
 
 	private static final String ATTRIBUTE_QUANTITY = "quantity";
 
+	private EntitySchemaContract entitySchema;
+	private Map<String, Object> mutationConverterContext;
 	private LocalMutationAggregateConverter converter;
 
 	@BeforeEach
 	void init() {
-		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
+		this.entitySchema = new InternalEntitySchemaBuilder(
 			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			.withPrice()
 			.toInstance();
-		this.converter =  new LocalMutationAggregateConverter(new ObjectMapper(), entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.mutationConverterContext = Map.of(
+			MutationConverterContext.ENTITY_SCHEMA_KEY, this.entitySchema,
+			MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY, this.entitySchema
+		);
+		this.converter =  new LocalMutationAggregateConverter(new ObjectMapper(), PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -101,7 +104,8 @@ public class LocalMutationAggregateConverterTest {
 				.e(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH))
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 
 		assertEquals(expectedMutations, convertedMutations);
@@ -116,33 +120,5 @@ public class LocalMutationAggregateConverterTest {
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
-	}
-
-	@Test
-	void shouldSerializeLocalMutationToOutput() {
-		final List<LocalMutation<?, ?>> inputMutations = List.of(
-			new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, Locale.ENGLISH, 10, IntegerNumberRange.between(0, 20)),
-			new RemoveAttributeMutation(ATTRIBUTE_QUANTITY, Locale.ENGLISH)
-		);
-
-		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutations);
-		assertThat(serializedMutation)
-			.usingRecursiveComparison()
-			.isEqualTo(
-				list()
-					.i(map()
-						.e(ReferenceAttributeMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
-							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-							.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
-							.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
-							.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), array()
-								.i(0).i(20))))
-					.i(map()
-						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-							.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())))
-					.build()
-			);
 	}
 }

@@ -26,15 +26,23 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingD
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingEntityMutationConverter;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingLocalMutationConverter;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation.
@@ -44,35 +52,49 @@ import javax.annotation.Nonnull;
 public class ChangeCatalogDataCaptureBodyDataFetcher implements DataFetcher<Object> {
 
 	@Nonnull
-	private final LocalMutationAggregateConverter bodyConverter;
+	private final DelegatingLocalMutationConverter localMutationConverter;
+	@Nonnull
+	private final DelegatingEntityMutationConverter entityMutationConverter;
+	@Nonnull
+	private final DelegatingInfrastructureMutationConverter infrastructureMutationConverter;
 
 	public ChangeCatalogDataCaptureBodyDataFetcher(@Nonnull ObjectMapper objectMapper) {
-		this.bodyConverter = new LocalMutationAggregateConverter(
-			objectMapper,
-			null,
-			new PassThroughMutationObjectParser(),
-			new GraphQLMutationResolvingExceptionFactory()
-		);
+		final PassThroughMutationObjectMapper mutationObjectMapper = PassThroughMutationObjectMapper.INSTANCE;
+		final GraphQLMutationResolvingExceptionFactory exceptionFactory = GraphQLMutationResolvingExceptionFactory.INSTANCE;
+		this.localMutationConverter = new DelegatingLocalMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);
+		this.entityMutationConverter = new DelegatingEntityMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);
+		this.infrastructureMutationConverter = new DelegatingInfrastructureMutationConverter(mutationObjectMapper, exceptionFactory);
 	}
 
 	@Override
 	@Nonnull
 	public Object get(DataFetchingEnvironment environment) throws Exception {
-		final ChangeSystemCapture capture = environment.getSource();
+		final ChangeCatalogCapture capture = environment.getSource();
 		Assert.isPremiseValid(
 			capture != null,
 			() -> new GraphQLQueryResolvingInternalError("Missing mandatory capture object.")
 		);
-		final LocalMutation<?, ?> body = (LocalMutation<?, ?>) capture.body();
+		final Mutation body =  capture.body();
 		Assert.isPremiseValid(
 			body != null,
 			() -> new GraphQLQueryResolvingInternalError("ChangeCatalogCapture body is null even though it was requested.")
 		);
-		final Object convertedBody = this.bodyConverter.convertToOutput(body);
+
+		final Object convertedBody;
+		if (body instanceof EntityMutation entityMutation) {
+			convertedBody = this.entityMutationConverter.convertToOutput(entityMutation);
+		} else if (body instanceof LocalMutation<?, ?> localMutation) {
+			convertedBody = this.localMutationConverter.convertToOutput(localMutation);
+		} else if (body instanceof TransactionMutation transactionMutation) {
+			convertedBody = this.infrastructureMutationConverter.convertToOutput(transactionMutation);
+		} else {
+			throw new  GraphQLQueryResolvingInternalError("Unsupported entity mutation: " + capture.body());
+		}
 		Assert.isPremiseValid(
 			convertedBody != null,
 			() -> new GraphQLQueryResolvingInternalError("Converter body is null even though source body is present.")
 		);
+
 		return convertedBody;
 	}
 }

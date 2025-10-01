@@ -23,16 +23,18 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingAttributeSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ReferenceAttributeSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.AttributeSchemaMutationAggregateConverter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -49,15 +51,20 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 	extends ReferenceSchemaMutationConverter<ModifyReferenceAttributeSchemaMutation> {
 
 	@Nonnull
-	private final ReferenceAttributeSchemaMutationAggregateConverter referenceAttributeSchemaMutationAggregateResolver;
+	private final AttributeSchemaMutationAggregateConverter attributeSchemaMutationAggregateResolver;
+	@Nonnull
+	private final DelegatingAttributeSchemaMutationConverter delegatingAttributeSchemaMutationConverter;
 
 	public ModifyReferenceAttributeSchemaMutationConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectMapper,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
-		super(objectParser, exceptionFactory);
-		this.referenceAttributeSchemaMutationAggregateResolver = new ReferenceAttributeSchemaMutationAggregateConverter(
-			objectParser, exceptionFactory);
+		super(objectMapper, exceptionFactory);
+		this.attributeSchemaMutationAggregateResolver = new AttributeSchemaMutationAggregateConverter(
+			objectMapper, exceptionFactory);
+		this.delegatingAttributeSchemaMutationConverter = new DelegatingAttributeSchemaMutationConverter(
+			objectMapper, exceptionFactory
+		);
 	}
 
 	@Nonnull
@@ -82,17 +89,22 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 				return (Map<String, Object>) m;
 			})
 			.get();
-		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = this.referenceAttributeSchemaMutationAggregateResolver
+		final List<AttributeSchemaMutation> attributeSchemaMutations = this.attributeSchemaMutationAggregateResolver
 			.convertFromInput(inputAttributeSchemaMutation);
 		Assert.isTrue(
 			attributeSchemaMutations.size() == 1,
 			() -> getExceptionFactory().createInvalidArgumentException(
 				"Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
+		Assert.isTrue(
+			attributeSchemaMutations.get(0) instanceof ReferenceAttributeSchemaMutation,
+			() -> getExceptionFactory().createInvalidArgumentException(
+				"Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` isn't supported by reference attributes.")
+		);
 
 		return new ModifyReferenceAttributeSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
-			attributeSchemaMutations.get(0)
+			(ReferenceAttributeSchemaMutation) attributeSchemaMutations.get(0)
 		);
 	}
 
@@ -100,7 +112,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 	protected void convertToOutput(@Nonnull ModifyReferenceAttributeSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION,
-			this.referenceAttributeSchemaMutationAggregateResolver.convertToOutput(
+			this.delegatingAttributeSchemaMutationConverter.convertToOutput(
 				mutation.getAttributeSchemaMutation())
 		);
 		super.convertToOutput(mutation, output);

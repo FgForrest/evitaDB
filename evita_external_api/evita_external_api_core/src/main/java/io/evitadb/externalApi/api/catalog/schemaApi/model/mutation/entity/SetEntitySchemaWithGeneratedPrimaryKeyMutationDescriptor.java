@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor {
+public interface SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor extends EntitySchemaMutationDescriptor {
 
 	PropertyDescriptor WITH_GENERATED_PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("withGeneratedPrimaryKey")
@@ -57,6 +57,6 @@ public interface SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor {
 			Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(WITH_GENERATED_PRIMARY_KEY))
+		.staticFields(List.of(MUTATION_TYPE, WITH_GENERATED_PRIMARY_KEY))
 		.build();
 }

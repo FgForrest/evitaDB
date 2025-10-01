@@ -26,9 +26,9 @@ package io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetche
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.TopLevelCatalogSchemaMutationAggregateConverter;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -45,16 +45,16 @@ import java.util.Objects;
 public class ChangeSystemCaptureBodyDataFetcher implements DataFetcher<Object> {
 
 	@Nonnull
-	private final TopLevelCatalogSchemaMutationAggregateConverter bodyConverter = new TopLevelCatalogSchemaMutationAggregateConverter(
-		new PassThroughMutationObjectParser(),
-		new GraphQLMutationResolvingExceptionFactory()
+	private final DelegatingEngineMutationConverter bodyConverter = new DelegatingEngineMutationConverter(
+		PassThroughMutationObjectMapper.INSTANCE,
+		GraphQLMutationResolvingExceptionFactory.INSTANCE
 	);
 
 	@Override
 	@Nullable
 	public Object get(DataFetchingEnvironment environment) throws Exception {
 		final ChangeSystemCapture capture = Objects.requireNonNull(environment.getSource());
-		final TopLevelCatalogSchemaMutation body = (TopLevelCatalogSchemaMutation) capture.body();
+		final EngineMutation<?> body = (EngineMutation<?>) capture.body();
 		Assert.isPremiseValid(
 			body != null,
 			() -> new GraphQLQueryResolvingInternalError("ChangeSystemCapture body is null even though it was requested.")

@@ -27,8 +27,9 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWith
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithHierarchyMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,7 +59,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new SetEntitySchemaWithHierarchyMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetEntitySchemaWithHierarchyMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -161,6 +162,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(SetEntitySchemaWithHierarchyMutationDescriptor.MUTATION_TYPE.name(), SetEntitySchemaWithHierarchyMutation.class.getSimpleName())
 					.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
 					.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), new String[] { "LIVE", "ARCHIVED" })
 					.build()
@@ -181,6 +183,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), SetEntitySchemaWithHierarchyMutation.class.getSimpleName())
 					.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), false)
 					.e(SetEntitySchemaWithHierarchyMutationDescriptor.INDEXED_IN_SCOPES.name(), Scope.NO_SCOPE)
 					.build()

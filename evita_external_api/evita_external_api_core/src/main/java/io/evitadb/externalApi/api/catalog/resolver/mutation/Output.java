@@ -40,16 +40,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Currency;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.MapBuilder.map;
 
 /**
@@ -65,7 +59,31 @@ public class Output {
 	@Nonnull private final String mutationName;
 	@Nonnull private final MutationResolvingExceptionFactory exceptionFactory;
 
+	@Nonnull private final Map<String, Object> context;
+
 	@Nullable private Object outputMutationObject = null;
+
+	@Nonnull
+	public static Output from(@Nonnull Output output, @Nonnull String mutationName, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+		return new Output(mutationName, exceptionFactory, output.context);
+	}
+
+	/**
+	 * Creates a new context with merged parent context values with new child context values. Child context values overwrite parent context values.
+	 */
+	@Nonnull
+	public Map<String, Object> createChildContext(@Nonnull Map<String, Object> childContext) {
+		final Map<String, Object> result = createHashMap(this.context.size() + childContext.size());
+		result.putAll(this.context);
+		result.putAll(childContext);
+		return result;
+	}
+
+	@Nullable
+	public <T> T getContextValue(@Nonnull String key) {
+		//noinspection unchecked
+		return (T) this.context.get(key);
+	}
 
 	@Nullable
 	public Object getOutputMutationObject() {
@@ -162,6 +180,7 @@ public class Output {
 		if (value instanceof LocalDate dateTime) return toSerializableValue(dateTime);
 		if (value instanceof LocalTime localTime) return toSerializableValue(localTime);
 		if (value instanceof Range<?> range) return toSerializableValue(range);
+		if (value instanceof UUID uuid) return toSerializableValue(uuid);
 		if (value.getClass().isEnum()) return toSerializableValue((Enum<?>) value);
 		if (value instanceof Class<?> type) return toSerializableValue(type);
 
@@ -262,6 +281,11 @@ public class Output {
 		serializedRange[0] = range.getPreciseFrom() != null ? toSerializableValue(range.getPreciseFrom()) : null;
 		serializedRange[1] = range.getPreciseTo() != null ? toSerializableValue(range.getPreciseTo()) : null;
 		return serializedRange;
+	}
+
+	@Nonnull
+	private static Serializable toSerializableValue(@Nonnull UUID uuid) {
+		return uuid.toString();
 	}
 
 	private static Serializable toSerializableValue(@Nonnull Class<?> type) {

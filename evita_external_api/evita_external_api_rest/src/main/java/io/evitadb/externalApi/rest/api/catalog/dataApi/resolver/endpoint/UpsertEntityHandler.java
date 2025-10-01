@@ -41,7 +41,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.UpsertEntity
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationFactory;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
@@ -68,14 +68,14 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingContext> {
 
-	@Nonnull private final RestEntityUpsertMutationConverter mutationResolver;
+	@Nonnull private final RestEntityUpsertMutationFactory mutationResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	private final boolean withPrimaryKeyInPath;
 
 	public UpsertEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext, boolean withPrimaryKeyInPath) {
 		super(restApiHandlingContext);
-		this.mutationResolver = new RestEntityUpsertMutationConverter(
+		this.mutationResolver = new RestEntityUpsertMutationFactory(
 			restApiHandlingContext.getObjectMapper(),
 			restApiHandlingContext.getEntitySchema()
 		);
@@ -115,7 +115,7 @@ public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingCon
 				}
 
 				final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-					this.mutationResolver.convertFromInput(
+					this.mutationResolver.createFromInput(
 						requestData.getPrimaryKey()
 							.orElse(null),
 						requestData.getEntityExistence()

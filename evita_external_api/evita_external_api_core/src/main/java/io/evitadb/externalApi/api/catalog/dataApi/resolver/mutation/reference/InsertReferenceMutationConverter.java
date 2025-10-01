@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
@@ -40,7 +40,7 @@ import javax.annotation.Nonnull;
  */
 public class InsertReferenceMutationConverter extends ReferenceMutationConverter<InsertReferenceMutation> {
 
-	public InsertReferenceMutationConverter(@Nonnull MutationObjectParser objectParser,
+	public InsertReferenceMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                                        @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}

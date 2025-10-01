@@ -79,7 +79,7 @@ public class LabManager {
 
 	@Nonnull
 	public HttpService getLabRouter() {
-		return new PathNormalizingHandler(this.labRouter);
+		return this.labRouter.decorate(PathNormalizingHandler::new);
 	}
 
 	/**

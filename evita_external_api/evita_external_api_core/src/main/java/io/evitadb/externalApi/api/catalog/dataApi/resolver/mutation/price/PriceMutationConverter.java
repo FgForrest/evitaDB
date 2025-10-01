@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
  */
 abstract class PriceMutationConverter<M extends PriceMutation> extends LocalMutationConverter<M> {
 
-	protected PriceMutationConverter(@Nonnull MutationObjectParser objectParser,
+	protected PriceMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                                 @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
@@ -57,6 +57,7 @@ abstract class PriceMutationConverter<M extends PriceMutation> extends LocalMuta
 
 	@Override
 	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		output.setProperty(PriceMutationDescriptor.MUTATION_TYPE, mutation.getClass().getSimpleName());
 		output.setProperty(PriceMutationDescriptor.PRICE_ID, mutation.getPriceKey().priceId());
 		output.setProperty(PriceMutationDescriptor.PRICE_LIST, mutation.getPriceKey().priceList());
 		output.setProperty(PriceMutationDescriptor.CURRENCY, mutation.getPriceKey().currency());

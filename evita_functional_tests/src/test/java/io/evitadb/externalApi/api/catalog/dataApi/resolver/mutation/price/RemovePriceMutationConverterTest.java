@@ -27,8 +27,9 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ class RemovePriceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new RemovePriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new RemovePriceMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -115,9 +116,10 @@ class RemovePriceMutationConverterTest {
 
 		assertEquals(
 			map()
-				.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
-				.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
-				.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
+				.e(RemovePriceMutationDescriptor.MUTATION_TYPE.name(), RemovePriceMutation.class.getSimpleName())
+				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
+				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
+				.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
 				.build(),
 			this.converter.convertToOutput(inputMutation)
 		);

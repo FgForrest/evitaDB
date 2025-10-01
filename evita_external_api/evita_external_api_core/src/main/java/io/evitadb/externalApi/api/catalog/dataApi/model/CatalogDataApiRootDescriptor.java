@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -137,12 +137,21 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         // type is expected to be a collection-specific list of `Entity` objects
         .build();
 
-    EndpointDescriptor ON_DATA_CHANGE = EndpointDescriptor.builder()
-        .operation("on*change")
+    EndpointDescriptor ON_CATALOG_DATA_CHANGE = EndpointDescriptor.builder()
+        .operation("onDataChange")
         .urlPathItem("")
         .description("""
-            Subscribes client to a stream of data changes which are sent over as individual capture events.
+            Subscribes client to a stream of data changes for entire catalog which are sent over as individual capture events.
             """)
         .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
         .build();
+
+	EndpointDescriptor ON_COLLECTION_DATA_CHANGE = EndpointDescriptor.builder()
+		.operation("on*DataChange")
+		.urlPathItem("")
+		.description("""
+            Subscribes client to a stream of data changes for specific collection which are sent over as individual capture events.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
+		.build();
 }

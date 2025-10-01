@@ -43,7 +43,6 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor {
 
-	// todo lho: should there be these fields? check todo in the ChangeCatalogCapture for more info
 	PropertyDescriptor AREA = PropertyDescriptor.builder()
 		.name("area")
 		.description("""
@@ -59,10 +58,11 @@ public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor 
 			""")
 		.type(nullable(String.class))
 		.build();
-	PropertyDescriptor VERSION = PropertyDescriptor.builder()
-		.name("version")
+	PropertyDescriptor ENTITY_PRIMARY_KEY = PropertyDescriptor.builder()
+		.name("entityPrimaryKey")
 		.description("""
-			The current version of the entity or its schema that was affected by the operation
+			The primary key of the entity that was affected by the operation
+			(if the operation is executed on catalog schema this field is null).
 			""")
 		.type(nullable(Integer.class))
 		.build();
@@ -72,6 +72,6 @@ public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor 
 		.description("""
 			Record representing a catalog-specific CDC event that is sent to the subscriber if it matches to the request he made.
 			""")
-		.staticFields(List.of(INDEX, AREA, CATALOG, ENTITY_TYPE, VERSION, OPERATION))
+		.staticFields(List.of(VERSION, INDEX, AREA, ENTITY_TYPE, ENTITY_PRIMARY_KEY, OPERATION))
 		.build();
 }

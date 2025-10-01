@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -55,17 +56,17 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnCollectionSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnSchemaChangeSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnCollectionSchemaChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
@@ -153,7 +154,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		this.buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			AttributeSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
 		// sortable attribute compound schema mutations
@@ -164,7 +166,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(
+			SortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
 		// reference schema mutations
 		this.buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
@@ -897,16 +900,17 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Nonnull
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_ENTITY_SCHEMA_CHANGE
+		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_COLLECTION_SCHEMA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
-			.argument(OnChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			onEntitySchemaChangeField,
-			new OnSchemaChangeSubscribingDataFetcher(this.buildingContext.getEvita(), entitySchema)
+			new OnCollectionSchemaChangeCaptureSubscribingDataFetcher(this.buildingContext.getEvita(), entitySchema)
 		);
 	}
 }

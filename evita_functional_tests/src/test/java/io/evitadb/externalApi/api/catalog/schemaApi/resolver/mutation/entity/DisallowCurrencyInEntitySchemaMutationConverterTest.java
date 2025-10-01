@@ -26,8 +26,9 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +52,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new DisallowCurrencyInEntitySchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new DisallowCurrencyInEntitySchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -109,6 +110,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), DisallowCurrencyInEntitySchemaMutation.class.getSimpleName())
 					.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of(
 						Currency.getInstance("CZK").getCurrencyCode(),
 						Currency.getInstance("USD").getCurrencyCode()

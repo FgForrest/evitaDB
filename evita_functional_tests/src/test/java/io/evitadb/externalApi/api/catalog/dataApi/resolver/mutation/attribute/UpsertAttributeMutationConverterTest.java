@@ -36,7 +36,8 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,18 +66,24 @@ class UpsertAttributeMutationConverterTest {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_QUANTITY = "quantity";
 
+	private EntitySchemaContract entitySchema;
+	private Map<String, Object> mutationConverterContext;
 	private UpsertAttributeMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
+		this.entitySchema = new InternalEntitySchemaBuilder(
 			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAttribute(ATTRIBUTE_CODE, String.class)
 			.withPrice()
 			.toInstance();
-		this.converter =  new UpsertAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.mutationConverterContext = Map.of(
+			MutationConverterContext.ENTITY_SCHEMA_KEY, this.entitySchema,
+			MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY, this.entitySchema
+		);
+		this.converter =  new UpsertAttributeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -88,7 +95,8 @@ class UpsertAttributeMutationConverterTest {
 				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 
@@ -97,7 +105,8 @@ class UpsertAttributeMutationConverterTest {
 				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(AttributeMutationDescriptor.LOCALE.name(), "en")
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation2);
 	}
@@ -108,7 +117,8 @@ class UpsertAttributeMutationConverterTest {
 			map()
 				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(
 			new UpsertAttributeMutation(ATTRIBUTE_CODE, "phone"),
@@ -123,7 +133,8 @@ class UpsertAttributeMutationConverterTest {
 				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), "1.2")
 				.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), BigDecimal.class)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(
 			new UpsertAttributeMutation(ATTRIBUTE_QUANTITY, BigDecimal.valueOf(1.2)),
@@ -142,7 +153,8 @@ class UpsertAttributeMutationConverterTest {
 				.e(AttributeMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
 				.e(UpsertAttributeMutationDescriptor.VALUE.name(), range)
 				.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), LongNumberRange.class)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(
 			new UpsertAttributeMutation("longNumberRangeAttribute", LongNumberRange.to(20L)),
@@ -171,7 +183,8 @@ class UpsertAttributeMutationConverterTest {
 					)
 				)
 				.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), LongNumberRange[].class)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals("arrayOfRangesAttribute", localMutation.getAttributeKey().attributeName());
 		assertArrayEquals(
@@ -191,7 +204,8 @@ class UpsertAttributeMutationConverterTest {
 			() -> this.converter.convertFromInput(
 				map()
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(
@@ -199,7 +213,8 @@ class UpsertAttributeMutationConverterTest {
 			() -> this.converter.convertFromInput(
 				map()
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
@@ -215,7 +230,8 @@ class UpsertAttributeMutationConverterTest {
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 					.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), Integer.class)
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 	}
@@ -228,7 +244,8 @@ class UpsertAttributeMutationConverterTest {
 				map()
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "1.2")
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 	}
@@ -243,6 +260,7 @@ class UpsertAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(UpsertAttributeMutationDescriptor.MUTATION_TYPE.name(), UpsertAttributeMutation.class.getSimpleName())
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")

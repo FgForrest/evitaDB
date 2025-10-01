@@ -30,6 +30,7 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.ResponseHeadersBuilder;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
@@ -55,7 +56,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class CorsService extends SimpleDecoratingHttpService {
+public class CorsService extends SimpleDecoratingHttpService implements WebSocketHandler {
 
 	private static final String REQUEST_HEADERS_DELIMITER_PATTERN = ",";
 	private static final int CORS_MAX_AGE = 300;
@@ -136,6 +137,13 @@ public class CorsService extends SimpleDecoratingHttpService {
 		} else {
 			return delegateServe(ctx, req);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		// todo lho
+		return Objects.requireNonNull(unwrap().as(WebSocketHandler.class)).handle(ctx, in);
 	}
 
 	private static boolean isCorsRequest(@Nullable String requestOrigin) {

@@ -27,9 +27,10 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssoc
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +52,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyAssociatedDataSchemaTypeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAssociatedDataSchemaTypeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -113,6 +114,7 @@ class ModifyAssociatedDataSchemaTypeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyAssociatedDataSchemaTypeMutation.class.getSimpleName())
 					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.e(ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(), "ComplexDataObject")
 					.build()
