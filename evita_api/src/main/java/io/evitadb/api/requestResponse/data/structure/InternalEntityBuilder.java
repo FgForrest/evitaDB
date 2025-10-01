@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 
 import javax.annotation.Nonnull;
 
@@ -58,6 +59,20 @@ public interface InternalEntityBuilder extends EntityBuilder {
 	void addOrReplaceReferenceMutations(
 		@Nonnull ReferenceBuilder referenceBuilder,
 		boolean methodAllowsDuplicates
+	);
+
+	/**
+	 * Creates a reference key for the specified reference name and referenced entity primary key.
+	 * This method is intended for internal use within the API for constructing references.
+	 *
+	 * @param referenceName the name of the reference to be created, must not be null
+	 * @param referencedEntityPrimaryKey the primary key of the referenced entity
+	 * @return a {@link ReferenceKey} representing the created reference
+	 */
+	@Nonnull
+	ReferenceKey createReference(
+		@Nonnull String referenceName,
+		int referencedEntityPrimaryKey
 	);
 
 }

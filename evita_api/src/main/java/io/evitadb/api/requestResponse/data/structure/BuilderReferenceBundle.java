@@ -331,6 +331,29 @@ class BuilderReferenceBundle {
 	}
 
 	/**
+	 * Removes the specified reference from the internal structure.
+	 * Ensures the reference key is present and valid before removing it,
+	 * and handles duplicate and non-duplicate references accordingly.
+	 *
+	 * @param reference the reference object to be removed. Must not be null.
+	 */
+	public void removeReference(@Nonnull ReferenceContract reference) {
+		final RepresentativeReferenceKey rrk = this.internalPkToRepRefKeys.get(
+			reference.getReferenceKey().internalPrimaryKey()
+		);
+		Assert.isPremiseValid(
+			rrk != null,
+			() -> "Reference " + reference.getReferenceKey() + " is not present in the structure!"
+		);
+		final Integer reverseInternalPk = this.repRefKeysToInternalPk.get(rrk);
+		if (reverseInternalPk == 0 || rrk.representativeAttributeValues().length > 0) {
+			removeDuplicateReference(reference);
+		} else {
+			removeNonDuplicateReference(reference);
+		}
+	}
+
+	/**
 	 * Removes a reference from the internal structure if it is not classified as a duplicate.
 	 * This method verifies that the provided reference exists in the internal structure
 	 * and matches the associated internal primary key. If the reference is not found

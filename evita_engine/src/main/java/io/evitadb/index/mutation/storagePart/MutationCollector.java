@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,10 +26,16 @@ package io.evitadb.index.mutation.storagePart;
 
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Allows collecting mutations in a mutable and lazy fashion. It tries to allocate memory as late as possible.
@@ -88,4 +94,39 @@ class MutationCollector {
 		);
 	}
 
+	/**
+	 * Retrieves a set of extracted local mutations from external entity mutations that match the specified entity type
+	 * and primary key. The extraction is performed using the provided function.
+	 *
+	 * @param <T> the type of the objects to extract from the entity mutations
+	 * @param entityType the type of the entity to filter the external mutations
+	 * @param entityPrimaryKey the primary key of the entity to filter the external mutations
+	 * @param extractFunction a function to map the {@link EntityUpsertMutation} objects to a stream of objects of type T
+	 * @return a set of objects of type T extracted from the matching external entity mutations
+	 */
+	@Nonnull
+	public <T> Set<T> getExternalEntityLocalMutations(
+		@Nonnull String entityType,
+		int entityPrimaryKey,
+		@Nonnull Function<EntityUpsertMutation, Stream<T>> extractFunction
+	) {
+		Stream<T> result = null;
+		if (this.externalMutations != null) {
+			for (EntityMutation entityMutation : this.externalMutations) {
+				if (
+					entityMutation instanceof EntityUpsertMutation eup &&
+						entityType.equals(eup.getEntityType()) &&
+						eup.getEntityPrimaryKey() != null &&
+						entityPrimaryKey == eup.getEntityPrimaryKey()
+				) {
+					final Stream<T> resultStream = extractFunction.apply(eup);
+					result = result == null ?
+						resultStream :
+						Stream.concat(result, resultStream);
+				}
+			}
+		}
+		return result == null ?
+			Collections.emptySet() : result.collect(Collectors.toSet());
+	}
 }

@@ -848,6 +848,12 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 
 	@Nonnull
 	@Override
+	public ReferenceKey createReference(@Nonnull String referenceName, int referencedEntityPrimaryKey) {
+		return this.referencesBuilder.createReference(referenceName, referencedEntityPrimaryKey);
+	}
+
+	@Nonnull
+	@Override
 	public Optional<EntityMutation> toMutation() {
 		final List<LocalMutation<?, ? extends Comparable<?>>> mutations = new ArrayList<>(16);
 		if (this.scopeMutation != null) {

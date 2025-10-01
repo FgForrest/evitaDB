@@ -26,7 +26,7 @@ package io.evitadb.api.proxy.impl.referenceBuilder;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.SealedEntityProxy;
-import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
+import io.evitadb.api.proxy.impl.ReferencedObjectType;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.EntityRecognizedIn;
 import io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.RecognizedContext;
@@ -68,7 +68,7 @@ import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
- * Identifies methods that are used to set entity referenced group into an entity and provides their implementation.
+ * Identifies methods that are used to set entity referenced group into a reference and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -163,7 +163,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final String referenceName = referenceSchema.getName();
 			final Optional<SealedEntity> groupEntity = referenceBuilder.getGroupEntity();
-			if (groupEntity.isPresent()) {
+			if (groupEntity.isEmpty()) {
 				// do nothing
 				if (referenceBuilder.getGroup().isPresent()) {
 					throw ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName);
@@ -173,9 +173,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 			} else {
 				referenceBuilder.removeGroup();
 				final SealedEntity referencedEntity = groupEntity.get();
-				return theState.getOrCreateReferencedEntityProxy(
-					returnType, referencedEntity, ProxyType.REFERENCED_ENTITY
-				);
+				return theState.getOrCreateReferencedEntityProxy(referenceName, returnType, referencedEntity, ReferencedObjectType.GROUP);
 			}
 		};
 	}
@@ -195,20 +193,24 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class expectedType
 	) {
-		final String referencedEntityType = getReferencedGroupType(referenceSchema, true);
+		final String referencedEntityType = Objects.requireNonNull(getReferencedGroupType(referenceSchema, true));
 		final String referenceName = referenceSchema.getName();
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final Optional<GroupEntityReference> group = referenceBuilder.getGroup();
 			if (group.isEmpty()) {
-				return theState.createReferencedEntityProxyWithCallback(
-					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType, ProxyType.REFERENCED_ENTITY,
+				return theState.getOrCreateReferencedEntityProxyWithCallback(
+					referenceName,
+					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType,
+					ReferencedObjectType.GROUP,
 					entityReference -> referenceBuilder.setGroup(entityReference.primaryKey())
 				);
 			} else {
 				final Optional<?> referencedInstance = theState.getReferencedEntityObjectIfPresent(
-					referencedEntityType, group.get().getPrimaryKey(),
-					expectedType, ProxyType.REFERENCED_ENTITY
+					referenceName,
+					group.get().getPrimaryKey(),
+					expectedType,
+					ReferencedObjectType.GROUP
 				);
 				if (referencedInstance.isPresent()) {
 					return referencedInstance.get();
@@ -221,7 +223,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 					return groupEntity
 						.map(
 							it -> theState.getOrCreateReferencedEntityProxy(
-								expectedType, it, ProxyType.REFERENCED_ENTITY
+								referenceName, expectedType, it, ReferencedObjectType.GROUP
 							)
 						)
 						.orElse(null);
@@ -263,7 +265,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupWithVoidResult(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final String expectedEntityType = getReferencedGroupType(referenceSchema, true);
+		final String expectedEntityType = Objects.requireNonNull(getReferencedGroupType(referenceSchema, true));
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			setReferencedEntityGroup(expectedEntityType, args, theState);
 			return null;
@@ -281,7 +283,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupWithBuilderResult(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final String expectedEntityType = getReferencedGroupType(referenceSchema, true);
+		final String expectedEntityType = Objects.requireNonNull(getReferencedGroupType(referenceSchema, true));
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			setReferencedEntityGroup(expectedEntityType, args, theState);
 			return proxy;
@@ -308,7 +310,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 			"Entity type `" + sealedEntity.getType() + "` in passed argument " +
 				"doesn't match the referencedGroupEntity entity type: `" + expectedEntityType + "`!"
 		);
-		referenceBuilder.setGroup(sealedEntity.getPrimaryKey());
+		referenceBuilder.setGroup(sealedEntity.getPrimaryKeyOrThrowException());
 	}
 
 	/**
@@ -332,16 +334,18 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<?> returnType,
 		@Nonnull Class<?> expectedType
 	) {
-		final String referencedGroupType = getReferencedGroupType(referenceSchema, true);
+		final String referencedGroupType = Objects.requireNonNull(getReferencedGroupType(referenceSchema, true));
 		if (method.isAnnotationPresent(CreateWhenMissing.class) ||
 			Arrays.stream(method.getParameterAnnotations()[0]).anyMatch(CreateWhenMissing.class::isInstance)) {
 			if (returnType.equals(proxyState.getProxyClass())) {
 				return createReferencedEntityGroupWithEntityBuilderResult(
+					referenceSchema.getName(),
 					referencedGroupType,
 					expectedType
 				);
 			} else if (void.class.equals(returnType)) {
 				return createReferencedEntityGroupWithVoidResult(
+					referenceSchema.getName(),
 					referencedGroupType,
 					expectedType
 				);
@@ -374,11 +378,12 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> createReferencedEntityGroupWithEntityBuilderResult(
+		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			createReferencedEntityGroup(referencedEntityType, expectedType, args, theState);
+			createReferencedEntityGroup(referenceName, referencedEntityType, expectedType, args, theState);
 			return proxy;
 		};
 	}
@@ -392,11 +397,12 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> createReferencedEntityGroupWithVoidResult(
+		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			createReferencedEntityGroup(referencedEntityType, expectedType, args, theState);
+			createReferencedEntityGroup(referenceName, referencedEntityType, expectedType, args, theState);
 			return null;
 		};
 	}
@@ -410,16 +416,18 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * @param theState             the SealedEntityReferenceProxyState object
 	 */
 	private static void createReferencedEntityGroup(
+		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Class<?> expectedType,
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityReferenceProxyState theState
 	) {
 		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-		final Object referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
+		final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxyWithCallback(
+			referenceName,
 			theState.getEntitySchemaOrThrow(referencedEntityType),
 			expectedType,
-			ProxyType.REFERENCED_ENTITY,
+			ReferencedObjectType.GROUP,
 			entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKey())
 		);
 		//noinspection unchecked
@@ -484,10 +492,11 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 			throw ContextMissingException.referenceContextMissing(referenceName);
 		} else {
 			final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
+				referenceName,
 				expectedType,
 				referenceBuilder.getGroupEntity()
 					.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)),
-				ProxyType.REFERENCED_ENTITY
+				ReferencedObjectType.GROUP
 			);
 			//noinspection unchecked
 			final Consumer<Object> consumer = (Consumer<Object>) args[0];
@@ -511,9 +520,10 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 			final int referencedGroupId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
 			final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
 				theState.getEntitySchema(),
+				referenceBuilder.getReferenceName(),
 				expectedType,
-				ProxyType.REFERENCED_ENTITY,
-				referencedGroupId
+				referencedGroupId,
+				ReferencedObjectType.GROUP
 			);
 			referenceBuilder.setGroup(referencedGroupId);
 			return referencedEntityInstance;
@@ -529,7 +539,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * @param returnType the return type
 	 * @return the method implementation
 	 */
-	@Nonnull
+	@Nullable
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setOrRemoveReferencedGroupById(
 		@Nonnull SealedEntityReferenceProxyState proxyState,
 		@Nonnull Method method,
@@ -592,9 +602,9 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull SealedEntityReferenceProxyState theState
 	) {
 		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-		final Serializable referencedPrimaryKey = (Serializable) args[0];
+		final Serializable referencedPrimaryKey = Objects.requireNonNull((Serializable) args[0]);
 		referenceBuilder.setGroup(
-			EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
+			Objects.requireNonNull(EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class))
 		);
 	}
 
@@ -605,19 +615,19 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * @param expectedType the expected type of the referenced entity proxy
 	 * @return the method implementation
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> getOrCreateByGroupIdWithReferencedEntityResult(
-		@Nonnull Class expectedType
+		@Nonnull Class<?> expectedType
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
+			final int referencedId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			referenceBuilder.setGroup(referencedId);
 			return theState.getOrCreateReferencedEntityProxy(
+				referenceBuilder.getReferenceName(),
 				expectedType,
 				theState.getEntity(),
-				ProxyType.REFERENCED_ENTITY
+				ReferencedObjectType.GROUP
 			);
 		};
 	}
@@ -688,18 +698,18 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * @param theState           the state of the sealed entity reference proxy
 	 */
 	private static void setReferencedEntityGroupClassifier(
-		@Nonnull String expectedEntityType,
+		@Nullable String expectedEntityType,
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityReferenceProxyState theState
 	) {
 		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-		final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
+		final EntityClassifier referencedClassifier = Objects.requireNonNull((EntityClassifier) args[0]);
 		Assert.isTrue(
-			expectedEntityType.equals(referencedClassifier.getType()),
+			Objects.equals(expectedEntityType, referencedClassifier.getType()),
 			"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
 				"doesn't match the referenced entity group type: `" + expectedEntityType + "`!"
 		);
-		referenceBuilder.setGroup(referencedClassifier.getPrimaryKey());
+		referenceBuilder.setGroup(referencedClassifier.getPrimaryKeyOrThrowException());
 	}
 
 	/**
@@ -787,7 +797,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.PARAMETER)) {
 						return setReferencedEntityByEntity(proxyState, returnType, referenceSchema);
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.CONSUMER)) {
-						return setReferencedEntityGroupByEntityConsumer(method, proxyState, referenceSchema, returnType, expectedType);
+						return setReferencedEntityGroupByEntityConsumer(method, proxyState, referenceSchema, returnType, Objects.requireNonNull(expectedType));
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.RETURN_TYPE) && parameterIsNumber) {
 						return setOrRemoveReferencedEntityByEntityReturnType(entityRecognizedIn.get().entityContract().resolvedType());
 					}

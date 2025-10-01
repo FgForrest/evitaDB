@@ -369,8 +369,13 @@ public class References implements ReferencesContract {
 				}
 				return empty();
 			}
+		} else if (referenceKey.isUnknownReference()) {
+			return ofNullable(reference);
+		} else {
+			// we have to check the internal primary key
+			return reference != null && reference.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey() ?
+				Optional.of(reference) : empty();
 		}
-		return ofNullable(reference);
 	}
 
 	@Override

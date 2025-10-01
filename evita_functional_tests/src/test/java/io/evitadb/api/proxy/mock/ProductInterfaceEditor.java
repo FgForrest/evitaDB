@@ -23,7 +23,6 @@
 
 package io.evitadb.api.proxy.mock;
 
-import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.proxy.WithEntityBuilder;
 import io.evitadb.api.proxy.WithScopeEditor;
@@ -49,6 +48,11 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+
+import static io.evitadb.api.AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS;
+import static io.evitadb.api.AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS;
+import static io.evitadb.api.AbstractHundredProductsFunctionalTest.ATTRIBUTE_RELATION_TYPE;
 
 /**
  * Example product interface for proxying.
@@ -145,6 +149,50 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@RemoveWhenExists
 	ProductCategoryInterface removeProductCategoryByIdAndReturnItsBody(int categoryId);
 
+	@ReferenceRef(Entities.PRODUCT)
+	ProductInterfaceEditor addOrUpdateRelatedProduct(
+		int productId,
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category,
+		@CreateWhenMissing Consumer<RelatedProductInterfaceEditor> relatedProductEditor
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	ProductInterfaceEditor addOrUpdateRelatedProduct(
+		int productId,
+		Predicate<RelatedProductInterface> predicate,
+		@CreateWhenMissing Consumer<RelatedProductInterfaceEditor> relatedProductEditor
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	void updateRelatedProducts(
+		Predicate<RelatedProductInterface> filter,
+		Consumer<RelatedProductInterfaceEditor> relatedProductEditor
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	void updateRelatedProducts(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category,
+		Consumer<RelatedProductInterfaceEditor> relatedProductEditor
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	RelatedProductInterface removeRelatedProduct(
+		int productId,
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	RelatedProductInterface removeRelatedProduct(
+		int productId,
+		Predicate<RelatedProductInterface> predicate
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	void removeAllRelatedProducts();
+
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
@@ -153,10 +201,10 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 
 	ProductInterfaceEditor setMarkets(String[] markets);
 
-	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	@AssociatedDataRef(ASSOCIATED_DATA_MARKETS)
 	ProductInterfaceEditor setMarketsAsVarArg(String... markets);
 
-	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	@AssociatedDataRef(ASSOCIATED_DATA_MARKETS)
 	@RemoveWhenExists
 	Collection<String> removeMarkets();
 
@@ -164,11 +212,11 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 
 	ProductInterfaceEditor setMarketsAttribute(String[] marketsAttribute);
 
-	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	@AttributeRef(ATTRIBUTE_MARKETS)
 	@RemoveWhenExists
 	Collection<String> removeMarketsAttribute();
 
-	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	@AttributeRef(ATTRIBUTE_MARKETS)
 	ProductInterfaceEditor setMarketsAttributeAsVarArg(String... marketsAttribute);
 
 	ProductInterfaceEditor setMarketsAttributeAsList(List<String> marketsAttributeAsList);
@@ -327,4 +375,5 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@ReferenceRef(Entities.STORE)
 	@RemoveWhenExists
 	boolean removeStoreByIdAndReturnBoolean(int storeId);
+
 }

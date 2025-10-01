@@ -186,6 +186,10 @@ public class TransactionManager implements Closeable {
 	 * Lock used for propagating new catalog versions to live view.
 	 */
 	private final ReentrantLock catalogPropagationLock = new ReentrantLock(true);
+	/**
+	 * Name of the catalog.
+	 */
+	private String catalogName;
 
 	/**
 	 * Creates a new transaction based on the given parameters.
@@ -285,6 +289,7 @@ public class TransactionManager implements Closeable {
 
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
+		this.catalogName = catalog.getName();
 		// fetch from the persistence store initially - might be greater than current version
 		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getLastCatalogVersionInMutationStream());
 		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
@@ -365,7 +370,7 @@ public class TransactionManager implements Closeable {
 	 */
 	@Nonnull
 	public String getCatalogName() {
-		return this.livingCatalog.get().getName();
+		return this.catalogName;
 	}
 
 	/**
@@ -543,6 +548,7 @@ public class TransactionManager implements Closeable {
 		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, catalogVersion));
 		this.lastCatalogSchemaVersion.updateAndGet(current -> Math.max(current, livingCatalog.getSchema().version()));
 		this.livingCatalog.set(livingCatalog);
+		this.catalogName = livingCatalog.getName();
 
 		this.lastFinalizedCatalogVersionSchemaDelta.removeIf(
 			finalizedCatalogVersion -> {

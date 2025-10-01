@@ -341,11 +341,9 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	 * Collects a set of reference mutations from the provided {@code referenceBuilder},
 	 * and remaps internal primary keys if necessary. This method ensures that
 	 * locally assigned internal primary keys are correctly handled when there are
-	 * new references with the same business key.
+	 * new references with the same business key in multiple instances of references builder.
 	 *
-	 * TODO JNO - tohle se musí vynechat, pokud se bude jednat o vkládání referencí v "duplicitním režimu" v proxy implementacích
-	 *
-	 * @param remapper TODO JNO - UPRAVIT POPIS
+	 * @param remapper function to remap internal primary keys
 	 */
 	public void remapInternalKeyUsing(@Nonnull UnaryOperator<ReferenceKey> remapper) {
 		final ReferenceKey remappedKey = remapper.apply(this.referenceKey);

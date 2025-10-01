@@ -105,7 +105,8 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 			try {
 				handleException(task, ex);
 			} catch (Throwable e) {
-				log.error("Error while handling exception in " + getName() + " task for catalog `" + task.catalogName() + "`!", e);
+				log.error(
+					"Error while handling exception in {} task for catalog `{}`!", getName(), task.catalogName(), e);
 			}
 		}
 		this.subscription.request(1);
@@ -117,7 +118,7 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	 * @param ex The exception that was thrown.
 	 */
 	protected void handleException(@Nonnull T task, @Nonnull Throwable ex) {
-		log.error("Error while processing " + getName() + " task for catalog `" + task.catalogName() + "`!", ex);
+		log.error("Error while processing {} task for catalog `{}`!", getName(), task.catalogName(), ex);
 		task.commitProgress().completeExceptionally(ex);
 		this.onException.accept(task, ex);
 	}
@@ -125,15 +126,14 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	@Override
 	public final void onError(Throwable throwable) {
 		log.error(
-			"Fatal error! Error propagated outside catalog `" + this.transactionManager.getCatalogName() + "` transaction stage! " +
-				"This is unexpected and effectively stops transaction processing!",
-			throwable
+			"Fatal error! Error propagated outside catalog `{}` transaction stage! This is unexpected and effectively stops transaction processing!",
+			this.transactionManager.getCatalogName(), throwable
 		);
 	}
 
 	@Override
 	public final void onComplete() {
-		log.debug("Transaction stage completed for catalog `" + this.transactionManager.getCatalogName() + "`!");
+		log.debug("Transaction stage completed for catalog `{}`!", this.transactionManager.getCatalogName());
 		this.completed = true;
 	}
 

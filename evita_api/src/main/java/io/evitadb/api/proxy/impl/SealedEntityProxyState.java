@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -137,7 +138,7 @@ public class SealedEntityProxyState
 						this.generatedProxyObjects
 							.entrySet()
 							.stream()
-							.filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
+							.filter(goEntry -> goEntry.getKey() instanceof ReferenceProxyCacheKey)
 							.flatMap(goEntry -> goEntry.getValue().proxies(propagation).stream())
 							.forEach(
 								refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
@@ -184,30 +185,47 @@ public class SealedEntityProxyState
 		return ofNullable(this.entityBuilder);
 	}
 
+	/**
+	 * Creates a proxy for an entity reference based on the specified parameters. The proxy will represent the entity’s
+	 * reference and manage its interaction with the system. If the reference already exists, the proxy handles the
+	 * existing instance; otherwise, a new reference is created and initialized.
+	 *
+	 * @param entitySchema    the schema of the entity that owns the reference
+	 * @param referenceSchema the schema of the reference to be proxied
+	 * @param expectedType    the expected type of the proxy to be created, defining the contract it should implement
+	 * @param referenceKey    the unique key associated with the reference, including its name, primary key, and potentially
+	 *                        an internal identifier
+	 * @param <T>             the type of the proxy that will be returned
+	 * @return a proxy instance implementing the specified contract for the reference
+	 * @throws EntityClassInvalidException if the entity class or its schema configurations are invalid or incompatible
+	 */
 	@Nonnull
 	public <T> T createEntityReferenceProxy(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType,
-		int primaryKey
+		@Nonnull ReferenceKey referenceKey
 	) throws EntityClassInvalidException {
+		final EntityContract theEntity = entityBuilderIfPresent()
+			.map(EntityContract.class::cast)
+			.orElse(this.entity);
+		final Optional<ReferenceContract> existingReference = theEntity
+			.getReference(referenceKey);
+		final ReferenceKey resolvedReferenceKey = existingReference
+			.map(ReferenceContract::getReferenceKey)
+			.orElseGet(() -> new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey(), entityBuilder().getNextReferenceInternalId()));
+
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final InternalEntityBuilder theEntityBuilder = entityBuilder();
 			final Map<String, AttributeSchemaContract> attributeTypesForReference = getAttributeTypesForReference(
 				referenceSchema.getName()
 			);
-			final EntityContract theEntity = entityBuilderIfPresent()
-				.map(EntityContract.class::cast)
-				.orElse(this.entity);
-			return theEntity
-				.getReference(referenceSchema.getName(), primaryKey)
+			return existingReference
 				.filter(
-					ref -> !(theEntityBuilder instanceof ExistingEntityBuilder eeb) ||
+					ref -> !(entityBuilder() instanceof ExistingEntityBuilder eeb) ||
 						eeb.isPresentInBaseEntity(ref)
 				)
 				.map(
-					existingReference -> new ProxyWithUpsertCallback(
+					it -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
 							this.getProxyClass(), expectedType,
 							this.recipes,
@@ -216,7 +234,7 @@ public class SealedEntityProxyState
 							this::getPrimaryKey,
 							this.referencedEntitySchemas,
 							new ExistingReferenceBuilder(
-								existingReference,
+								it,
 								entitySchema,
 								attributeTypesForReference
 							),
@@ -239,8 +257,8 @@ public class SealedEntityProxyState
 								entitySchema,
 								referenceSchema,
 								referenceSchema.getName(),
-								primaryKey,
-								theEntityBuilder.getNextReferenceInternalId(),
+								referenceKey.primaryKey(),
+								resolvedReferenceKey.internalPrimaryKey(),
 								attributeTypesForReference
 							),
 							attributeTypesForReference,
@@ -250,9 +268,14 @@ public class SealedEntityProxyState
 					)
 				);
 		};
+
+		Assert.isPremiseValid(
+			!resolvedReferenceKey.isUnknownReference(),
+			"Cannot create reference proxy for reference without assigned primary key!"
+		);
 		return this.generatedProxyObjects
 			.computeIfAbsent(
-				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
+				new ReferenceProxyCacheKey(resolvedReferenceKey),
 				key -> instanceSupplier.get()
 			).proxy(expectedType, instanceSupplier);
 	}
@@ -300,7 +323,7 @@ public class SealedEntityProxyState
 		this.generatedProxyObjects
 			.entrySet()
 			.stream()
-			.filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
+			.filter(it -> it.getKey() instanceof ReferenceProxyCacheKey)
 			.flatMap(
 				it -> it.getValue()
 				        .getSealedEntityReferenceProxies(propagation)

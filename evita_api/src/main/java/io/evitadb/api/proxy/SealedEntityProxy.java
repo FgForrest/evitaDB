@@ -75,15 +75,6 @@ public interface SealedEntityProxy extends
 	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback(@Nonnull Propagation propagation);
 
 	/**
-	 * Types of generated proxies.
-	 */
-	enum ProxyType {
-		PARENT,
-		REFERENCE,
-		REFERENCED_ENTITY
-	}
-
-	/**
 	 * Defines the mode of propagation to be used when performing specific operations
 	 * within the context of a sealed entity or its related components.
 	 *

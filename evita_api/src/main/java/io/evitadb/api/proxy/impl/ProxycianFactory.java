@@ -28,7 +28,6 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.ProxyReferenceFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
-import io.evitadb.api.proxy.impl.AbstractEntityProxyState.ProxyInstanceCacheKey;
 import io.evitadb.api.proxy.impl.AbstractEntityProxyState.ProxyWithUpsertCallback;
 import io.evitadb.api.proxy.impl.entity.EntityContractAdvice;
 import io.evitadb.api.proxy.impl.entity.GetAssociatedDataMethodClassifier;

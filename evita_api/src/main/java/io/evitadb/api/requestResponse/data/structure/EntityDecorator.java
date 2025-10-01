@@ -847,6 +847,11 @@ public class EntityDecorator implements SealedEntity {
 			.map(it -> avoidDuplicates(it.getReferenceKey(), it));
 	}
 
+	@Nonnull
+	public Collection<ReferenceContract> getReferencesWithoutCheckingPredicate() {
+		return getFilteredReferences().values();
+	}
+
 	@Nullable
 	public Locale getImplicitLocale() {
 		return this.localePredicate.getImplicitLocale();

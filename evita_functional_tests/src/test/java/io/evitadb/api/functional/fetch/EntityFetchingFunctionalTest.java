@@ -1466,9 +1466,16 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					.map(ReferenceContract::getReferencedPrimaryKey)
 					.map(originalProductsByPk::get)
 					.anyMatch(
-						refProd -> refProd.getPrices()
-							.stream()
-							.anyMatch(refPrice -> CURRENCY_EUR.equals(refPrice.currency()) && !PRICE_LIST_BASIC.equals(refPrice.priceList()))
+						refProd -> {
+							final Set<String> refPriceLists = refProd
+								.getPrices()
+								.stream()
+								.filter(refPrice -> CURRENCY_EUR.equals(refPrice.currency()))
+								.map(PriceContract::priceList)
+								.collect(Collectors.toSet());
+							return refPriceLists.size() > 1 &&
+								refPriceLists.contains(PRICE_LIST_BASIC);
+						}
 					)
 			)
 			.findFirst()
@@ -1533,7 +1540,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity nestedProduct = product.getReferences(Entities.PRODUCT)
 					.stream()
 					.map(it -> it.getReferencedEntity().orElseThrow())
-					.filter(it -> it.getPrice(secondPriceList, CURRENCY_EUR).isPresent())
+					.filter(it -> it.getPrice(PRICE_LIST_BASIC, CURRENCY_EUR).isPresent() && it.getPrice(secondPriceList, CURRENCY_EUR).isPresent())
 					.findFirst()
 					.orElseThrow();
 

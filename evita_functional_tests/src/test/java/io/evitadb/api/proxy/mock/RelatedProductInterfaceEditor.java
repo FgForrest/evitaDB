@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,24 +23,26 @@
 
 package io.evitadb.api.proxy.mock;
 
+
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
 
 /**
- * Example interface mapping a product category reference.
+ * Example editor interface mapping a related product reference.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * Provides mutator methods for attributes and the referenced entity/its reference
+ * so that tests can validate editor proxy behavior.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface ProductCategoryInterfaceEditor extends ProductCategoryInterface, InstanceEditor<ProductCategoryInterface> {
+public interface RelatedProductInterfaceEditor extends RelatedProductInterface, InstanceEditor<RelatedProductInterface>  {
 
-	ProductCategoryInterfaceEditor setOrderInCategory(@Nonnull Long orderInCategory);
+	RelatedProductInterfaceEditor setRelationType(@Nonnull String relationType);
 
-	ProductCategoryInterfaceEditor setLabel(@Nonnull String label);
-	ProductCategoryInterfaceEditor setShadow(boolean shadow);
+	RelatedProductInterfaceEditor setLabel(@Nonnull String label);
 
-	ProductCategoryInterfaceEditor setLabel(Locale locale, @Nonnull String label);
+	RelatedProductInterfaceEditor setLabel(Locale locale, @Nonnull String label);
 
 }
-

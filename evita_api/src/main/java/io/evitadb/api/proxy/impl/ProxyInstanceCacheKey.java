@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,26 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.mock;
+package io.evitadb.api.proxy.impl;
 
-import io.evitadb.api.requestResponse.data.InstanceEditor;
-
-import javax.annotation.Nonnull;
-import java.util.Locale;
 
 /**
- * Example interface mapping a product category reference.
+ * Cache key for generated proxies.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface ProductCategoryInterfaceEditor extends ProductCategoryInterface, InstanceEditor<ProductCategoryInterface> {
-
-	ProductCategoryInterfaceEditor setOrderInCategory(@Nonnull Long orderInCategory);
-
-	ProductCategoryInterfaceEditor setLabel(@Nonnull String label);
-	ProductCategoryInterfaceEditor setShadow(boolean shadow);
-
-	ProductCategoryInterfaceEditor setLabel(Locale locale, @Nonnull String label);
+public interface ProxyInstanceCacheKey {
 
 }
-
