@@ -65,7 +65,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Inser
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationFactory;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import lombok.Data;
@@ -99,7 +99,7 @@ class RestEntityMutationConverterTest {
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String REFERENCE_TAGS = "tags";
 
-	private RestEntityUpsertMutationConverter converter;
+	private RestEntityUpsertMutationFactory converter;
 
 	@BeforeEach
 	void init() {
@@ -114,7 +114,7 @@ class RestEntityMutationConverterTest {
 			.withPrice()
 			.withReferenceTo(REFERENCE_TAGS, "tag", Cardinality.ZERO_OR_MORE)
 			.toInstance();
-		this.converter = new RestEntityUpsertMutationConverter(new ObjectMapper(), entitySchema);
+		this.converter = new RestEntityUpsertMutationFactory(new ObjectMapper(), entitySchema);
 	}
 
 	@Test
@@ -205,7 +205,7 @@ class RestEntityMutationConverterTest {
 		);
 
 
-		final EntityMutation entityMutation = this.converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.createFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -289,7 +289,7 @@ class RestEntityMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = this.converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.createFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -327,7 +327,7 @@ class RestEntityMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = this.converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.createFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();

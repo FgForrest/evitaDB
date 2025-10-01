@@ -6,13 +6,13 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
  *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,9 @@ package io.evitadb.externalApi.api.catalog.dataApi.model.mutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
+
+import java.util.List;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -36,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface EntityUpsertMutationDescriptor {
+public interface EntityUpsertMutationDescriptor extends MutationDescriptor {
 
 	PropertyDescriptor ENTITY_PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("entityPrimaryKey")
@@ -70,6 +73,7 @@ public interface EntityUpsertMutationDescriptor {
 		.type(nonNullListRef(LocalMutationAggregateDescriptor.THIS))
 		.build();
 
+	// todo lho register in api
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("EntityUpsertMutation")
 		.description("""
@@ -77,9 +81,12 @@ public interface EntityUpsertMutationDescriptor {
 			and all its internal data are marked as TRUE for dropped, stored to the storage file and
 			removed from the mem-table.
 			""")
-		.staticField(ENTITY_PRIMARY_KEY)
-		.staticField(ENTITY_TYPE)
-		.staticField(ENTITY_EXISTENCE)
-		.staticField(LOCAL_MUTATIONS)
+		.staticFields(List.of(
+			MUTATION_TYPE,
+			ENTITY_PRIMARY_KEY,
+			ENTITY_TYPE,
+			ENTITY_EXISTENCE,
+			LOCAL_MUTATIONS
+		))
 		.build();
 }

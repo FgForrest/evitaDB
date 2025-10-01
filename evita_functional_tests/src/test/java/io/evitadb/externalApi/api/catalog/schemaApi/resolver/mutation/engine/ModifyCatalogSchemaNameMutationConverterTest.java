@@ -26,9 +26,10 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyCatalogSchemaNameMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyCatalogSchemaNameMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -117,6 +118,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyCatalogSchemaNameMutation.class.getSimpleName())
 					.e(EngineMutationDescriptor.CATALOG_NAME.name(), "oldCatalogName")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "newCatalogName")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)

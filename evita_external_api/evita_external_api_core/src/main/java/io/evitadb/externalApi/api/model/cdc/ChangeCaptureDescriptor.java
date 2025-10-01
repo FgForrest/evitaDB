@@ -29,28 +29,34 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor interface that defines common property descriptors for Change Data Capture (CDC) events.
- * This interface serves as a base for all CDC event descriptors and provides fundamental properties
- * that are shared across different types of CDC events in the evitaDB system.
+ * Descriptor interface that defines common property descriptors for {@link io.evitadb.api.requestResponse.cdc.ChangeCapture}
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public interface ChangeCaptureDescriptor {
 
-	// todo lho: feel free to reimplement this... this is the way how we could track if the subscriber received all events
-	PropertyDescriptor INDEX = PropertyDescriptor.builder()
-		.name("index")
+	PropertyDescriptor VERSION = PropertyDescriptor.builder()
+		.name("version")
 		.description("""
-			An index of the event in the ordered CDC log.
+			Returns the target version of the data source to which this mutation advances it.
 			""")
 		.type(nonNull(Long.class))
 		.build();
-	PropertyDescriptor CATALOG = PropertyDescriptor.builder()
-		.name("catalog")
+	PropertyDescriptor INDEX = PropertyDescriptor.builder()
+		.name("index")
 		.description("""
-			Name of the catalog where the operation was performed.
+            Returns the index of the event within the enclosed version. If the operation is part of the multi-step process,
+            the index starts with 0 and increments with each such operation. Next capture with `version` + 1 always
+            starts with index 0.
+            
+            This index allows client to build on the previously interrupted CDC stream even in the middle of the transaction.
+            This is beneficial in case of very large transactions that still needs to be fully transferred to the client, but
+            could be done so in multiple separate chunks.
+            
+            Combination of `version` and this index precisely identifies the position of a single operation in
+            the CDC stream.
 			""")
-		.type(nonNull(String.class))
+		.type(nonNull(Integer.class))
 		.build();
 	PropertyDescriptor OPERATION = PropertyDescriptor.builder()
 		.name("operation")
@@ -62,7 +68,8 @@ public interface ChangeCaptureDescriptor {
 	PropertyDescriptor BODY = PropertyDescriptor.builder()
 		.name("body")
 		.description("""
-	        Body of the operation. Carries information about what exactly happened.
+	        Optional body of the operation when it is requested initial request. Carries information about what exactly
+			happened.
 			""")
 		// type is expected to be list of mutations, but the representation varies across APIs
 		.build();

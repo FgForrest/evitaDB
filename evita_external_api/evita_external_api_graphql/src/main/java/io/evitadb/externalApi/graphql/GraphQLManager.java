@@ -156,7 +156,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return new PathNormalizingHandler(this.graphQLRouter);
+		return this.graphQLRouter.decorate(PathNormalizingHandler::new);
 	}
 
 	/**

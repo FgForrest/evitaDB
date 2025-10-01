@@ -36,7 +36,8 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,18 +63,24 @@ class ApplyDeltaAttributeMutationConverterTest {
 
 	private static final String ATTRIBUTE_QUANTITY = "quantity";
 
+	private EntitySchemaContract entitySchema;
+	private Map<String, Object> mutationConverterContext;
 	private ApplyDeltaAttributeMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
+		this.entitySchema = new InternalEntitySchemaBuilder(
 			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			.withPrice()
 			.toInstance();
-		this.converter =  new ApplyDeltaAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.mutationConverterContext = Map.of(
+			MutationConverterContext.ENTITY_SCHEMA_KEY, this.entitySchema,
+			MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY, this.entitySchema
+		);
+		this.converter =  new ApplyDeltaAttributeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -86,7 +93,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 				.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 				.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of(0, 20))
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 
@@ -96,7 +104,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 				.e(AttributeMutationDescriptor.LOCALE.name(), "en")
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "10")
 				.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of("0", "20"))
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation2);
 
@@ -110,7 +119,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 			map()
 				.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 	}
@@ -122,7 +132,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 			() -> this.converter.convertFromInput(
 				map()
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(
@@ -130,7 +141,8 @@ class ApplyDeltaAttributeMutationConverterTest {
 			() -> this.converter.convertFromInput(
 				map()
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
@@ -148,6 +160,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(ApplyDeltaAttributeMutationDescriptor.MUTATION_TYPE.name(), ApplyDeltaAttributeMutation.class.getSimpleName())
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)

@@ -31,7 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatal
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
-import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
+import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
@@ -59,8 +59,8 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 	public UpdateCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
-			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
-			new RestMutationResolvingExceptionFactory()
+			new RestMutationObjectMapper(restApiHandlingContext.getObjectMapper()),
+			RestMutationResolvingExceptionFactory.INSTANCE
 		);
 	}
 

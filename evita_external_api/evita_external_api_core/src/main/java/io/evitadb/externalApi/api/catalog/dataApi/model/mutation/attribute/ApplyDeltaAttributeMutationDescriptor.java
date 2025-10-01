@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,6 +69,6 @@ public interface ApplyDeltaAttributeMutationDescriptor extends AttributeMutation
 			Allows to specify the number range that is tolerated for the value after delta application has been finished to
 			verify for example that number of items on stock doesn't go below zero.
 			""")
-		.staticFields(List.of(NAME, LOCALE, DELTA, REQUIRED_RANGE_AFTER_APPLICATION))
+		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE, DELTA, REQUIRED_RANGE_AFTER_APPLICATION))
 		.build();
 }

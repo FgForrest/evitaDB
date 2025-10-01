@@ -26,6 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import java.util.List;
 
@@ -38,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface DisallowEvolutionModeInCatalogSchemaMutationDescriptor {
+public interface DisallowEvolutionModeInCatalogSchemaMutationDescriptor extends MutationDescriptor {
 
 	PropertyDescriptor EVOLUTION_MODES = PropertyDescriptor.builder()
 		.name("evolutionModes")
@@ -56,6 +57,6 @@ public interface DisallowEvolutionModeInCatalogSchemaMutationDescriptor {
 			Mutation is responsible for removing one or more modes from a `CatalogSchema.evolutionMode`
 			in `CatalogSchema`.
 			""")
-		.staticFields(List.of(EVOLUTION_MODES))
+		.staticFields(List.of(MUTATION_TYPE, EVOLUTION_MODES))
 		.build();
 }

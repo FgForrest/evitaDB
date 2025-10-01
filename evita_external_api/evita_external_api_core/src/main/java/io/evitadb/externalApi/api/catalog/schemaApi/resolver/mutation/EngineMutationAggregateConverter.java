@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EngineMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine.*;
@@ -53,8 +53,10 @@ public class EngineMutationAggregateConverter extends MutationAggregateConverter
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, EngineMutationConverter<EngineMutation<?>>> converters = createHashMap(5);
 
-	public EngineMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
-	                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public EngineMutationAggregateConverter(
+		@Nonnull MutationObjectMapper objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 
 		registerConverter(CREATE_CATALOG_SCHEMA_MUTATION.name(), new CreateCatalogSchemaMutationConverter(objectParser, exceptionFactory));

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,6 +63,6 @@ public interface ModifyReferenceSchemaRelatedEntityMutationDescriptor extends Re
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(NAME, REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_TYPE_MANAGED))
+		.staticFields(List.of(MUTATION_TYPE, NAME, REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_TYPE_MANAGED))
 		.build();
 }

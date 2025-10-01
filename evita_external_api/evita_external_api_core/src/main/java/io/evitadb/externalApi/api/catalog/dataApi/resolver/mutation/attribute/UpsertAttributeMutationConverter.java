@@ -29,15 +29,15 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
@@ -47,14 +47,9 @@ import java.io.Serializable;
  */
 public class UpsertAttributeMutationConverter extends AttributeMutationConverter<UpsertAttributeMutation> {
 
-	@Nullable
-	private final AttributeSchemaProvider<?> attributeSchemaProvider;
-
-	public UpsertAttributeMutationConverter(@Nullable AttributeSchemaProvider<?> attributeSchemaProvider,
-	                                        @Nonnull MutationObjectParser objectParser,
+	public UpsertAttributeMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                                        @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
-		this.attributeSchemaProvider = attributeSchemaProvider;
 	}
 
 	@Nonnull
@@ -72,11 +67,12 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 			UpsertAttributeMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
 		);
+		final AttributeSchemaProvider<?> attributeSchemaProvider = input.getContextValue(MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY);
 		Assert.isPremiseValid(
-			this.attributeSchemaProvider != null,
+			attributeSchemaProvider != null,
 			() -> getExceptionFactory().createInternalError("Attribute schema provider is required for conversion from input.")
 		);
-		final AttributeSchemaContract attributeSchema = this.attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
+		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
 		if (attributeSchema == null && valueType == null) {
 			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.attributeName() + "`.");
 		}

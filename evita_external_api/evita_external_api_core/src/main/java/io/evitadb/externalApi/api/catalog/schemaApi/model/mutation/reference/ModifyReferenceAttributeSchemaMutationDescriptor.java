@@ -54,6 +54,6 @@ public interface ModifyReferenceAttributeSchemaMutationDescriptor extends Refere
 			Mutation is a holder for a single `AttributeSchema` that affect any
 			of `ReferenceSchema.attributes` in the `EntitySchema`.
 			""")
-		.staticFields(List.of(NAME, ATTRIBUTE_SCHEMA_MUTATION))
+		.staticFields(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_SCHEMA_MUTATION))
 		.build();
 }

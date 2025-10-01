@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.InfrastructureMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.transaction.resolver.mutation.TransactionMutationConverter;
@@ -52,7 +52,7 @@ public class InfrastructureMutationAggregateConverter extends MutationAggregateC
 	private final Map<String, MutationConverter<Mutation>> converters = createHashMap(5);
 
 	public InfrastructureMutationAggregateConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);

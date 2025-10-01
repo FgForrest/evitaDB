@@ -62,11 +62,11 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnCollectionSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnSchemaChangeSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnCollectionSchemaChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
@@ -900,16 +900,17 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Nonnull
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_ENTITY_SCHEMA_CHANGE
+		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_COLLECTION_SCHEMA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
-			.argument(OnChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			onEntitySchemaChangeField,
-			new OnSchemaChangeSubscribingDataFetcher(this.buildingContext.getEvita(), entitySchema)
+			new OnCollectionSchemaChangeCaptureSubscribingDataFetcher(this.buildingContext.getEvita(), entitySchema)
 		);
 	}
 }

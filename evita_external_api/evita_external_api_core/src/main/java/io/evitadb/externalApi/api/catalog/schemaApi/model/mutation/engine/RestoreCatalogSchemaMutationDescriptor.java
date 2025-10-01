@@ -26,6 +26,8 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
+import java.util.List;
+
 /**
  * Descriptor for {@link RestoreCatalogSchemaMutation}
  *
@@ -39,6 +41,9 @@ public interface RestoreCatalogSchemaMutationDescriptor extends EngineMutationDe
 			Mutation is responsible for setting up a new catalog schema in INACTIVE state.
 			This mutation is used for restoring catalogs from backups or other restoration scenarios.
 			""")
-		.staticField(CATALOG_NAME)
+		.staticFields(List.of(
+			MUTATION_TYPE,
+			CATALOG_NAME
+		))
 		.build();
 }

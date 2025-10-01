@@ -54,6 +54,6 @@ public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescripto
 			Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any
 			of `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
 			""")
-		.staticFields(List.of(NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
+		.staticFields(List.of(MUTATION_TYPE, NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
 		.build();
 }

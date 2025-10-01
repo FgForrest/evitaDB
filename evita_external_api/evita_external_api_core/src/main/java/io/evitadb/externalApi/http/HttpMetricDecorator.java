@@ -29,10 +29,12 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.stream.ClosedStreamException;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.RequestTimeoutException;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.SimpleDecoratingHttpService;
 import io.evitadb.externalApi.event.RequestEvent;
 import io.evitadb.externalApi.event.RequestEvent.Result;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This decorator invokes {@link RequestEvent} when the request is completed tracking number of success and error responses.
@@ -47,13 +50,20 @@ import java.util.List;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor
-public class HttpMetricDecorator implements DecoratingHttpServiceFunction {
+public class HttpMetricDecorator extends SimpleDecoratingHttpService implements WebSocketHandler {
 	private final String apiCode;
+
+	/**
+	 * Creates a new instance that decorates the specified {@link HttpService}.
+	 */
+	public HttpMetricDecorator(@Nonnull HttpService delegate, @Nonnull String apiCode) {
+		super(delegate);
+		this.apiCode = apiCode;
+	}
 
 	@Nonnull
 	@Override
-	public HttpResponse serve(@Nonnull HttpService delegate, @Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		ctx.log()
 			.whenComplete()
 			.thenAccept(requestLog -> {
@@ -86,7 +96,14 @@ public class HttpMetricDecorator implements DecoratingHttpServiceFunction {
 					httpStatus.code()
 				).commit();
 			});
-		return delegate.serve(ctx, req);
+		return this.unwrap().serve(ctx, req);
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		// todo lho impl
+		return Objects.requireNonNull(this.unwrap().as(WebSocketHandler.class)).handle(ctx, in);
 	}
 
 	/**
@@ -105,5 +122,4 @@ public class HttpMetricDecorator implements DecoratingHttpServiceFunction {
 		}
 		return list.stream().anyMatch(exceptionType::isInstance);
 	}
-
 }

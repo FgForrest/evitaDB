@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.system.builder;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
@@ -33,6 +34,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.UnusableCatalog;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
@@ -41,12 +43,17 @@ import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.ChangeCatalogCaptureCriteriaDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.DataSiteDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.SchemaSiteDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.OnCatalogChangeCaptureSubscriptionHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.OnSystemChangeCaptureSubscriptionHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.ReplaceCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.SwitchCatalogToAliveStateMutationHeaderDescriptor;
@@ -59,8 +66,10 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.De
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.SwitchCatalogToAliveStateMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeCatalogCaptureBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeSystemCaptureBodyDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnSystemChangeSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnCatalogChangeCaptureSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnSystemChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.utils.NamingConvention;
 
@@ -75,6 +84,8 @@ import static graphql.schema.GraphQLNonNull.nonNull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQLSchemaBuildingContext> {
+
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	private static final NameVariantDataFetcher CAMEL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.CAMEL_CASE);
 	private static final NameVariantDataFetcher PASCAL_CASE_VARIANT_DATA_FETCHER = new NameVariantDataFetcher(NamingConvention.PASCAL_CASE);
@@ -110,6 +121,10 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(buildCatalogUnion(catalogObject, unusableCatalogObject));
 
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
+		this.buildingContext.registerType(SchemaSiteDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(DataSiteDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		this.buildingContext.registerType(ChangeCatalogCaptureCriteriaDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
 		this.buildingContext.registerQueryField(buildLivenessField());
 		this.buildingContext.registerQueryField(buildCatalogField());
@@ -122,6 +137,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
 
 		this.buildingContext.registerSubscriptionField(buildOnSystemChangeField());
+		this.buildingContext.registerSubscriptionField(buildOnCatalogChangeField());
 
 		return this.buildingContext.buildGraphQLSchema();
 	}
@@ -234,6 +250,20 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return ChangeSystemCaptureDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.field(ChangeSystemCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
+			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+		this.buildingContext.registerDataFetcher(
+			ChangeCatalogCaptureDescriptor.THIS,
+			ChangeCatalogCaptureDescriptor.BODY,
+			new ChangeCatalogCaptureBodyDataFetcher(OBJECT_MAPPER)
+		);
+
+		return ChangeCatalogCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
 			.build();
 	}
 
@@ -375,13 +405,31 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 	@Nonnull
 	private BuiltFieldDescriptor buildOnSystemChangeField() {
-		final GraphQLFieldDefinition onSystemChangeField = SystemRootDescriptor.ON_SYSTEM_CHANGE
+		final GraphQLFieldDefinition onSystemChangeCaptureField = SystemRootDescriptor.ON_SYSTEM_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
-			onSystemChangeField,
-			new OnSystemChangeSubscribingDataFetcher(this.evita)
+			onSystemChangeCaptureField,
+			new OnSystemChangeCaptureSubscribingDataFetcher(this.evita)
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildOnCatalogChangeField() {
+		final GraphQLFieldDefinition onSystemChangeCaptureField = SystemRootDescriptor.ON_CATALOG_CHANGE
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_NAME.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CRITERIA.to(this.argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onSystemChangeCaptureField,
+			new OnCatalogChangeCaptureSubscribingDataFetcher(this.evita)
 		);
 	}
 }

@@ -26,6 +26,8 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
+import java.util.List;
+
 /**
  * Descriptor for {@link MakeCatalogAliveMutation}
  *
@@ -40,6 +42,6 @@ public interface MakeCatalogAliveMutationDescriptor extends EngineMutationDescri
 			When a catalog goes live, it becomes fully operational and can participate in transactions.
 			This is a one-way operation that changes the catalog's operational state.
 			""")
-		.staticField(CATALOG_NAME)
+		.staticFields(List.of(MUTATION_TYPE, CATALOG_NAME))
 		.build();
 }

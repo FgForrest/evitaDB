@@ -33,16 +33,16 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.data.JsonToComplexDataObjectConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectMapper;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 
@@ -55,16 +55,12 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	private final JsonToComplexDataObjectConverter jsonToComplexDataObjectConverter;
-	@Nullable
-	private final EntitySchemaContract entitySchema;
 
 	public UpsertAssociatedDataMutationConverter(@Nonnull ObjectMapper objectMapper,
-	                                             @Nullable EntitySchemaContract entitySchema,
-	                                             @Nonnull MutationObjectParser objectParser,
+	                                             @Nonnull MutationObjectMapper objectParser,
 	                                             @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 		this.jsonToComplexDataObjectConverter = new JsonToComplexDataObjectConverter(objectMapper);
-		this.entitySchema = entitySchema;
 	}
 
 	@Nonnull
@@ -83,11 +79,12 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 			new ValueTypeMapper(getExceptionFactory(), UpsertAssociatedDataMutationDescriptor.VALUE_TYPE)
 		);
 
+		final EntitySchemaContract entitySchema = input.getContextValue(MutationConverterContext.ENTITY_SCHEMA_KEY);
 		Assert.isPremiseValid(
-			this.entitySchema != null,
+			entitySchema != null,
 			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
 		);
-		final Optional<AssociatedDataSchemaContract> associatedDataSchema = this.entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
+		final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
 		if (associatedDataSchema.isEmpty() && valueType == null) {
 			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new associated data `" + associatedDataKey.associatedDataName() + "`.");
 		}

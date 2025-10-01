@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
@@ -40,7 +40,7 @@ public class DuplicateCatalogMutationConverter
 	extends EngineMutationConverter<DuplicateCatalogMutation> {
 
 	public DuplicateCatalogMutationConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);

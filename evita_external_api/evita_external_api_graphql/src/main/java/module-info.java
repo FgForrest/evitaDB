@@ -58,6 +58,7 @@ module evita.external.api.graphql {
 	requires com.graphqljava;
 	requires com.fasterxml.jackson.databind;
 	requires com.linecorp.armeria;
+	requires com.linecorp.armeria.graphql;
 	requires io.netty.common;
 	requires io.netty.transport;
 	requires net.bytebuddy;

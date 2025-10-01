@@ -26,6 +26,8 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.List;
+
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -58,8 +60,11 @@ public interface ModifyCatalogSchemaNameMutationDescriptor extends EngineMutatio
 		.description("""
 			Mutation is responsible for renaming an existing catalog schema.
 			""")
-		.staticField(CATALOG_NAME)
-		.staticField(NEW_CATALOG_NAME)
-		.staticField(OVERWRITE_TARGET)
+		.staticFields(List.of(
+			MUTATION_TYPE,
+			CATALOG_NAME,
+			NEW_CATALOG_NAME,
+			OVERWRITE_TARGET
+		))
 		.build();
 }

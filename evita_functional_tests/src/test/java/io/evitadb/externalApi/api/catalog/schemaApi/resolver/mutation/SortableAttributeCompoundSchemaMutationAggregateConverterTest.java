@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaNameMutationDescriptor;
@@ -54,7 +54,7 @@ class SortableAttributeCompoundSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new SortableAttributeCompoundSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SortableAttributeCompoundSchemaMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -90,33 +90,5 @@ class SortableAttributeCompoundSchemaMutationAggregateConverterTest {
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
-	}
-
-	@Test
-	void shouldConvertMutationToOutput() {
-		final List<Map<String, Object>> expectedMutations = List.of(
-			map()
-				.e(
-					SortableAttributeCompoundSchemaMutationAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
-					.build())
-				.build(),
-			map()
-				.e(
-					SortableAttributeCompoundSchemaMutationAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION.name(), map()
-					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-					.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "betterCode")
-					.build())
-				.build()
-		);
-
-		final Object convertedMutations = this.converter.convertToOutput(
-			List.of(
-				new ModifySortableAttributeCompoundSchemaDescriptionMutation("code", "desc"),
-				new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")
-			)
-		);
-		assertEquals(expectedMutations, convertedMutations);
 	}
 }

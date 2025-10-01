@@ -147,7 +147,7 @@ public class RestManager {
 
 	@Nonnull
 	public HttpService getRestRouter() {
-		return new PathNormalizingHandler(this.restRouter);
+		return this.restRouter.decorate(PathNormalizingHandler::new);
 	}
 
 	/**

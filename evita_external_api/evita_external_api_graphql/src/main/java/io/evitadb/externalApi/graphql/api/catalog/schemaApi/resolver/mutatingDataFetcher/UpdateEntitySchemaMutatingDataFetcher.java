@@ -29,7 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
@@ -57,8 +57,8 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<Entity
 
 	@Nonnull
 	private final EntitySchemaMutationAggregateConverter mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
-		new PassThroughMutationObjectParser(),
-		new GraphQLMutationResolvingExceptionFactory()
+		PassThroughMutationObjectMapper.INSTANCE,
+		GraphQLMutationResolvingExceptionFactory.INSTANCE
 	);
 
 	@Nonnull

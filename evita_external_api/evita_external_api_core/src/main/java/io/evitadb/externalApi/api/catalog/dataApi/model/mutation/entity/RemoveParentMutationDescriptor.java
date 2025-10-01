@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,9 @@ package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity;
 
 import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
+
+import java.util.List;
 
 /**
  * Descriptor representing {@link RemoveParentMutation}.
@@ -33,12 +36,13 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface RemoveParentMutationDescriptor {
+public interface RemoveParentMutationDescriptor extends MutationDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("RemoveParentMutation")
 		.description("""
 			This mutation allows to remove `parent` from the `entity`.
 			""")
+		.staticFields(List.of(MUTATION_TYPE))
 		.build();
 }

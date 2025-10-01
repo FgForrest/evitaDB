@@ -64,8 +64,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.Q
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.DeleteEntitiesMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.UpsertEntityMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnDataChangeSubscribingDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnCatalogDataChangeCaptureSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnCollectionDataChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
@@ -181,6 +181,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private void buildCommonTypes() {
 		buildLocaleEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
 		buildCurrencyEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(QueryLabelDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
@@ -201,6 +202,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		// "listEntity" field
 		this.buildingContext.registerQueryField(buildListUnknownEntityField());
+
+		// "onDataChange" field
+		this.buildingContext.registerSubscriptionField(buildOnCatalogDataChangeField());
 
 		// collection-specific fields
 		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
@@ -223,6 +227,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 			// collection specific "deleteEntity" field
 			this.buildingContext.registerMutationField(buildDeleteEntitiesField(collectionBuildingContext));
+
+			// collection specific "onDataChange" field
+			this.buildingContext.registerSubscriptionField(buildCollectionOnDataChangeField(collectionBuildingContext));
 		});
 
 		// register gathered custom constraint types
@@ -689,29 +696,47 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return ChangeCatalogCaptureDescriptor.THIS
 			.to(this.objectBuilderTransformer)
-			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer)
-			                                          .type(nonNull(GraphQLScalars.OBJECT)))
+			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
 			.build();
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildOnDataChangeField(
-		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext
-	) {
-		final GraphQLFieldDefinition onDataChangeField = CatalogDataApiRootDescriptor.ON_DATA_CHANGE
-			.to(new EndpointDescriptorToGraphQLFieldTransformer(
-				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
-			.argument(OnDataChangeHeaderDescriptor.ENTITY_PRIMARY_KEY.to(this.argumentBuilderTransformer))
-			.argument(OnDataChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+	private BuiltFieldDescriptor buildOnCatalogDataChangeField() {
+		final GraphQLFieldDefinition onDataChangeField = CatalogDataApiRootDescriptor.ON_CATALOG_DATA_CHANGE
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
 			onDataChangeField,
-			new OnDataChangeSubscribingDataFetcher(
-				this.buildingContext.getEvita(), collectionBuildingContext.getSchema())
+			new OnCatalogDataChangeCaptureSubscribingDataFetcher(this.buildingContext.getEvita())
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildCollectionOnDataChangeField(
+		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext
+	) {
+		final GraphQLFieldDefinition onDataChangeField = CatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE
+			.to(new EndpointDescriptorToGraphQLFieldTransformer(
+				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
+			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.ENTITY_PRIMARY_KEY.to(this.argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onDataChangeField,
+			new OnCollectionDataChangeCaptureSubscribingDataFetcher(
+				this.buildingContext.getEvita(), collectionBuildingContext.getSchema()
+			)
 		);
 	}
 }

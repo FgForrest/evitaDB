@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilit
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.List;
+
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -51,7 +53,10 @@ public interface SetCatalogMutabilityMutationDescriptor extends EngineMutationDe
 			This mutation allows controlling whether a particular catalog should be read-only or read-write.
 			The mutability state determines whether the catalog can be modified or is in read-only mode.
 			""")
-		.staticField(CATALOG_NAME)
-		.staticField(MUTABLE)
+        .staticFields(List.of(
+            MUTATION_TYPE,
+            CATALOG_NAME,
+            MUTABLE
+        ))
 		.build();
 }

@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMut
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +53,7 @@ class RemoveAttributeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new RemoveAttributeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new RemoveAttributeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -106,6 +106,7 @@ class RemoveAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(AttributeMutationDescriptor.MUTATION_TYPE.name(),  RemoveAttributeMutation.class.getSimpleName())
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 					.build()

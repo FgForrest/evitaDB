@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.transaction.model.mutation;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -39,7 +40,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface TransactionMutationDescriptor {
+public interface TransactionMutationDescriptor extends MutationDescriptor {
 
 	PropertyDescriptor TRANSACTION_ID = PropertyDescriptor.builder()
 		.name("transactionId")
@@ -67,6 +68,7 @@ public interface TransactionMutationDescriptor {
 		.type(nonNull(OffsetDateTime.class))
 		.build();
 
+	// todo lho register
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("TransactionMutation")
 		.description("""
@@ -74,6 +76,7 @@ public interface TransactionMutationDescriptor {
 	         the scope of the transaction and verify its integrity.
 	         """)
 		.staticFields(List.of(
+			MUTATION_TYPE,
 			TRANSACTION_ID,
 			VERSION,
 			MUTATION_COUNT,

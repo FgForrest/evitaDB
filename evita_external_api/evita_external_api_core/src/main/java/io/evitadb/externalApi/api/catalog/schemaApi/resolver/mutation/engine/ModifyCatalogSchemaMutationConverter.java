@@ -26,11 +26,12 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.LocalCatalogSchemaMutationConverter;
 import io.evitadb.utils.Assert;
@@ -51,14 +52,19 @@ public class ModifyCatalogSchemaMutationConverter
 
 	@Nonnull
 	private final LocalCatalogSchemaMutationAggregateConverter localCatalogSchemaMutationAggregateConverter;
+	@Nonnull
+	private final DelegatingLocalCatalogSchemaMutationConverter delegatingLocalCatalogSchemaMutationConverter;
 
 	public ModifyCatalogSchemaMutationConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectMapper,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
-		super(objectParser, exceptionFactory);
+		super(objectMapper, exceptionFactory);
 		this.localCatalogSchemaMutationAggregateConverter = new LocalCatalogSchemaMutationAggregateConverter(
-			objectParser, exceptionFactory);
+			objectMapper, exceptionFactory);
+		this.delegatingLocalCatalogSchemaMutationConverter = new DelegatingLocalCatalogSchemaMutationConverter(
+			objectMapper, exceptionFactory
+		);
 	}
 
 	@Nonnull
@@ -102,7 +108,7 @@ public class ModifyCatalogSchemaMutationConverter
 	protected void convertToOutput(@Nonnull ModifyCatalogSchemaMutation mutation, @Nonnull Output output) {
 		output.setProperty(
 			ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS,
-			this.localCatalogSchemaMutationAggregateConverter.convertToOutput(mutation.getSchemaMutations())
+			this.delegatingLocalCatalogSchemaMutationConverter.convertToOutput(mutation.getSchemaMutations())
 		);
 		super.convertToOutput(mutation, output);
 	}

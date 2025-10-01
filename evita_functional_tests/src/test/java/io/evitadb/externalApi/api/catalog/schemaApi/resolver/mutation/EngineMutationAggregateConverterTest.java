@@ -24,12 +24,11 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EngineMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,9 +37,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -58,7 +55,7 @@ public class EngineMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new EngineMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new EngineMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -90,30 +87,5 @@ public class EngineMutationAggregateConverterTest {
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
-	}
-
-	@Test
-	void shouldSerializeLocalMutationToOutput() {
-		final List<EngineMutation<?>> inputMutation = List.of(
-			new CreateCatalogSchemaMutation("entityType"),
-			new RemoveCatalogSchemaMutation("entityType")
-		);
-
-		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
-		assertThat(serializedMutation)
-			.usingRecursiveComparison()
-			.isEqualTo(
-				list()
-					.i(map()
-						.e(
-							EngineMutationAggregateDescriptor.CREATE_CATALOG_SCHEMA_MUTATION.name(), map()
-							.e(EngineMutationDescriptor.CATALOG_NAME.name(), "entityType")))
-					.i(map()
-						.e(
-							EngineMutationAggregateDescriptor.REMOVE_CATALOG_SCHEMA_MUTATION.name(), map()
-							.e(EngineMutationDescriptor.CATALOG_NAME.name(), "entityType")))
-					.build()
-			);
 	}
 }

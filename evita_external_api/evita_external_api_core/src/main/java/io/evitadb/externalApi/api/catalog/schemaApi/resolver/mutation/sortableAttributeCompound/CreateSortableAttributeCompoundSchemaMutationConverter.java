@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -39,7 +39,7 @@ public class CreateSortableAttributeCompoundSchemaMutationConverter
 	extends SortableAttributeCompoundSchemaMutationConverter<CreateSortableAttributeCompoundSchemaMutation> {
 
 	public CreateSortableAttributeCompoundSchemaMutationConverter(
-		@Nonnull MutationObjectParser objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+		@Nonnull MutationObjectMapper objectParser, @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 

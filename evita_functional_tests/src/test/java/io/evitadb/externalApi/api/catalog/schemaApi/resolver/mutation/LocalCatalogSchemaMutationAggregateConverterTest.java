@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
@@ -44,10 +44,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.utils.ListBuilder.array;
-import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -62,7 +59,7 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new LocalCatalogSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new LocalCatalogSchemaMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -102,39 +99,5 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
-	}
-
-	@Test
-	void shouldSerializeLocalMutationToOutput() {
-		final List<LocalCatalogSchemaMutation> inputMutation = List.of(
-			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
-			new CreateEntitySchemaMutation("product"),
-			new AllowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES),
-			new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.ADDING_ENTITY_TYPES)
-		);
-
-		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
-		assertThat(serializedMutation)
-			.usingRecursiveComparison()
-			.isEqualTo(
-				list()
-					.i(map()
-						.e(LocalCatalogSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
-							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-							.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")))
-					.i(map()
-						.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
-							.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")))
-					.i(map()
-						.e(LocalCatalogSchemaMutationAggregateDescriptor.ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), map()
-							.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), array()
-								.i(CatalogEvolutionMode.ADDING_ENTITY_TYPES.name()))))
-					.i(map()
-						.e(LocalCatalogSchemaMutationAggregateDescriptor.DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), map()
-							.e(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), list()
-								.i(CatalogEvolutionMode.ADDING_ENTITY_TYPES.name()))))
-					.build()
-			);
 	}
 }

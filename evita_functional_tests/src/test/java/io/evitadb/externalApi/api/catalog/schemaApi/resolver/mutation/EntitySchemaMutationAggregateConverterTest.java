@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntity
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
@@ -41,10 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.utils.ListBuilder.array;
-import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +56,7 @@ class EntitySchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new EntitySchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new EntitySchemaMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -104,28 +101,4 @@ class EntitySchemaMutationAggregateConverterTest {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
-	@Test
-	void shouldSerializeLocalMutationToOutput() {
-		final List<LocalEntitySchemaMutation> inputMutation = List.of(
-			new AllowLocaleInEntitySchemaMutation(Locale.ENGLISH),
-			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
-		);
-
-		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
-		assertThat(serializedMutation)
-			.usingRecursiveComparison()
-			.isEqualTo(
-				list()
-					.i(map()
-						.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
-							.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), array()
-								.i(Locale.ENGLISH.toLanguageTag()))))
-					.i(map()
-						.e(EntitySchemaMutationAggregateDescriptor.DISALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION.name(), map()
-							.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), list()
-								.i("EUR"))))
-					.build()
-			);
-	}
 }

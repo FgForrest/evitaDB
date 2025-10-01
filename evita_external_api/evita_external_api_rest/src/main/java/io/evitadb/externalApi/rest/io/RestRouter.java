@@ -27,11 +27,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
+import io.evitadb.externalApi.http.RoutableWebSocket;
+import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -54,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class RestRouter implements HttpService {
+public class RestRouter implements HttpService, WebSocketHandler {
 
 	private static final String SYSTEM_API_NAME = "system";
 
@@ -86,6 +89,12 @@ public class RestRouter implements HttpService {
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		return this.delegateRouter.serve(ctx, req);
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		return this.delegateRouter.handle(ctx, in);
 	}
 
 	/**

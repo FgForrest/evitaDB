@@ -27,9 +27,10 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +52,7 @@ class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -100,6 +101,7 @@ class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class.getSimpleName())
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED.name())
 					.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER.name(), new String[] {"code"})

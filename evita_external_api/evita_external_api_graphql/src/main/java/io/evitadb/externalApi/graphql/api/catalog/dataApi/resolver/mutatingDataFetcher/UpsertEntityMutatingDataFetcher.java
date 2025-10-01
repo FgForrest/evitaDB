@@ -43,7 +43,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationFactory;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
@@ -70,14 +70,14 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	 */
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	@Nonnull private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
+	@Nonnull private final GraphQLEntityUpsertMutationFactory entityUpsertMutationResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public UpsertEntityMutatingDataFetcher(@Nonnull ObjectMapper objectMapper,
 										   @Nonnull CatalogSchemaContract catalogSchema,
 	                                       @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
-		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
+		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationFactory(objectMapper, entitySchema);
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
 			catalogSchema,
@@ -102,7 +102,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-			this.entityUpsertMutationResolver.convertFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
+			this.entityUpsertMutationResolver.createFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
 		final EntityContentRequire[] contentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 			buildEnrichingRequires(environment));
 

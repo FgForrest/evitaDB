@@ -28,6 +28,8 @@ import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -55,7 +57,7 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class MutationConverter<M extends Mutation> {
 
 	/**
@@ -77,7 +79,7 @@ public abstract class MutationConverter<M extends Mutation> {
 	 */
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final MutationObjectParser objectParser;
+	private final MutationObjectMapper objectMapper;
 	/**
 	 * Handles exception creation that can occur during resolving.
 	 */
@@ -94,15 +96,39 @@ public abstract class MutationConverter<M extends Mutation> {
 	 */
 	@Nonnull
 	public M convertFromInput(@Nullable Object rawInputMutationObject) {
-		final Object inputMutationObject = this.objectParser.parse(rawInputMutationObject);
-		return convertFromInput(new Input(getMutationName(), inputMutationObject, this.exceptionFactory));
+		return this.convertFromInput(rawInputMutationObject, MutationConverterContext.EMPTY);
 	}
 
+	/**
+	 * Resolve raw input local mutation parsed from JSON into actual {@link Mutation} based on implementation of
+	 * resolver.
+	 * Context map can be passed down to pass custom data for nested mutation converters.
+	 */
+	@Nonnull
+	public M convertFromInput(@Nullable Object rawInputMutationObject, @Nonnull Map<String, Object> context) {
+		final Object inputMutationObject = this.objectMapper.parse(rawInputMutationObject);
+		return this.convertFromInput(new Input(getMutationName(), inputMutationObject, this.exceptionFactory, context));
+	}
+
+	/**
+	 * Converts local mutation into a serialized version based on implementation of
+	 * resolver.
+	 */
 	@Nullable
 	public Object convertToOutput(@Nonnull M mutation) {
-		final Output output = new Output(getMutationName(), this.exceptionFactory);
+		return this.convertToOutput(mutation, MutationConverterContext.EMPTY);
+	}
+
+	/**
+	 * Converts local mutation into a serialized version based on implementation of
+	 * resolver.
+	 * Context map can be passed down to pass custom data for nested mutation converters.
+	 */
+	@Nullable
+	public Object convertToOutput(@Nonnull M mutation, @Nonnull Map<String, Object> context) {
+		final Output output = new Output(getMutationName(), this.exceptionFactory, context);
 		convertToOutput(mutation, output);
-		return this.objectParser.serialize(output.getOutputMutationObject());
+		return this.objectMapper.serialize(output.getOutputMutationObject());
 	}
 
 	/**
@@ -127,6 +153,10 @@ public abstract class MutationConverter<M extends Mutation> {
 		if (constructor.getParameterCount() == 0) {
 			output.setValue(true);
 		} else {
+			if (object instanceof Mutation) {
+				output.setProperty(MutationDescriptor.MUTATION_TYPE.name(), object.getClass().getSimpleName());
+			}
+
 			final Parameter[] parameters = constructor.getParameters();
 			for (int i = 0; i < constructor.getParameterCount(); i++) {
 				final Parameter parameter = parameters[i];
@@ -185,13 +215,13 @@ public abstract class MutationConverter<M extends Mutation> {
 					for (int j = 0; j < arraySize; j++) {
 						final Object item = Array.get(originalValue, j);
 
-						final Output innerItemOutput = new Output(getMutationName(), this.exceptionFactory);
+						final Output innerItemOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
 						convertObjectToOutput(item, innerItemOutput);
 						targetList.add(innerItemOutput);
 					}
 					targetValue = targetList;
 				} else {
-					final Output innerOutput = new Output(getMutationName(), this.exceptionFactory);
+					final Output innerOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
 					convertObjectToOutput(originalValue, innerOutput);
 					targetValue = innerOutput;
 				}
@@ -257,7 +287,7 @@ public abstract class MutationConverter<M extends Mutation> {
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawPropertyValue;
-				return convertObjectFromInput(new Input(getMutationName(), element, this.exceptionFactory), type);
+				return convertObjectFromInput(Input.from(input, getMutationName(), element, this.exceptionFactory), type);
 			}
 		);
 	}
@@ -283,7 +313,7 @@ public abstract class MutationConverter<M extends Mutation> {
 						);
 
 						final Map<String, Object> element = (Map<String, Object>) rawElement;
-						return convertObjectFromInput(new Input(getMutationName(), element, this.exceptionFactory), componentType);
+						return convertObjectFromInput(Input.from(input, getMutationName(), element, this.exceptionFactory), componentType);
 					})
 					.toArray(size -> (T[]) Array.newInstance(componentType, size));
 			}

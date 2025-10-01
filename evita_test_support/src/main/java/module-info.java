@@ -39,4 +39,7 @@ module evita.test.support {
 	requires org.bouncycastle.provider;
 	requires com.linecorp.armeria;
 	requires roaringbitmap;
+	requires org.reactivestreams;
+	requires io.netty.common;
+	requires awaitility;
 }

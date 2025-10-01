@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMuta
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.List;
+
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -51,7 +53,10 @@ public interface SetCatalogStateMutationDescriptor extends EngineMutationDescrip
 			This mutation allows controlling whether a particular catalog should be active or not.
 			The active state determines the operational status of the catalog.
 			""")
-		.staticField(CATALOG_NAME)
-		.staticField(ACTIVE)
+		.staticFields(List.of(
+			MUTATION_TYPE,
+			CATALOG_NAME,
+			ACTIVE
+		))
 		.build();
 }

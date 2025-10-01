@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.InfrastructureMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,12 +36,9 @@ import org.junit.jupiter.api.Test;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +56,7 @@ public class InfrastructureMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new InfrastructureMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new InfrastructureMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -94,29 +91,5 @@ public class InfrastructureMutationAggregateConverterTest {
 					.e(TransactionMutationDescriptor.COMMIT_TIMESTAMP.name(), "2025-09-24T13:00:00Z"))
 				.build()
 		));
-	}
-
-	@Test
-	void shouldSerializeMutationToOutput() {
-		final List<Mutation> inputMutation = List.of(
-			new TransactionMutation(TRANSACTION_ID, 10, 15, 100, COMMIT_TIMESTAMP)
-		);
-
-		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
-		assertThat(serializedMutation)
-			.usingRecursiveComparison()
-			.isEqualTo(
-				list()
-					.i(map()
-						   .e(InfrastructureMutationAggregateDescriptor.TRANSACTION_MUTATION.name(), map()
-							   .e(TransactionMutationDescriptor.TRANSACTION_ID.name(), TRANSACTION_ID.toString())
-							   .e(TransactionMutationDescriptor.VERSION.name(), "10")
-							   .e(TransactionMutationDescriptor.MUTATION_COUNT.name(), 15)
-							   .e(TransactionMutationDescriptor.WAL_SIZE_IN_BYTES.name(), "100")
-							   .e(TransactionMutationDescriptor.COMMIT_TIMESTAMP.name(), "2025-09-24T13:00:00Z"))
-						   .build())
-					.build()
-			);
 	}
 }

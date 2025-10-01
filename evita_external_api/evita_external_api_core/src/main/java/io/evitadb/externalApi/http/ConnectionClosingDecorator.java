@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,39 +26,41 @@ package io.evitadb.externalApi.http;
 
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.RpcRequest;
-import com.linecorp.armeria.common.RpcResponse;
-import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
-import com.linecorp.armeria.server.DecoratingRpcServiceFunction;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
-import com.linecorp.armeria.server.RpcService;
+import com.linecorp.armeria.server.Service;
 import com.linecorp.armeria.server.ServiceRequestContext;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import com.linecorp.armeria.server.SimpleDecoratingHttpService;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * This decorator closes the connection after each request.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ConnectionClosingDecorator implements DecoratingHttpServiceFunction, DecoratingRpcServiceFunction {
-	public static final ConnectionClosingDecorator INSTANCE = new ConnectionClosingDecorator();
+public class ConnectionClosingDecorator extends SimpleDecoratingHttpService implements WebSocketHandler {
 
-	@Nonnull
-	@Override
-	public HttpResponse serve(HttpService delegate, ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		ctx.initiateConnectionShutdown();
-		return delegate.serve(ctx, req);
+	/**
+	 * Creates a new instance that decorates the specified {@link Service}.
+	 */
+	public ConnectionClosingDecorator(@Nonnull HttpService delegate) {
+		super(delegate);
 	}
 
 	@Nonnull
 	@Override
-	public RpcResponse serve(RpcService delegate, ServiceRequestContext ctx, @Nonnull RpcRequest req) throws Exception {
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		ctx.initiateConnectionShutdown();
-		return delegate.serve(ctx, req);
+		return this.unwrap().serve(ctx, req);
 	}
 
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		// `ctx.initiateConnectionShutdown()` should NOT be used on WebSocket connections because it would close the
+		// initial HTTP upgrade request which would automatically close the WebSocket channel
+		return Objects.requireNonNull(this.unwrap().as(WebSocketHandler.class)).handle(ctx, in);
+	}
 }

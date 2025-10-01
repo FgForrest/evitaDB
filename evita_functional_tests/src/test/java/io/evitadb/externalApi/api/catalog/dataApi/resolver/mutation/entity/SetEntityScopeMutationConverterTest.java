@@ -29,7 +29,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +50,7 @@ class SetEntityScopeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new SetEntityScopeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetEntityScopeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -97,6 +97,7 @@ class SetEntityScopeMutationConverterTest {
 
 		assertEquals(
 			map()
+				.e(SetEntityScopeMutationDescriptor.MUTATION_TYPE.name(), SetEntityScopeMutation.class.getSimpleName())
 				.e(SetEntityScopeMutationDescriptor.SCOPE.name(), Scope.LIVE.name())
 				.build(),
 			this.converter.convertToOutput(inputMutation)

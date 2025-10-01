@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -35,7 +36,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, 2023
  */
-public interface EngineMutationDescriptor {
+public interface EngineMutationDescriptor extends MutationDescriptor {
 
 	PropertyDescriptor CATALOG_NAME = PropertyDescriptor.builder()
 		.name("catalogName")

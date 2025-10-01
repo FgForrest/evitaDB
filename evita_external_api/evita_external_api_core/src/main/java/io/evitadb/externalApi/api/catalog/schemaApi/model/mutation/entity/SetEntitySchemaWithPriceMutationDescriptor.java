@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetEntitySchemaWithPriceMutationDescriptor {
+public interface SetEntitySchemaWithPriceMutationDescriptor extends EntitySchemaMutationDescriptor {
 
 	PropertyDescriptor WITH_PRICE = PropertyDescriptor.builder()
 		.name("withPrice")
@@ -87,6 +87,6 @@ public interface SetEntitySchemaWithPriceMutationDescriptor {
 			Mutation is responsible for setting a `EntitySchema.withPrice`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
+		.staticFields(List.of(MUTATION_TYPE, WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
 		.build();
 }

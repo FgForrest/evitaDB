@@ -23,12 +23,20 @@
 
 package io.evitadb.externalApi.graphql.io.webSocket;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.websocket.WebSocket;
+import com.linecorp.armeria.common.websocket.WebSocketWriter;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
-import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+import io.evitadb.externalApi.http.RoutableWebSocket;
+import io.evitadb.externalApi.http.WebSocketHandler;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
+import javax.annotation.Nullable;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -39,19 +47,48 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @author Lukáš Hornych, 2023
  */
-public class GraphQLWebSocketHandler /*extends WebSocketProtocolHandshakeHandler*/ {
+@Slf4j
+public class GraphQLWebSocketHandler implements WebSocketHandler, HttpService {
 
 	private static final String GRAPHQL_WS_SUB_PROTOCOL = "graphql-transport-ws";
-	private static final Set<String> SUPPORTED_SUB_PROTOCOLS = Set.of(GRAPHQL_WS_SUB_PROTOCOL);
-	/*private static final Set<Handshake> SUPPORTED_HANDSHAKES = Set.of(
-		new Hybi13Handshake(SUPPORTED_SUB_PROTOCOLS, false),
-		new Hybi08Handshake(SUPPORTED_SUB_PROTOCOLS, false),
-		new Hybi07Handshake(SUPPORTED_SUB_PROTOCOLS, false)
-	);*/
 
-	public GraphQLWebSocketHandler(@Nonnull ObjectMapper objectMapper,
-								   @Nonnull Evita evita,
-	                               @Nonnull AtomicReference<GraphQL> graphQL) {
-		/*super(SUPPORTED_HANDSHAKES, new GraphQLWebSocketSocketHandler(objectMapper, evita, graphQL));*/
+	@Nonnull
+	private final AtomicReference<GraphQL> graphQL;
+
+	@Nullable
+	private final HttpService fallbackService;
+
+	public GraphQLWebSocketHandler(
+		@Nonnull AtomicReference<GraphQL> graphQL,
+		@Nullable HttpService fallbackService
+	) {
+		this.graphQL = graphQL;
+		this.fallbackService = fallbackService;
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		if (!isSubprotocolSupported(ctx, GRAPHQL_WS_SUB_PROTOCOL)) {
+			return subprotocolNotSupported();
+		}
+
+		final WebSocketWriter outgoing = WebSocket.streaming();
+		final GraphQLWSSubProtocol protocol = new GraphQLWSSubProtocol(ctx, this.graphQL);
+		in.incomingWebSocket().subscribe(new GraphQLWebSocketSubscriber(protocol, outgoing));
+		return outgoing;
+	}
+
+	@Override
+	@Nonnull
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		// WebSocket connection must be already open at this point, so it should call the handle() method.
+		// However, we want to use the GET method via HTTP for other purposes, so we delegate the processing to nested
+		// service.
+		if (this.fallbackService == null) {
+			// todo lho better exception
+			throw new GraphQLInvalidArgumentException("Only WebSocket connections are supported.");
+		}
+		return this.fallbackService.serve(ctx, req);
 	}
 }

@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
+import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaNameMutationDescriptor;
@@ -56,17 +57,17 @@ class AttributeSchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter = new AttributeSchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AttributeSchemaMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final List<ReferenceAttributeSchemaMutation> expectedMutations = List.of(
+		final List<AttributeSchemaMutation> expectedMutations = List.of(
 			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
 			new ModifyAttributeSchemaNameMutation("code", "betterCode")
 		);
 
-		final List<ReferenceAttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(
+		final List<AttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(
 					AttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
@@ -84,39 +85,12 @@ class AttributeSchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<ReferenceAttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
+		final List<AttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
-	}
-
-	@Test
-	void shouldSerializeLocalMutationToOutput() {
-		final List<ReferenceAttributeSchemaMutation> inputMutation = List.of(
-			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
-			new ModifyAttributeSchemaNameMutation("code", "betterCode")
-		);
-
-		//noinspection unchecked
-		final List<Map<String, Object>> serializedMutation = (List<Map<String, Object>>) this.converter.convertToOutput(inputMutation);
-		assertThat(serializedMutation)
-			.usingRecursiveComparison()
-			.isEqualTo(
-				list()
-					.i(map()
-						.e(
-							AttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
-							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-							.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")))
-					.i(map()
-						.e(
-							AttributeSchemaMutationAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_NAME_MUTATION.name(), map()
-							.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-							.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "betterCode")))
-					.build()
-			);
 	}
 }

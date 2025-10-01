@@ -25,6 +25,8 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
+import java.util.List;
+
 /**
  * Descriptor interface that defines the structure for catalog schema removal mutations
  * in external API representations. This descriptor provides property definitions for
@@ -41,6 +43,9 @@ public interface RemoveCatalogSchemaMutationDescriptor extends EngineMutationDes
 			Mutation is responsible for removing an existing catalog schema - or more precisely the catalog
 			instance itself.
 			""")
-		.staticField(CATALOG_NAME)
+		.staticFields(List.of(
+			MUTATION_TYPE,
+			CATALOG_NAME
+		))
 		.build();
 }

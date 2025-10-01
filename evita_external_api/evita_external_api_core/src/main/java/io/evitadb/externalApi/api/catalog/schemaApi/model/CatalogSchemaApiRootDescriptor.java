@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
     EndpointDescriptor ON_CATALOG_SCHEMA_CHANGE = EndpointDescriptor.builder()
-        .operation("on*schemaChange")
+        .operation("onSchemaChange")
         .urlPathItem("schema")
         .classifier("catalog")
         .description("""
@@ -85,11 +85,11 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();
-    EndpointDescriptor ON_ENTITY_SCHEMA_CHANGE = EndpointDescriptor.builder()
-        .operation("on*schemaChange")
+    EndpointDescriptor ON_COLLECTION_SCHEMA_CHANGE = EndpointDescriptor.builder()
+        .operation("on*SchemaChange")
         .urlPathItem("schema")
         .description("""
-            Subscribes client to a stream of specific entity schema changes which are sent over as individual capture events.
+            Subscribes client to a stream of specific collection schema changes which are sent over as individual capture events.
             """)
         .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
         .build();

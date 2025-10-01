@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.transaction.resolver.mutation;
 
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine.EngineMutationConverter;
 
@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
 public class TransactionMutationConverter extends MutationConverter<TransactionMutation> {
 
 	public TransactionMutationConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);

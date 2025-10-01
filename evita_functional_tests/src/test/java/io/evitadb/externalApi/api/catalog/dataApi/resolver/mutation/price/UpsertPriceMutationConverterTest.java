@@ -30,7 +30,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +58,7 @@ class UpsertPriceMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		this.converter =  new UpsertPriceMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new UpsertPriceMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -259,6 +259,7 @@ class UpsertPriceMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(UpsertPriceMutationDescriptor.MUTATION_TYPE.name(), UpsertPriceMutation.class.getSimpleName())
 					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(PriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")

@@ -145,7 +145,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 						makeMutationIfDifferent(
 							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							sacs -> sacs.getIndexedInScopes().toArray(Scope[]::new),
-							newValue -> new SetSortableAttributeCompoundIndexedMutation(this.name, newValue)
+							newValue -> new SetSortableAttributeCompoundSchemaIndexedMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)

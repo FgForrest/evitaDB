@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
@@ -159,7 +159,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetSortableAttributeCompoundIndexedMutation(getName(), inScope)
+				new SetSortableAttributeCompoundSchemaIndexedMutation(getName(), inScope)
 			)
 		);
 		return this;
@@ -173,7 +173,7 @@ public final class SortableAttributeCompoundSchemaBuilder
 			this.updatedSchemaDirty,
 			addMutations(
 				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetSortableAttributeCompoundIndexedMutation(
+				new SetSortableAttributeCompoundSchemaIndexedMutation(
 					getName(),
 					Arrays.stream(Scope.values())
 						.filter(this::isIndexedInScope)

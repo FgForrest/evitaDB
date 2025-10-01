@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -100,6 +100,7 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 			This mutation allows to create / update `price` of the entity.
 			""")
 		.staticFields(List.of(
+			MUTATION_TYPE,
 			PRICE_ID,
 			PRICE_LIST,
 			CURRENCY,

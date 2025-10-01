@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.system.model;
 
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
@@ -120,8 +121,15 @@ public interface SystemRootDescriptor {
     EndpointDescriptor ON_SYSTEM_CHANGE = EndpointDescriptor.builder()
         .operation("onSystemChange")
         .description("""
-            Subscribes client to a stream of system changes which are sent over as individual capture events.
+            Subscribes client to a stream of change system captures that match the request.
             """)
         .type(nonNullRef(ChangeSystemCaptureDescriptor.THIS))
         .build();
+	EndpointDescriptor ON_CATALOG_CHANGE = EndpointDescriptor.builder()
+		.operation("onCatalogChange")
+		.description("""
+            Subscribes client to a stream of change catalog captures that match the request.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
+		.build();
 }

@@ -66,6 +66,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 	exports io.evitadb.externalApi.api.transaction.resolver.mutation;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+	exports io.evitadb.externalApi.api.model.mutation;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
@@ -88,4 +89,5 @@ module evita.external.api.core {
 	requires io.netty.handler;
 	requires io.netty.common;
 	requires jdk.jfr;
+	requires org.reactivestreams;
 }

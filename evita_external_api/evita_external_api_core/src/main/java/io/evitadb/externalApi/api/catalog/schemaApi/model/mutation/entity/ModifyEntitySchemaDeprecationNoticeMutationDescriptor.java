@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ModifyEntitySchemaDeprecationNoticeMutationDescriptor {
+public interface ModifyEntitySchemaDeprecationNoticeMutationDescriptor extends EntitySchemaMutationDescriptor {
 
 	PropertyDescriptor DEPRECATION_NOTICE = PropertyDescriptor.builder()
 		.name("deprecationNotice")
@@ -54,6 +54,6 @@ public interface ModifyEntitySchemaDeprecationNoticeMutationDescriptor {
 			Mutation is responsible for setting a `EntitySchema.deprecationNotice`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(DEPRECATION_NOTICE))
+		.staticFields(List.of(MUTATION_TYPE, DEPRECATION_NOTICE))
 		.build();
 }

@@ -44,7 +44,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.Upser
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,11 +70,14 @@ class ReferenceAttributeMutationConverterTest {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_ALT_CODE = "altCode";
 	private static final String ATTRIBUTE_QUANTITY = "quantity";
+
+	private EntitySchemaContract entitySchema;
+	private Map<String, Object> mutationConverterContext;
 	private ReferenceAttributeMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
+		this.entitySchema = new InternalEntitySchemaBuilder(
 			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
@@ -86,7 +90,11 @@ class ReferenceAttributeMutationConverterTest {
 					.withAttribute(ATTRIBUTE_QUANTITY, Integer.class)
 			)
 			.toInstance();
-		this.converter =  new ReferenceAttributeMutationConverter(entitySchema, new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.mutationConverterContext = Map.of(
+			MutationConverterContext.ENTITY_SCHEMA_KEY, this.entitySchema,
+			MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY, this.entitySchema
+		);
+		this.converter =  new ReferenceAttributeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -105,7 +113,8 @@ class ReferenceAttributeMutationConverterTest {
 						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 						.build())
 					.build())
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 	}
@@ -128,7 +137,8 @@ class ReferenceAttributeMutationConverterTest {
 						.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class)
 						.build())
 					.build())
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 	}
@@ -150,7 +160,8 @@ class ReferenceAttributeMutationConverterTest {
 						.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 						.build())
 					.build())
-				.build()
+				.build(),
+			this.mutationConverterContext
 		);
 		assertEquals(expectedMutation, localMutation);
 	}
@@ -167,7 +178,8 @@ class ReferenceAttributeMutationConverterTest {
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.build())
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(
@@ -180,7 +192,8 @@ class ReferenceAttributeMutationConverterTest {
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.build())
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(
@@ -189,7 +202,8 @@ class ReferenceAttributeMutationConverterTest {
 				map()
 					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
@@ -214,7 +228,8 @@ class ReferenceAttributeMutationConverterTest {
 							.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class)
 							.build())
 						.build())
-					.build()
+					.build(),
+				this.mutationConverterContext
 			)
 		);
 	}
@@ -232,12 +247,12 @@ class ReferenceAttributeMutationConverterTest {
 			.usingRecursiveComparison()
 			.isEqualTo(
 				map()
+					.e(ReferenceAttributeMutationDescriptor.MUTATION_TYPE.name(), ReferenceAttributeMutation.class.getSimpleName())
 					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
-						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-							.build())
+						.e(AttributeMutationDescriptor.MUTATION_TYPE.name(), RemoveAttributeMutation.class.getSimpleName())
+						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 						.build())
 					.build()
 			);

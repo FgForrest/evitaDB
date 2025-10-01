@@ -23,9 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
-import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.*;
@@ -39,19 +39,19 @@ import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.Attrib
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Implementation of {@link MutationAggregateConverter} for converting aggregates of {@link ReferenceAttributeSchemaMutation}s.
+ * Implementation of {@link MutationAggregateConverter} for converting aggregates of {@link AttributeSchemaMutation}s.
  * into list of individual mutations.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class AttributeSchemaMutationAggregateConverter extends MutationAggregateConverter<ReferenceAttributeSchemaMutation, AttributeSchemaMutationConverter<ReferenceAttributeSchemaMutation>> {
+public class AttributeSchemaMutationAggregateConverter extends MutationAggregateConverter<AttributeSchemaMutation, AttributeSchemaMutationConverter<AttributeSchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, AttributeSchemaMutationConverter<ReferenceAttributeSchemaMutation>> converters = createHashMap(15);
+	private final Map<String, AttributeSchemaMutationConverter<AttributeSchemaMutation>> converters = createHashMap(15);
 
 	public AttributeSchemaMutationAggregateConverter(
-		@Nonnull MutationObjectParser objectParser,
+		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);

@@ -27,6 +27,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogS
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.List;
+
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 
 /**
@@ -53,7 +55,10 @@ public interface ModifyCatalogSchemaMutationDescriptor extends EngineMutationDes
 			 Mutation is a holder for a set of catalog schema mutations that affect a internal contents of the catalog
 			 schema itself.
 			""")
-		.staticField(CATALOG_NAME)
-		.staticField(SCHEMA_MUTATIONS)
+		.staticFields(List.of(
+			MUTATION_TYPE,
+			CATALOG_NAME,
+			SCHEMA_MUTATIONS
+		))
 		.build();
 }

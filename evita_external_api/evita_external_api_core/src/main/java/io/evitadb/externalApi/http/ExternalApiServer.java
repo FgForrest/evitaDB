@@ -604,7 +604,8 @@ public class ExternalApiServer implements AutoCloseable {
 						// decorate the service with security decorator
 						service = service
 							.decorate(
-								new HttpServiceSecurityDecorator(
+								it -> new HttpServiceSecurityDecorator(
+									it,
 									apiOptions,
 									ArrayUtils.mergeArrays(
 										new AbstractApiOptions[]{configuration},
@@ -613,11 +614,11 @@ public class ExternalApiServer implements AutoCloseable {
 								)
 							)
 							// and metrics decorator
-							.decorate(new HttpMetricDecorator(registeredApiProvider.getCode()));
+							.decorate(it -> new HttpMetricDecorator(it, registeredApiProvider.getCode()));
 
 						// decorate the service with connection closing decorator if keepAlive is set to false
 						if (!configuration.isKeepAlive()) {
-							service = service.decorate(ConnectionClosingDecorator.INSTANCE);
+							service = service.decorate(ConnectionClosingDecorator::new);
 						}
 
 						if (httpServiceDefinition.pathHandlingMode() == PathHandlingMode.FIXED_PATH_HANDLING) {
@@ -639,7 +640,7 @@ public class ExternalApiServer implements AutoCloseable {
 									"Multiple default services found. Only one service can be default."
 								);
 								dynamicPathHandlingService.addExactPath(
-									"/", (reqCtx, req) -> HttpResponse.ofRedirect(servicePath)
+									"/", (HttpService) (reqCtx, req) -> HttpResponse.ofRedirect(servicePath)
 								);
 								defaultServiceConfigured = true;
 							}
@@ -668,7 +669,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		// if path handling service is set, use it for all requests
 		if (dynamicPathHandlingService != null) {
-			serverBuilder.service("glob:/**", dynamicPathHandlingService)
+			serverBuilder.service("glob:/**", new WebSocketEnablingService(dynamicPathHandlingService, dynamicPathHandlingService))
 				.decorator(LoggingService.newDecorator());
 		}
 	}
