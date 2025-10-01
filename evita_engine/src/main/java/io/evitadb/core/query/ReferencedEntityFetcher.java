@@ -151,6 +151,7 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -2019,7 +2020,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingGroupEntity(@Nonnull String referenceName, int primaryKey) {
-			return this.entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
+			final Collection<ReferenceContract> references = this.entityDecorator.getReferencesWithoutCheckingPredicate();
+			for (ReferenceContract reference : references) {
+				if (
+					referenceName.equals(reference.getReferenceKey().referenceName()) &&
+					reference.getGroup().map(it -> it.getPrimaryKey() == primaryKey).orElse(false)
+				) {
+					return reference.getGroupEntity();
+				}
+			}
+			return empty();
 		}
 	}
 

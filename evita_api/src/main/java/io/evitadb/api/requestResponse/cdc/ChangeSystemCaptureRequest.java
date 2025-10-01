@@ -33,7 +33,7 @@ import java.util.Objects;
  * {@link ChangeCapturePublisher}.
  *
  * @param sinceVersion specifies the initial capture point (catalog version) for the CDC stream, if not specified
- *                     it is assumed to begin at the most recent / oldest available version
+ *                     it is assumed to begin at the most recent / greatest available version
  * @param sinceIndex   specifies the initial capture point for the CDC stream, it is optional and can be used
  *                     to specify continuation point within an enclosing block of events
  * @param content the requested content of the capture, by default only the header information is sent

@@ -133,6 +133,189 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 */
 	private int lastLocallyAssignedReferenceId = 0;
 
+	/**
+	 * This method upserts a new mutation into an existing list of reference mutations.
+	 * The logic ensures that the new mutation either replaces or coexists with compatible
+	 * mutations based on specific rules. If necessary, certain mutations in the existing
+	 * list are removed to maintain coherence with the new mutation.
+	 *
+	 * @param existingChangeSet A list of {@link ReferenceMutation} objects representing
+	 *                          the current state of mutations. This list may be modified
+	 *                          by the method, with elements added, replaced, or removed
+	 *                          based on the logic provided.
+	 * @param newMutation       A {@link ReferenceMutation} object representing the new mutation
+	 *                          to be added to the existing change set. The new mutation
+	 *                          is evaluated relative to the existing list to determine
+	 *                          if it should replace or coexist with other mutations.
+	 */
+	private static void upsertModification(
+		@Nonnull List<ReferenceMutation<?>> existingChangeSet,
+		@Nonnull ReferenceMutation<?> newMutation
+	) {
+		boolean addNewMutation = true;
+		final Iterator<ReferenceMutation<?>> it = existingChangeSet.iterator();
+		while (it.hasNext()) {
+			final ReferenceMutation<?> existingMutation = it.next();
+			if (existingMutation instanceof InsertReferenceMutation) {
+				Assert.isPremiseValid(
+					!(newMutation instanceof RemoveReferenceMutation),
+					"Unexpected new mutation!"
+				);
+			} else if (existingMutation instanceof SetReferenceGroupMutation) {
+				if (newMutation instanceof SetReferenceGroupMutation) {
+					it.remove();
+				} else if (newMutation instanceof RemoveReferenceGroupMutation) {
+					it.remove();
+					addNewMutation = false;
+				}
+			} else if (existingMutation instanceof RemoveReferenceGroupMutation) {
+				if (newMutation instanceof SetReferenceGroupMutation || newMutation instanceof RemoveReferenceGroupMutation) {
+					it.remove();
+				}
+			} else if (existingMutation instanceof ReferenceAttributeMutation existingRam) {
+				if (newMutation instanceof ReferenceAttributeMutation newRam) {
+					final AttributeKey existingKey = existingRam.getAttributeMutation().getAttributeKey();
+					final AttributeKey newKey = newRam.getAttributeMutation().getAttributeKey();
+					if (existingKey.equals(newKey)) {
+						it.remove();
+					}
+				}
+			} else if (existingMutation instanceof RemoveReferenceMutation) {
+				it.remove();
+			} else {
+				throw new GenericEvitaInternalError("Unexpected mutation type: " + existingMutation.getClass());
+			}
+		}
+		// when we are reinserting or removing the reference - all previous mutations are irrelevant
+		if (newMutation instanceof InsertReferenceMutation || newMutation instanceof RemoveReferenceMutation) {
+			existingChangeSet.clear();
+		}
+		if (addNewMutation) {
+			existingChangeSet.add(newMutation);
+		}
+	}
+
+	/**
+	 * Merges the given reference mutation change set with the current state of the reference, ensuring that
+	 * the resulting mutations reflect any removals and redundant operations are skipped. This method is designed
+	 * to restore removals for groups or attributes that were not re-upserted after a prior removal, ensuring the
+	 * minimal and correct set of mutations is generated.
+	 *
+	 * @param changeSet    a list of reference mutations to be merged and filtered
+	 * @param refInBase    the base reference state, which is used to compare the existing state with the incoming mutations
+	 * @param referenceKey the key that identifies the reference being mutated
+	 * @return a list of merged and filtered reference mutations, including any necessary removal mutations and excluding redundant operations
+	 */
+	@Nonnull
+	private static List<ReferenceMutation<?>> collectMergedReferenceMutations(
+		@Nonnull List<ReferenceMutation<?>> changeSet,
+		@Nonnull ReferenceContract refInBase,
+		@Nonnull ReferenceKey referenceKey
+	) {
+		// Merge required: we need to restore removals for group/attributes that weren't upserted after previous removal
+		boolean groupUpserted = false;
+		Set<AttributeKey> attributesUpserted = null;
+
+		// Scan changeSet once to gather upsert info
+		for (final ReferenceMutation<?> rm : changeSet) {
+			if (rm instanceof SetReferenceGroupMutation) {
+				groupUpserted = true;
+			} else if (rm instanceof ReferenceAttributeMutation ram) {
+				final AttributeMutation am = ram.getAttributeMutation();
+				if (am instanceof UpsertAttributeMutation) {
+					if (attributesUpserted == null) {
+						attributesUpserted = new HashSet<>(8);
+					}
+					attributesUpserted.add(am.getAttributeKey());
+				}
+			}
+		}
+
+		final Set<AttributeKey> finalAttributesUpserted =
+			attributesUpserted != null ? attributesUpserted : Collections.emptySet();
+
+		// Build merged mutation list with minimal allocations
+		// Heuristic capacity: original + possible removals
+		List<ReferenceMutation<?>> merged = new ArrayList<>(changeSet.size() + 8);
+
+		// If group was NOT upserted, add removal of previous group (if any)
+		if (!groupUpserted) {
+			final Optional<? extends Droppable> groupOpt = refInBase.getGroup();
+			if (groupOpt.isPresent()) {
+				final Droppable group = groupOpt.get();
+				if (group.exists()) {
+					merged.add(new RemoveReferenceGroupMutation(referenceKey));
+				}
+			}
+		}
+
+		// For attributes not upserted, add their removals if they existed before
+		final Collection<AttributeValue> attrs = refInBase.getAttributeValues();
+		for (final AttributeValue av : attrs) {
+			if (av.exists()) {
+				final AttributeKey key = av.key();
+				if (!finalAttributesUpserted.contains(key)) {
+					merged.add(
+						new ReferenceAttributeMutation(
+							referenceKey,
+							new RemoveAttributeMutation(key)
+						)
+					);
+				}
+			}
+		}
+
+		// Append filtered original changeSet (skip redundant ops)
+		for (final ReferenceMutation<?> rm : changeSet) {
+			// Skip InsertReferenceMutation - the reference existed before the removal
+			if (rm instanceof InsertReferenceMutation) {
+				continue;
+			}
+
+			// Skip redundant SetReferenceGroupMutation if group remains the same
+			if (rm instanceof SetReferenceGroupMutation srgm) {
+				boolean sameAsBefore = false;
+				final Optional<GroupEntityReference> groupOpt = refInBase.getGroup();
+				if (groupOpt.isPresent()) {
+					final GroupEntityReference group = groupOpt.get();
+					final Integer existingPk = group.getPrimaryKey();
+					final Integer newPk = srgm.getGroupPrimaryKey();
+					sameAsBefore = Objects.equals(existingPk, newPk);
+				}
+				if (sameAsBefore) {
+					continue;
+				}
+			}
+
+			// Skip redundant attribute upserts if value equals previous one
+			if (rm instanceof ReferenceAttributeMutation ram) {
+				final AttributeMutation am = ram.getAttributeMutation();
+				if (am instanceof UpsertAttributeMutation upsert) {
+					boolean sameAsBefore = false;
+					final AttributeKey aKey = am.getAttributeKey();
+
+					// Check schema existence before reading value, as in original logic
+					final boolean schemaPresent = refInBase
+						.getAttributeSchema(aKey.attributeName())
+						.isPresent();
+					if (schemaPresent) {
+						final Optional<AttributeValue> avOpt = refInBase.getAttributeValue(aKey);
+						if (avOpt.isPresent()) {
+							final AttributeValue prev = avOpt.get();
+							sameAsBefore = Objects.equals(prev.value(), upsert.getAttributeValue());
+						}
+					}
+					if (sameAsBefore) {
+						continue;
+					}
+				}
+			}
+
+			merged.add(rm);
+		}
+		return merged;
+	}
+
 	ExistingReferencesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull References baseReferences,
@@ -191,7 +374,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				}
 
 				if (this.referencePredicate.test(toAdd)) {
-					result.add(toAdd);
+					result.add(
+						retainRichDataIfPossible(toAdd)
+					);
 				}
 			}
 
@@ -236,6 +421,48 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			return result;
 		}
 		return this.memoizedReferences;
+	}
+
+	/**
+	 * Attempts to enrich the given {@link ReferenceContract} with additional data if possible, such as the referenced entity
+	 * or the entity group, ensuring data consistency based on primary key validation. If the referenced entity or group
+	 * does not match the provided reference's primary key or group, the original reference is returned unmodified.
+	 *
+	 * @param reference the reference that needs to be checked and potentially enriched with additional rich data
+	 * @return a possibly enhanced {@link ReferenceContract} enriched with additional data if validation is successful,
+	 * or the original reference if enrichment is not possible
+	 */
+	@Nonnull
+	private ReferenceContract retainRichDataIfPossible(@Nonnull ReferenceContract reference) {
+		final Optional<ReferenceContract> originalReference =
+			reference.getReferenceKey().isKnownInternalPrimaryKey() ?
+				this.richReferenceFetcher.apply(reference.getReferenceKey()) : empty();
+		final Optional<SealedEntity> originalReferencedEntity = originalReference
+			.flatMap(ReferenceContract::getReferencedEntity);
+		final Optional<SealedEntity> originalReferencedEntityGroup = originalReference
+			.flatMap(ReferenceContract::getGroupEntity);
+		final Boolean entityValid = originalReferencedEntity
+			.map(EntityContract::getPrimaryKey)
+			.map(it -> it == reference.getReferencedPrimaryKey())
+			.orElse(false);
+		final Boolean entityGroupValid = originalReferencedEntityGroup
+			.map(EntityContract::getPrimaryKey)
+			.map(
+				it -> reference.getGroup()
+				                  .map(group -> Objects.equals(it, group.getPrimaryKey()))
+				                  .orElse(false)
+			)
+			.orElse(false);
+		if (entityValid || entityGroupValid) {
+			return new ReferenceDecorator(
+				reference,
+				entityValid ? originalReferencedEntity.get() : null,
+				entityGroupValid ? originalReferencedEntityGroup.get() : null,
+				this.referencePredicate.getAttributePredicate(reference.getReferenceName())
+			);
+		} else {
+			return reference;
+		}
 	}
 
 	@Nonnull
@@ -286,7 +513,14 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				it -> ofNullable(this.referenceMutations)
 					.map(mutations -> mutations.get(referenceKey))
 					.map(mutations -> getReferenceMutationsByReferenceKey(referenceKey, mutations, Operation.READ))
-					.map(mutations -> evaluateReferenceMutations(it, mutations))
+					.map(mutations -> {
+						final ReferenceContract mutatedReference = evaluateReferenceMutations(it, mutations);
+						if (mutatedReference == null) {
+							return null;
+						} else {
+							return retainRichDataIfPossible(mutatedReference);
+						}
+					})
 					.orElseGet(() -> this.richReferenceFetcher.apply(referenceKey).orElse(it))
 			)
 			.or(
@@ -659,6 +893,21 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		return --this.lastLocallyAssignedReferenceId;
 	}
 
+	@Nonnull
+	@Override
+	public ReferenceKey createReference(@Nonnull String referenceName, int referencedEntityPrimaryKey) {
+		final InitialReferenceBuilder referenceBuilder = new InitialReferenceBuilder(
+			this.entitySchema,
+			getReferenceSchemaOrThrowException(referenceName),
+			referenceName, referencedEntityPrimaryKey,
+			getNextReferenceInternalId(),
+			getReferenceBundleForUpdate(referenceName, 8)
+				.getAttributeTypes()
+		);
+		addOrReplaceReferenceMutations(referenceBuilder, true);
+		return referenceBuilder.getReferenceKey();
+	}
+
 	@Override
 	public void addOrReplaceReferenceMutations(
 		@Nonnull ReferenceBuilder referenceBuilder,
@@ -671,7 +920,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		}
 
 		// if the reference is new - we need to adapt its internal key to the one assigned here
-		/* TODO JNO - tohle bude nutné ještě upravit kvůli duplicitám v proxies */
 		if (!methodAllowsDuplicates && referenceBuilder instanceof InitialReferenceBuilder irb) {
 			irb.remapInternalKeyUsing(referenceKey -> {
 				// try to find new reference with the same business key in this builder
@@ -765,221 +1013,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		this.memoizedReferences = null;
 	}
 
-	/**
-	 * Replaces the current set of mutations (change set) associated with the given internal reference key
-	 * in the reference mutations index. The method also updates or inserts the reference into the specified
-	 * reference bundle, handling duplicate references if necessary.
-	 *
-	 * @param internalReferenceKey The unique identifier (key) of the internal reference whose change set
-	 *                              is to be replaced in the reference mutations index.
-	 * @param reference The {@link ReferenceContract} object representing the reference to be updated or inserted.
-	 *                  Must not be null.
-	 * @param referenceBundle The {@link BuilderReferenceBundle} object representing the bundle where the reference
-	 *                        should be updated or inserted. Must not be null.
-	 * @param referenceMutationsIndex A map that maintains associations between internal reference keys and
-	 *                                 their corresponding lists of reference mutations. Must not be null.
-	 * @param changeSet A list of {@link ReferenceMutation} objects representing the new change set to be associated
-	 *                  with the specified internal reference key in the reference mutations index. Must not be null.
-	 */
-	private void replaceChangeSet(
-		int internalReferenceKey,
-		@Nonnull ReferenceContract reference,
-		@Nonnull BuilderReferenceBundle referenceBundle,
-		@Nonnull Map<Integer, List<ReferenceMutation<?>>> referenceMutationsIndex,
-		@Nonnull List<ReferenceMutation<?>> changeSet
-	) {
-		referenceBundle.upsertWithDuplicateReferenceConversion(
-			reference,
-			rk -> getReference(rk)
-				.orElseThrow(() -> new GenericEvitaInternalError("Reference disappeared!"))
-		);
-
-		referenceMutationsIndex.put(internalReferenceKey, changeSet);
-	}
-
-	/**
-	 * This method upserts a new mutation into an existing list of reference mutations.
-	 * The logic ensures that the new mutation either replaces or coexists with compatible
-	 * mutations based on specific rules. If necessary, certain mutations in the existing
-	 * list are removed to maintain coherence with the new mutation.
-	 *
-	 * @param existingChangeSet A list of {@link ReferenceMutation} objects representing
-	 *                          the current state of mutations. This list may be modified
-	 *                          by the method, with elements added, replaced, or removed
-	 *                          based on the logic provided.
-	 * @param newMutation       A {@link ReferenceMutation} object representing the new mutation
-	 *                          to be added to the existing change set. The new mutation
-	 *                          is evaluated relative to the existing list to determine
-	 *                          if it should replace or coexist with other mutations.
-	 */
-	private static void upsertModification(
-		@Nonnull List<ReferenceMutation<?>> existingChangeSet,
-		@Nonnull ReferenceMutation<?> newMutation
-	) {
-		boolean addNewMutation = true;
-		final Iterator<ReferenceMutation<?>> it = existingChangeSet.iterator();
-		while (it.hasNext()) {
-			final ReferenceMutation<?> existingMutation = it.next();
-			if (existingMutation instanceof InsertReferenceMutation) {
-				Assert.isPremiseValid(
-					!(newMutation instanceof RemoveReferenceMutation),
-					"Unexpected new mutation!"
-				);
-			} else if (existingMutation instanceof SetReferenceGroupMutation) {
-				if (newMutation instanceof SetReferenceGroupMutation) {
-					it.remove();
-				} else if (newMutation instanceof RemoveReferenceGroupMutation) {
-					it.remove();
-					addNewMutation = false;
-				}
-			} else if (existingMutation instanceof RemoveReferenceGroupMutation) {
-				if (newMutation instanceof SetReferenceGroupMutation || newMutation instanceof RemoveReferenceGroupMutation) {
-					it.remove();
-				}
-			} else if (existingMutation instanceof ReferenceAttributeMutation existingRam) {
-				if (newMutation instanceof ReferenceAttributeMutation newRam) {
-					final AttributeKey existingKey = existingRam.getAttributeMutation().getAttributeKey();
-					final AttributeKey newKey = newRam.getAttributeMutation().getAttributeKey();
-					if (existingKey.equals(newKey)) {
-						it.remove();
-					}
-				}
-			} else if (existingMutation instanceof RemoveReferenceMutation) {
-				it.remove();
-			} else {
-				throw new GenericEvitaInternalError("Unexpected mutation type: " + existingMutation.getClass());
-			}
-		}
-		// when we are reinserting or removing the reference - all previous mutations are irrelevant
-		if (newMutation instanceof InsertReferenceMutation || newMutation instanceof RemoveReferenceMutation) {
-			existingChangeSet.clear();
-		}
-		if (addNewMutation) {
-			existingChangeSet.add(newMutation);
-		}
-	}
-
-	/**
-	 * Merges the given reference mutation change set with the current state of the reference, ensuring that
-	 * the resulting mutations reflect any removals and redundant operations are skipped. This method is designed
-	 * to restore removals for groups or attributes that were not re-upserted after a prior removal, ensuring the
-	 * minimal and correct set of mutations is generated.
-	 *
-	 * @param changeSet a list of reference mutations to be merged and filtered
-	 * @param refInBase the base reference state, which is used to compare the existing state with the incoming mutations
-	 * @param referenceKey the key that identifies the reference being mutated
-	 * @return a list of merged and filtered reference mutations, including any necessary removal mutations and excluding redundant operations
-	 */
-	@Nonnull
-	private static List<ReferenceMutation<?>> collectMergedReferenceMutations(
-		@Nonnull List<ReferenceMutation<?>> changeSet,
-		@Nonnull ReferenceContract refInBase,
-		@Nonnull ReferenceKey referenceKey
-	) {
-		// Merge required: we need to restore removals for group/attributes that weren't upserted after previous removal
-		boolean groupUpserted = false;
-		Set<AttributeKey> attributesUpserted = null;
-
-		// Scan changeSet once to gather upsert info
-		for (final ReferenceMutation<?> rm : changeSet) {
-			if (rm instanceof SetReferenceGroupMutation) {
-				groupUpserted = true;
-			} else if (rm instanceof ReferenceAttributeMutation ram) {
-				final AttributeMutation am = ram.getAttributeMutation();
-				if (am instanceof UpsertAttributeMutation) {
-					if (attributesUpserted == null) {
-						attributesUpserted = new HashSet<>(8);
-					}
-					attributesUpserted.add(am.getAttributeKey());
-				}
-			}
-		}
-
-		final Set<AttributeKey> finalAttributesUpserted =
-			attributesUpserted != null ? attributesUpserted : Collections.emptySet();
-
-		// Build merged mutation list with minimal allocations
-		// Heuristic capacity: original + possible removals
-		List<ReferenceMutation<?>> merged = new ArrayList<>(changeSet.size() + 8);
-
-		// If group was NOT upserted, add removal of previous group (if any)
-		if (!groupUpserted) {
-			final Optional<? extends Droppable> groupOpt = refInBase.getGroup();
-			if (groupOpt.isPresent()) {
-				final Droppable group = groupOpt.get();
-				if (group.exists()) {
-					merged.add(new RemoveReferenceGroupMutation(referenceKey));
-				}
-			}
-		}
-
-		// For attributes not upserted, add their removals if they existed before
-		final Collection<AttributeValue> attrs = refInBase.getAttributeValues();
-		for (final AttributeValue av : attrs) {
-			if (av.exists()) {
-				final AttributeKey key = av.key();
-				if (!finalAttributesUpserted.contains(key)) {
-					merged.add(
-						new ReferenceAttributeMutation(
-							referenceKey,
-							new RemoveAttributeMutation(key)
-						)
-					);
-				}
-			}
-		}
-
-		// Append filtered original changeSet (skip redundant ops)
-		for (final ReferenceMutation<?> rm : changeSet) {
-			// Skip InsertReferenceMutation - the reference existed before the removal
-			if (rm instanceof InsertReferenceMutation) {
-				continue;
-			}
-
-			// Skip redundant SetReferenceGroupMutation if group remains the same
-			if (rm instanceof SetReferenceGroupMutation srgm) {
-				boolean sameAsBefore = false;
-				final Optional<GroupEntityReference> groupOpt = refInBase.getGroup();
-				if (groupOpt.isPresent()) {
-					final GroupEntityReference group = groupOpt.get();
-					final Integer existingPk = group.getPrimaryKey();
-					final Integer newPk = srgm.getGroupPrimaryKey();
-					sameAsBefore = Objects.equals(existingPk, newPk);
-				}
-				if (sameAsBefore) {
-					continue;
-				}
-			}
-
-			// Skip redundant attribute upserts if value equals previous one
-			if (rm instanceof ReferenceAttributeMutation ram) {
-				final AttributeMutation am = ram.getAttributeMutation();
-				if (am instanceof UpsertAttributeMutation upsert) {
-					boolean sameAsBefore = false;
-					final AttributeKey aKey = am.getAttributeKey();
-
-					// Check schema existence before reading value, as in original logic
-					final boolean schemaPresent = refInBase
-						.getAttributeSchema(aKey.attributeName())
-						.isPresent();
-					if (schemaPresent) {
-						final Optional<AttributeValue> avOpt = refInBase.getAttributeValue(aKey);
-						if (avOpt.isPresent()) {
-							final AttributeValue prev = avOpt.get();
-							sameAsBefore = Objects.equals(prev.value(), upsert.getAttributeValue());
-						}
-					}
-					if (sameAsBefore) {
-						continue;
-					}
-				}
-			}
-
-			merged.add(rm);
-		}
-		return merged;
-	}
-
 	@Nonnull
 	@Override
 	public References build() {
@@ -1004,6 +1037,38 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 */
 	public boolean isThereAnyChangeInMutations() {
 		return this.referenceMutations != null && !this.referenceMutations.isEmpty();
+	}
+
+	/**
+	 * Replaces the current set of mutations (change set) associated with the given internal reference key
+	 * in the reference mutations index. The method also updates or inserts the reference into the specified
+	 * reference bundle, handling duplicate references if necessary.
+	 *
+	 * @param internalReferenceKey    The unique identifier (key) of the internal reference whose change set
+	 *                                is to be replaced in the reference mutations index.
+	 * @param reference               The {@link ReferenceContract} object representing the reference to be updated or inserted.
+	 *                                Must not be null.
+	 * @param referenceBundle         The {@link BuilderReferenceBundle} object representing the bundle where the reference
+	 *                                should be updated or inserted. Must not be null.
+	 * @param referenceMutationsIndex A map that maintains associations between internal reference keys and
+	 *                                their corresponding lists of reference mutations. Must not be null.
+	 * @param changeSet               A list of {@link ReferenceMutation} objects representing the new change set to be associated
+	 *                                with the specified internal reference key in the reference mutations index. Must not be null.
+	 */
+	private void replaceChangeSet(
+		int internalReferenceKey,
+		@Nonnull ReferenceContract reference,
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull Map<Integer, List<ReferenceMutation<?>>> referenceMutationsIndex,
+		@Nonnull List<ReferenceMutation<?>> changeSet
+	) {
+		referenceBundle.upsertWithDuplicateReferenceConversion(
+			reference,
+			rk -> getReference(rk)
+				.orElseThrow(() -> new GenericEvitaInternalError("Reference disappeared!"))
+		);
+
+		referenceMutationsIndex.put(internalReferenceKey, changeSet);
 	}
 
 	/**
@@ -1064,7 +1129,10 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 				final List<ReferenceMutation<?>> mutationsForRef = mutationBulk.get(ipk);
 				if (mutationsForRef != null) {
-					result.add(evaluateReferenceMutations(baseRef, mutationsForRef));
+					final ReferenceContract mutatedReference = evaluateReferenceMutations(baseRef, mutationsForRef);
+					if (mutatedReference != null) {
+						result.add(retainRichDataIfPossible(mutatedReference));
+					}
 					continue;
 				}
 			}
@@ -1315,7 +1383,30 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final String referenceName = referenceKey.referenceName();
 		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 		referenceBundle.initializeBundleIfNecessary(
-			theBundle -> initReferenceBundle(referenceName, theBundle)
+			theBundle -> {
+				initReferenceBundle(referenceName, theBundle);
+				if (this.removedReferences != null) {
+					for (FullyComparableReferenceKey removedReference : this.removedReferences) {
+						if (referenceName.equals(removedReference.referenceName())) {
+							this.baseReferences.getReferenceWithoutSchemaCheck(
+								new ReferenceKey(
+									removedReference.referenceName(),
+									removedReference.primaryKey(),
+									removedReference.internalPrimaryKey()
+								)
+							).ifPresentOrElse(
+								theBundle::removeReference,
+								() -> {
+									// this should never happen - the removed reference must be present in base references
+									throw new GenericEvitaInternalError(
+										"Removed reference is missing in base references!"
+									);
+								}
+							);
+						}
+					}
+				}
+			}
 		);
 
 		// register a new reference
@@ -1375,9 +1466,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * Initializes a reference bundle by processing both duplicated and non-duplicated references
 	 * associated with a specific reference name.
 	 *
-	 * @param referenceName       The name of the reference to be processed. Must not be null.
-	 * @param referenceBundle     The builder reference bundle where the references are upserted
-	 *                             based on their duplicated or non-duplicated status. Must not be null.
+	 * @param referenceName   The name of the reference to be processed. Must not be null.
+	 * @param referenceBundle The builder reference bundle where the references are upserted
+	 *                        based on their duplicated or non-duplicated status. Must not be null.
 	 */
 	private void initReferenceBundle(
 		@Nonnull String referenceName,
@@ -1485,14 +1576,17 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		assertReferenceAvailableAndMatchPredicate(referenceName);
 
+		final ReferenceKey genericReferenceKey = referenceKey.isUnknownReference() ?
+			referenceKey :
+			new ReferenceKey(referenceName, referencedPrimaryKey);
+
 		// remove possibly added / updated reference mutation
-		final Map<Integer, List<ReferenceMutation<?>>> removedMutations = this.referenceMutations == null ?
-			Map.of() :
-			this.referenceMutations.remove(
-				referenceKey.isUnknownReference() ?
-					referenceKey :
-					new ReferenceKey(referenceName, referencedPrimaryKey)
-			);
+		final Map<Integer, List<ReferenceMutation<?>>> removedMutations;
+		if (this.referenceMutations == null) {
+			removedMutations = Map.of();
+		} else {
+			removedMutations = this.referenceMutations.remove(genericReferenceKey);
+		}
 
 		// if the schema allows duplicates, we cannot remove the reference without knowing
 		// the exact internal primary key to remove - unless explicitly allowed
@@ -1510,19 +1604,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		boolean removed = removedMutations != null && !removedMutations.isEmpty();
 		List<ReferenceMutation<?>> discardedMutations = null;
 		if (removed) {
-			if (!allowRemovingAllDuplicates && removedMutations.size() > 1) {
-				this.referenceMutations.put(referenceKey, removedMutations);
-				if (referenceKey.isUnknownReference()) {
-					throw new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.WRITE);
-				} else {
-					discardedMutations = removedMutations.remove(referenceKey.internalPrimaryKey());
-				}
-			} else {
-				Assert.isPremiseValid(
+			if (referenceKey.isUnknownReference()) {
+				Assert.isTrue(
 					removedMutations.size() == 1,
-					"We always expect single removed reference mutation collection here!"
+					() -> new ReferenceAllowsDuplicatesException(referenceName, this.entitySchema, Operation.WRITE)
 				);
 				discardedMutations = removedMutations.values().iterator().next();
+			} else {
+				this.referenceMutations.put(genericReferenceKey, removedMutations);
+				discardedMutations = removedMutations.remove(referenceKey.internalPrimaryKey());
+				removed = discardedMutations != null && !discardedMutations.isEmpty();
 			}
 		}
 
@@ -1623,41 +1714,12 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				referenceBundle;
 			lastReferenceName = mutationReferenceName;
 			// apply mutation
-			mutatedReference = mutation.mutateLocal(this.entitySchema, mutatedReference, referenceBundle.getAttributeTypes());
+			mutatedReference = mutation.mutateLocal(
+				this.entitySchema, mutatedReference, referenceBundle.getAttributeTypes());
 		}
-		final ReferenceContract theReference = mutatedReference != null && mutatedReference.differsFrom(reference) ?
+		return mutatedReference != null && mutatedReference.differsFrom(reference) ?
 			mutatedReference :
 			reference;
-		if (theReference != null) {
-			final Optional<ReferenceContract> originalReference = theReference.getReferenceKey()
-			                                                                  .isKnownInternalPrimaryKey() ?
-				this.richReferenceFetcher.apply(theReference.getReferenceKey()) : empty();
-			final Optional<SealedEntity> originalReferencedEntity = originalReference
-				.flatMap(ReferenceContract::getReferencedEntity);
-			final Optional<SealedEntity> originalReferencedEntityGroup = originalReference
-				.flatMap(ReferenceContract::getGroupEntity);
-			final Boolean entityValid = originalReferencedEntity
-				.map(EntityContract::getPrimaryKey)
-				.map(it -> it == theReference.getReferencedPrimaryKey())
-				.orElse(false);
-			final Boolean entityGroupValid = originalReferencedEntityGroup
-				.map(EntityContract::getPrimaryKey)
-				.map(
-					it -> theReference.getGroup()
-					                  .map(group -> Objects.equals(it, group.getPrimaryKey()))
-					                  .orElse(false)
-				)
-				.orElse(false);
-			if (entityValid || entityGroupValid) {
-				return new ReferenceDecorator(
-					theReference,
-					entityValid ? originalReferencedEntity.get() : null,
-					entityGroupValid ? originalReferencedEntityGroup.get() : null,
-					this.referencePredicate.getAttributePredicate(theReference.getReferenceName())
-				);
-			}
-		}
-		return theReference;
 	}
 
 	/**
@@ -1733,7 +1795,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	@Nonnull
 	private BuilderReferenceBundle getReferenceBundleForUpdate(@Nonnull String referenceName, int expectedCount) {
 		if (this.referenceBundles == null) {
-			this.referenceBundles = CollectionUtils.createHashMap(Math.max(8, this.entitySchema.getReferences().size()));
+			this.referenceBundles = CollectionUtils.createHashMap(
+				Math.max(8, this.entitySchema.getReferences().size()));
 		}
 		return this.referenceBundles.computeIfAbsent(
 			referenceName,

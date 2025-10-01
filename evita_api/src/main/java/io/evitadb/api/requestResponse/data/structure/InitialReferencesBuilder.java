@@ -844,13 +844,35 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		return --this.lastLocallyAssignedReferenceId;
 	}
 
+	@Nonnull
+	@Override
+	public ReferenceKey createReference(@Nonnull String referenceName, int referencedEntityPrimaryKey) {
+		final ReferenceSchemaContract referenceSchema = getReferenceSchemaContract(referenceName)
+			.orElseThrow(() -> new ReferenceNotKnownException(referenceName));
+		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
+		final InitialReferenceBuilder refBuilder = new InitialReferenceBuilder(
+			this.entitySchema,
+			referenceSchema,
+			referenceName,
+			referencedEntityPrimaryKey,
+			getNextReferenceInternalId(),
+			referenceBundle.getAttributeTypes()
+		);
+		final Reference newReference = refBuilder.build();
+		addOrReplaceReferenceInternal(newReference);
+		referenceBundle.upsertWithDuplicateReferenceConversion(
+			newReference,
+			referenceKey -> this.getReference(referenceKey).orElseThrow()
+		);
+		return newReference.getReferenceKey();
+	}
+
 	@Override
 	public void addOrReplaceReferenceMutations(
 		@Nonnull ReferenceBuilder referenceBuilder,
 		boolean methodAllowsDuplicates
 	) {
 		// if the reference is new - we need to adapt its internal key to the one assigned here
-		/* TODO JNO - tohle bude nutné ještě upravit kvůli duplicitám v proxies */
 		if (!methodAllowsDuplicates && referenceBuilder instanceof InitialReferenceBuilder irb) {
 			irb.remapInternalKeyUsing(referenceKey -> {
 				// try to find new reference with the same business key in this builder

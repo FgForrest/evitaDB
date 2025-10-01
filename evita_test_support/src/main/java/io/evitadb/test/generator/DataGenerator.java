@@ -630,15 +630,34 @@ public class DataGenerator {
 				if (referencedEntity != null) {
 					if (referenceAllowsDuplicates) {
 						final int finalIndex = i;
-						detachedBuilder.setOrUpdateReference(
-							referenceName,
-							Objects.requireNonNull(referencedEntity),
-							// if we update existing entity, we rewrite contents of every third refererence
-							ref -> { return updatedReferences.contains(new ComparableReferenceKey(ref.getReferenceKey())); },
-							thatIs -> {
-								referenceBuilder.accept(thatIs);
+						if (updatedReferences.isEmpty()) {
+							// create new reference
+							detachedBuilder.setOrUpdateReference(
+								referenceName,
+								Objects.requireNonNull(referencedEntity),
+								// if we update existing entity, we rewrite contents of every third refererence
+								ref -> false,
+								thatIs -> {
+									referenceBuilder.accept(thatIs);
+								}
+							);
+						} else {
+							// update existing reference
+							for (ComparableReferenceKey updatedReferenceKey : updatedReferences) {
+								detachedBuilder.setOrUpdateReference(
+									referenceName,
+									Objects.requireNonNull(referencedEntity),
+									// if we update existing entity, we rewrite contents of every third refererence
+									ref -> {
+										return updatedReferenceKey.equals(
+											new ComparableReferenceKey(ref.getReferenceKey()));
+									},
+									thatIs -> {
+										referenceBuilder.accept(thatIs);
+									}
+								);
 							}
-						);
+						}
 					} else {
 						detachedBuilder.setReference(
 							referenceName,

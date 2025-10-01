@@ -113,9 +113,9 @@ public class SealedEntityReferenceProxyState
 	 * Method returns reference schema of the wrapped sealed entity reference.
 	 * @return reference schema
 	 */
-	@Nullable
+	@Nonnull
 	public ReferenceSchemaContract getReferenceSchema() {
-		return this.reference.getReferenceSchema().orElseThrow();
+		return this.reference.getReferenceSchemaOrThrow();
 	}
 
 	@Nonnull

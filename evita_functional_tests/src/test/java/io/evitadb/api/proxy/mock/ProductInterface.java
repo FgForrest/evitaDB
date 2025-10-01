@@ -51,6 +51,8 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.evitadb.api.AbstractHundredProductsFunctionalTest.ATTRIBUTE_RELATION_TYPE;
+
 /**
  * Example product interface for proxying.
  *
@@ -185,6 +187,19 @@ public interface ProductInterface extends EntityClassifier, WithEntityContract, 
 
 	@ReferenceRef(Entities.PARAMETER)
 	ProductParameterInterface getParameterById(int parameterId) throws ContextMissingException;
+
+	@ReferenceRef(Entities.PRODUCT)
+	Collection<RelatedProductInterface> getAllRelatedProducts()
+		throws ContextMissingException;
+
+	@ReferenceRef(Entities.PRODUCT)
+	RelatedProductInterface getRelatedProduct(@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category)
+		throws ContextMissingException;
+
+	/* TODO JNO - write tests */
+	@ReferenceRef(Entities.PRODUCT)
+	Collection<RelatedProductInterface> getRelatedProducts(@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category)
+		throws ContextMissingException;
 
 	@PriceForSale
 	PriceContract getPriceForSale() throws ContextMissingException;

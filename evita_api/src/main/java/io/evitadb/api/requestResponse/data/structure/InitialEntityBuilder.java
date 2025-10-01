@@ -597,6 +597,12 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		getReferencesBuilder().addOrReplaceReferenceMutations(referenceBuilder, methodAllowsDuplicates);
 	}
 
+	@Nonnull
+	@Override
+	public ReferenceKey createReference(@Nonnull String referenceName, int referencedEntityPrimaryKey) {
+		return getReferencesBuilder().createReference(referenceName, referencedEntityPrimaryKey);
+	}
+
 	@Override
 	public EntityBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,

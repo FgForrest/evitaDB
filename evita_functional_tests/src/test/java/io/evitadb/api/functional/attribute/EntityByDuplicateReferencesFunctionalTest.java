@@ -927,7 +927,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					Schema `CATEGORY` contains validation errors:
 						Reference schema `products` contains validation errors:
 						Reflected reference `products` must contain all representative attributes of the original reflected reference `categories` in entity `PRODUCT`! Missing representative attributes: country
-						Reference schema `products` allows duplicates but has no representative attribute defined! This would effectively prevent multiple references to the same entity is the duplicates need to be uniquely identified by their representative attributes.""",
+						Reference schema `products` allows duplicates but has no representative attribute defined! This would effectively prevent multiple references to the same entity if the duplicates need to be uniquely identified by their representative attributes.""",
 				cause.getMessage()
 			);
 		}

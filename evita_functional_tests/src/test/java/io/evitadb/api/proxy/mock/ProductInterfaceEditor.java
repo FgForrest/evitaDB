@@ -157,17 +157,41 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	);
 
 	@ReferenceRef(Entities.PRODUCT)
-	ProductInterfaceEditor updateRelatedProducts(
+	ProductInterfaceEditor addOrUpdateRelatedProduct(
+		int productId,
+		Predicate<RelatedProductInterface> predicate,
+		@CreateWhenMissing Consumer<RelatedProductInterfaceEditor> relatedProductEditor
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	void updateRelatedProducts(
 		Predicate<RelatedProductInterface> filter,
 		Consumer<RelatedProductInterfaceEditor> relatedProductEditor
 	);
 
 	@ReferenceRef(Entities.PRODUCT)
+	void updateRelatedProducts(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category,
+		Consumer<RelatedProductInterfaceEditor> relatedProductEditor
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
 	@RemoveWhenExists
-	ProductInterfaceEditor removeRelatedProduct(
+	RelatedProductInterface removeRelatedProduct(
 		int productId,
 		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
 	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	RelatedProductInterface removeRelatedProduct(
+		int productId,
+		Predicate<RelatedProductInterface> predicate
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	void removeAllRelatedProducts();
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
@@ -351,4 +375,5 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@ReferenceRef(Entities.STORE)
 	@RemoveWhenExists
 	boolean removeStoreByIdAndReturnBoolean(int storeId);
+
 }

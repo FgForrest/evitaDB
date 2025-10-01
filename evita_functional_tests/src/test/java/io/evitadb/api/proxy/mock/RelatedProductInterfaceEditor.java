@@ -25,7 +25,6 @@ package io.evitadb.api.proxy.mock;
 
 
 import io.evitadb.api.requestResponse.data.InstanceEditor;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -45,11 +44,5 @@ public interface RelatedProductInterfaceEditor extends RelatedProductInterface, 
 	RelatedProductInterfaceEditor setLabel(@Nonnull String label);
 
 	RelatedProductInterfaceEditor setLabel(Locale locale, @Nonnull String label);
-
-	RelatedProductInterfaceEditor setRelatedProduct(@Nonnull ProductInterface relatedProduct);
-
-	RelatedProductInterfaceEditor setRelatedProductReference(@Nonnull EntityReference relatedProductReference);
-
-	RelatedProductInterfaceEditor setRelatedProductReferencePrimaryKey(int relatedProductReferencePrimaryKey);
 
 }

@@ -80,6 +80,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.function.IntObjPredicate;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -1854,20 +1855,33 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			.map(InsertReferenceMutation::getReferenceKey)
 			.collect(Collectors.toSet());
 		Set<ReferenceKey> createdReferences = null;
+		// we need to avoid propagating reference attribute mutations related to removed references
+		// those are handled within the reference removal process
+		// but we will build them in a lazy way
+		final IntObjBiFunction<String, Set<ReferenceKey>> removedReferencesSupplier =
+			(epk, entityName) -> mutationCollector.getExternalEntityLocalMutations(
+				entityName,
+				epk,
+				eup -> eup.getLocalMutations()
+				          .stream()
+				          .filter(RemoveReferenceMutation.class::isInstance)
+				          .map(RemoveReferenceMutation.class::cast)
+				          .map(ReferenceMutation::getReferenceKey)
+			);
+		Set<ReferenceKey> removedReferences = null;
 
 		// go through all input mutations
 		for (LocalMutation<?, ?> inputMutation : inputMutations) {
 			// and check if there are any reference attribute mutation
 			if (inputMutation instanceof ReferenceAttributeMutation ram) {
 				final ReferenceKey referenceKey = ram.getReferenceKey();
-				// lazy init created references on first attribute mutation
+				// find the reference schema
+				final String referenceName = referenceKey.referenceName();
+				final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+				// lazy init created / removed references on first attribute mutation
 				createdReferences = createdReferences == null ? createdReferencesSupplier.get() : createdReferences;
 				// if the mutation relate to reference which hasn't been created in the same entity update
 				if (!createdReferences.contains(referenceKey)) {
-
-					final String referenceName = referenceKey.referenceName();
-					final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-
 					// access the data store reader of referenced collection
 					final DataStoreReader dataStoreReader = this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType());
 					// and if such is found (collection might not yet exist, but we can still reference to it)
@@ -1901,42 +1915,72 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									// create a mutation to counterpart reference in the referenced entity
 									// but only if the attribute is visible from that point of view
 									if (attributeVisibleFromOtherSide) {
-										mutationCollector.addExternalMutation(
-											entityMutationFactory.apply(
-												new ReferenceAttributeMutation(
-													new ReferenceKey(rrsc.getReflectedReferenceName(), this.entityPrimaryKey, ram.getReferenceKey().internalPrimaryKey()),
-													toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-												)
-											)
+										removedReferences = removedReferences == null ?
+											removedReferencesSupplier.apply(
+												referenceKey.primaryKey(),
+												referenceSchema.getReferencedEntityType()
+											) :
+											removedReferences;
+										final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
+											rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
+											ram.getReferenceKey().internalPrimaryKey()
 										);
+										if (!removedReferences.contains(referenceKeyToUpdate)) {
+											// only if the counterpart reference wasn't removed in the same update
+											mutationCollector.addExternalMutation(
+												entityMutationFactory.apply(
+													new ReferenceAttributeMutation(
+														referenceKeyToUpdate,
+														toInvertedTypeAttributeMutation(ram.getAttributeMutation())
+													)
+												)
+											);
+										}
 									}
 								} else {
 									// otherwise check whether there is reflected reference in the referenced entity
 									// that relates to our standard reference
-									catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType())
-										.map(it -> ((EntitySchemaDecorator) it).getDelegate())
-										.flatMap(it -> it.getReflectedReferenceFor(entitySchema.getName(), referenceName))
-										.ifPresent(
-											// if such is found, create a mutation to counterpart reflected reference
-											// in the referenced entity
-											rrsc -> {
-												final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
-													ram.getAttributeKey().attributeName()
-												).isPresent();
-												// create a mutation to counterpart reference in the referenced entity
-												// but only if the attribute is visible from that point of view
-												if (attributeVisibleFromOtherSide) {
-													mutationCollector.addExternalMutation(
-														entityMutationFactory.apply(
-															new ReferenceAttributeMutation(
-																new ReferenceKey(rrsc.getName(), this.entityPrimaryKey, ram.getReferenceKey().internalPrimaryKey()),
-																toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-															)
+									final Optional<ReflectedReferenceSchema> reflectedReferenceSchema =
+										catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType())
+										             .map(it -> ((EntitySchemaDecorator) it).getDelegate())
+										             .flatMap(it -> it.getReflectedReferenceFor(
+											                      entitySchema.getName(),
+											                      referenceName
+										                      )
+										             );
+									if (reflectedReferenceSchema.isPresent()) {
+										final ReflectedReferenceSchema rrsc = reflectedReferenceSchema.get();
+										// if such is found, create a mutation to counterpart reflected reference
+										// in the referenced entity
+										final boolean attributeVisibleFromOtherSide = rrsc.getAttribute(
+											ram.getAttributeKey().attributeName()
+										).isPresent();
+										// create a mutation to counterpart reference in the referenced entity
+										// but only if the attribute is visible from that point of view
+										if (attributeVisibleFromOtherSide) {
+											removedReferences = removedReferences == null ?
+												removedReferencesSupplier.apply(
+													referenceKey.primaryKey(),
+													referenceSchema.getReferencedEntityType()
+												) :
+												removedReferences;
+											final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
+												rrsc.getName(), this.entityPrimaryKey,
+												ram.getReferenceKey().internalPrimaryKey()
+											);
+											if (!removedReferences.contains(referenceKeyToUpdate)) {
+												// only if the counterpart reference wasn't removed in the same update
+												mutationCollector.addExternalMutation(
+													entityMutationFactory.apply(
+														new ReferenceAttributeMutation(
+															referenceKeyToUpdate,
+															toInvertedTypeAttributeMutation(ram.getAttributeMutation())
 														)
-													);
-												}
+													)
+												);
 											}
-										);
+										}
+									}
 								}
 							}
 						}

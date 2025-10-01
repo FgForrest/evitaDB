@@ -350,6 +350,18 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		int getNextReferenceInternalId();
 
 		/**
+		 * Creates a new reference key based on the provided reference name and the primary key of the referenced entity.
+		 * Reference key contains assigned internal primary key that is unique within the entity.
+		 *
+		 * @param referenceName the name of the reference to be created, must not be null
+		 * @param referencedEntityPrimaryKey the primary key of the entity that the reference points to
+		 * @return a new {@link ReferenceKey} instance representing the created reference
+		 * @see #getNextReferenceInternalId()
+		 */
+		@Nonnull
+		ReferenceKey createReference(@Nonnull String referenceName, int referencedEntityPrimaryKey);
+
+		/**
 		 * Adds new set of reference mutations for particular `referenceKey`, if some set is already present for that
 		 * key, it is replaced by a new set.
 		 *
