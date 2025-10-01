@@ -41,6 +41,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationDescriptor {
 
+	// todo lho input version
 	PropertyDescriptor ATTRIBUTE_MUTATION = PropertyDescriptor.builder()
 		.name("attributeMutation")
 		.description("""
@@ -48,7 +49,6 @@ public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationD
 			""")
 		.type(nonNullRef(ReferenceAttributeMutationAggregateDescriptor.THIS))
 		.build();
-
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("ReferenceAttributeMutation")

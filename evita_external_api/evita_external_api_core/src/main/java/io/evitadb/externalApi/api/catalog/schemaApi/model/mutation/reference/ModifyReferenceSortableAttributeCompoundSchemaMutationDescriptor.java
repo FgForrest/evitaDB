@@ -40,6 +40,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
+	// todo lho input version
 	PropertyDescriptor SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.builder()
 		.name("sortableAttributeCompoundSchemaMutation")
 		.description("""

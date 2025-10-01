@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchema
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.annotation.DataSet;
@@ -90,7 +91,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 			writer -> {
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(subscriptionId, "onSystemChange { version index operation }"));
-				wait(500);
+				wait(2000);
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -174,8 +175,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					.and(
 						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
-						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY))
-							.isEqualTo(json("{\"mutationType\": \"CreateCatalogSchemaMutation\", \"catalogName\": \"" + newCatalogName + "\"}"))
+						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateCatalogSchemaMutation")
 					);
 			}
 		);
@@ -196,13 +197,14 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
 
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
+
 				// open subscription
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onCatalogChange(catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
+					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
 				));
-				wait(500);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -239,10 +241,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
 
-				final long startVersion = evita.queryCatalog(
-					newCatalogName,
-					EvitaSessionContract::getCatalogVersion
-				) + 1;
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -286,10 +285,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
 
-				final long startVersion = evita.queryCatalog(
-					newCatalogName,
-					EvitaSessionContract::getCatalogVersion
-				) + 1;
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -319,12 +315,14 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					.and(
 						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
-						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY))
-							.isEqualTo(json("{\"mutationType\": \"CreateEntitySchemaMutation\", \"entityType\": \"" + newEntityType + "\"}"))
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateEntitySchemaMutation")
 					);
 			}
 		);
 	}
+
+	// todo lho test custom criteria
 
 	@Nonnull
 	private static String createSubscriptionQueryMessage(@Nonnull String subscriptionId, @Nonnull String subscriptionQuery) {

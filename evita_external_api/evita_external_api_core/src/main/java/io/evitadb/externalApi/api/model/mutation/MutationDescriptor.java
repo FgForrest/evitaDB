@@ -26,6 +26,7 @@ package io.evitadb.externalApi.api.model.mutation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Ancestor descriptor for all descriptor of {@link io.evitadb.api.requestResponse.mutation.Mutation} implementations.
@@ -37,6 +38,6 @@ public interface MutationDescriptor {
 	PropertyDescriptor MUTATION_TYPE = PropertyDescriptor.builder()
 		.name("mutationType")
 		.description("The mutation type. Can be used as discriminator.")
-		.type(nonNull(String.class))
+		.type(nullable(String.class)) // todo lho must be nonnull but only in output types
 		.build();
 }

@@ -49,6 +49,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON;
@@ -124,7 +125,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		session.inbound().subscribe(new WebSocketSubscriber(receivedEventsHolder));
 		writer.accept(outbound);
 
-		await().until(() -> receivedEventsHolder.size() >= waitForEvents);
+		await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
 		validator.accept(receivedEventsHolder);
 
 		outbound.close();

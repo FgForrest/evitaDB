@@ -86,7 +86,6 @@ public class GraphQLWebSocketHandler implements WebSocketHandler, HttpService {
 		// However, we want to use the GET method via HTTP for other purposes, so we delegate the processing to nested
 		// service.
 		if (this.fallbackService == null) {
-			// todo lho better exception
 			throw new GraphQLInvalidArgumentException("Only WebSocket connections are supported.");
 		}
 		return this.fallbackService.serve(ctx, req);

@@ -49,6 +49,7 @@ public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor
 			""")
 		.type(nonNull(String.class))
 		.build();
+	// todo lho input version
 	PropertyDescriptor SCHEMA_MUTATIONS = PropertyDescriptor.builder()
 		.name("schemaMutations")
 		.description("""

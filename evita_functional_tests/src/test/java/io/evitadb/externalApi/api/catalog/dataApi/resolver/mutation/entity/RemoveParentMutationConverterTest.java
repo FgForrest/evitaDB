@@ -71,11 +71,6 @@ class RemoveParentMutationConverterTest {
 
 	@Test
 	void shouldSerializeLocalMutationToOutput() {
-		assertEquals(
-			true, // this mutation doesn't have any parameter, therefore it defaults to "true" (this makes sense within mutation aggregator where the value is prefixed with mutation name)
-			this.converter.convertToOutput(new RemoveParentMutation())
-		);
-
 		final RemoveParentMutation inputMutation = new RemoveParentMutation();
 
 		//noinspection unchecked

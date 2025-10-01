@@ -41,6 +41,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ModifyCatalogSchemaMutationDescriptor extends EngineMutationDescriptor {
 
+	// todo lho input version
 	PropertyDescriptor SCHEMA_MUTATIONS = PropertyDescriptor.builder()
 		.name("schemaMutations")
 		.description("""
@@ -49,6 +50,7 @@ public interface ModifyCatalogSchemaMutationDescriptor extends EngineMutationDes
 		.type(nonNullListRef(LocalCatalogSchemaMutationAggregateDescriptor.THIS))
 		.build();
 
+	// todo lho register?
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("ModifyCatalogSchemaMutation")
 		.description("""

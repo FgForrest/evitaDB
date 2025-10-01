@@ -34,6 +34,8 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExc
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * TODO lho docs
@@ -68,12 +70,14 @@ public class EntityUpsertMutationConverter extends MutationConverter<EntityUpser
 
 	@Override
 	protected void convertToOutput(@Nonnull EntityUpsertMutation mutation, @Nonnull Output output) {
+		output.setProperty(EntityUpsertMutationDescriptor.MUTATION_TYPE, mutation.getClass().getSimpleName());
 		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_PRIMARY_KEY, mutation.getEntityPrimaryKey());
 		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_TYPE, mutation.getEntityType());
 		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_EXISTENCE, mutation.expects());
+		//noinspection unchecked
 		output.setProperty(
 			EntityUpsertMutationDescriptor.LOCAL_MUTATIONS,
-			this.delegatingLocalMutationConverter.convertToOutput((LocalMutation<?, ?>) mutation.getLocalMutations())
+			this.delegatingLocalMutationConverter.convertToOutput((List<LocalMutation<?,?>>) mutation.getLocalMutations())
 		);
 	}
 

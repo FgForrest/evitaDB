@@ -40,6 +40,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ModifyReferenceAttributeSchemaMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
+	// todo lho input version
 	PropertyDescriptor ATTRIBUTE_SCHEMA_MUTATION = PropertyDescriptor.builder()
 		.name("attributeSchemaMutation")
 		.description("""

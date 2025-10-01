@@ -65,6 +65,7 @@ public interface EntityUpsertMutationDescriptor extends MutationDescriptor {
 			""")
 		.type(nonNull(EntityExistence.class))
 		.build();
+	// todo lho input version
 	PropertyDescriptor LOCAL_MUTATIONS = PropertyDescriptor.builder()
 		.name("localMutations")
 		.description("""

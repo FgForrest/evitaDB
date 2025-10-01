@@ -8,6 +8,15 @@ Sec-WebSocket-Protocol: graphql-transport-ws
 }
 
 ###
+WEBSOCKET ws://localhost:5555/gql/testCatalog/schema
+Origin: http://localhost:5555
+Sec-WebSocket-Protocol: graphql-transport-ws
+
+{
+  "type": "connection_init"
+}
+
+###
 GRAPHQL http://localhost:5555/gql/evita
 
 {

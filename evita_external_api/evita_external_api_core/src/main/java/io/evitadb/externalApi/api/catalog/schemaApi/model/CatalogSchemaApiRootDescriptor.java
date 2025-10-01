@@ -61,7 +61,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
     EndpointDescriptor ON_CATALOG_SCHEMA_CHANGE = EndpointDescriptor.builder()
         .operation("onSchemaChange")
         .urlPathItem("schema")
-        .classifier("catalog")
+        .classifier("catalog") // todo lho this cannot be present in final operation name, should it be here?
         .description("""
             Subscribes client to a stream of catalog schema changes which are sent over as individual capture events.
             """)

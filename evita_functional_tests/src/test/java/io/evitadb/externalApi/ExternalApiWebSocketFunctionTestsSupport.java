@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.Evita;
 import net.javacrumbs.jsonunit.assertj.JsonAssert;
 
 import javax.annotation.Nonnull;
@@ -39,6 +41,20 @@ import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
 public interface ExternalApiWebSocketFunctionTestsSupport {
 
 	Random RND = new Random();
+
+	default long getStartVersionForCatalogCDC(@Nonnull Evita evita, @Nonnull String catalogName) {
+		return evita.queryCatalog(
+			catalogName,
+			EvitaSessionContract::getCatalogVersion
+		) + 1;
+	}
+
+	default long getStartVersionForEvitaCDC(@Nonnull Evita evita, @Nonnull String catalogName) {
+		return evita.queryCatalog(
+			catalogName,
+			EvitaSessionContract::getCatalogVersion
+		) + 1;
+	}
 
 	@Nonnull
 	default JsonAssert assertNextEvent(@Nonnull String receivedEvent, @Nonnull String expectedSubscriptionId) {

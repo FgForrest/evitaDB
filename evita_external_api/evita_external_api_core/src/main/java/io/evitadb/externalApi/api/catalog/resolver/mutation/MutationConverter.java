@@ -150,83 +150,86 @@ public abstract class MutationConverter<M extends Mutation> {
 		final Class<?> objectType = object.getClass();
 		final Constructor<?> constructor = resolveCreatorConstructor(objectType);
 
-		if (constructor.getParameterCount() == 0) {
+		if (constructor.getParameterCount() == 0 && !(object instanceof Mutation)) {
 			output.setValue(true);
-		} else {
-			if (object instanceof Mutation) {
-				output.setProperty(MutationDescriptor.MUTATION_TYPE.name(), object.getClass().getSimpleName());
+			return;
+		}
+
+		if (object instanceof Mutation) {
+			output.setProperty(MutationDescriptor.MUTATION_TYPE.name(), object.getClass().getSimpleName());
+		}
+
+		final Parameter[] parameters = constructor.getParameters();
+		for (int i = 0; i < constructor.getParameterCount(); i++) {
+			final Parameter parameter = parameters[i];
+
+			final String name = parameter.getName();
+			if (output.hasProperty(name)) {
+				// the property has been set manually, we don't want to override it
+				continue;
 			}
 
-			final Parameter[] parameters = constructor.getParameters();
-			for (int i = 0; i < constructor.getParameterCount(); i++) {
-				final Parameter parameter = parameters[i];
-
-				final String name = parameter.getName();
-				if (output.hasProperty(name)) {
-					// the property has been set manually, we don't want to override it
-					continue;
+			final Object originalValue;
+			final Method getter = this.reflectionLookup.findGetter(objectType, name);
+			if (getter != null) {
+				try {
+					originalValue = getter.invoke(object);
+				} catch (IllegalAccessException | InvocationTargetException e) {
+					throw this.exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
 				}
-
-				final Object originalValue;
-				final Method getter = this.reflectionLookup.findGetter(objectType, name);
-				if (getter != null) {
+			} else {
+				final Field propertyField = this.reflectionLookup.findPropertyField(objectType, name);
+				if (propertyField != null) {
 					try {
-						originalValue = getter.invoke(object);
-					} catch (IllegalAccessException | InvocationTargetException e) {
-						throw this.exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
+						originalValue = propertyField.get(object);
+					} catch (IllegalAccessException e) {
+						throw this.exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
 					}
 				} else {
-					final Field propertyField = this.reflectionLookup.findPropertyField(objectType, name);
-					if (propertyField != null) {
-						try {
-							originalValue = propertyField.get(object);
-						} catch (IllegalAccessException e) {
-							throw this.exceptionFactory.createInternalError("Could not invoke field for property `" + name + "` in mutation `" + getMutationName() + "`.", e);
-						}
-					} else {
-						throw this.exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
-					}
+					throw this.exceptionFactory.createInternalError("Could not find getter nor field for property `" + name + "` in mutation `" + getMutationName() + "`.");
 				}
-
-
-				Class<?> targetType = parameter.getType();
-				if (Serializable.class.equals(targetType)) {
-					if (Serializable.class.isAssignableFrom(originalValue.getClass())) {
-						targetType = originalValue.getClass();
-					} else {
-						throw this.exceptionFactory.createInternalError(
-							"Could not serialize property `" + name + "` in mutation `" + getMutationName() + "`. " +
-								"Value to serialize is not serializable as expected, it is `" + originalValue.getClass().getName() + "`."
-						);
-					}
-				}
-				final Object targetValue;
-
-				if (
-					Class.class.isAssignableFrom(targetType) ||
-					EvitaDataTypes.isSupportedTypeOrItsArray(targetType) ||
-					targetType.isEnum() ||
-					(targetType.isArray() && targetType.getComponentType().isEnum())
-				) {
-					targetValue = originalValue;
-				} else if (targetType.isArray()) {
-					final int arraySize = Array.getLength(originalValue);
-					final List<Object> targetList = new ArrayList<>(arraySize);
-					for (int j = 0; j < arraySize; j++) {
-						final Object item = Array.get(originalValue, j);
-
-						final Output innerItemOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
-						convertObjectToOutput(item, innerItemOutput);
-						targetList.add(innerItemOutput);
-					}
-					targetValue = targetList;
-				} else {
-					final Output innerOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
-					convertObjectToOutput(originalValue, innerOutput);
-					targetValue = innerOutput;
-				}
-				output.setProperty(name, targetValue);
 			}
+
+
+			Class<?> targetType = parameter.getType();
+			if (Serializable.class.equals(targetType) && originalValue != null) {
+				if (Serializable.class.isAssignableFrom(originalValue.getClass())) {
+					targetType = originalValue.getClass();
+				} else {
+					throw this.exceptionFactory.createInternalError(
+						"Could not serialize property `" + name + "` in mutation `" + getMutationName() + "`. " +
+							"Value to serialize is not serializable as expected, it is `" + originalValue.getClass().getName() + "`."
+					);
+				}
+			}
+			final Object targetValue;
+
+			if (originalValue == null) {
+				targetValue = null;
+			} else if (
+				Class.class.isAssignableFrom(targetType) ||
+				EvitaDataTypes.isSupportedTypeOrItsArray(targetType) ||
+				targetType.isEnum() ||
+				(targetType.isArray() && targetType.getComponentType().isEnum())
+			) {
+				targetValue = originalValue;
+			} else if (targetType.isArray()) {
+				final int arraySize = Array.getLength(originalValue);
+				final List<Object> targetList = new ArrayList<>(arraySize);
+				for (int j = 0; j < arraySize; j++) {
+					final Object item = Array.get(originalValue, j);
+
+					final Output innerItemOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
+					convertObjectToOutput(item, innerItemOutput);
+					targetList.add(innerItemOutput);
+				}
+				targetValue = targetList;
+			} else {
+				final Output innerOutput = Output.from(output, this.getMutationName(), this.exceptionFactory);
+				convertObjectToOutput(originalValue, innerOutput);
+				targetValue = innerOutput;
+			}
+			output.setProperty(name, targetValue);
 		}
 	}
 

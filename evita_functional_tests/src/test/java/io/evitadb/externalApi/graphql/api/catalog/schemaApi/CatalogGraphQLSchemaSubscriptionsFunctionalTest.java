@@ -21,15 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi;
+package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogGraphQLDataEndpointFunctionalTest;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -42,19 +44,21 @@ import javax.annotation.Nonnull;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static net.javacrumbs.jsonunit.assertj.JsonAssertions.json;
 
 /**
- * Tests for GraphQL catalog data subscriptions.
+ * TODO lho docs
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public class CatalogGraphQLDataSubscriptionsFunctionalTest
+public class CatalogGraphQLSchemaSubscriptionsFunctionalTest
 	extends GraphQLEndpointFunctionalTest
 	implements ExternalApiFunctionTestsSupport, ExternalApiWebSocketFunctionTestsSupport {
 
-	private static final String ON_DATA_CHANGE_PATH = "payload.data.onDataChange";
+	private static final String SCHEMA_PATH_SUFFIX = "/schema";
+	private static final String ON_SCHEMA_CHANGE_PATH = "payload.data.onSchemaChangeCatalog";
 
-	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API = "GraphQLEmptySystemForCatalogDataApi";
+	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API = "GraphQLEmptySystemForCatalogSchemaApi";
 
 	@Override
 	@DataSet(value = GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
@@ -68,6 +72,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 	void shouldTestBasicSubprotocolOperations(GraphQLTester tester) {
 		tester.testWebSocket(
 			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
 			writer -> {
 				writer.write(createPingMessage());
 				writer.write(createConnectionInitMessage());
@@ -81,43 +86,36 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
-	@DisplayName("Should receive catalog data change without body")
+	@DisplayName("Should receive catalog schema change without body")
 	void shouldReceiveCatalogCaptureWithoutBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
 		final String newEntityType = "myEntityType" + subscriptionId;
 
 		tester.testWebSocket(
 			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
 			writer -> {
-				// prepare collection
-				evita.updateCatalog(
-					TEST_CATALOG,
-					session -> {
-						session.defineEntitySchema(newEntityType).updateVia(session);
-					}
-				);
-
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onDataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
+					"onSchemaChangeCatalog(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
-						session.createNewEntity(newEntityType, 1).upsertVia(session);
+						session.defineEntitySchema(newEntityType).updateVia(session);
 					}
 				);
 			},
 			2, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
-					.node(resultPath(ON_DATA_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.node(resultPath(ON_SCHEMA_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 					.isEqualTo(Operation.UPSERT);
 			}
 		);
@@ -125,36 +123,29 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
-	@DisplayName("Should receive catalog data change with body")
+	@DisplayName("Should receive catalog schema change with body")
 	void shouldReceiveCatalogCaptureWithBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
 		final String newEntityType = "myEntityType" + subscriptionId;
 
 		tester.testWebSocket(
 			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
 			writer -> {
-				// prepare collection
-				evita.updateCatalog(
-					TEST_CATALOG,
-					session -> {
-						session.defineEntitySchema(newEntityType).updateVia(session);
-					}
-				);
-
 				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
 
 				// open subscription
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onDataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
+					"onSchemaChangeCatalog(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
 				));
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
-						session.createNewEntity(newEntityType, 1).upsertVia(session);
+						session.defineEntitySchema(newEntityType).updateVia(session);
 					}
 				);
 			},
@@ -162,10 +153,10 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
 					.and(
-						it -> it.node(resultPath(ON_DATA_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+						it -> it.node(resultPath(ON_SCHEMA_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
-						it -> it.node(resultPath(ON_DATA_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
-							.isEqualTo("EntityUpsertMutation")
+						it -> it.node(resultPath(ON_SCHEMA_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateEntitySchemaMutation")
 					);
 			}
 		);
@@ -173,15 +164,16 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
-	@DisplayName("Should receive collection data change without body")
+	@DisplayName("Should receive collection schema change without body")
 	void shouldReceiveCollectionCaptureWithoutBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
 		final String newEntityType = "myEntityType" + subscriptionId;
 
 		tester.testWebSocket(
 			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
 			writer -> {
-				// prepare collection
+				// prepare data
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -195,21 +187,25 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onMyEntityType" + subscriptionId + "DataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
+					"onMyEntityType" + subscriptionId + "SchemaChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
-						session.createNewEntity(newEntityType, 1).upsertVia(session);
+						session.getEntitySchema(newEntityType)
+							.orElseThrow()
+							.openForWrite()
+							.withAttribute("code", String.class)
+							.updateVia(session);
 					}
 				);
 			},
 			2, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
-					.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "DataChange", ChangeSystemCaptureDescriptor.OPERATION))
+					.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChange", ChangeSystemCaptureDescriptor.OPERATION))
 					.isEqualTo(Operation.UPSERT);
 			}
 		);
@@ -217,15 +213,16 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
-	@DisplayName("Should receive collection data change with body")
+	@DisplayName("Should receive collection schema change with body")
 	void shouldReceiveCollectionCaptureWithBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
 		final String newEntityType = "myEntityType" + subscriptionId;
 
 		tester.testWebSocket(
 			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
 			writer -> {
-				// prepare collection
+				// prepare data
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -239,25 +236,38 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onMyEntityType" + subscriptionId + "DataChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
+					"onMyEntityType" + subscriptionId + "SchemaChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
 				));
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
-						session.createNewEntity(newEntityType, 1).upsertVia(session);
+						session.getEntitySchema(newEntityType)
+							.orElseThrow()
+							.openForWrite()
+							.withAttribute("code", String.class)
+							.updateVia(session);
 					}
 				);
 			},
-			1, receivedEvents -> {
+			3, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
 					.and(
-						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "DataChange", ChangeSystemCaptureDescriptor.OPERATION))
+						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChange", ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
-						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "DataChange", ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
-							.isEqualTo("EntityUpsertMutation")
+						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChange", ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("ModifyEntitySchemaMutation"),
+						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChange", ChangeSystemCaptureDescriptor.BODY, ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name() + "[0]", MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateAttributeSchemaMutation")
+					);
+				assertNextEvent(receivedEvents.get(2), subscriptionId)
+					.and(
+						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChange", ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT),
+						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChange", ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateAttributeSchemaMutation")
 					);
 			}
 		);
