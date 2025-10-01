@@ -454,15 +454,15 @@ public class References implements ReferencesContract {
 
 	/**
 	 * Returns stream of all references that are marked as duplicates.
+	 *
 	 * @return stream of references
 	 */
 	@Nonnull
-	public Stream<ReferenceContract> getDuplicatedReferences(@Nonnull String referenceName) {
+	public Stream<List<ReferenceContract>> getDuplicatedReferences(@Nonnull String referenceName) {
 		return this.duplicateReferences.entrySet()
 			.stream()
 			.filter(it -> it.getKey().referenceName().equals(referenceName))
-			.map(Entry::getValue)
-			.flatMap(Collection::stream);
+			.map(Entry::getValue);
 	}
 
 	/**

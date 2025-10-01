@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
@@ -243,7 +244,10 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					attributeKey,
 					filterByVisitor.applyOnGlobalUniqueIndexes(
 						globalAttributeSchema,
-						index -> new ConstantFormula(index.getRecordIds(filterByVisitor.getEntityType()))
+						index -> {
+							final Bitmap recordIds = index.getRecordIds(filterByVisitor.getEntityType());
+							return recordIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
+						}
 					)
 				);
 			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
@@ -252,7 +256,10 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 					attributeKey,
 					filterByVisitor.applyOnUniqueIndexes(
 						attributeDefinition,
-						index -> new ConstantFormula(index.getRecordIds())
+						index -> {
+							final Bitmap recordIds = index.getRecordIds();
+							return recordIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
+						}
 					)
 				);
 			} else {

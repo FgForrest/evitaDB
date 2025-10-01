@@ -535,13 +535,24 @@ public class ClassSchemaAnalyzer {
 	/**
 	 * Method determines the cardinality from {@link Reference#allowEmpty()} / {@link ReflectedReference#allowEmpty()}
 	 * and the return type of the method - if it returns array type the multiple cardinality is returned.
+	 *
+	 * @param referenceType type of the reference
+	 * @param allowEmpty    value of {@link Reference#allowEmpty()} / {@link ReflectedReference#allowEmpty()}
+	 * @param allowDuplicates value of {@link Reference#allowDuplicates()}
+	 * @return resolved cardinality
 	 */
 	@Nonnull
-	private static Cardinality getCardinality(@Nonnull Class<?> referenceType, boolean allowEmpty) {
+	private static Cardinality getCardinality(@Nonnull Class<?> referenceType, boolean allowEmpty, boolean allowDuplicates) {
 		final Cardinality cardinality;
 		if (referenceType.isArray()) {
-			cardinality = allowEmpty ? Cardinality.ZERO_OR_MORE : Cardinality.ONE_OR_MORE;
+			cardinality = allowEmpty ?
+				(allowDuplicates ? Cardinality.ZERO_OR_MORE_WITH_DUPLICATES : Cardinality.ZERO_OR_MORE) :
+				(allowDuplicates ? Cardinality.ONE_OR_MORE_WITH_DUPLICATES : Cardinality.ONE_OR_MORE);
 		} else {
+			Assert.isTrue(
+				!allowDuplicates,
+				"Cannot set `allowDuplicates` to `true` when reference is not a collection or array!"
+			);
 			cardinality = allowEmpty ? Cardinality.ZERO_OR_ONE : Cardinality.EXACTLY_ONE;
 		}
 		return cardinality;
@@ -1009,7 +1020,7 @@ public class ClassSchemaAnalyzer {
 			this.referencesDefined.put(referenceName, definer);
 		}
 
-		final Cardinality cardinality = getCardinality(referenceType, reference.allowEmpty());
+		final Cardinality cardinality = getCardinality(referenceType, reference.allowEmpty(), reference.allowDuplicates());
 		final Class<?> examinedReferenceType = referenceType.isArray() ? referenceType.getComponentType() : referenceType;
 		final TargetEntity targetEntity;
 		final TargetEntity targetEntityGroup;
@@ -1161,7 +1172,11 @@ public class ClassSchemaAnalyzer {
 			// set cardinality first
 			if (reference.allowEmpty() != InheritableBoolean.INHERITED) {
 				editor.withCardinality(
-					getCardinality(referenceType, reference.allowEmpty() == InheritableBoolean.TRUE)
+					getCardinality(
+						referenceType,
+						reference.allowEmpty() == InheritableBoolean.TRUE,
+					               false
+					)
 				);
 			}
 

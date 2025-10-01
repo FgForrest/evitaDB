@@ -112,6 +112,13 @@ public @interface Reference {
 	boolean allowEmpty() default true;
 
 	/**
+	 * If set to true, multiple references of this type may target the same referenced entity. These duplicated
+	 * references must be uniquely identifiable by their representative attributes. If set to false, the entity
+	 * may have only one reference of this type to a particular target entity.
+	 */
+	boolean allowDuplicates() default false;
+
+	/**
 	 * Enables filtering / sorting by attributes of reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
 	 */

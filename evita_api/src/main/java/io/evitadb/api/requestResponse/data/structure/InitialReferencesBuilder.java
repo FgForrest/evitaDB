@@ -267,10 +267,18 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		final ReferenceContract reference = this.references == null ? null : this.references.get(referenceKey);
 		if (reference == null) {
 			return empty();
-		} else if (reference == References.DUPLICATE_REFERENCE || reference.getReferenceSchemaOrThrow()
-		                                                                   .getCardinality()
-		                                                                   .allowsDuplicates()) {
-			throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), this.entitySchema, Operation.READ);
+		} else if (reference == References.DUPLICATE_REFERENCE) {
+			if (referenceKey.isUnknownReference() && reference.getReferenceSchemaOrThrow().getCardinality().allowsDuplicates()) {
+				throw new ReferenceAllowsDuplicatesException(
+					referenceKey.referenceName(), this.entitySchema, Operation.READ);
+			} else if (this.referenceCollection != null) {
+				for (ReferenceContract it : this.referenceCollection) {
+					if (it.getReferenceKey().equals(referenceKey)) {
+						return of(it);
+					}
+				}
+			}
+			return empty();
 		} else {
 			return of(reference);
 		}

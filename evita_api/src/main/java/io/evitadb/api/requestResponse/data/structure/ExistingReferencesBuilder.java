@@ -1117,9 +1117,6 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		// process existing base references first
 		for (int i = 0; i < baseSize; i++) {
 			final ReferenceContract baseRef = baseReferences.get(i);
-			if (!this.referencePredicate.test(baseRef)) {
-				continue;
-			}
 			if (mutationBulk != null) {
 				final ReferenceKey baseRefKey = baseRef.getReferenceKey();
 				final int ipk = baseRefKey.internalPrimaryKey();
@@ -1130,14 +1127,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				final List<ReferenceMutation<?>> mutationsForRef = mutationBulk.get(ipk);
 				if (mutationsForRef != null) {
 					final ReferenceContract mutatedReference = evaluateReferenceMutations(baseRef, mutationsForRef);
-					if (mutatedReference != null) {
+					if (mutatedReference != null && this.referencePredicate.test(mutatedReference)) {
 						result.add(retainRichDataIfPossible(mutatedReference));
 					}
 					continue;
 				}
 			}
 			// no mutations for this reference – prefer decorated instance if available
-			result.add(this.richReferenceFetcher.apply(baseRef.getReferenceKey()).orElse(baseRef));
+			if (this.referencePredicate.test(baseRef)) {
+				result.add(this.richReferenceFetcher.apply(baseRef.getReferenceKey()).orElse(baseRef));
+			}
 		}
 
 		// now add references created solely by mutations (not tied to existing base references)
@@ -1474,22 +1473,26 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		@Nonnull String referenceName,
 		@Nonnull BuilderReferenceBundle referenceBundle
 	) {
-		final Iterator<ReferenceContract> it = this.baseReferences
+		final Iterator<List<ReferenceContract>> it = this.baseReferences
 			.getDuplicatedReferences(referenceName)
 			.iterator();
-		ReferenceContract firstReference = null;
-		boolean converted = false;
 		while (it.hasNext()) {
-			ReferenceContract reference = it.next();
-			if (converted) {
-				referenceBundle.upsertDuplicateReference(reference);
-			} else if (firstReference == null) {
-				firstReference = reference;
-				referenceBundle.upsertNonDuplicateReference(reference);
-			} else {
-				// we have more than one reference - we need to convert the first one as well
-				referenceBundle.convertToDuplicateReference(reference, firstReference);
-				converted = true;
+			final List<ReferenceContract> references = it.next();
+			ReferenceContract firstReference = null;
+			boolean converted = false;
+			for (ReferenceContract reference : references) {
+				if (this.referencePredicate.test(reference)) {
+					if (converted) {
+						referenceBundle.upsertDuplicateReference(reference);
+					} else if (firstReference == null) {
+						firstReference = reference;
+						referenceBundle.upsertNonDuplicateReference(reference);
+					} else {
+						// we have more than one reference - we need to convert the first one as well
+						referenceBundle.convertToDuplicateReference(reference, firstReference);
+						converted = true;
+					}
+				}
 			}
 		}
 		this.baseReferences.getNonDuplicatedReferences(referenceName)
