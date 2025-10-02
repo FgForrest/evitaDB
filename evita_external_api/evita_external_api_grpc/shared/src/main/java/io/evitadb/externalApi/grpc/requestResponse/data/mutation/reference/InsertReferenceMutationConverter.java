@@ -50,7 +50,8 @@ public class InsertReferenceMutationConverter implements LocalMutationConverter<
 		return new InsertReferenceMutation(
 			new ReferenceKey(
 				mutation.getReferenceName(),
-				mutation.getReferencePrimaryKey()
+				mutation.getReferencePrimaryKey(),
+				mutation.getInternalPrimaryKey()
 			),
 			EvitaEnumConverter.toCardinality(mutation.getReferenceCardinality()).orElse(null),
 			mutation.hasReferencedEntityType() ? mutation.getReferencedEntityType().getValue() : null
