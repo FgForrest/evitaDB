@@ -272,9 +272,17 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				throw new ReferenceAllowsDuplicatesException(
 					referenceKey.referenceName(), this.entitySchema, Operation.READ);
 			} else if (this.referenceCollection != null) {
-				for (ReferenceContract it : this.referenceCollection) {
-					if (it.getReferenceKey().equals(referenceKey)) {
-						return of(it);
+				if (referenceKey.isUnknownReference()) {
+					for (ReferenceContract it : this.referenceCollection) {
+						if (it.getReferenceKey().equals(referenceKey)) {
+							return of(it);
+						}
+					}
+				} else {
+					for (ReferenceContract it : this.referenceCollection) {
+						if (it.getReferenceKey().equals(referenceKey) && it.getReferenceKey().internalPrimaryKey() == referenceKey.internalPrimaryKey()) {
+							return of(it);
+						}
 					}
 				}
 			}
