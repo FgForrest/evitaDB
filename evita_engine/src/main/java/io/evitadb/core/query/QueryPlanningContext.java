@@ -456,7 +456,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					return Arrays.stream(allReducedEntityIndexPks)
 					             .mapToObj(pk -> getEntityIndexByPrimaryKey(pk, ReducedEntityIndex.class));
 				})
-				.orElseGet(() -> Stream.of(missingIndexSupplier.apply(entitySchema, entityIndexKey)));
+				.orElseGet(() -> {
+					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
+					return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
+				});
 		} else {
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY,
