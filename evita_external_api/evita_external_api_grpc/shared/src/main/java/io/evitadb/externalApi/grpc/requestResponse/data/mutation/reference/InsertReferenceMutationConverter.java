@@ -61,9 +61,11 @@ public class InsertReferenceMutationConverter implements LocalMutationConverter<
 	@Nonnull
 	@Override
 	public GrpcInsertReferenceMutation convert(@Nonnull InsertReferenceMutation mutation) {
+		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		final GrpcInsertReferenceMutation.Builder builder = GrpcInsertReferenceMutation.newBuilder()
-			.setReferenceName(mutation.getReferenceKey().referenceName())
-			.setReferencePrimaryKey(mutation.getReferenceKey().primaryKey())
+			.setReferenceName(referenceKey.referenceName())
+			.setReferencePrimaryKey(referenceKey.primaryKey())
+			.setInternalPrimaryKey(referenceKey.internalPrimaryKey())
 			.setReferenceCardinality(EvitaEnumConverter.toGrpcCardinality(mutation.getReferenceCardinality()));
 
 		if (mutation.getReferencedEntityType() != null) {
