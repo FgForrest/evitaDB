@@ -1695,7 +1695,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			this.mapping = new IntObjectHashMap<>(expectedEntityCount);
 			if (referenceSchema.getCardinality().allowsDuplicates()) {
 				final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
-				this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(ref.getReferenceKey(), rad.getRepresentativeValues(ref));
+				this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(ref.getReferenceKey(), rad.getRepresentativeValues(ref.getDelegate()));
 			} else {
 				this.representativeKeyProducer = ref -> new RepresentativeReferenceKey(ref.getReferenceKey());
 			}
