@@ -196,7 +196,6 @@ public interface ProductInterface extends EntityClassifier, WithEntityContract, 
 	RelatedProductInterface getRelatedProduct(@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category)
 		throws ContextMissingException;
 
-	/* TODO JNO - write tests */
 	@ReferenceRef(Entities.PRODUCT)
 	Collection<RelatedProductInterface> getRelatedProducts(@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category)
 		throws ContextMissingException;

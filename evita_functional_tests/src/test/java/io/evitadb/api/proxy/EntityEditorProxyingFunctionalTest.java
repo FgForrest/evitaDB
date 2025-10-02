@@ -3610,6 +3610,66 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	@DisplayName("Should add multiple references and retrieve them by discriminator")
+	@Order(46)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldAddMultipleReferencesAndRetrieveThemByDiscriminator(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final SealedEntity mainProduct = originalProducts.get(2);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final String relationType1 = "similar";
+		final String relationType2 = "different";
+
+		for (int i = 0; i < 6; i++) {
+			final boolean odd = i % 2 == 0;
+			final String relationType = odd ? relationType1 : relationType2;
+			editor.addOrUpdateRelatedProduct(
+				originalProducts.get(i / 2).getPrimaryKey(),
+				relationType,
+				ref -> {
+					ref.setLabel(CZECH_LOCALE, "Doporučený");
+					ref.setLabel(Locale.ENGLISH, "Recommended");
+				}
+			);
+		}
+
+		// Persist and verify via sealed entity reference
+		editor.upsertVia(evitaSession);
+
+		final ProductInterface reloaded = evitaSession.getEntity(
+			ProductInterface.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final Collection<RelatedProductInterface> rel1Products = reloaded.getRelatedProducts(relationType1);
+		assertEquals(3, rel1Products.size());
+		rel1Products.forEach(ref -> {
+			assertEquals(
+				relationType1,
+				ref.getRelationType()
+			);
+		});
+
+		final Collection<RelatedProductInterface> rel2Products = reloaded.getRelatedProducts(relationType2);
+		assertEquals(3, rel2Products.size());
+		rel2Products.forEach(ref -> {
+			assertEquals(
+				relationType2,
+				ref.getRelationType()
+			);
+		});
+	}
+
 	@DisplayName("Should update duplicated reference when predicate matches")
 	@Order(47)
 	@Test
@@ -3688,7 +3748,5 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			editor -> editor.removeRelatedProduct(6, ref -> "accessory".equals(ref.getRelationType()))
 		);
 	}
-
-	/* TODO JNO - add methods that verify reference removal (different return results) */
 
 }

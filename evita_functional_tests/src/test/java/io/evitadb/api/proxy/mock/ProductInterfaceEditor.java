@@ -193,6 +193,36 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@RemoveWhenExists
 	void removeAllRelatedProducts();
 
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	int removeAllRelatedProductsAndReturnCount();
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	int removeRelatedProductsAndReturnCount(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	Collection<Integer> removeAllRelatedProductsAndReturnTheirIds();
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	Collection<Integer> removeAllRelatedProductsAndReturnTheirIds(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
+	);
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	Collection<RelatedProductInterface> removeAllRelatedProductsAndReturnTheirBodies();
+
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	Collection<RelatedProductInterface> removeAllRelatedProductsAndReturnTheirBodies(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
+	);
+
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
