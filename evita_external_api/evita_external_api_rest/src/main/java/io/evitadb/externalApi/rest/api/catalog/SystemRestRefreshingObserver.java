@@ -80,6 +80,9 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 			} else if (body instanceof ModifyCatalogSchemaNameMutation mcsnm) {
 				// remove the old catalog and register the new one
 				this.restManager.unregisterCatalog(mcsnm.getCatalogName());
+				if (mcsnm.isOverwriteTarget()) {
+					this.restManager.unregisterCatalog(mcsnm.getNewCatalogName());
+				}
 				if (this.restManager.registerCatalog(mcsnm.getNewCatalogName())) {
 					this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
 				}

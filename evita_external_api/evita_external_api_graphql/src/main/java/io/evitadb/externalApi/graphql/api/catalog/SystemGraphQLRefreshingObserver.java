@@ -72,8 +72,10 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 				}
 			} else if (body instanceof ModifyCatalogSchemaNameMutation nameChange) {
 				// if the catalog schema name is changed, we need to unregister the old one and register the new one
-				/* TODO JNO - here is some problem with full reindex */
 				this.graphQLManager.unregisterCatalog(nameChange.getCatalogName());
+				if (nameChange.isOverwriteTarget()) {
+					this.graphQLManager.unregisterCatalog(nameChange.getNewCatalogName());
+				}
 				if (this.graphQLManager.registerCatalog(nameChange.getNewCatalogName())) {
 					this.graphQLManager.emitObservabilityEvents(nameChange.getNewCatalogName());
 				}
