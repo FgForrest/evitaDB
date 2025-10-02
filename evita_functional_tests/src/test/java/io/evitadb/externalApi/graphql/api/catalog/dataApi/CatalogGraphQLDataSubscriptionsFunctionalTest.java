@@ -250,7 +250,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 					}
 				);
 			},
-			1, receivedEvents -> {
+			2, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
 					.and(
