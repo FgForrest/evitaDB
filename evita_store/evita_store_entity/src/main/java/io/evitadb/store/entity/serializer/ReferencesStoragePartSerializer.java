@@ -30,6 +30,8 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 
+import java.util.Arrays;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link ReferencesStoragePart} from/to binary format.
  *
@@ -57,13 +59,24 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 
 		final int lastAssignedPrimaryKey = input.readVarInt(true);
 		final int referenceCount = input.readVarInt(true);
+		// when reading references from the disk we remove all dropped references
+		// when duplicate references were introduced, it leads to situation where many relations are dropped and new
+		// relations are added - in such case the storage part would bloat with dropped relations that are not needed
+		// anymore
+		// this mechanism ensures, that the fact that the reference was dropped is persisted, but this fact doesn't
+		// accumulate and with next rewrite of the storage part on the disk all previously dropped references are removed
 		final Reference[] references = new Reference[referenceCount];
+		int dropped = 0;
 		for (int i = 0; i < referenceCount; i++) {
-			references[i] = kryo.readObject(input, Reference.class);
+			references[i - dropped] = kryo.readObject(input, Reference.class);
+			if (references[i - dropped].dropped()) {
+				dropped++;
+			}
 		}
 
 		return new ReferencesStoragePart(
-			entityPrimaryKey, lastAssignedPrimaryKey, references,
+			entityPrimaryKey, lastAssignedPrimaryKey,
+			dropped > 0 ? Arrays.copyOfRange(references, 0, references.length - dropped) : references,
 			Math.toIntExact(input.total() - totalBefore)
 		);
 	}
