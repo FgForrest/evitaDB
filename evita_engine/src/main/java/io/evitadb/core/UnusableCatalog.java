@@ -28,6 +28,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -91,9 +92,10 @@ public final class UnusableCatalog implements CatalogContract {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 
+	@Nonnull
 	@Override
-	public @Nonnull CatalogSchemaContract updateSchema(
-		@Nullable UUID sessionId,
+	public SealedCatalogSchema updateSchema(
+		@Nonnull EvitaContract evita, @Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
@@ -160,21 +162,6 @@ public final class UnusableCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
-	}
-
-	@Override
-	public boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
-	}
-
-	@Override
-	public boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType) {
-		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
-	}
-
-	@Override
-	public boolean renameCollectionOfEntity(@Nonnull String entityType, @Nonnull String newName, @Nonnull EvitaSessionContract session) {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 

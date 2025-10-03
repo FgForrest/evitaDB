@@ -79,9 +79,9 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
@@ -183,10 +183,6 @@ public final class EntityCollection implements
 	CatalogRelatedDataStructure<EntityCollection> {
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	/**
-	 * Contains a unique identifier of the entity type that is assigned on entity collection creation and never changes.
-	 */
-	@Getter private final String entityType;
 	/**
 	 * Contains a unique identifier of the entity type that is assigned on entity collection creation and never changes.
 	 * The primary key can be used interchangeably to {@link EntitySchema#getName() String entity type}.
@@ -333,7 +329,6 @@ public final class EntityCollection implements
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
 		this.trafficRecorder = trafficRecorder;
-		this.entityType = entityType;
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = entityCollectionPersistenceService;
@@ -434,26 +429,26 @@ public final class EntityCollection implements
 		@Nonnull SequenceService sequenceService
 	) {
 		this.trafficRecorder = previousCollection.trafficRecorder;
-		this.entityType = previousCollection.getSchema().getName();
+		final String entityType = previousCollection.getSchema().getName();
 		this.entityTypePrimaryKey = previousCollection.entityTypePrimaryKey;
 		this.initialSchema = previousCollection.getInternalSchema();
 		this.catalogPersistenceService = catalogPersistenceService;
 
 		this.persistenceService = catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
-			catalogVersion, this.entityType, this.entityTypePrimaryKey
+			catalogVersion, entityType, this.entityTypePrimaryKey
 		);
 
 		final EntityCollectionHeader entityHeader = this.persistenceService.getEntityCollectionHeader();
 		this.pkSequence = sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.ENTITY, this.entityType, entityHeader.lastPrimaryKey()
+			catalogName, SequenceType.ENTITY, entityType, entityHeader.lastPrimaryKey()
 		);
 		this.indexPkSequence = sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.INDEX, this.entityType, entityHeader.lastEntityIndexPrimaryKey()
+			catalogName, SequenceType.INDEX, entityType, entityHeader.lastEntityIndexPrimaryKey()
 		);
 		// we need to initialize the price sequence here, in order to initialize correctly the last internal price id
 		// from older storage format when it was stored as a part of the global index
 		this.pricePkSequence = sequenceService.getOrCreateSequence(
-			catalogName, SequenceType.PRICE, this.entityType,
+			catalogName, SequenceType.PRICE, entityType,
 			getLastAssignedPriceInternalPrimaryKey(entityHeader, this.persistenceService, catalogVersion)
 		);
 
@@ -478,7 +473,7 @@ public final class EntityCollection implements
 		this.cacheSupervisor = previousCollection.cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
-			Query.query(collection(this.entityType)),
+			Query.query(collection(entityType)),
 			OffsetDateTime.MIN, // we don't care about the time
 			EntityReference.class,
 			null
@@ -538,7 +533,6 @@ public final class EntityCollection implements
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
 		this.trafficRecorder = trafficRecorder;
-		this.entityType = entitySchema.getName();
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.initialSchema = entitySchema;
 		this.pkSequence = pkSequence;
@@ -560,7 +554,7 @@ public final class EntityCollection implements
 		this.cacheSupervisor = cacheSupervisor;
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
-			Query.query(collection(this.entityType)),
+			Query.query(collection(entitySchema.getName())),
 			OffsetDateTime.MIN, // we don't care about the time
 			EntityReference.class,
 			null
@@ -916,6 +910,12 @@ public final class EntityCollection implements
 		return Objects.requireNonNull(this.schema.get());
 	}
 
+	@Nonnull
+	@Override
+	public String getEntityType() {
+		return getInternalSchema().getName();
+	}
+
 	/**
 	 * Same method as {@link #applyMutation(EvitaSessionContract, EntityMutation)}, but in internal API that doesn't
 	 * require session in the input. This method is used from transactional replayer that doesn't have session available.
@@ -931,7 +931,11 @@ public final class EntityCollection implements
 
 	@Nonnull
 	@Override
-	public SealedEntitySchema updateSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaMutation... schemaMutation) throws SchemaAlteringException {
+	public SealedEntitySchema updateSchema(
+		@Nullable UUID sessionId,
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull LocalEntitySchemaMutation... schemaMutation
+	) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
 		final EntitySchema originalSchema = getInternalSchema();
 		try {
@@ -1618,7 +1622,7 @@ public final class EntityCollection implements
 		);
 		for (EntityIndex entityIndex : this.indexes.values()) {
 			if (entityIndex instanceof CatalogRelatedDataStructure<?> catalogRelatedEntityIndex) {
-				catalogRelatedEntityIndex.attachToCatalog(this.entityType, this.catalog);
+				catalogRelatedEntityIndex.attachToCatalog(this.getEntityType(), this.catalog);
 			}
 		}
 	}
@@ -1646,7 +1650,7 @@ public final class EntityCollection implements
 		final long catalogVersion = this.catalog.getVersion();
 		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 		final EntityCollectionPersistenceService newPersistenceService = this.catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
-			catalogVersion, this.entityType, this.entityTypePrimaryKey
+			catalogVersion, this.getEntityType(), this.entityTypePrimaryKey
 		);
 		if (transactionalChanges != null) {
 			// when we register all storage parts for persisting, we can now release transactional memory
@@ -1784,7 +1788,7 @@ public final class EntityCollection implements
 	 */
 	public void addIndex(@Nonnull EntityIndex entityIndex) {
 		if (entityIndex instanceof CatalogRelatedDataStructure<?> crds) {
-			crds.attachToCatalog(this.entityType, this.catalog);
+			crds.attachToCatalog(this.getEntityType(), this.catalog);
 		}
 		this.indexes.put(entityIndex.getIndexKey(), entityIndex);
 		this.indexesByPrimaryKey.put(entityIndex.getPrimaryKey(), entityIndex);
@@ -2032,6 +2036,7 @@ public final class EntityCollection implements
 
 	/**
 	 * Exchanges the schema from the original to the updated schema.
+	 * Method is public only because we need to use it in tests.
 	 *
 	 * @param originalSchema the original schema to be exchanged
 	 * @param updatedSchema  the updated schema to replace the original
@@ -2332,6 +2337,13 @@ public final class EntityCollection implements
 		// - we don't trust clients - in future it may be some external JS application
 		// - schema may have changed between entity was provided to the client and the moment upsert was called
 		final SealedCatalogSchema catalogSchema = this.catalog.getSchema();
+		final String entityType = entityMutation.getEntityType();
+		Assert.isPremiseValid(
+			entityType.equals(this.getEntityType()),
+			() -> new GenericEvitaInternalError(
+				"Entity type `" + entityType + "` is not matching the entity collection type `" + this.getEntityType() + "`!"
+			)
+		);
 		entityMutation.verifyOrEvolveSchema(catalogSchema, getSchema(), this.emptyOnStart && isEmpty())
 			.ifPresent(
 				it -> {
@@ -2341,18 +2353,14 @@ public final class EntityCollection implements
 							"In this phase the implicit schema is converted to explicit schema change, " +
 							"that is ought to be written in the WAL before the operations requiring such schema change."
 					);
-					// we need to call apply mutation on the catalog level in order to insert the mutations to the WAL
-					final ModifyEntitySchemaMutation modifyEntitySchemaMutation = new ModifyEntitySchemaMutation(getEntityType(), it);
-					/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
-					/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
-					session.getEvita().applyMutation(
-						new ModifyCatalogSchemaMutation(catalogSchema.getName(), session.getId(), modifyEntitySchemaMutation)
-					)
-					       // we to actively wait for the result here because the schema must be changed before
-					       // we proceed with the entity upsert
-					       .onCompletion()
-					       .toCompletableFuture()
-					       .join();
+					this.catalog.updateSchema(
+						session.getEvita(),
+						session.getId(),
+						new ModifyEntitySchemaMutation(
+							this.getEntityType(),
+							it
+						)
+					);
 				}
 			);
 
@@ -2717,7 +2725,7 @@ public final class EntityCollection implements
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
 								entityIndex = new GlobalEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
-									EntityCollection.this.entityType,
+									EntityCollection.this.getEntityType(),
 									eikAgain
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
@@ -2725,7 +2733,7 @@ public final class EntityCollection implements
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.entityType, eikAgain
+									EntityCollection.this.indexPkSequence.incrementAndGet(), EntityCollection.this.getEntityType(), eikAgain
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
 								assertReferenceIndexPrerequisities(
@@ -2734,7 +2742,7 @@ public final class EntityCollection implements
 								);
 								entityIndex = new ReducedEntityIndex(
 									EntityCollection.this.indexPkSequence.incrementAndGet(),
-									EntityCollection.this.entityType,
+									EntityCollection.this.getEntityType(),
 									eikAgain
 								);
 							} else {
@@ -2742,7 +2750,7 @@ public final class EntityCollection implements
 							}
 
 							if (entityIndex instanceof CatalogRelatedDataStructure<?> lateInitializationIndex) {
-								lateInitializationIndex.attachToCatalog(EntityCollection.this.entityType, EntityCollection.this.catalog);
+								lateInitializationIndex.attachToCatalog(EntityCollection.this.getEntityType(), EntityCollection.this.catalog);
 							}
 
 							// register index also in the map by primary key for fast access

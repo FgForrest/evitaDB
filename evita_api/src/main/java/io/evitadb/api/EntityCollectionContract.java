@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,12 +41,15 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Entity collection maintains all entities of same {@link Entity#getType()}. Entity collection could be imagined
@@ -316,8 +319,9 @@ public interface EntityCollectionContract {
 	 */
 	@Nonnull
 	SealedEntitySchema updateSchema(
+		@Nullable UUID sessionId,
 		@Nonnull CatalogSchemaContract catalogSchema,
-		@Nonnull EntitySchemaMutation... schemaMutation
+		@Nonnull LocalEntitySchemaMutation... schemaMutation
 	) throws SchemaAlteringException;
 
 	/**

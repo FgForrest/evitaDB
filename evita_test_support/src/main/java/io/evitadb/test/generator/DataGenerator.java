@@ -1309,7 +1309,8 @@ public class DataGenerator {
 
 		/* finally apply schema changes */
 		final EntitySchemaContract result = schemaUpdater.apply(schemaBuilder);
-		return result instanceof EntitySchemaDecorator esd ? esd : new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) result);
+		return result instanceof EntitySchemaDecorator esd ?
+			esd : new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) result);
 	}
 
 	@Nonnull

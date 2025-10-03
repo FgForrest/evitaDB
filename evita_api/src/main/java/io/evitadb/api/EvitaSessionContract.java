@@ -95,7 +95,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.utils.ExceptionUtils.unwrapCompletionException;
 
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
@@ -797,21 +796,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		return catalogSchemaBuilder
 			.toMutation()
 			.map(
-				mutation ->
-					unwrapCompletionException(
-						() -> this.getEvita()
-						          .applyMutation(
-							          new ModifyCatalogSchemaMutation(
-								          mutation.getCatalogName(),
-								          this.getId(),
-								          mutation.getSchemaMutations()
-							          )
-						          )
-						          // we need to wait for the mutation to be processed before we can return the version
-						          .onCompletion()
-						          .toCompletableFuture()
-						          .join()
-					).catalogSchemaVersion()
+				mutation -> updateCatalogSchema(mutation.getSchemaMutations())
 			)
 			// no mutation was provided, so we return the current version
 			.orElseGet(() -> getCatalogSchema().version());

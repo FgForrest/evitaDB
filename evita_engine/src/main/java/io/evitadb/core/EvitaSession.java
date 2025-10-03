@@ -71,6 +71,8 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.StoredVersion;
@@ -771,19 +773,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(
 			session ->
 				unwrapCompletionException(
-					/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
-					/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
-					() -> this.evita.applyMutation(
-						          new ModifyCatalogSchemaMutation(
-							          this.getCatalogName(),
-							          session.getId(),
-							          schemaMutation
-						          )
-					          )
-					                .onCompletion()
-					                .toCompletableFuture()
-					                .join()
-					                .catalogSchemaVersion()
+					() -> {
+						final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(
+							this.getCatalogName()
+						);
+						return updateSchemaInternal(catalog, session.getId(), schemaMutation).version();
+					}
 				)
 		);
 	}
@@ -801,20 +796,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			session ->
 				unwrapCompletionException(
 					() -> {
-						/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
-						/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
-						this.evita.applyMutation(
-							    new ModifyCatalogSchemaMutation(
-								    this.getCatalogName(),
-								    session.getId(),
-								    schemaMutation
-							    )
-						    )
-						          // we need to wait for the mutation to be applied before we can fetch the schema
-						          .onCompletion()
-						          .toCompletableFuture()
-						          .join();
-						return getCatalogSchema();
+						final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(
+							this.getCatalogName()
+						);
+						return updateSchemaInternal(catalog, session.getId(), schemaMutation);
 					}
 				)
 		);
@@ -837,20 +822,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			session ->
 				unwrapCompletionException(
 					() -> {
-						/* TODO JNO - tady je chyba, v případě transakce se tohle musí odehrát až ve chvíli, kdy je transakce commitnutá!! */
-						/* TODO JNO - protože se to zapíše do engine WAL a ihned to vidí klienti, jenže to se dropne a musí se to přehrát s transakcí jako takovou */
-						this.evita.applyMutation(
-							    new ModifyCatalogSchemaMutation(
-								    this.getCatalogName(),
-								    session.getId(),
-								    schemaMutation
-							    )
-						    )
-						          // we need to wait for the mutation to be applied before we can fetch the schema
-						          .onCompletion()
-						          .toCompletableFuture()
-						          .join();
-						return getEntitySchemaOrThrowException(schemaMutation.getEntityType());
+						final CatalogContract catalog = this.evita.getCatalogInstanceOrThrowException(
+							this.getCatalogName()
+						);
+						updateSchemaInternal(catalog, session.getId(), schemaMutation);
+						return catalog.getEntitySchema(schemaMutation.getEntityType())
+							.orElseThrow(() -> new CollectionNotFoundException(schemaMutation.getEntityType()));
 					}
 				)
 		);
@@ -862,7 +839,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public boolean deleteCollection(@Nonnull String entityType) {
 		assertActive();
 		return executeInTransactionIfPossible(
-			session -> this.catalog.deleteCollectionOfEntity(session, entityType)
+			session -> {
+				if (this.catalog.getCollectionForEntity(entityType).isPresent()) {
+					updateSchemaInternal(
+						this.catalog,
+						session.getId(),
+						new RemoveEntitySchemaMutation(entityType)
+					);
+					return true;
+				} else {
+					return false;
+				}
+			}
 		);
 	}
 
@@ -882,7 +870,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public boolean renameCollection(@Nonnull String entityType, @Nonnull String newName) {
 		assertActive();
 		return executeInTransactionIfPossible(
-			session -> this.catalog.renameCollectionOfEntity(entityType, newName, session)
+			session -> {
+				if (this.catalog.getCollectionForEntity(entityType).isPresent()) {
+					updateSchemaInternal(
+						this.catalog,
+						session.getId(),
+						new ModifyEntitySchemaNameMutation(entityType, newName, false)
+					);
+					return true;
+				} else {
+					return false;
+				}
+			}
 		);
 	}
 
@@ -892,7 +891,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public boolean replaceCollection(@Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith) {
 		assertActive();
 		return executeInTransactionIfPossible(
-			session -> this.catalog.replaceCollectionOfEntity(session, entityTypeToBeReplaced, entityTypeToBeReplacedWith)
+			session -> {
+				if (this.catalog.getCollectionForEntity(entityTypeToBeReplacedWith).isPresent()) {
+					updateSchemaInternal(
+						this.catalog,
+						session.getId(),
+						new ModifyEntitySchemaNameMutation(
+							entityTypeToBeReplacedWith,
+							entityTypeToBeReplaced,
+							this.catalog.getCollectionForEntity(entityTypeToBeReplaced).isPresent()
+						)
+					);
+					return true;
+				} else {
+					return false;
+				}
+			}
 		);
 	}
 
@@ -962,7 +976,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			return sealedEntityProxy.getEntityBuilderWithCallback(Propagation.SHALLOW)
 				.map(entityBuilderWithCallback -> {
 					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
-					/* TODO JNO - tady (i na úrovni celé metody) se musí vrace i přiřazené interní PK referencí (a musí se to předávat až na klienta)
+					/* TODO JNO - tady (i na úrovni celé metody) se musí vracet i přiřazené interní PK referencí (a musí se to předávat až na klienta)
 					*   aby bylo možné to v metodě `io.evitadb.api.proxy.impl.SealedEntityProxyState.getEntityBuilderWithCallback` nasetovat do generovaných proxy
 					*   referenčních objektů (kvůli tomu neprochází dva testy) - konkrétně `io.evitadb.api.proxy.EntityEditorProxyingFunctionalTest.shouldSetReferenceGroupByIdAndUpdateIt` */
 					entityBuilderWithCallback.entityUpserted(entityReference);
@@ -1886,6 +1900,41 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			ofNullable(this.transactionAccessor.get())
 				.ifPresent(it -> it.setRollbackOnlyWithException(ex));
 			throw ex;
+		}
+	}
+
+	/**
+	 * Updates the schema of a catalog internally by applying the provided schema mutations.
+	 * If a transaction is available, the updates are performed directly. Otherwise, the mutations
+	 * are applied and completed asynchronously.
+	 *
+	 * @param catalog The catalog whose schema is to be updated.
+	 * @param sessionId The unique identifier of the session in which this operation is performed.
+	 * @param schemaMutation The array of schema mutations to be applied to the catalog schema.
+	 * @return The updated sealed catalog schema.
+	 */
+	@Nonnull
+	private SealedCatalogSchema updateSchemaInternal(
+		@Nonnull CatalogContract catalog,
+		@Nonnull UUID sessionId,
+		@Nonnull LocalCatalogSchemaMutation... schemaMutation
+	) {
+		if (Transaction.isTransactionAvailable()) {
+			return catalog.updateSchema(this.evita, sessionId, schemaMutation);
+		} else {
+			unwrapCompletionException(
+				() -> this.evita.applyMutation(
+						new ModifyCatalogSchemaMutation(
+							catalog.getName(),
+							sessionId,
+							schemaMutation
+						)
+					)
+					.onCompletion()
+					.toCompletableFuture()
+					.join()
+			);
+			return catalog.getSchema();
 		}
 	}
 

@@ -25,7 +25,6 @@ package io.evitadb.api;
 
 import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
@@ -106,7 +105,8 @@ public interface CatalogContract {
 	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
 	 */
 	@Nonnull
-	CatalogSchemaContract updateSchema(
+	SealedCatalogSchema updateSchema(
+		@Nonnull EvitaContract evita,
 		@Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException;
@@ -195,47 +195,6 @@ public interface CatalogContract {
 	@Nonnull
 	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType)
 		throws SchemaAlteringException;
-
-	/**
-	 * Deletes entire collection of entities along with its schema. After this operation there will be nothing left
-	 * of the data that belong to the specified entity type.
-	 *
-	 * @param entityType type of the entity which collection should be deleted
-	 * @return TRUE if collection was successfully deleted
-	 */
-	boolean deleteCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityType);
-
-	/**
-	 * Renames entire collection of entities along with its schema. After this operation there will be nothing left
-	 * of the data that belong to the specified entity type, and entity collection under the new name becomes available.
-	 * If you need to rename entity collection to a name of existing collection use
-	 * the {@link #replaceCollectionOfEntity(EvitaSessionContract, String, String)} method instead.
-	 *
-	 * In case exception occurs the original collection (`entityType`) is guaranteed to be untouched,
-	 * and the `newName` will not be present.
-	 *
-	 * @param entityType current name of the entity collection
-	 * @param newName    new name of the entity collection
-	 * @return TRUE if collection was successfully renamed
-	 * @throws EntityTypeAlreadyPresentInCatalogSchemaException when there is already entity collection with `newName`
-	 *                                                          present
-	 */
-	boolean renameCollectionOfEntity(@Nonnull String entityType, @Nonnull String newName, @Nonnull EvitaSessionContract session)
-		throws EntityTypeAlreadyPresentInCatalogSchemaException;
-
-	/**
-	 * Replaces existing entity collection of particular with the contents of the another collection. When this method
-	 * is successfully finished, the entity collection `entityTypeToBeReplaced` will be known under the name of the
-	 * `entityTypeToBeReplacedWith` and the original contents of the `entityTypeToBeReplaced` will be purged entirely.
-	 *
-	 * In case exception occurs, both the original collection (`entityTypeToBeReplaced`) and replaced collection
-	 * (`entityTypeToBeReplacedWith`) are guaranteed to be untouched.
-	 *
-	 * @param entityTypeToBeReplaced     name of the collection that will be replaced and dropped
-	 * @param entityTypeToBeReplacedWith name of the collection that will become the successor of the original catalog
-	 * @return TRUE if collection was successfully replaced
-	 */
-	boolean replaceCollectionOfEntity(@Nonnull EvitaSessionContract session, @Nonnull String entityTypeToBeReplaced, @Nonnull String entityTypeToBeReplacedWith);
 
 	/**
 	 * Removes entire catalog storage from persistent storage and closes the catalog instance.
