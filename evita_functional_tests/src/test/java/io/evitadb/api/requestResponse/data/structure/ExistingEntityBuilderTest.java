@@ -164,6 +164,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			CATALOG_SCHEMA,
 			PRODUCT_SCHEMA
 		)
+			.withAttribute("string", String.class, whichIs -> whichIs.filterable().withDefaultValue("defaultValue"))
 			.withReferenceToEntity(
 				PARAMETER,
 				PARAMETER,
@@ -290,6 +291,33 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		assertEquals("someValue", updatedInstance.getAttribute("newAttribute"));
+	}
+
+	@Test
+	void shouldSetDefaultValueInsteadOfRemovingAttribute() {
+		final SealedEntity updatedInstance = this.builder
+			.removeAttribute("string")
+			.toInstance();
+
+		assertEquals("defaultValue", updatedInstance.getAttribute("string"));
+	}
+
+	@Test
+	void shouldSetDefaultValueInsteadOfRemovingAttributeAndGenerateNoMutation() {
+		final SealedEntity updatedInstance = this.builder
+			.removeAttribute("string")
+			.toInstance();
+
+		assertEquals("defaultValue", updatedInstance.getAttribute("string"));
+
+		// no mutation is generated, because attribute is set to default value
+		// and will remain the same even if removal is applied
+		assertTrue(
+			updatedInstance
+				.openForWrite()
+				.removeAttribute("string")
+				.toMutation().isEmpty()
+		);
 	}
 
 	@Test

@@ -292,7 +292,13 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Override
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName) {
-		addMutation(new RemoveAttributeMutation(attributeName));
+		final Optional<S> attributeSchema = getAttributeSchema(attributeName);
+		final Serializable defaultValue = attributeSchema.map(AttributeSchemaContract::getDefaultValue).orElse(null);
+		if (defaultValue != null) {
+			addMutation(new UpsertAttributeMutation(attributeName, defaultValue));
+		} else {
+			addMutation(new RemoveAttributeMutation(attributeName));
+		}
 		//noinspection unchecked
 		return (T) this;
 	}
@@ -324,12 +330,22 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Override
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
-		final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).filter(Droppable::exists).isEmpty()) {
-			assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
-			this.attributeMutations.remove(attributeKey);
+		final Optional<S> attributeSchema = getAttributeSchema(attributeName);
+		final Serializable defaultValue = attributeSchema.map(AttributeSchemaContract::getDefaultValue).orElse(null);
+		if (defaultValue != null) {
+			addMutation(new UpsertAttributeMutation(attributeName, locale, defaultValue));
 		} else {
-			addMutation(new RemoveAttributeMutation(attributeKey));
+			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
+			if (
+				this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey)
+					.filter(Droppable::exists)
+					.isEmpty()
+			) {
+				assertAttributeAvailableAndMatchPredicate(new AttributeKey(attributeName));
+				this.attributeMutations.remove(attributeKey);
+			} else {
+				addMutation(new RemoveAttributeMutation(attributeKey));
+			}
 		}
 		//noinspection unchecked
 		return (T) this;
