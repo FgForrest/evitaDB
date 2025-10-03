@@ -168,7 +168,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot update attributes on reference " + this.referenceKey + " - reference doesn't exist!")
+			() -> new InvalidMutationException("Cannot update attributes on reference `" + this.referenceKey + "` - reference doesn't exist!")
 		);
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
 		final ExistingReferenceAttributesBuilder attributeBuilder = new ExistingReferenceAttributesBuilder(
