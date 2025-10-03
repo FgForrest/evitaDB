@@ -99,6 +99,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityEditorProxyingFunctionalTest";
 	private final static DateTimeRange VALIDITY = DateTimeRange.between(
 		OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
+	public static final String CATEGORY_SIMILAR = "similar";
+	public static final String CATEGORY_DIFFERENT = "different";
 
 	private static void assertCategory(
 		SealedEntity category, String code, String name, long priority, DateTimeRange validity, int parentId) {
@@ -232,9 +234,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(3, storeReferences.size());
 		assertArrayEquals(
 			new int[]{1, 2, 3}, storeReferences.stream()
-			                                   .mapToInt(ReferenceContract::getReferencedPrimaryKey)
-			                                   .sorted()
-			                                   .toArray()
+				.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+				.sorted()
+				.toArray()
 		);
 	}
 
@@ -368,9 +370,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.PARAMETER)
-						                  .setAttribute(ATTRIBUTE_CODE, "parameter-" + number)
-						                  .setAttribute(ATTRIBUTE_PRIORITY, 178L)
-						                  .upsertVia(evitaSession)
+							.setAttribute(ATTRIBUTE_CODE, "parameter-" + number)
+							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
+							.upsertVia(evitaSession)
 					)
 					.getPrimaryKey();
 			}
@@ -396,8 +398,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.PARAMETER_GROUP)
-						                  .setAttribute(ATTRIBUTE_CODE, "parameterGroup-" + number)
-						                  .upsertVia(evitaSession)
+							.setAttribute(ATTRIBUTE_CODE, "parameterGroup-" + number)
+							.upsertVia(evitaSession)
 					)
 					.getPrimaryKey();
 			}
@@ -419,9 +421,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.BRAND)
-						                  .setAttribute(ATTRIBUTE_CODE, "brand-1")
-						                  .setReference(Entities.STORE, 1)
-						                  .upsertVia(evitaSession)
+							.setAttribute(ATTRIBUTE_CODE, "brand-1")
+							.setReference(Entities.STORE, 1)
+							.upsertVia(evitaSession)
 					)
 					.getPrimaryKey();
 			}
@@ -443,11 +445,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				return categoryReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.CATEGORY, 2000 + number)
-						                  .setAttribute(ATTRIBUTE_CODE, "category-" + number)
-						                  .setAttribute(ATTRIBUTE_PRIORITY, 178L)
-						                  .setAssociatedData(ASSOCIATED_DATA_LABELS, new Labels())
-						                  .setAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, new ReferencedFileSet())
-						                  .upsertVia(evitaSession)
+							.setAttribute(ATTRIBUTE_CODE, "category-" + number)
+							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
+							.setAssociatedData(ASSOCIATED_DATA_LABELS, new Labels())
+							.setAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, new ReferencedFileSet())
+							.upsertVia(evitaSession)
 					)
 					.getPrimaryKey();
 			}
@@ -503,7 +505,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		).orElseThrow();
 
 		final AtomicReference<RelatedProductInterfaceEditor> relatedProductRef = new AtomicReference<>();
-		final String relationType = "similar";
+		final String relationType = CATEGORY_SIMILAR;
 		final ProductInterfaceEditor returnedEditor = updater.apply(
 			editor,
 			relEd -> {
@@ -566,7 +568,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		// Create multiple different relations
 		editor.addOrUpdateRelatedProduct(
 			rel1.getPrimaryKey(),
-			"similar", rp -> {
+			CATEGORY_SIMILAR, rp -> {
 				rp.setLabel(Locale.ENGLISH, "Nice product");
 				rp.setLabel(CZECH_LOCALE, "Krásný produkt");
 			}
@@ -643,7 +645,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 		editor.addOrUpdateRelatedProduct(
 			related.getPrimaryKey(),
-			"similar",
+			CATEGORY_SIMILAR,
 			rp -> {
 				rp.setLabel(Locale.ENGLISH, "Similar 1");
 				rp.setLabel(CZECH_LOCALE, "Podobný 1");
@@ -675,6 +677,52 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(referenceCountAfterRemoving, after.getReferences().size());
 	}
 
+	/**
+	 * Prepares an example product for the removal of related products by loading the product,
+	 * clearing existing relationships, and adding new relationships with specific labels
+	 * based on predefined relation types.
+	 *
+	 * @param evitaSession     The session used to perform operations on product entities.
+	 * @param originalProducts A list of sealed product entities from which relationships will be derived.
+	 * @return The reloaded product entity editor after applying changes, retrieved for verification.
+	 */
+	@Nonnull
+	private static ProductInterfaceEditor prepareExampleProductForRelatedProductsRemoval(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull List<SealedEntity> originalProducts
+	) {
+		final SealedEntity mainProduct = originalProducts.get(3);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		editor.removeAllRelatedProducts();
+		for (int i = 0; i < 6; i++) {
+			final boolean odd = i % 2 == 0;
+			final String relationType = odd ? CATEGORY_SIMILAR : CATEGORY_DIFFERENT;
+			editor.addOrUpdateRelatedProduct(
+				originalProducts.get(i / 2).getPrimaryKey(),
+				relationType,
+				ref -> {
+					ref.setLabel(CZECH_LOCALE, "Doporučený");
+					ref.setLabel(Locale.ENGLISH, "Recommended");
+				}
+			);
+		}
+
+		// Persist and verify via sealed entity reference
+		editor.upsertVia(evitaSession);
+
+		return evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+	}
+
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
 	protected DataCarrier setUp(Evita evita) {
@@ -692,11 +740,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final DateTimeRange validity = DateTimeRange.between(
 					OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
-					                                                        CategoryInterfaceEditor.class, 1000)
-				                                                        .setCode("root-category")
-				                                                        .setName(CZECH_LOCALE, "Kořenová kategorie")
-				                                                        .setPriority(78L)
-				                                                        .setValidity(validity);
+						CategoryInterfaceEditor.class, 1000)
+					.setCode("root-category")
+					.setName(CZECH_LOCALE, "Kořenová kategorie")
+					.setPriority(78L)
+					.setValidity(validity);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -716,7 +764,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(1000, newCategory.getId());
 				assertCategory(
 					evitaSession.getEntity(Entities.CATEGORY, newCategory.getId(), entityFetchAllContent())
-					            .orElseThrow(),
+						.orElseThrow(),
 					"root-category", "Kořenová kategorie", 78L, validity
 				);
 			}
@@ -740,11 +788,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
-					                                                        CategoryInterfaceEditor.class, 1001)
-				                                                        .setCode("child-category-1")
-				                                                        .setName(CZECH_LOCALE, "Dětská kategorie")
-				                                                        .setPriority(90L)
-				                                                        .setParentId(1000);
+						CategoryInterfaceEditor.class, 1001)
+					.setCode("child-category-1")
+					.setName(CZECH_LOCALE, "Dětská kategorie")
+					.setPriority(90L)
+					.setParentId(1000);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -781,12 +829,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			evitaSession -> {
 				final EntityReference parentEntityReference = new EntityReference(Entities.CATEGORY, 1000);
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
-					                                                        CategoryInterfaceEditor.class, 1002)
-				                                                        .setCode("child-category-2")
-				                                                        .setName(CZECH_LOCALE, "Dětská kategorie")
-				                                                        .setPriority(90L)
-				                                                        .setParentEntityReference(
-					                                                        parentEntityReference);
+						CategoryInterfaceEditor.class, 1002)
+					.setCode("child-category-2")
+					.setName(CZECH_LOCALE, "Dětská kategorie")
+					.setPriority(90L)
+					.setParentEntityReference(
+						parentEntityReference);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -825,12 +873,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final EntityReferenceWithParent parentEntityReference = new EntityReferenceWithParent(
 					Entities.CATEGORY, 1000, null);
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
-					                                                        CategoryInterfaceEditor.class, 1003)
-				                                                        .setCode("child-category-3")
-				                                                        .setName(CZECH_LOCALE, "Dětská kategorie")
-				                                                        .setPriority(90L)
-				                                                        .setParentEntityClassifier(
-					                                                        parentEntityReference);
+						CategoryInterfaceEditor.class, 1003)
+					.setCode("child-category-3")
+					.setName(CZECH_LOCALE, "Dětská kategorie")
+					.setPriority(90L)
+					.setParentEntityClassifier(
+						parentEntityReference);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -868,15 +916,15 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor parentEntity = evitaSession.getEntity(CategoryInterfaceEditor.class, 1000)
-				                                                         .orElseThrow();
+					.orElseThrow();
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
-					                                                        CategoryInterfaceEditor.class, 1004)
-				                                                        .setCode("child-category-4")
-				                                                        .setName(CZECH_LOCALE, "Dětská kategorie")
-				                                                        .setPriority(90L)
-				                                                        .setParentEntity(
-					                                                        parentEntity
-				                                                        );
+						CategoryInterfaceEditor.class, 1004)
+					.setCode("child-category-4")
+					.setName(CZECH_LOCALE, "Dětská kategorie")
+					.setPriority(90L)
+					.setParentEntity(
+						parentEntity
+					);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -907,24 +955,24 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
-					                                                        CategoryInterfaceEditor.class, 1005)
-				                                                        .setCode("child-category-5")
-				                                                        .setName(CZECH_LOCALE, "Dětská kategorie")
-				                                                        .setPriority(90L)
-				                                                        .withParent(
-					                                                        1100,
-					                                                        whichIs -> {
-						                                                        whichIs.setCode("root-category-1")
-						                                                               .setName(
-							                                                               CZECH_LOCALE,
-							                                                               "Kořenová kategorie"
-						                                                               )
-						                                                               .setPriority(78L);
-						                                                        whichIs.setLabels(new Labels());
-						                                                        whichIs.setReferencedFiles(
-							                                                        new ReferencedFileSet());
-					                                                        }
-				                                                        );
+						CategoryInterfaceEditor.class, 1005)
+					.setCode("child-category-5")
+					.setName(CZECH_LOCALE, "Dětská kategorie")
+					.setPriority(90L)
+					.withParent(
+						1100,
+						whichIs -> {
+							whichIs.setCode("root-category-1")
+								.setName(
+									CZECH_LOCALE,
+									"Kořenová kategorie"
+								)
+								.setPriority(78L);
+							whichIs.setLabels(new Labels());
+							whichIs.setReferencedFiles(
+								new ReferencedFileSet());
+						}
+					);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -975,7 +1023,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertTrue(newEntity.getId() > 0);
 				assertUnknownEntity(
 					evitaSession.getEntity("newlyDefinedEntity", newEntity.getId(), entityFetchAllContent())
-					            .orElseThrow(),
+						.orElseThrow(),
 					"entity1", "Nějaká entita", 78L
 				);
 			}
@@ -994,71 +1042,71 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-1")
-				                                                      .setName(CZECH_LOCALE, "Produkt 1")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setPrice(
-					                                                      new Price(
-						                                                      1, "reference", CURRENCY_CZK, null,
-						                                                      BigDecimal.ONE, new BigDecimal("1.1"),
-						                                                      BigDecimal.TEN, null, true
-					                                                      ))
-				                                                      .setPrice(
-					                                                      BigDecimal.ONE, BigDecimal.ONE,
-					                                                      BigDecimal.ZERO, "vip", CURRENCY_CZK, 2
-				                                                      )
-				                                                      .setPrice(
-					                                                      BigDecimal.ONE, BigDecimal.ONE,
-					                                                      BigDecimal.ZERO, "vip", "CZK", 3, VALIDITY, 7
-				                                                      )
-				                                                      .setPrice(
-					                                                      BigDecimal.ONE, BigDecimal.ONE,
-					                                                      BigDecimal.ZERO, "vip", "USD", 4, null, 7
-				                                                      )
-				                                                      .setBasicPrice(
-					                                                      new Price(
-						                                                      5, "basic", CURRENCY_CZK, 9,
-						                                                      BigDecimal.ONE, new BigDecimal("1.1"),
-						                                                      BigDecimal.TEN, null, true
-					                                                      ))
-				                                                      .setBasicPrice(
-					                                                      BigDecimal.ONE, BigDecimal.ONE,
-					                                                      BigDecimal.ZERO, CURRENCY_CZK, 6
-				                                                      )
-				                                                      .setBasicPrice(
-					                                                      BigDecimal.ONE, BigDecimal.ONE,
-					                                                      BigDecimal.ZERO, "CZK", 7, VALIDITY, 8
-				                                                      )
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L))
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      )
-				                                                      .addProductCategory(
-					                                                      categoryId2, that -> that.setOrderInCategory(
-						                                                                               2L)
-					                                                                               .setShadow(false)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 2"
-					                                                                               )
-				                                                      )
-				                                                      .addStore(1)
-				                                                      .addStore(2)
-				                                                      .addStore(3);
+					.setCode("product-1")
+					.setName(CZECH_LOCALE, "Produkt 1")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setPrice(
+						new Price(
+							1, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						))
+					.setPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "vip", CURRENCY_CZK, 2
+					)
+					.setPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "vip", "CZK", 3, VALIDITY, 7
+					)
+					.setPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "vip", "USD", 4, null, 7
+					)
+					.setBasicPrice(
+						new Price(
+							5, "basic", CURRENCY_CZK, 9,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						))
+					.setBasicPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, CURRENCY_CZK, 6
+					)
+					.setBasicPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "CZK", 7, VALIDITY, 8
+					)
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
+					.addStore(1)
+					.addStore(2)
+					.addStore(3);
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -1107,83 +1155,83 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-2")
-				                                                      .setName(CZECH_LOCALE, "Produkt 2")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttributeAsList(
-					                                                      Arrays.asList("market-1", "market-2"))
-				                                                      .setMarketsAsList(
-					                                                      Arrays.asList("market-3", "market-4"))
-				                                                      .setAllPricesAsList(
-					                                                      Arrays.asList(
-						                                                      new Price(
-							                                                      1, "reference", CURRENCY_CZK, null,
-							                                                      BigDecimal.ONE, new BigDecimal("1.1"),
-							                                                      BigDecimal.TEN, null, true
-						                                                      ),
-						                                                      new Price(
-							                                                      2, "vip", CURRENCY_CZK, null,
-							                                                      BigDecimal.ONE, BigDecimal.ZERO,
-							                                                      BigDecimal.ONE, null, true
-						                                                      ),
-						                                                      new Price(
-							                                                      3, "vip", CURRENCY_CZK, 7,
-							                                                      BigDecimal.ONE, BigDecimal.ZERO,
-							                                                      BigDecimal.ONE, VALIDITY, true
-						                                                      ),
-						                                                      new Price(
-							                                                      4, "vip", CURRENCY_USD, 7,
-							                                                      BigDecimal.ONE, BigDecimal.ZERO,
-							                                                      BigDecimal.ONE, null, true
-						                                                      ),
-						                                                      new Price(
-							                                                      5, "basic", CURRENCY_CZK, 9,
-							                                                      BigDecimal.ONE, new BigDecimal("1.1"),
-							                                                      BigDecimal.TEN, null, true
-						                                                      ),
-						                                                      new Price(
-							                                                      6, "basic", CURRENCY_CZK, null,
-							                                                      BigDecimal.ONE, BigDecimal.ZERO,
-							                                                      BigDecimal.ONE, null, true
-						                                                      ),
-						                                                      new Price(
-							                                                      7, "basic", CURRENCY_CZK, 8,
-							                                                      BigDecimal.ONE, BigDecimal.ZERO,
-							                                                      BigDecimal.ONE, VALIDITY, true
-						                                                      )
-					                                                      )
-				                                                      )
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L))
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      )
-				                                                      .addProductCategory(
-					                                                      categoryId2, that -> that.setOrderInCategory(
-						                                                                               2L)
-					                                                                               .setShadow(false)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 2"
-					                                                                               )
-				                                                      )
-				                                                      .setStoresByIds(Arrays.asList(1, 2, 3))
-				                                                      .setStores(List.of(
-					                                                      evitaSession.getEntity(
-						                                                      StoreInterface.class,
-						                                                      3,
-						                                                      entityFetchAllContent()
-					                                                      ).orElseThrow()));
+					.setCode("product-2")
+					.setName(CZECH_LOCALE, "Produkt 2")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttributeAsList(
+						Arrays.asList("market-1", "market-2"))
+					.setMarketsAsList(
+						Arrays.asList("market-3", "market-4"))
+					.setAllPricesAsList(
+						Arrays.asList(
+							new Price(
+								1, "reference", CURRENCY_CZK, null,
+								BigDecimal.ONE, new BigDecimal("1.1"),
+								BigDecimal.TEN, null, true
+							),
+							new Price(
+								2, "vip", CURRENCY_CZK, null,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, null, true
+							),
+							new Price(
+								3, "vip", CURRENCY_CZK, 7,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, VALIDITY, true
+							),
+							new Price(
+								4, "vip", CURRENCY_USD, 7,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, null, true
+							),
+							new Price(
+								5, "basic", CURRENCY_CZK, 9,
+								BigDecimal.ONE, new BigDecimal("1.1"),
+								BigDecimal.TEN, null, true
+							),
+							new Price(
+								6, "basic", CURRENCY_CZK, null,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, null, true
+							),
+							new Price(
+								7, "basic", CURRENCY_CZK, 8,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, VALIDITY, true
+							)
+						)
+					)
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
+					.setStoresByIds(Arrays.asList(1, 2, 3))
+					.setStores(List.of(
+						evitaSession.getEntity(
+							StoreInterface.class,
+							3,
+							entityFetchAllContent()
+						).orElseThrow()));
 				;
 
 				assertThrows(
@@ -1285,21 +1333,21 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
-							                         1L)
-						                         .setShadow(true)
-						                         .setLabel(
-							                         CZECH_LOCALE,
-							                         "Kategorie 1"
-						                         )
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
 					)
 					.addProductCategory(
 						categoryId2, that -> that.setOrderInCategory(
-							                         2L)
-						                         .setShadow(false)
-						                         .setLabel(
-							                         CZECH_LOCALE,
-							                         "Kategorie 2"
-						                         )
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
 					)
 					.setStoresByIds(1, 2)
 					.setStores(
@@ -1355,25 +1403,25 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-4")
-				                                                      .setName(CZECH_LOCALE, "Produkt 4")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setBrand(brandId)
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L))
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      );
+					.setCode("product-4")
+					.setName(CZECH_LOCALE, "Produkt 4")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setBrand(brandId)
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1411,25 +1459,25 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-5")
-				                                                      .setName(CZECH_LOCALE, "Produkt 5")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setBrand(brand)
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L))
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      );
+					.setCode("product-5")
+					.setName(CZECH_LOCALE, "Produkt 5")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setBrand(brand)
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1463,26 +1511,26 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-6")
-				                                                      .setName(CZECH_LOCALE, "Produkt 6")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setNewBrand(brand -> brand.setCode(
-					                                                      "consumer-created-brand").setStore(1))
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L))
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      );
+					.setCode("product-6")
+					.setName(CZECH_LOCALE, "Produkt 6")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setNewBrand(brand -> brand.setCode(
+						"consumer-created-brand").setStore(1))
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -1519,9 +1567,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertThrows(
 					ContextMissingException.class,
 					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
-					                  .setCode("product-7")
-					                  .setName(CZECH_LOCALE, "Produkt 7")
-					                  .updateBrand(brand -> fail("Should not be called."))
+						.setCode("product-7")
+						.setName(CZECH_LOCALE, "Produkt 7")
+						.updateBrand(brand -> fail("Should not be called."))
 				);
 			}
 		);
@@ -1539,33 +1587,33 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-7")
-				                                                      .setName(CZECH_LOCALE, "Produkt 7")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L))
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      )
-				                                                      .addProductCategory(
-					                                                      categoryId2, that -> that.setOrderInCategory(
-						                                                                               2L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 2"
-					                                                                               )
-				                                                      );
+					.setCode("product-7")
+					.setName(CZECH_LOCALE, "Produkt 7")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					);
 
 				assertNull(newProduct.getBrand());
 				final BrandInterfaceEditor newBrand = newProduct.getOrCreateBrand();
@@ -1607,9 +1655,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertThrows(
 					ReferenceNotFoundException.class,
 					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
-					                  .setCode("product-8")
-					                  .setName(CZECH_LOCALE, "Produkt 8")
-					                  .updateParameter(7, brand -> fail("Should not be called."))
+						.setCode("product-8")
+						.setName(CZECH_LOCALE, "Produkt 8")
+						.updateParameter(7, brand -> fail("Should not be called."))
 				);
 			}
 		);
@@ -1627,72 +1675,72 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-8")
-				                                                      .setName(CZECH_LOCALE, "Produkt 8")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttributeAsVarArg(
-					                                                      "market-1", "market-2")
-				                                                      .setMarketsAsVarArg("market-3", "market-4")
-				                                                      .setAllPricesAsArray(
-					                                                      new Price(
-						                                                      1, "reference", CURRENCY_CZK, null,
-						                                                      BigDecimal.ONE, new BigDecimal("1.1"),
-						                                                      BigDecimal.TEN, null, true
-					                                                      ),
-					                                                      new Price(
-						                                                      2, "vip", CURRENCY_CZK, null,
-						                                                      BigDecimal.ONE, BigDecimal.ZERO,
-						                                                      BigDecimal.ONE, null, true
-					                                                      ),
-					                                                      new Price(
-						                                                      3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE,
-						                                                      BigDecimal.ZERO, BigDecimal.ONE, VALIDITY,
-						                                                      true
-					                                                      ),
-					                                                      new Price(
-						                                                      4, "vip", CURRENCY_USD, 7, BigDecimal.ONE,
-						                                                      BigDecimal.ZERO, BigDecimal.ONE, null,
-						                                                      true
-					                                                      ),
-					                                                      new Price(
-						                                                      5, "basic", CURRENCY_CZK, 9,
-						                                                      BigDecimal.ONE, new BigDecimal("1.1"),
-						                                                      BigDecimal.TEN, null, true
-					                                                      ),
-					                                                      new Price(
-						                                                      6, "basic", CURRENCY_CZK, null,
-						                                                      BigDecimal.ONE, BigDecimal.ZERO,
-						                                                      BigDecimal.ONE, null, true
-					                                                      ),
-					                                                      new Price(
-						                                                      7, "basic", CURRENCY_CZK, 8,
-						                                                      BigDecimal.ONE, BigDecimal.ZERO,
-						                                                      BigDecimal.ONE, VALIDITY, true
-					                                                      )
-				                                                      )
-				                                                      .addProductCategory(
-					                                                      categoryId1, that -> that.setOrderInCategory(
-						                                                                               1L)
-					                                                                               .setShadow(true)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 1"
-					                                                                               )
-				                                                      )
-				                                                      .addProductCategory(
-					                                                      categoryId2, that -> that.setOrderInCategory(
-						                                                                               2L)
-					                                                                               .setShadow(false)
-					                                                                               .setLabel(
-						                                                                               CZECH_LOCALE,
-						                                                                               "Kategorie 2"
-					                                                                               )
-				                                                      )
-				                                                      .setStoresByIds(1, 2, 3);
+					.setCode("product-8")
+					.setName(CZECH_LOCALE, "Produkt 8")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttributeAsVarArg(
+						"market-1", "market-2")
+					.setMarketsAsVarArg("market-3", "market-4")
+					.setAllPricesAsArray(
+						new Price(
+							1, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						),
+						new Price(
+							2, "vip", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, null, true
+						),
+						new Price(
+							3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE,
+							BigDecimal.ZERO, BigDecimal.ONE, VALIDITY,
+							true
+						),
+						new Price(
+							4, "vip", CURRENCY_USD, 7, BigDecimal.ONE,
+							BigDecimal.ZERO, BigDecimal.ONE, null,
+							true
+						),
+						new Price(
+							5, "basic", CURRENCY_CZK, 9,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						),
+						new Price(
+							6, "basic", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, null, true
+						),
+						new Price(
+							7, "basic", CURRENCY_CZK, 8,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, VALIDITY, true
+						)
+					)
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
+					.setStoresByIds(1, 2, 3);
 
 				assertNull(newProduct.getParameter());
 				final ProductParameterInterfaceEditor newParameter = newProduct.getOrCreateParameter(parameterId);
@@ -1801,11 +1849,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				 */
 
 				product8.removePricesById(2)
-				        .removePricesByCurrency(CURRENCY_USD)
-				        .removePrice(product8.getPrice("basic", CURRENCY_CZK, 5))
-				        .removePrice(6, "basic", CURRENCY_CZK)
-				        .removePricesByPriceList("reference")
-				        .removeBasicPrice(7, CURRENCY_CZK);
+					.removePricesByCurrency(CURRENCY_USD)
+					.removePrice(product8.getPrice("basic", CURRENCY_CZK, 5))
+					.removePrice(6, "basic", CURRENCY_CZK)
+					.removePricesByPriceList("reference")
+					.removeBasicPrice(7, CURRENCY_CZK);
 
 				final Optional<EntityMutation> mutation = product8.toMutation();
 				assertTrue(mutation.isPresent());
@@ -1912,7 +1960,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final Iterator<Long> priorityIt = originalPriorities.iterator();
 
 				modifiedInstance.getProductCategories()
-				                .forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
+					.forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
 
 				product6.upsertDeeplyVia(evitaSession);
 
@@ -1950,19 +1998,19 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final List<Long> originalPriorities = product6.getProductCategoriesAsList()
-				                                              .stream()
-				                                              .map(ProductCategoryInterface::getOrderInCategory)
-				                                              .toList();
+					.stream()
+					.map(ProductCategoryInterface::getOrderInCategory)
+					.toList();
 
 				final List<ProductCategoryInterfaceEditor> editors = product6.getProductCategoriesAsList()
-				                                                             .stream()
-				                                                             .map(it -> {
-					                                                             final ProductCategoryInterfaceEditor editor = it.openForWrite();
-					                                                             editor.setOrderInCategory(
-						                                                             it.getOrderInCategory() << 1);
-					                                                             return editor;
-				                                                             })
-				                                                             .toList();
+					.stream()
+					.map(it -> {
+						final ProductCategoryInterfaceEditor editor = it.openForWrite();
+						editor.setOrderInCategory(
+							it.getOrderInCategory() << 1);
+						return editor;
+					})
+					.toList();
 
 				final Optional<EntityMutation> mutation = product6.toMutation();
 				assertFalse(mutation.isPresent());
@@ -1977,7 +2025,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final Iterator<Long> priorityIt = originalPriorities.iterator();
 
 				modifiedInstance.getProductCategories()
-				                .forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
+					.forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
 
 				product6.upsertVia(evitaSession);
 
@@ -2228,8 +2276,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					"vip");
 				assertEquals(2, removedPricesByPriceList.size());
 				final Set<Integer> removedPriceIds = removedPricesByPriceList.stream()
-				                                                             .map(PriceContract::priceId)
-				                                                             .collect(Collectors.toSet());
+					.map(PriceContract::priceId)
+					.collect(Collectors.toSet());
 				assertTrue(removedPriceIds.contains(2));
 				assertTrue(removedPriceIds.contains(3));
 
@@ -2695,8 +2743,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final Set<Price.PriceKey> removedPriceIds = Arrays.stream(product8.removeAllPricesAndReturnThem())
-				                                                  .map(PriceContract::priceKey)
-				                                                  .collect(Collectors.toSet());
+					.map(PriceContract::priceKey)
+					.collect(Collectors.toSet());
 
 				assertTrue(removedPriceIds.contains(new Price.PriceKey(1, "reference", CURRENCY_CZK)));
 				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
@@ -2747,8 +2795,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final Set<Price.PriceKey> removedPriceIds = product8.removeAllPricesAndReturnThemAsCollection().stream()
-				                                                    .map(PriceContract::priceKey)
-				                                                    .collect(Collectors.toSet());
+					.map(PriceContract::priceKey)
+					.collect(Collectors.toSet());
 
 				assertTrue(removedPriceIds.contains(new Price.PriceKey(1, "reference", CURRENCY_CZK)));
 				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
@@ -2917,21 +2965,21 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-9")
-				                                                      .setName(CZECH_LOCALE, "Produkt 9")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L)
-					                                                                               .setParameterGroup(
-						                                                                               parameterGroupId)
-				                                                      );
+					.setCode("product-9")
+					.setName(CZECH_LOCALE, "Produkt 9")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroup(
+								parameterGroupId)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -2953,7 +3001,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final SealedEntity product = evitaSession.getEntity(
 					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId)
-				                                              .orElseThrow();
+					.orElseThrow();
 				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -2964,20 +3012,20 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
-				                                                               .getParameterGroupEntity();
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
 
 				loadedProduct.getParameter()
-				             .openForWrite()
-				             .removeParameterGroup()
-				             .upsertVia(evitaSession);
+					.openForWrite()
+					.removeParameterGroup()
+					.upsertVia(evitaSession);
 
 				final SealedEntity productAgain = evitaSession.getEntity(
 					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				final ReferenceContract theParameterAgain = productAgain.getReference(Entities.PARAMETER, parameterId)
-				                                                        .orElseThrow();
+					.orElseThrow();
 				assertTrue(theParameterAgain.getGroup().isEmpty());
 
 				final ProductInterface loadedProductAgain = evitaSession.getEntity(
@@ -3006,24 +3054,24 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-10")
-				                                                      .setName(CZECH_LOCALE, "Produkt 10")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L)
-					                                                                               .setParameterGroupEntityClassifier(
-						                                                                               new EntityReference(
-							                                                                               Entities.PARAMETER_GROUP,
-							                                                                               parameterGroupId
-						                                                                               ))
-				                                                      );
+					.setCode("product-10")
+					.setName(CZECH_LOCALE, "Produkt 10")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroupEntityClassifier(
+								new EntityReference(
+									Entities.PARAMETER_GROUP,
+									parameterGroupId
+								))
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -3045,7 +3093,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final SealedEntity product = evitaSession.getEntity(
 					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId)
-				                                              .orElseThrow();
+					.orElseThrow();
 				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -3056,7 +3104,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
-				                                                               .getParameterGroupEntity();
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
@@ -3080,21 +3128,21 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-11")
-				                                                      .setName(CZECH_LOCALE, "Produkt 11")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L)
-					                                                                               .setParameterGroupEntity(
-						                                                                               parameterGroupEntity)
-				                                                      );
+					.setCode("product-11")
+					.setName(CZECH_LOCALE, "Produkt 11")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroupEntity(
+								parameterGroupEntity)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -3116,7 +3164,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final SealedEntity product = evitaSession.getEntity(
 					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId)
-				                                              .orElseThrow();
+					.orElseThrow();
 				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -3127,7 +3175,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
-				                                                               .getParameterGroupEntity();
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
@@ -3147,18 +3195,18 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-12")
-				                                                      .setName(CZECH_LOCALE, "Produkt 12")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L));
+					.setCode("product-12")
+					.setName(CZECH_LOCALE, "Produkt 12")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -3166,9 +3214,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				newProduct.upsertVia(evitaSession);
 
 				newProduct.getParameter()
-				          .openForWrite()
-				          .getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-2"))
-				          .upsertDeeplyVia(evitaSession);
+					.openForWrite()
+					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-2"))
+					.upsertDeeplyVia(evitaSession);
 
 				final EntityReference createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-2")
 					.orElseThrow();
@@ -3181,7 +3229,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
-				                                                               .getParameterGroupEntity();
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
 				assertEquals("parameterGroup-2", groupEntity.getCode());
@@ -3202,21 +3250,21 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-13")
-				                                                      .setName(CZECH_LOCALE, "Produkt 13")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L)
-					                                                                               .setParameterGroup(
-						                                                                               parameterGroupId)
-				                                                      );
+					.setCode("product-13")
+					.setName(CZECH_LOCALE, "Produkt 13")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroup(
+								parameterGroupId)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -3224,9 +3272,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				newProduct.upsertVia(evitaSession);
 
 				newProduct.getParameter()
-				          .openForWrite()
-				          .getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-20"))
-				          .upsertDeeplyVia(evitaSession);
+					.openForWrite()
+					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-20"))
+					.upsertDeeplyVia(evitaSession);
 
 				final EntityReference createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-20")
 					.orElseThrow();
@@ -3239,7 +3287,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
-				                                                               .getParameterGroupEntity();
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
 				assertEquals("parameterGroup-20", groupEntity.getCode());
@@ -3259,22 +3307,22 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-				                                                      .setCode("product-14")
-				                                                      .setName(CZECH_LOCALE, "Produkt 14")
-				                                                      .setName(Locale.ENGLISH, "Product 14")
-				                                                      .setEnum(TestEnum.ONE)
-				                                                      .setOptionallyAvailable(true)
-				                                                      .setAlias(true)
-				                                                      .setQuantity(BigDecimal.TEN)
-				                                                      .setPriority(78L)
-				                                                      .setMarketsAttribute(
-					                                                      new String[]{"market-1", "market-2"})
-				                                                      .setMarkets(new String[]{"market-3", "market-4"})
-				                                                      .setParameter(
-					                                                      parameterId, that -> that.setPriority(10L)
-					                                                                               .setParameterGroup(
-						                                                                               parameterGroupId)
-				                                                      );
+					.setCode("product-14")
+					.setName(CZECH_LOCALE, "Produkt 14")
+					.setName(Locale.ENGLISH, "Product 14")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroup(
+								parameterGroupId)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setLabels(new Labels(), Locale.ENGLISH);
@@ -3301,8 +3349,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					new String[]{"market-3", "market-4"}, loadedProduct.removeMarkets().toArray(new String[0]));
 
 				final Collection<? extends LocalMutation<?, ?>> localMutations = loadedProduct.toMutation()
-				                                                                              .orElseThrow()
-				                                                                              .getLocalMutations();
+					.orElseThrow()
+					.getLocalMutations();
 				final BitSet expectedMutations = new BitSet(6);
 				assertEquals(6, localMutations.size());
 				for (LocalMutation<?, ?> localMutation : localMutations) {
@@ -3477,8 +3525,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final List<ProductCategoryInterfaceEditor> categories = product1.removeAllProductCategoriesAndReturnTheirBodies();
 				assertEquals(
 					Set.of(2001, 2002), categories.stream()
-					                              .map(ProductCategoryInterface::getPrimaryKey)
-					                              .collect(Collectors.toSet())
+						.map(ProductCategoryInterface::getPrimaryKey)
+						.collect(Collectors.toSet())
 				);
 				product1.addProductCategory(
 					3, catEd -> {
@@ -3530,7 +3578,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			entityFetchAllContent()
 		).orElseThrow();
 
-		final String relationType = "similar";
+		final String relationType = CATEGORY_SIMILAR;
 		editor.addOrUpdateRelatedProduct(
 			relatedProduct.getPrimaryKey(),
 			relationType,
@@ -3580,7 +3628,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			(ProductInterfaceEditor editor, Consumer<RelatedProductInterfaceEditor> consumer) ->
 				editor.addOrUpdateRelatedProduct(
 					originalProducts.get(1).getPrimaryKey(),
-					"similar",
+					CATEGORY_SIMILAR,
 					consumer
 				)
 		);
@@ -3601,9 +3649,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			(ProductInterfaceEditor editor, Consumer<RelatedProductInterfaceEditor> consumer) ->
 				editor.addOrUpdateRelatedProduct(
 					originalProducts.get(1).getPrimaryKey(),
-					ref -> "similar".equals(ref.getRelationType()),
+					ref -> CATEGORY_SIMILAR.equals(ref.getRelationType()),
 					ref -> {
-						ref.setRelationType("similar");
+						ref.setRelationType(CATEGORY_SIMILAR);
 						consumer.accept(ref);
 					}
 				)
@@ -3626,8 +3674,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			entityFetchAllContent()
 		).orElseThrow();
 
-		final String relationType1 = "similar";
-		final String relationType2 = "different";
+		final String relationType1 = CATEGORY_SIMILAR;
+		final String relationType2 = CATEGORY_DIFFERENT;
 
 		for (int i = 0; i < 6; i++) {
 			final boolean odd = i % 2 == 0;
@@ -3746,6 +3794,133 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			originalProducts,
 			7, 8,
 			editor -> editor.removeRelatedProduct(6, ref -> "accessory".equals(ref.getRelationType()))
+		);
+	}
+
+	@DisplayName("Should remove all related products and return count")
+	@Order(49)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsAndReturnCount(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		assertEquals(6, reloaded.removeAllRelatedProductsAndReturnCount());
+	}
+
+	@DisplayName("Should remove all related products using discriminator and return count")
+	@Order(50)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsUsingDiscriminatorAndReturnCount(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		assertEquals(3, reloaded.removeRelatedProductsAndReturnCount(CATEGORY_SIMILAR));
+		assertEquals(3, reloaded.removeRelatedProductsAndReturnCount(CATEGORY_DIFFERENT));
+	}
+
+	@DisplayName("Should remove all related products and return their ids")
+	@Order(51)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsAndReturnTheirIds(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<Integer> ids = reloaded.removeAllRelatedProductsAndReturnTheirIds();
+		assertEquals(6, ids.size());
+		assertArrayEquals(
+			new Integer[]{1, 1, 2, 2, 3, 3},
+			ids.stream().sorted().toArray(Integer[]::new)
+		);
+	}
+
+	@DisplayName("Should remove all related products using discriminator and return their ids")
+	@Order(52)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsUsingDiscriminatorAndReturnTheirIds(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<Integer> similarIds = reloaded.removeAllRelatedProductsAndReturnTheirIds(CATEGORY_SIMILAR);
+		assertEquals(3, similarIds.size());
+		assertArrayEquals(
+			new Integer[]{1, 2, 3},
+			similarIds.stream().sorted().toArray(Integer[]::new)
+		);
+
+		final Collection<Integer> differentIds = reloaded.removeAllRelatedProductsAndReturnTheirIds(CATEGORY_DIFFERENT);
+		assertEquals(3, differentIds.size());
+		assertArrayEquals(
+			new Integer[]{1, 2, 3},
+			differentIds.stream().sorted().toArray(Integer[]::new)
+		);
+	}
+
+	@DisplayName("Should remove all related products and return their bodies")
+	@Order(53)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsAndReturnTheirBodies(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<RelatedProductInterface> removedRelations = reloaded.removeAllRelatedProductsAndReturnTheirBodies();
+		assertEquals(6, removedRelations.size());
+		assertArrayEquals(
+			new int[] {1, 1, 2, 2, 3, 3},
+			removedRelations.stream().mapToInt(RelatedProductInterface::getPrimaryKey).sorted().toArray()
+		);
+	}
+
+	@DisplayName("Should remove all related products using discriminator and return their bodies")
+	@Order(53)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsUsingDiscriminatorAndReturnTheirBodies(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<RelatedProductInterface> similarRelations =
+			reloaded.removeAllRelatedProductsAndReturnTheirBodies(CATEGORY_SIMILAR);
+		assertEquals(3, similarRelations.size());
+		assertArrayEquals(
+			new int[]{1, 2, 3},
+			similarRelations.stream().mapToInt(RelatedProductInterface::getPrimaryKey).sorted().toArray()
+		);
+
+		final Collection<RelatedProductInterface> differentRelations =
+			reloaded.removeAllRelatedProductsAndReturnTheirBodies(CATEGORY_DIFFERENT);
+		assertEquals(3, differentRelations.size());
+		assertArrayEquals(
+			new int[]{1, 2, 3},
+			differentRelations.stream().mapToInt(RelatedProductInterface::getPrimaryKey).sorted().toArray()
 		);
 	}
 

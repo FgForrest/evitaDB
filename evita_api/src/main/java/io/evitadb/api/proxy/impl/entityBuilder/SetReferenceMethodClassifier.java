@@ -1244,60 +1244,48 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						referenceName);
 					if (references.isEmpty()) {
 						// do nothing
-					} else if (references.size() == 1) {
-						final ReferenceContract reference = references.iterator().next();
+					} else {
 						//noinspection unchecked
 						final Predicate<Object> predicate = predicateIndex >= 0 ?
 							(Predicate<Object>) Objects.requireNonNull(args[predicateIndex]) :
 							null;
 						final Predicate<Object> composedPredicate = combinePredicates(
 							predicate, constantPredicate, args);
-						if (applyPredicate(theState, referenceSchema, predicateType, reference, composedPredicate)) {
-							final ReferenceKey referenceKey = reference.getReferenceKey();
-							entityBuilder.removeReference(referenceKey);
-							theState.unregisterReferenceObject(referenceKey);
-							theState.unregisterReferencedEntityObject(referenceName, referenceKey.primaryKey(), ReferencedObjectType.TARGET);
+						for (ReferenceContract reference : references) {
+							if (applyPredicate(theState, referenceSchema, predicateType, reference, composedPredicate)) {
+								final ReferenceKey referenceKey = reference.getReferenceKey();
+								entityBuilder.removeReference(referenceKey);
+								theState.unregisterReferenceObject(referenceKey);
+								theState.unregisterReferencedEntityObject(referenceName, referenceKey.primaryKey(), ReferencedObjectType.TARGET);
+							}
 						}
-					} else {
-						throw new EvitaInvalidUsageException(
-							"Cannot remove reference `" + referenceName +
-								"` from entity `" + theState.getEntitySchema().getName() + "` " +
-								"because there is more than single reference!"
-						);
 					}
 					return proxy;
 				};
-			} else if (Number.class.isAssignableFrom(returnType)) {
+			} else if (Number.class.isAssignableFrom(returnType) || (returnType.isPrimitive() && (int.class.equals(returnType) || long.class.equals(returnType)))) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.entityBuilder();
-					final Collection<ReferenceContract> references = entityBuilder.getReferences(
-						referenceName);
+					final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 					if (references.isEmpty()) {
 						// do nothing
-						return null;
-					} else if (references.size() == 1) {
-						final ReferenceContract reference = references.iterator().next();
+						return 0;
+					} else {
 						//noinspection unchecked
 						final Predicate<Object> predicate = predicateIndex >= 0 ?
-							(Predicate<Object>) Objects.requireNonNull(args[predicateIndex]) :
-							null;
+							(Predicate<Object>) Objects.requireNonNull(args[predicateIndex]) : null;
 						final Predicate<Object> composedPredicate = combinePredicates(predicate, constantPredicate, args);
-						if (applyPredicate(theState, referenceSchema, predicateType, reference, composedPredicate)) {
-							final ReferenceKey referenceKey = reference.getReferenceKey();
-							entityBuilder.removeReference(referenceKey);
-							theState.unregisterReferenceObject(referenceKey);
-							theState.unregisterReferencedEntityObject(referenceName, referenceKey.primaryKey(), ReferencedObjectType.TARGET);
-							//noinspection unchecked,rawtypes
-							return EvitaDataTypes.toTargetType(referenceKey.primaryKey(), (Class) returnType);
-						} else {
-							return null;
+						int counter = 0;
+						for (ReferenceContract reference : references) {
+							if (applyPredicate(theState, referenceSchema, predicateType, reference, composedPredicate)) {
+								counter++;
+								final ReferenceKey referenceKey = reference.getReferenceKey();
+								entityBuilder.removeReference(referenceKey);
+								theState.unregisterReferenceObject(referenceKey);
+								theState.unregisterReferencedEntityObject(referenceName, referenceKey.primaryKey(), ReferencedObjectType.TARGET);
+							}
 						}
-					} else {
-						throw new EvitaInvalidUsageException(
-							"Cannot remove reference `" + referenceName +
-								"` from entity `" + theState.getEntitySchema().getName() + "` " +
-								"because there is more than single reference!"
-						);
+						//noinspection unchecked
+						return EvitaDataTypes.toTargetType(counter, (Class<Serializable>) returnType);
 					}
 				};
 			} else {
@@ -2905,6 +2893,21 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				} else if (parameterCount == 1) {
 					if (result.referencedIdIndex().isPresent() && noDirectlyReferencedEntityRecognized) {
 						return setOrRemoveReferenceById(proxyState, method, result.returnType(), referenceSchema);
+					} else if (result.predicateIndex.isPresent() || result.constantPredicate.isPresent()) {
+						return removeReference(
+							proxyState, referenceSchema,
+							result.entityRecognizedIn()
+								.map(RecognizedContext::entityContract)
+								.orElseGet(() -> {
+									final Class<?> methodReturnType = GenericsUtils.getMethodReturnType(
+										proxyState.getProxyClass(), method);
+									return new ResolvedParameter(method.getReturnType(), methodReturnType);
+								}),
+							isEntityRecognizedIn(result.entityRecognizedIn(), EntityRecognizedIn.RETURN_TYPE),
+							result.predicateIndex().orElse(-1),
+							result.predicateType().map(ResolvedParameter::resolvedType).orElse(null),
+							result.constantPredicate().orElse(null)
+						);
 					} else if (resolvedTypeIs(result.referencedType(), EntityClassifier.class) && noDirectlyReferencedEntityRecognized) {
 						return setReferenceByEntityClassifier(
 							proxyState,
