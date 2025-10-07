@@ -37,6 +37,7 @@ Origin: http://localhost:5555
 ###
 WEBSOCKET ws://localhost:5555/rest/system/change-captures
 Origin: http://localhost:5555
+Sec-WebSocket-Protocol: rest-transport-ws
 
 {
     "type": "connection_init"

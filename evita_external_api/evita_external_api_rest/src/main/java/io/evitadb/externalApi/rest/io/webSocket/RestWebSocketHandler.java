@@ -57,13 +57,14 @@ public class RestWebSocketHandler<CTX extends RestHandlingContext>
 	private static final String REST_WS_SUB_PROTOCOL = "rest-transport-ws";
 
 	@Nonnull
-	private final RestWebSocketExecutor restWebSocketExecutor;
+	private final RestWebSocketExecutor<CTX, ?> restWebSocketExecutor;
+	// todo lho should this be supported?
 	@Nullable
 	private final RestEndpointHandler<CTX> fallbackService;
 
 	public RestWebSocketHandler(
 		@Nonnull CTX restHandlingContext,
-		@Nonnull RestWebSocketExecutor restWebSocketExecutor,
+		@Nonnull RestWebSocketExecutor<CTX, ?> restWebSocketExecutor,
 		@Nullable RestEndpointHandler<CTX> fallbackService
 	) {
 		super(restHandlingContext);
@@ -79,7 +80,7 @@ public class RestWebSocketHandler<CTX extends RestHandlingContext>
 		}
 
 		final WebSocketWriter outgoing = WebSocket.streaming();
-		final RestWSSubProtocol protocol = new RestWSSubProtocol(ctx, this.restWebSocketExecutor);
+		final RestWSSubProtocol<CTX> protocol = new RestWSSubProtocol<>(ctx, this.restHandlingContext, this.restWebSocketExecutor);
 		in.incomingWebSocket().subscribe(new RestWebSocketSubscriber(protocol, outgoing));
 		return outgoing;
 	}

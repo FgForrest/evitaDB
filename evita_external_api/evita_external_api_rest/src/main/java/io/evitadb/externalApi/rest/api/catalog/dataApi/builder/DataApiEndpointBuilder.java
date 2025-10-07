@@ -155,8 +155,8 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCatalogEndpoint buildCollectionsEndpoint(@Nonnull CatalogRestBuildingContext buildingContext) {
-		return newCatalogEndpoint(buildingContext.getSchema())
+	public OpenApiCatalogEndpoint buildCollectionsEndpoint() {
+		return newCatalogEndpoint(this.buildingContext.getSchema())
 			.path(p -> p
 				.staticItem(CatalogDataApiRootDescriptor.COLLECTIONS.urlPathItem()))
 			.method(HttpMethod.GET)
@@ -172,10 +172,11 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public Optional<OpenApiCatalogEndpoint> buildGetUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
-	                                                                      @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
-	                                                                      boolean localized) {
-		if (buildingContext.getEntitySchemas().isEmpty()) {
+	public Optional<OpenApiCatalogEndpoint> buildGetUnknownEntityEndpoint(
+		@Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
+		boolean localized
+	) {
+		if (this.buildingContext.getEntitySchemas().isEmpty()) {
 			return Optional.empty();
 		}
 
@@ -195,11 +196,11 @@ public class DataApiEndpointBuilder {
 			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
 
-		final boolean localeArgumentNeeded = !buildingContext.getSupportedLocales().isEmpty();
+		final boolean localeArgumentNeeded = !this.buildingContext.getSupportedLocales().isEmpty();
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(!localized || localeArgumentNeeded));
 
 		return Optional.of(
-			newCatalogEndpoint(buildingContext.getSchema())
+			newCatalogEndpoint(this.buildingContext.getSchema())
 				.path(localized, p -> p
 					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier())
 					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.urlPathItem()))
@@ -214,10 +215,11 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public Optional<OpenApiCatalogEndpoint> buildListUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
-	                                                                       @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
-	                                                                       boolean localized) {
-		if (buildingContext.getEntitySchemas().isEmpty()) {
+	public Optional<OpenApiCatalogEndpoint> buildListUnknownEntityEndpoint(
+		@Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
+		boolean localized
+	) {
+		if (this.buildingContext.getEntitySchemas().isEmpty()) {
 			return Optional.empty();
 		}
 
@@ -240,11 +242,11 @@ public class DataApiEndpointBuilder {
 			.to(this.operationQueryParameterBuilderTransformer)
 			.build());
 
-		final boolean localeArgumentNeeded = !buildingContext.getSupportedLocales().isEmpty();
+		final boolean localeArgumentNeeded = !this.buildingContext.getSupportedLocales().isEmpty();
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(!localized || localeArgumentNeeded));
 
 		return Optional.of(
-			newCatalogEndpoint(buildingContext.getSchema())
+			newCatalogEndpoint(this.buildingContext.getSchema())
 				.path(localized, p -> p
 					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier())
 					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.urlPathItem()))

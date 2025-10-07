@@ -91,7 +91,7 @@ public interface SystemRootDescriptor {
             """)
         .type(nonNull(Boolean.class))
         .build();
-    EndpointDescriptor SYSTEM_CHANGE_CAPTURE = EndpointDescriptor.builder()
+    EndpointDescriptor CHANGE_SYSTEM_CAPTURE = EndpointDescriptor.builder()
         .operation("registerSystemChangeCapture")
         .urlPathItem("change-captures")
         .description("""

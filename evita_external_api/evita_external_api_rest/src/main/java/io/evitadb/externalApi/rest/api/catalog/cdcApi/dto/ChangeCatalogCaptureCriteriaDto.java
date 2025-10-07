@@ -21,18 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.webSocket;
+package io.evitadb.externalApi.rest.api.catalog.cdcApi.dto;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
+import io.evitadb.api.requestResponse.cdc.CaptureSite;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
-// todo lho
-interface RestSubProtocol {
-    void sendResult(@Nonnull String operationId, @Nonnull Object executionResult) throws JsonProcessingException;
+/**
+ * REST API DTO for {@link io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria}.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ */
+public record ChangeCatalogCaptureCriteriaDto(
+	@Nullable CaptureArea area,
+	@Nullable CaptureSiteDto site
+) {
 
-    void completeWithError(Throwable cause);
+	@Nonnull
+	public ChangeCatalogCaptureCriteria toCriteria() {
+		final CaptureSite<?> site = Optional.ofNullable(this.site)
+			.map(CaptureSiteDto::toSite)
+			.orElse(null);
 
-    void complete();
+		return new ChangeCatalogCaptureCriteria(this.area, site);
+	}
 }

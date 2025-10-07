@@ -1,7 +1,7 @@
 # WebSocket Protocol for REST API
 
 This protocol represents a communication schema for WebSocket endpoints defined within the evitaDB's REST API.
-It is based on GraphQL WS protocol. TODO
+It is based on the [GraphQL Transport WS protocol](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md).
 
 ## Nomenclature
 
@@ -102,7 +102,7 @@ interface PongMessage {
 
 Direction: **Client -> Server**
 
-Requests an operation specified in the message `payload`. This message provides a unique ID field to connect published messages to the operation requested by this message.
+Requests a new subscription defined by the WS endpoint with parameters defined in the `payload`. This message provides a unique ID field to connect published messages to the operation requested by this message.
 
 If there is already an active subscriber for an operation matching the provided ID, regardless of the operation type, the server **must** close the socket immediately with the event `4409: Subscriber for <unique-operation-id> already exists`.
 
@@ -124,12 +124,14 @@ Direction: **Server -> Client**
 
 Operation execution result(s) from the source stream created by the binding `Subscribe` message. After all results have been emitted, the `Complete` message will follow indicating stream completion.
 
-TODO LHO type
 ```typescript
 interface NextMessage {
   id: '<unique-operation-id>';
   type: 'next';
-  payload: ExecutionResult;
+  payload: {
+    data: Record<string, unknown> | null;
+    error: { message: string } | null;
+  }
 }
 ```
 
@@ -139,12 +141,13 @@ Direction: **Server -> Client**
 
 Operation execution error(s) in response to the `Subscribe` message. This can occur _before_ execution starts, usually due to validation errors, or _during_ the execution of the request. This message terminates the operation and no further messages will be sent.
 
-TODO LHO type
 ```typescript
 interface ErrorMessage {
   id: '<unique-operation-id>';
   type: 'error';
-  payload: RestError[];
+  payload: { 
+    error: { message: string } | null;
+  };
 }
 ```
 
@@ -179,7 +182,7 @@ For the sake of clarity, the following examples demonstrate the communication pr
 
 <h3 id="successful-connection-initialisation">Successful connection initialisation</h3>
 
-1. _Client_ sends a WebSocket handshake request with the sub-protocol: `graphql-transport-ws`
+1. _Client_ sends a WebSocket handshake request with the sub-protocol: `rest-transport-ws`
 1. _Server_ accepts the handshake and establishes a WebSocket communication channel (which we call "socket")
 1. _Client_ immediately dispatches a `ConnectionInit` message optionally providing a payload as agreed with the server
 1. _Server_ validates the connection initialisation request and dispatches a `ConnectionAck` message to the client on successful connection
@@ -187,61 +190,9 @@ For the sake of clarity, the following examples demonstrate the communication pr
 
 ### Connection initialisation timeout
 
-1. _Client_ sends a WebSocket handshake request with the sub-protocol: `graphql-transport-ws`
+1. _Client_ sends a WebSocket handshake request with the sub-protocol: `rest-transport-ws`
 1. _Server_ accepts the handshake and establishes a WebSocket communication channel (which we call "socket")
 1. _Client_ does not dispatch a `ConnectionInit` message
 1. _Server_ waits for the `ConnectionInit` message for the duration specified in the `connectionInitWaitTimeout` parameter
 1. _Server_ waiting time has passed
 1. _Server_ closes the socket by dispatching the event `4408: Connection initialisation timeout`
-
-### Streaming operation
-
-#### `subscription` operation and queries with streaming directives
-
-_The client and the server has already gone through [successful connection initialisation](#successful-connection-initialisation)._
-
-1. _Client_ generates a unique ID for the following operation
-1. _Client_ dispatches the `Subscribe` message with the generated ID through the `id` field and the requested operation passed through the `payload` field
-   <br>_All future communication is linked through this unique ID_
-1. _Server_ executes the streaming GraphQL operation
-1. _Server_ checks if the generated ID is unique across active streaming subscriptions
-
-    - If **not** unique, the _server_ will close the socket with the event `4409: Subscriber for <generated-id> already exists`
-    - If unique, continue...
-
-1. _Server_ _optionally_ checks if the operation is valid before starting executing it, e.g. checking permissions
-
-    - If **not** valid, the _server_ sends an `Error` message and deems the operation complete.
-    - If valid, continue...
-
-1. _Server_ dispatches results over time with the `Next` message
-1. - _Server_ dispatches the `Complete` message indicating that the source stream has completed
-- _Client_ completes the stream observer
-  <br>**or**
-- _Client_ stops the subscription by dispatching a `Complete` message
-- _Server_ receives `Complete` message and completes the source stream
-- _Client_ ignores all further messages that it receives with this ID
-  <br>**or**
-- _Server_ dispatches the `Complete` message indicating that the source stream has completed
-- **Simultaneously** _client_ stops the subscription by dispatching a `Complete` message
-- _Client_ ignores all further messages that it receives with this ID
-- _Server_ ignores the `Complete` message from the client
-
-### Single result operation
-
-#### `query` and `mutation` operations without streaming directives
-
-A single result operation is identical to a streaming operation except that _at most one_ `Next` message is sent.
-
-It shares the same name-space for IDs as streaming operations and can be multiplexed with other operations on the connection.
-
-_The client and the server has already gone through [successful connection initialisation](#successful-connection-initialisation)._
-
-1. _Client_ generates a unique ID for the following operation
-1. _Client_ dispatches the `Subscribe` message with the generated ID through the `id` field and the requested operation passed through the `payload` field
-   <br>_All future communication is linked through this unique ID_
-1. _Server_ executes the single result GraphQL operation
-1. _Server_ dispatches the result with the `Next` message
-1. _Server_ dispatches the `Complete` message indicating that the execution has completed
-
-The _client_ may dispatch a `Complete` message at any time, just as shown in the streaming operations examples above, and the same interactions ensue.

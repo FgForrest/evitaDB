@@ -56,7 +56,7 @@ public class CatalogGraphQLSchemaSubscriptionsFunctionalTest
 	implements ExternalApiFunctionTestsSupport, ExternalApiWebSocketFunctionTestsSupport {
 
 	private static final String SCHEMA_PATH_SUFFIX = "/schema";
-	private static final String ON_SCHEMA_CHANGE_PATH = "payload.data.onSchemaChangeCatalog";
+	private static final String ON_SCHEMA_CHANGE_PATH = "payload.data.onSchemaChange";
 
 	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API = "GraphQLEmptySystemForCatalogSchemaApi";
 
@@ -101,7 +101,7 @@ public class CatalogGraphQLSchemaSubscriptionsFunctionalTest
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onSchemaChangeCatalog(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
+					"onSchemaChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
 
 				// apply operation to trigger a new event
@@ -138,7 +138,7 @@ public class CatalogGraphQLSchemaSubscriptionsFunctionalTest
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onSchemaChangeCatalog(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
+					"onSchemaChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
 				));
 
 				// apply operation to trigger a new event

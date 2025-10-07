@@ -29,7 +29,6 @@ import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
@@ -43,8 +42,7 @@ import io.evitadb.externalApi.rest.api.system.resolver.endpoint.GetCatalogHandle
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.ListCatalogsHandler;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.LivenessHandler;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.UpdateCatalogHandler;
-import io.evitadb.externalApi.rest.io.webSocket.DummyRestWebSocketExecutor;
-import io.evitadb.externalApi.rest.io.webSocket.RestWebSocketHandler;
+import io.evitadb.externalApi.rest.api.system.resolver.endpoint.ChangeSystemCaptureStreamHandler;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
@@ -162,19 +160,15 @@ public class SystemEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiSystemEndpoint buildSystemChangeCaptureEndpoint() {
+	public OpenApiSystemEndpoint buildChangeSystemCaptureEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.SYSTEM_CHANGE_CAPTURE.urlPathItem()))
+				.staticItem(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.urlPathItem()))
 			.method(HttpMethod.GET)
-			.operationId(SystemRootDescriptor.SYSTEM_CHANGE_CAPTURE.operation())
-			.description(SystemRootDescriptor.SYSTEM_CHANGE_CAPTURE.description())
+			.operationId(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.operation())
+			.description(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.description())
 			.successResponse(nonNull(OpenApiScalar.scalarFrom(Boolean.class))) // todo lho not needed
-			.handler(ctx -> new RestWebSocketHandler<>(
-				ctx,
-				new DummyRestWebSocketExecutor(ctx.getEvita()),
-				null
-			))
+			.handler(ChangeSystemCaptureStreamHandler::new)
 			.build();
 	}
 }

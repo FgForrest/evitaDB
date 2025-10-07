@@ -191,7 +191,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	private void buildEndpoints() {
-		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint(this.buildingContext));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint());
 
 		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final CollectionDataApiRestBuildingContext collectionBuildingContext = setupForCollection(entitySchema);
@@ -229,15 +229,15 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if(!globallyUniqueAttributes.isEmpty()) {
-			this.endpointBuilder.buildGetUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, false)
+			this.endpointBuilder.buildGetUnknownEntityEndpoint(globallyUniqueAttributes, false)
 				.ifPresent(this.buildingContext::registerEndpoint);
-			this.endpointBuilder.buildListUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, false)
+			this.endpointBuilder.buildListUnknownEntityEndpoint(globallyUniqueAttributes, false)
 				.ifPresent(this.buildingContext::registerEndpoint);
 
 			if (!this.buildingContext.getLocalizedEntityObjects().isEmpty()) {
-				this.endpointBuilder.buildGetUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, true)
+				this.endpointBuilder.buildGetUnknownEntityEndpoint(globallyUniqueAttributes, true)
 					.ifPresent(this.buildingContext::registerEndpoint);
-				this.endpointBuilder.buildListUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, true)
+				this.endpointBuilder.buildListUnknownEntityEndpoint(globallyUniqueAttributes, true)
 					.ifPresent(this.buildingContext::registerEndpoint);
 			}
 		}

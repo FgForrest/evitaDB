@@ -100,7 +100,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCreateCatalogEndpoint());
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateCatalogEndpoint());
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteCatalogEndpoint());
-		this.buildingContext.registerEndpoint(this.endpointBuilder.buildSystemChangeCaptureEndpoint());
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildChangeSystemCaptureEndpoint());
 	}
 
 	@Nonnull
