@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
 import io.evitadb.dataType.Scope;
@@ -39,6 +38,7 @@ import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.cardinality.CardinalityIndex.CardinalityKey;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
@@ -60,7 +60,8 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 @Deprecated(since = "2024.11", forRemoval = true)
 @RequiredArgsConstructor
-public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityIndexStoragePart> {
+public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -94,7 +95,7 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
 		for (int i = 0; i < attributeIndexesCount; i++) {
 			final AttributeIndexType attributeIndexType = kryo.readObject(input, AttributeIndexType.class);
-			final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+			final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 			attributeIndexes.add(new AttributeIndexStorageKey(entityIndexKey, attributeIndexType, attributeKey));
 		}
 

@@ -24,13 +24,13 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -142,7 +142,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldIndexRecordsAndReturnInAscendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeKey("a"));
+		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -163,7 +163,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldIndexRecordsAndReturnInDescendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeKey("a"));
+		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -178,7 +178,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyOrderLocalizedStrings() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", new Locale("cs", "CZ")));
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord("c", 2);
 		sortIndex.addRecord("č", 3);
 		sortIndex.addRecord("a", 1);
@@ -201,7 +201,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldCorrectlyOrderBigDecimals() {
-		final SortIndex sortIndex = new SortIndex(BigDecimal.class, new AttributeKey("a", new Locale("cs", "CZ")));
+		final SortIndex sortIndex = new SortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord(new BigDecimal("0.00"), 1);
 		sortIndex.addRecord(new BigDecimal("0"), 2);
 		sortIndex.addRecord(new BigDecimal("0.000"), 3);
@@ -290,7 +290,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldPassGenerationalTest1() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a"));
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord("W", 49);
 		sortIndex.addRecord("Z", 150);
 		sortIndex.addRecord("[", 175);
@@ -310,7 +310,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldSortNationalCharactersCorrectly() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", CZECH_LOCALE));
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord("A", 1);
 		sortIndex.addRecord("Š", 2);
 		sortIndex.addRecord("T", 3);
@@ -346,7 +346,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			1_000,
-			new TestState(new StringBuilder(256), new SortIndex(String.class, new AttributeKey("whatever"))),
+			new TestState(new StringBuilder(256), new SortIndex(String.class, new AttributeIndexKey(null, "whatever", null))),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
 				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
@@ -411,7 +411,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 							new SortIndex(
 								committed.comparatorBase,
 								null,
-								committed.getAttributeKey(),
+								committed.getAttributeIndexKey(),
 								committed.sortedRecords.getArray(),
 								committed.sortedRecordsValues.getArray(),
 								new HashMap<>(committed.valueCardinalities)
@@ -430,7 +430,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Nonnull
 	private static SortIndex createIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", Locale.ENGLISH));
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("C", 3);
@@ -444,7 +444,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Nonnull
 	private static SortIndex createIndexWithSingleCardinality() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeKey("a", Locale.ENGLISH));
+		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
 		sortIndex.addRecord("A", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("A", 3);
@@ -463,7 +463,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 			},
-			new AttributeKey("a", Locale.ENGLISH)
+			new AttributeIndexKey(null, "a", Locale.ENGLISH)
 		);
 
 		sortIndex.addRecord(new Serializable[]{"B", 1}, 5);

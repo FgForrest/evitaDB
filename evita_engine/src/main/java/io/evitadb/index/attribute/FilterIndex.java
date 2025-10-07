@@ -23,7 +23,6 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -47,6 +46,7 @@ import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -90,7 +90,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Contains key identifying the attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
@@ -108,7 +108,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	@Nullable @Getter private final RangeIndex rangeIndex;
 	/**
-	 * Contains information about the type of the value held in this filter index (the type of {@link #attributeKey} values).
+	 * Contains information about the type of the value held in this filter index (the type of {@link #attributeIndexKey} values).
 	 */
 	private final Class<?> attributeType;
 	/**
@@ -211,13 +211,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns the appropriate comparator for particular attribute type and key.
 	 *
-	 * @param attributeKey  key containing information about used locale
+	 * @param attributeIndexKey  key containing information about used locale
 	 * @param attributeType type of the attribute
 	 * @return appropriate comparator
 	 */
 	@Nonnull
-	public static Comparator<? extends Comparable> getComparator(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
-		final Locale locale = attributeKey.locale();
+	public static Comparator<? extends Comparable> getComparator(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
+		final Locale locale = attributeIndexKey.locale();
 		if (String.class.isAssignableFrom(attributeType) && locale != null) {
 			return new LocalizedStringComparator(locale);
 		} else {
@@ -225,47 +225,47 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		}
 	}
 
-	public FilterIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
-		this.attributeKey = attributeKey;
+	public FilterIndex(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
+		this.attributeIndexKey = attributeIndexKey;
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 		this.rangeIndex = Range.class.isAssignableFrom(plainType) ? new RangeIndex() : null;
-		this.comparator = getComparator(attributeKey, plainType);
+		this.comparator = getComparator(attributeIndexKey, plainType);
 		this.normalizer = getNormalizer(plainType);
 		this.invertedIndex = new InvertedIndex(this.normalizer, this.comparator);
 	}
 
 	public FilterIndex(
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull ValueToRecordBitmap[] valueToRecords,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType
 	) {
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.rangeIndex = rangeIndex;
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.comparator = getComparator(attributeKey, plainType);
+		this.comparator = getComparator(attributeIndexKey, plainType);
 		this.normalizer = getNormalizer(plainType);
 		this.invertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
 	}
 
 	//	TOBEDONE #538 - remove unnecessary constructor
 	public FilterIndex(
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull ValueToRecordBitmap[] valueToRecords,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType,
 		boolean updateSortedValues
 	) {
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.rangeIndex = rangeIndex;
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.comparator = getComparator(attributeKey, plainType);
+		this.comparator = getComparator(attributeIndexKey, plainType);
 		this.normalizer = getNormalizer(plainType);
 		if (updateSortedValues) {
 			if (this.normalizer != NO_NORMALIZATION) {
@@ -293,14 +293,14 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	private FilterIndex(
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<?> attributeType,
 		@Nonnull InvertedIndex invertedIndex,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Comparator<? extends Comparable> comparator,
 		@Nonnull Function<Object, Serializable> normalizer
 	) {
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.attributeType = attributeType;
 		this.dirty = new TransactionalBoolean();
 		this.invertedIndex = invertedIndex;
@@ -774,7 +774,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
 			return new FilterIndexStoragePart(
-				entityIndexPrimaryKey, this.attributeKey, this.attributeType,
+				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
 				this.invertedIndex.getValueToRecordBitmap(),
 				this.rangeIndex
 			);
@@ -794,7 +794,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		// we can safely throw away dirty flag now
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new FilterIndex(
-			this.attributeKey,
+			this.attributeIndexKey,
 			this.attributeType,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex),
 			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex),

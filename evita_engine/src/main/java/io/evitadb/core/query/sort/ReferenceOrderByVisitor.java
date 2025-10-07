@@ -355,6 +355,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 					() -> "Chain sort cannot be executed in multiple scopes (" +
 						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
 				);
+				// resolve target schema
+				final ReferenceSchemaContract targetReferenceSchema = this.queryContext.getSchema(
+						this.referenceSchema.getReferencedEntityType()
+					).getReferenceOrThrowException(reflectedReferenceSchema.getReflectedReferenceName());
 				// get the index from the referenced entity collection using inverted key specification
 				final Optional<ChainIndex> chainIndex = this.queryContext.getEntityIndex(
 					this.referenceSchema.getReferencedEntityType(),
@@ -365,7 +369,14 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 						theLookupReferenceKey
 					),
 					EntityIndex.class
-				).map(it -> it.getChainIndex(attributeKey));
+				).map(
+					it -> it.getChainIndex(
+						targetReferenceSchema,
+						targetReferenceSchema.getAttribute(attributeKey.attributeName())
+							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
+						attributeKey.locale()
+					)
+				);
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(
 					theLookupReferenceKey,
@@ -397,7 +408,14 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 						referenceKey
 					),
 					ReducedEntityIndex.class
-				).map(it -> it.getChainIndex(attributeKey));
+				).map(
+					it -> it.getChainIndex(
+						this.referenceSchema,
+						this.referenceSchema.getAttribute(attributeKey.attributeName())
+							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
+						attributeKey.locale()
+					)
+				);
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(referenceKey, attributeKey);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);

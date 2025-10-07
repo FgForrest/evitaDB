@@ -197,7 +197,7 @@ public class AttributeSchemaAccessor {
 				this.catalogSchema, null, null, requiredTrait
 			);
 		} else {
-			final ReferenceSchemaContract referenceSchema = this.referenceSchemaAccessor == null ? null : this.referenceSchemaAccessor.apply(this.entitySchema);
+			final ReferenceSchemaContract referenceSchema = getReferenceSchema();
 			final AttributeSchemaProvider<?> attributeSchemaProvider = Objects.requireNonNull(referenceSchema == null ? this.entitySchema : referenceSchema);
 			return verifyAndReturn(
 				attributeName, requestedScopes, attributeSchemaProvider.getAttribute(attributeName).orElse(null),
@@ -227,9 +227,7 @@ public class AttributeSchemaAccessor {
 		@Nonnull Set<Scope> requestedScopes,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		final ReferenceSchemaContract referenceSchema = ofNullable(this.referenceSchemaAccessor)
-			.map(it -> it.apply(entitySchema))
-			.orElse(null);
+		final ReferenceSchemaContract referenceSchema = getReferenceSchema();
 		final AttributeSchemaContract attributeSchema;
 		final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = this.catalogSchema.getAttribute(attributeName);
 		if (globalAttributeSchema.isPresent()) {
@@ -287,9 +285,7 @@ public class AttributeSchemaAccessor {
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> requestedScopes
 	) {
-		final ReferenceSchemaContract referenceSchema = ofNullable(this.referenceSchemaAccessor)
-			.map(it -> it.apply(entitySchema))
-			.orElse(null);
+		final ReferenceSchemaContract referenceSchema = getReferenceSchema();
 		final SortableAttributeCompoundSchemaContract compoundSchema;
 		compoundSchema = Objects.requireNonNullElse(referenceSchema, entitySchema)
 			.getSortableAttributeCompound(attributeName)
@@ -326,11 +322,24 @@ public class AttributeSchemaAccessor {
 	}
 
 	/**
+	 * Retrieves the {@link ReferenceSchemaContract} associated with the current entity schema
+	 * using the configured reference schema accessor. If no accessor is defined, or if the
+	 * accessor does not produce a schema, this method returns null.
+	 *
+	 * @return the {@link ReferenceSchemaContract} for the current entity schema, or null if
+	 *         no reference schema accessor is defined or if it does not resolve a schema.
+	 */
+	@Nullable
+	public ReferenceSchemaContract getReferenceSchema() {
+		return this.referenceSchemaAccessor == null ? null : this.referenceSchemaAccessor.apply(this.entitySchema);
+	}
+
+	/**
 	 * Set of traits that the {@link AttributeSchemaContract} needs to fulfill in order the schema can be accepted for
 	 * the caller. This mechanism allows centralizing all necessary exception handling in this class.
 	 */
 	public enum AttributeTrait {
-		FILTERABLE, UNIQUE, SORTABLE
-	}
+		FILTERABLE, UNIQUE, SORTABLE;
 
+	}
 }

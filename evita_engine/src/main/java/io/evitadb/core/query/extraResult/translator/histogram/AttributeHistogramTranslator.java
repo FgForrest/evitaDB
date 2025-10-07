@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,10 +26,10 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -43,6 +43,7 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.Attribute
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.utils.Assert;
 
@@ -104,8 +105,9 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			}
 
 			// collect all FilterIndexes for requested attribute and requested language
+			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema().orElse(null);
 			final List<FilterIndex> attributeIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
-				.map(it -> it.getFilterIndex(attributeName, language))
+				.map(it -> it.getFilterIndex(referenceSchema, attributeSchema, language))
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 
@@ -113,7 +115,11 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			attributeHistogramProducer.addAttributeHistogramRequest(
 				attributeSchema,
 				FilterIndex.getComparator(
-					new AttributeKey(attributeName, extraResultPlanner.getLocale()),
+					AttributeIndex.createAttributeKey(
+						referenceSchema,
+						attributeSchema,
+						extraResultPlanner.getLocale()
+					),
 					attributeSchema.getPlainType()
 				),
 				attributeIndexes,

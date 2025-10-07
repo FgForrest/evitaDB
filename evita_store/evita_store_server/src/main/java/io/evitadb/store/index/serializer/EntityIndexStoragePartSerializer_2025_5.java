@@ -60,10 +60,13 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityIndex} from/to binary format.
  *
+ * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
-public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStoragePart> {
+public class EntityIndexStoragePartSerializer_2025_5 extends Serializer<EntityIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	/**
@@ -79,17 +82,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		@Nonnull final Output output,
 		@Nullable final CardinalityIndex cardinalityIndex
 	) {
-		// write marker for null index to preserve backward compatibility
-		if (cardinalityIndex == null) {
-			output.writeInt(-1);
-			return;
-		}
-		final Map<CardinalityKey, Integer> cardinalities = cardinalityIndex.getCardinalities();
-		output.writeInt(cardinalities.size());
-		for (Entry<CardinalityKey, Integer> entry : cardinalities.entrySet()) {
-			output.writeVarInt(entry.getKey().recordId(), false);
-			output.writeVarInt(entry.getValue(), true);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	/**
@@ -211,8 +204,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			output.writeVarInt(this.keyCompressor.getId(referencedEntity), true);
 		}
 
-		EntityIndexStoragePartSerializer.writeCardinalityIndex(output, entityIndex.getIndexPrimaryKeyCardinality());
-		EntityIndexStoragePartSerializer.writeReferencedPrimaryKeysIndex(output, kryo, entityIndex.getReferencedPrimaryKeysIndex());
+		EntityIndexStoragePartSerializer_2025_5.writeCardinalityIndex(output, entityIndex.getIndexPrimaryKeyCardinality());
+		EntityIndexStoragePartSerializer_2025_5.writeReferencedPrimaryKeysIndex(output, kryo, entityIndex.getReferencedPrimaryKeysIndex());
 	}
 
 	@Override
@@ -241,7 +234,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
 		for (int i = 0; i < attributeIndexesCount; i++) {
 			final AttributeIndexType attributeIndexType = kryo.readObject(input, AttributeIndexType.class);
-			final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+			final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 			attributeIndexes.add(new AttributeIndexStorageKey(entityIndexKey, attributeIndexType, attributeKey));
 		}
 

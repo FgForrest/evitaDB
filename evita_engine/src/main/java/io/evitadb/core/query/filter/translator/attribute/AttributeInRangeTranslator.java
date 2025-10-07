@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -222,14 +223,17 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 		final String attributeName = attributeInRange.getAttributeName();
 
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
-			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeDefinition);
+			final AttributeSchemaContract attributeSchema = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
+			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeSchema);
 			final AttributeFormula filteringFormula = new AttributeFormula(
-				attributeDefinition instanceof GlobalAttributeSchemaContract,
+				attributeSchema instanceof GlobalAttributeSchemaContract,
 				attributeKey,
 				filterByVisitor.applyOnFilterIndexes(
-					attributeDefinition, index -> index.getRecordsValidInFormula(comparableValue)
+					processingScope.getReferenceSchema(),
+					attributeSchema,
+					index -> index.getRecordsValidInFormula(comparableValue)
 				)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {

@@ -35,25 +35,23 @@ import java.util.Locale;
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeKeyWithIndexType} from/to binary format.
  *
+ * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class AttributeKeyWithIndexTypeSerializer extends Serializer<AttributeKeyWithIndexType> {
+@Deprecated(since = "2025.5", forRemoval = true)
+public class AttributeKeyWithIndexTypeSerializer_2025_5 extends Serializer<AttributeKeyWithIndexType> {
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeKeyWithIndexType attributeKeyWithIndexType) {
-		output.writeString(attributeKeyWithIndexType.getReferenceName());
-		output.writeString(attributeKeyWithIndexType.getAttributeName());
-		kryo.writeObjectOrNull(output, attributeKeyWithIndexType.getLocale(), Locale.class);
-		output.writeString(attributeKeyWithIndexType.getIndexType().name());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public AttributeKeyWithIndexType read(Kryo kryo, Input input, Class<? extends AttributeKeyWithIndexType> type) {
-		final String referenceName = input.readString();
 		final String attributeName = input.readString();
 		final Locale locale = kryo.readObjectOrNull(input, Locale.class);
 		final AttributeIndexType indexType = AttributeIndexType.valueOf(input.readString());
-		return new AttributeKeyWithIndexType(referenceName, attributeName, locale, indexType);
+		return new AttributeKeyWithIndexType(null, attributeName, locale, indexType);
 	}
 
 }

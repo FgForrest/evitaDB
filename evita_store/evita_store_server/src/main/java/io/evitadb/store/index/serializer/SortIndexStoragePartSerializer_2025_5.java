@@ -35,80 +35,35 @@ import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link SortIndex} from/to binary format.
  *
+ * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
-public class SortIndexStoragePartSerializer extends Serializer<SortIndexStoragePart> {
+public class SortIndexStoragePartSerializer_2025_5 extends Serializer<SortIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, SortIndexStoragePart sortIndex) {
-		output.writeInt(sortIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = sortIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(sortIndex.getAttributeIndexKey()), true);
-
-		final ComparatorSource[] comparatorBase = sortIndex.getComparatorBase();
-		output.writeVarInt(comparatorBase.length, true);
-		for (final ComparatorSource comparatorSource : comparatorBase) {
-			kryo.writeClass(output, comparatorSource.type());
-			kryo.writeObject(output, comparatorSource.orderDirection());
-			kryo.writeObject(output, comparatorSource.orderBehaviour());
-		}
-
-		final int[] sortedRecords = sortIndex.getSortedRecords();
-		output.writeVarInt(sortedRecords.length, true);
-		output.writeInts(sortedRecords, 0, sortedRecords.length);
-
-		final Serializable[] sortedRecordValues = sortIndex.getSortedRecordsValues();
-		output.writeVarInt(sortedRecordValues.length, true);
-
-		if (comparatorBase.length == 1) {
-			for (Serializable sortedRecordValue : sortedRecordValues) {
-				kryo.writeObject(output, sortedRecordValue);
-			}
-		} else {
-			for (Serializable sortedRecordValue : sortedRecordValues) {
-				final ComparableArray comparableArray = (ComparableArray) sortedRecordValue;
-				for (int i = 0; i < comparatorBase.length; i++) {
-					kryo.writeObjectOrNull(output, comparableArray.array()[i], comparatorBase[i].type());
-				}
-			}
-		}
-
-		final Map<Serializable, Integer> cardinalities = sortIndex.getValueCardinalities();
-		output.writeVarInt(cardinalities.size(), true);
-		for (Entry<Serializable, Integer> entry : cardinalities.entrySet()) {
-			if (comparatorBase.length == 1) {
-				kryo.writeObject(output, entry.getKey());
-			} else {
-				final ComparableArray comparableArray = (ComparableArray) entry.getKey();
-				for (int i = 0; i < comparatorBase.length; i++) {
-					kryo.writeObjectOrNull(output, comparableArray.array()[i], comparatorBase[i].type());
-				}
-			}
-			output.writeVarInt(entry.getValue(), true);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public SortIndexStoragePart read(Kryo kryo, Input input, Class<? extends SortIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
 		final int comparatorBaseLength = input.readVarInt(true);
 		final ComparatorSource[] comparatorBase = new ComparatorSource[comparatorBaseLength];
@@ -160,7 +115,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		}
 
 		return new SortIndexStoragePart(
-			entityIndexPrimaryKey, attributeIndexKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
+			entityIndexPrimaryKey, attributeKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
 		);
 	}
 

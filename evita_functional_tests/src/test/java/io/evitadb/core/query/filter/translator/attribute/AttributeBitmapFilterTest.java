@@ -26,7 +26,6 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -338,8 +337,9 @@ class AttributeBitmapFilterTest {
 			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
+				this.attributeSchemaAccessor.getReferenceSchema(),
 				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				new AttributeKey(attributeName), theNumber, result -> result >= 0
+				null, theNumber, result -> result >= 0
 			)
 		);
 
@@ -367,8 +367,9 @@ class AttributeBitmapFilterTest {
 			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
+				this.attributeSchemaAccessor.getReferenceSchema(),
 				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				new AttributeKey(attributeName), theNumber, result -> result > 0
+				null, theNumber, result -> result > 0
 			)
 		);
 
@@ -396,8 +397,9 @@ class AttributeBitmapFilterTest {
 			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
+				this.attributeSchemaAccessor.getReferenceSchema(),
 				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				new AttributeKey(attributeName), theNumber, result -> result < 0
+				null, theNumber, result -> result < 0
 			)
 		);
 
@@ -425,8 +427,9 @@ class AttributeBitmapFilterTest {
 			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, TEST_SCOPES, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> getPredicate(
+				this.attributeSchemaAccessor.getReferenceSchema(),
 				this.attributeSchemaAccessor.getAttributeSchema(attributeName, TEST_SCOPES),
-				new AttributeKey(attributeName), theNumber, result -> result <= 0
+				null, theNumber, result -> result <= 0
 			)
 		);
 

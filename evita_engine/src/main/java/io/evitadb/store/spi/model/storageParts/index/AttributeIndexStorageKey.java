@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 
@@ -37,7 +36,7 @@ import javax.annotation.Nonnull;
 public record AttributeIndexStorageKey(
 	@Nonnull EntityIndexKey entityIndexKey,
 	@Nonnull AttributeIndexType indexType,
-	@Nonnull AttributeKey attribute
+	@Nonnull AttributeIndexKey attribute
 ) implements Comparable<AttributeIndexStorageKey>, EntityIndexKeyAccessor {
 	@Override
 	public int compareTo(AttributeIndexStorageKey o) {

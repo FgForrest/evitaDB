@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttribut
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -444,6 +445,7 @@ public interface AttributeIndexMutator {
 			return;
 		}
 
+		final EntitySchema entitySchema = executor.getEntitySchema();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		final Stream<SortableAttributeCompoundSchema> allCompounds = sortableAttributeCompounds
 			.values()
@@ -463,6 +465,7 @@ public interface AttributeIndexMutator {
 				entityPrimaryKey, entityIndex, it,
 				null, null,
 				locale,
+				entitySchema,
 				referenceSchema,
 				attributeSchemaProvider,
 				createAttributeElementToAttributeValueProvider(
@@ -493,6 +496,7 @@ public interface AttributeIndexMutator {
 		@Nonnull ExistingAttributeValueSupplier entityAttributeValueSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		final Stream<SortableAttributeCompoundSchema> allCompounds = compoundProvider.getSortableAttributeCompounds()
 			.values()
@@ -511,6 +515,7 @@ public interface AttributeIndexMutator {
 			it -> removeOldCompound(
 				entityPrimaryKey, entityIndex, it,
 				locale,
+				entitySchema,
 				referenceSchema,
 				attributeSchemaProvider,
 				createAttributeElementToAttributeValueProvider(
@@ -539,6 +544,7 @@ public interface AttributeIndexMutator {
 		@Nonnull String updatedAttributeName,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
+		final EntitySchema entitySchema = executor.getEntitySchema();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		attributeSchemaProvider.getCompoundAttributeSchemas(updatedAttributeName)
 			.filter(it -> it.isIndexedInScope(scope))
@@ -556,12 +562,10 @@ public interface AttributeIndexMutator {
 						entityAttributeLocales
 							.forEach(
 								attributeLocale -> updateCompound(
-									entityIndex, compound,
-									entityAttributeLocales, attributeLocale,
+									entityIndex, entitySchema, referenceSchema, compound,
+									attributeSchemaProvider, entityAttributeLocales, attributeLocale,
 									updatedAttributeName, valueToUpdate,
 									entityPrimaryKey,
-									referenceSchema,
-									attributeSchemaProvider,
 									existingAttributeValueProvider,
 									undoActionConsumer
 								)
@@ -569,12 +573,10 @@ public interface AttributeIndexMutator {
 					} else {
 						// otherwise we just update the compound with particular locale or global if locale is null
 						updateCompound(
-							entityIndex, compound,
-							entityAttributeLocales, locale,
+							entityIndex, entitySchema, referenceSchema, compound,
+							attributeSchemaProvider, entityAttributeLocales, locale,
 							updatedAttributeName, valueToUpdate,
 							entityPrimaryKey,
-							referenceSchema,
-							attributeSchemaProvider,
 							existingAttributeValueProvider,
 							undoActionConsumer
 						);
@@ -590,14 +592,14 @@ public interface AttributeIndexMutator {
 	 */
 	private static void updateCompound(
 		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchema compound,
-		@Nonnull Set<Locale> availableAttributeLocales,
+		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider, @Nonnull Set<Locale> availableAttributeLocales,
 		@Nullable Locale locale,
 		@Nullable String updatedAttributeName,
 		@Nullable Serializable valueToUpdate,
 		int entityPrimaryKey,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -608,12 +610,12 @@ public interface AttributeIndexMutator {
 
 			removeOldCompound(
 				entityPrimaryKey, entityIndex, compound, locale,
-				referenceSchema, attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
+				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
 			);
 
 			insertNewCompound(
 				entityPrimaryKey, entityIndex, compound, updatedAttributeName, valueToUpdate, locale,
-				referenceSchema, attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
+				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
 			);
 		}
 	}
@@ -628,6 +630,7 @@ public interface AttributeIndexMutator {
 		@Nullable String updatedAttributeName,
 		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
@@ -646,6 +649,7 @@ public interface AttributeIndexMutator {
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
 			entityIndex.insertSortAttributeCompound(
+				entitySchema,
 				referenceSchema,
 				compound,
 				theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType(),
@@ -655,7 +659,7 @@ public interface AttributeIndexMutator {
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> entityIndex.removeSortAttributeCompound(
-						referenceSchema, compound, locale, newCompoundValues, entityPrimaryKey
+						entitySchema, referenceSchema, compound, locale, newCompoundValues, entityPrimaryKey
 					)
 				);
 			}
@@ -670,6 +674,7 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable Locale locale,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider,
@@ -686,11 +691,12 @@ public interface AttributeIndexMutator {
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
 			entityIndex.removeSortAttributeCompound(
-				referenceSchema, compound, locale, oldCompoundValues, entityPrimaryKey
+				entitySchema, referenceSchema, compound, locale, oldCompoundValues, entityPrimaryKey
 			);
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> entityIndex.insertSortAttributeCompound(
+						entitySchema,
 						referenceSchema,
 						compound,
 						theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType(),

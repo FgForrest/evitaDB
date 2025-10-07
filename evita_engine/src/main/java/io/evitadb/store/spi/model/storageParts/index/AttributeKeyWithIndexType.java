@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.ComparatorUtils;
@@ -31,6 +30,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Locale;
@@ -43,8 +43,13 @@ import java.util.Locale;
  */
 @EqualsAndHashCode
 public class AttributeKeyWithIndexType implements Comparable<AttributeKeyWithIndexType>, Serializable {
-	@Serial private static final long serialVersionUID = 2526424804226344907L;
+	@Serial private static final long serialVersionUID = -3593807301605042777L;
 
+	/**
+	 * Name of the reference the attribute name is part of. Can be null in case the attribute is defined on
+	 * the entity directly. Case-sensitive.
+	 */
+	@Getter private final String referenceName;
 	/**
 	 * Unique name of the attribute. Case-sensitive. Distinguishes one associated data item from another within
 	 * single entity instance.
@@ -63,7 +68,13 @@ public class AttributeKeyWithIndexType implements Comparable<AttributeKeyWithInd
 	/**
 	 * Constructor for the locale specific attribute.
 	 */
-	public AttributeKeyWithIndexType(String attributeName, Locale locale, AttributeIndexType indexType) {
+	public AttributeKeyWithIndexType(
+		@Nullable String referenceName,
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull AttributeIndexType indexType
+	) {
+		this.referenceName = referenceName;
 		this.attributeName = attributeName;
 		this.locale = locale;
 		this.indexType = indexType;
@@ -72,9 +83,10 @@ public class AttributeKeyWithIndexType implements Comparable<AttributeKeyWithInd
 	/**
 	 * Constructor for the locale specific attribute.
 	 */
-	public AttributeKeyWithIndexType(@Nonnull AttributeKey attributeKey, @Nonnull AttributeIndexType indexType) {
-		this.attributeName = attributeKey.attributeName();
-		this.locale = attributeKey.locale();
+	public AttributeKeyWithIndexType(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull AttributeIndexType indexType) {
+		this.referenceName = attributeIndexKey.referenceName();
+		this.attributeName = attributeIndexKey.attributeName();
+		this.locale = attributeIndexKey.locale();
 		this.indexType = indexType;
 	}
 
@@ -90,6 +102,17 @@ public class AttributeKeyWithIndexType implements Comparable<AttributeKeyWithInd
 		return ComparatorUtils.compareLocale(
 			this.locale, o.locale,
 			() -> {
+				if (this.referenceName != null && o.referenceName != null) {
+					final int referenceNameResult = this.referenceName.compareTo(o.referenceName);
+					if (referenceNameResult != 0) {
+						return referenceNameResult;
+					}
+				} else if (this.referenceName != null) {
+					return 1;
+				} else if (o.referenceName != null) {
+					return -1;
+				}
+
 				final int attributeNameResult = this.attributeName.compareTo(o.attributeName);
 				if (attributeNameResult == 0) {
 					return this.indexType.compareTo(o.indexType);

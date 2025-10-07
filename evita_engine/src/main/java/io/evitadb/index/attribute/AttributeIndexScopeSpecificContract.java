@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -47,12 +48,19 @@ public interface AttributeIndexScopeSpecificContract {
 	/**
 	 * Returns index that maintains unique attributes to record ids information.
 	 *
+	 * @param referenceSchema The reference schema contract that is envelope for compound attribute schema contract.
+	 *                        Can be null when attribute is defined on entity level.
 	 * @param attributeSchema schema to be used for checking uniqueness of the attribute
 	 * @param scope scope to check uniqueness in
 	 * @param locale might not be passed for language agnostic attributes
 	 * @return NULL value when there is no unique index associated with this `attributeSchema`
 	 */
 	@Nullable
-	UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Scope scope, @Nullable Locale locale);
+	UniqueIndex getUniqueIndex(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Scope scope,
+		@Nullable Locale locale
+	);
 
 }

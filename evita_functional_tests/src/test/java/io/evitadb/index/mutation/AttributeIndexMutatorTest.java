@@ -44,6 +44,7 @@ import io.evitadb.index.mutation.index.EntitySchemaAttributeAndCompoundSchemaPro
 import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
@@ -143,8 +144,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
-		assertEquals(1, this.productIndex.getUniqueIndex(codeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_EAN, null).getRecordsEqualTo("EAN-001").getArray());
+		final AttributeSchema eanSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_EAN);
+		assertEquals(1, this.productIndex.getUniqueIndex(null, codeSchema, null).getRecordIdByUniqueValue("A"));
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, eanSchema, null).getRecordsEqualTo("EAN-001").getArray());
 		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		final GlobalUniqueIndex globalUniqueIndex = this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertNotNull(globalUniqueIndex);
@@ -181,8 +183,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			false, true, DO_NOTHING_CONSUMER
 		);
 
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(115).getArray());
-		assertTrue(Arrays.binarySearch(this.productIndex.getSortIndex(ATTRIBUTE_VARIANT_COUNT, null).getSortedRecordValues(), 115) >= 0);
+		final AttributeSchema variantCountSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_VARIANT_COUNT);
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, variantCountSchema, null).getRecordsEqualTo(115).getArray());
+		assertTrue(Arrays.binarySearch(this.productIndex.getSortIndex(null, variantCountSchema, null).getSortedRecordValues(), 115) >= 0);
 
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
@@ -238,11 +241,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			true, true, DO_NOTHING_CONSUMER
 		);
 
-		final UniqueIndex uniqueIndex = this.productIndex.getUniqueIndex(codeSchema, null);
+		final UniqueIndex uniqueIndex = this.productIndex.getUniqueIndex(null, codeSchema, null);
 		assertNull(uniqueIndex.getRecordIdByUniqueValue("A"));
 		assertEquals(1, uniqueIndex.getRecordIdByUniqueValue("B"));
 
-		final FilterIndex filterIndex = this.productIndex.getFilterIndex(ATTRIBUTE_EAN, null);
+		final FilterIndex filterIndex = this.productIndex.getFilterIndex(null, eanSchema, null);
 		assertArrayEquals(new int[0], filterIndex.getRecordsEqualTo("EAN-001").getArray());
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo("EAN-002").getArray());
 
@@ -284,7 +287,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex, charArrayAttr, 'A',
 			false, true, DO_NOTHING_CONSUMER
 		);
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null).getRecordsEqualTo('A').getArray());
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, charArraySchema, null).getRecordsEqualTo('A').getArray());
 
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(charArrayAttr, charArraySchema, attributeValue -> new AttributeValue(charArrayAttr, new Character[]{'A'}));
@@ -298,7 +301,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			false, true, DO_NOTHING_CONSUMER
 		);
 
-		final FilterIndex filterIndex = this.productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null);
+		final FilterIndex filterIndex = this.productIndex.getFilterIndex(null, charArraySchema, null);
 		assertArrayEquals(new int[0], filterIndex.getRecordsEqualTo('A').getArray());
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo('C').getArray());
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo('D').getArray());
@@ -323,8 +326,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex, charArrayAttr, new Character[]{'A', 'B'},
 			false, true, DO_NOTHING_CONSUMER
 		);
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null).getRecordsEqualTo('A').getArray());
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null).getRecordsEqualTo('B').getArray());
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, charArraySchema, null).getRecordsEqualTo('A').getArray());
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, charArraySchema, null).getRecordsEqualTo('B').getArray());
 
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
 			.upsertAttribute(charArrayAttr, charArraySchema, attributeValue -> new AttributeValue(charArrayAttr, new Character[]{'A', 'B'}));
@@ -338,7 +341,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			false, true, DO_NOTHING_CONSUMER
 		);
 
-		final FilterIndex filterIndex = this.productIndex.getFilterIndex(ATTRIBUTE_CHAR_ARRAY, null);
+		final FilterIndex filterIndex = this.productIndex.getFilterIndex(null, charArraySchema, null);
 		assertArrayEquals(new int[0], filterIndex.getRecordsEqualTo('A').getArray());
 		assertArrayEquals(new int[0], filterIndex.getRecordsEqualTo('B').getArray());
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo('C').getArray());
@@ -454,7 +457,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
-		final UniqueIndex uniqueIndex = this.productIndex.getUniqueIndex(codeSchema, null);
+		final UniqueIndex uniqueIndex = this.productIndex.getUniqueIndex(null, codeSchema, null);
 		assertEquals(2, uniqueIndex.getRecordIdByUniqueValue("A"));
 		assertEquals(1, uniqueIndex.getRecordIdByUniqueValue("B"));
 
@@ -516,8 +519,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeSchema codeSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_CODE);
-		assertNull(this.productIndex.getUniqueIndex(codeSchema, null));
-		assertNull(this.productIndex.getFilterIndex(ATTRIBUTE_CODE, null));
+		assertNull(this.productIndex.getUniqueIndex(null, codeSchema, null));
+		assertNull(this.productIndex.getFilterIndex(null, codeSchema, null));
 		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_GLOBAL_CODE);
 		assertNull(this.catalogIndex.getGlobalUniqueIndex(attributeSchema, null));
 
@@ -563,9 +566,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 
 		final AttributeSchema variantCountSchema = this.productAttributeSchemaProvider.getAttributeSchema(ATTRIBUTE_VARIANT_COUNT);
-		assertNull(this.productIndex.getUniqueIndex(variantCountSchema, null));
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(10).getArray());
-		final int position = findInArray(this.productIndex.getSortIndex(ATTRIBUTE_VARIANT_COUNT, null).getAscendingOrderRecordsSupplier().getSortedRecordIds(), 1);
+		assertNull(this.productIndex.getUniqueIndex(null, variantCountSchema, null));
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, variantCountSchema, null).getRecordsEqualTo(10).getArray());
+		final int position = findInArray(this.productIndex.getSortIndex(null, variantCountSchema, null).getAscendingOrderRecordsSupplier().getSortedRecordIds(), 1);
 		assertTrue(position >= 0);
 
 		this.containerAccessor.getAttributeStoragePart(ENTITY_NAME, 1)
@@ -579,9 +582,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			this.productIndex, attrVariantCount, -3, DO_NOTHING_CONSUMER
 		);
 
-		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(7).getArray());
-		assertArrayEquals(new int[0], this.productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(10).getArray());
-		assertTrue(findInArray(this.productIndex.getSortIndex(ATTRIBUTE_VARIANT_COUNT, null).getAscendingOrderRecordsSupplier().getSortedRecordIds(), 1) < position);
+		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, variantCountSchema, null).getRecordsEqualTo(7).getArray());
+		assertArrayEquals(new int[0], this.productIndex.getFilterIndex(null, variantCountSchema, null).getRecordsEqualTo(10).getArray());
+		assertTrue(findInArray(this.productIndex.getSortIndex(null, variantCountSchema, null).getAscendingOrderRecordsSupplier().getSortedRecordIds(), 1) < position);
 
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
@@ -591,11 +594,20 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertContainsChangedPart(trappedChanges, AttributeIndexType.SORT, ATTRIBUTE_VARIANT_COUNT);
 	}
 
-	private void assertContainsChangedPart(@Nonnull TrappedChanges trappedChanges, @Nonnull AttributeIndexType type, @Nonnull String attributeName) {
+	private void assertContainsChangedPart(
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull AttributeIndexType type,
+		@Nonnull String attributeName
+	) {
 		assertContainsChangedPart(trappedChanges, type, attributeName, null);
 	}
 
-	private void assertContainsChangedPart(@Nonnull TrappedChanges trappedChanges, @Nonnull AttributeIndexType type, @Nonnull String attributeName, @Nullable Locale locale) {
+	private void assertContainsChangedPart(
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull AttributeIndexType type,
+		@Nonnull String attributeName,
+		@Nullable Locale locale
+	) {
 		final Class<? extends StoragePart> containerType = switch (type) {
 			case FILTER -> FilterIndexStoragePart.class;
 			case UNIQUE -> UniqueIndexStoragePart.class;
@@ -603,13 +615,13 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case CHAIN -> ChainIndexStoragePart.class;
 			case CARDINALITY -> CardinalityIndexStoragePart.class;
 		};
-		final AttributeKey checkedAttributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
+		final AttributeIndexKey checkedAttributeKey = new AttributeIndexKey(null, attributeName, locale);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
 		while (it.hasNext()) {
 			final StoragePart changedStoragePart = it.next();
 			if (changedStoragePart instanceof final AttributeIndexStoragePart aisp) {
 				if (containerType.isInstance(changedStoragePart)) {
-					final AttributeKey attributeKey = aisp.getAttributeKey();
+					final AttributeIndexKey attributeKey = aisp.getAttributeIndexKey();
 					if (checkedAttributeKey.equals(attributeKey)) {
 						return;
 					}
@@ -619,11 +631,20 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		fail("Expected " + type + " storage part for attribute " + attributeName + " was not found!");
 	}
 
-	private void assertNotContainsChangedPart(@Nonnull TrappedChanges trappedChanges, @Nonnull AttributeIndexType type, @Nonnull String attributeName) {
+	private void assertNotContainsChangedPart(
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull AttributeIndexType type,
+		@Nonnull String attributeName
+	) {
 		assertNotContainsChangedPart(trappedChanges, type, attributeName, null);
 	}
 
-	private void assertNotContainsChangedPart(@Nonnull TrappedChanges trappedChanges, @Nonnull AttributeIndexType type, @Nonnull String attributeName, @Nullable Locale locale) {
+	private void assertNotContainsChangedPart(
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull AttributeIndexType type,
+		@Nonnull String attributeName,
+		@Nullable Locale locale
+	) {
 		final Class<? extends StoragePart> containerType = switch (type) {
 			case FILTER -> FilterIndexStoragePart.class;
 			case UNIQUE -> UniqueIndexStoragePart.class;
@@ -631,13 +652,13 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case CHAIN -> ChainIndexStoragePart.class;
 			case CARDINALITY -> CardinalityIndexStoragePart.class;
 		};
-		final AttributeKey checkedAttributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
+		final AttributeIndexKey checkedAttributeKey = new AttributeIndexKey(null, attributeName, locale);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
 		while (it.hasNext()) {
 			final StoragePart changedStoragePart = it.next();
 			if (changedStoragePart instanceof final AttributeIndexStoragePart aisp) {
 				if (containerType.isInstance(changedStoragePart)) {
-					final AttributeKey attributeKey = aisp.getAttributeKey();
+					final AttributeIndexKey attributeKey = aisp.getAttributeIndexKey();
 					if (checkedAttributeKey.equals(attributeKey)) {
 						fail("Expected " + type + " storage part for attribute " + attributeName + " was found!");
 					}
@@ -646,7 +667,10 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		}
 	}
 
-	private void assertContainsChangedPart(@Nonnull TrappedChanges trappedChanges, @Nonnull String attributeName) {
+	private void assertContainsChangedPart(
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull String attributeName
+	) {
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
 		while (it.hasNext()) {
 			final StoragePart changedStoragePart = it.next();

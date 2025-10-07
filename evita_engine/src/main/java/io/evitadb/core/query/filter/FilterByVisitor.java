@@ -1186,6 +1186,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Formula applyOnUniqueIndexes(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull Function<UniqueIndex, Formula> formulaFunction
 	) {
@@ -1193,7 +1194,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			getEntityIndexStream()
 				.map(
 					entityIndex -> {
-						final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
+						final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
 						return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
 					}
 				)
@@ -1205,13 +1206,14 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	public Formula applyOnFirstUniqueIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeDefinition,
 		@Nonnull Function<UniqueIndex, Formula> formulaFunction
 	) {
 		return getEntityIndexStream()
 			.map(
 				entityIndex -> {
-					final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
+					final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(referenceSchema, attributeDefinition, getLocale());
 					return uniqueIndex == null ? EmptyFormula.INSTANCE : formulaFunction.apply(uniqueIndex);
 				}
 			)
@@ -1224,10 +1226,15 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Method executes the logic on filter index of certain attribute.
 	 */
 	@Nonnull
-	public Formula applyOnFilterIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<FilterIndex, Formula> formulaFunction) {
+	public Formula applyOnFilterIndexes(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull Function<FilterIndex, Formula> formulaFunction
+	) {
 		return applyOnIndexes(entityIndex -> {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(
-				attributeDefinition.getName(),
+				referenceSchema,
+				attributeDefinition,
 				attributeDefinition.isLocalized() ? getLocale() : null
 			);
 			if (filterIndex == null) {
@@ -1241,11 +1248,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Method executes the logic on filter index of certain attribute.
 	 */
 	@Nonnull
-	public Formula applyStreamOnFilterIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<FilterIndex, Stream<Formula>> formulaFunction) {
+	public Formula applyStreamOnFilterIndexes(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Function<FilterIndex, Stream<Formula>> formulaFunction
+	) {
 		return applyStreamOnIndexes(entityIndex -> {
 			final FilterIndex filterIndex = entityIndex.getFilterIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
+				referenceSchema,
+				attributeSchema,
+				attributeSchema.isLocalized() ? getLocale() : null
 			);
 			if (filterIndex == null) {
 				return Stream.empty();

@@ -56,7 +56,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @ToString(of = "entityIndexKey")
 public class EntityIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = 5424554446828324138L;
+	@Serial private static final long serialVersionUID = -5960890423106351315L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

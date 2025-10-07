@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -39,6 +40,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.index.Index;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import lombok.RequiredArgsConstructor;
 
@@ -48,6 +51,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -95,18 +99,21 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
-			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
+			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
-			final Class<? extends Serializable> attributeType = attributeDefinition.getPlainType();
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 			final Serializable comparableValue = EvitaDataTypes.toTargetType(attributeValue, attributeType);
 			final AttributeFormula filteringFormula = new AttributeFormula(
-				attributeDefinition instanceof GlobalAttributeSchemaContract,
+				attributeSchema instanceof GlobalAttributeSchemaContract,
 				attributeKey,
 				filterByVisitor.applyOnFilterIndexes(
-					attributeDefinition, index -> this.filterIndexResolver.apply(index, comparableValue)
+					processingScope.getReferenceSchema(),
+					attributeSchema,
+					index -> this.filterIndexResolver.apply(index, comparableValue)
 				),
 				createHistogramRequestedPredicate(attributeType, Objects.requireNonNull(comparableValue), this.comparisonResultPredicate)
 			);
@@ -151,9 +158,9 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {
 				final Function<Serializable, Predicate<Stream<Optional<AttributeValue>>>> predicateFactory = valueToCompare -> getPredicate(
+					processingScope.getReferenceSchema(),
 					attributeSchema,
-					attributeSchema.isLocalized() ?
-						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+					filterByVisitor.getLocale(),
 					valueToCompare,
 					comparisonResultPredicate
 				);
@@ -178,20 +185,26 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 	/**
 	 * Generates a predicate to evaluate whether a stream of attribute values matches a given schema, key, and comparable value.
 	 *
+	 * @param referenceSchema the schema of the reference containing attribute schema,
+	 *                        may be null if attribute is defined on entity level
 	 * @param attributeSchema the schema of the attribute containing type details
-	 * @param attributeKey the key representing the specific attribute
+	 * @param locale          the request locale, may be null if no locale was specified
 	 * @param comparableValue the value to compare against attribute values
 	 * @return a predicate for evaluating whether the stream contains matching attribute values
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
 	static Predicate<Stream<Optional<AttributeValue>>> getPredicate(
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull AttributeKey attributeKey,
+		@Nullable Locale locale,
 		@Nullable Serializable comparableValue,
 		@Nonnull IntPredicate comparisonPredicate
 	) {
-		final Comparator comparator = FilterIndex.getComparator(attributeKey, attributeSchema.getPlainType());
+		final Comparator comparator = FilterIndex.getComparator(
+			AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
+			attributeSchema.getPlainType()
+		);
 		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(attributeSchema.getPlainType());
 		final Serializable comparedValue = normalizer.apply(comparableValue);
 		final Predicate<Comparable> predicate = theValue -> theValue != null && comparisonPredicate.test(comparator.compare(theValue, comparedValue));

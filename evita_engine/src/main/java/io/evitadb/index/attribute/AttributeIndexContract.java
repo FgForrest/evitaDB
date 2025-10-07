@@ -24,12 +24,13 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,7 +58,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws UniqueValueViolationException when value is not unique
 	 */
 	void insertUniqueAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
@@ -72,7 +73,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the unique value associated with the record key
 	 */
 	void removeUniqueAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nonnull Scope scope,
@@ -85,7 +86,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * Method inserts new filterable attribute to the index.
 	 */
 	void insertFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -113,7 +114,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * insert it again.
 	 */
 	void addDeltaFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -127,7 +128,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * array and insert it again.
 	 */
 	void removeDeltaFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -139,7 +140,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * Method inserts new sortable attribute to the index.
 	 */
 	void insertSortAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -153,7 +154,7 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
 	 */
 	void removeSortAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
+		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
@@ -166,8 +167,9 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * that are sorted according to {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} descriptor.
 	 */
 	void insertSortAttributeCompound(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
@@ -182,8 +184,9 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * @throws IllegalArgumentException when passed value doesn't match the value associated with the record key
 	 */
 	void removeSortAttributeCompound(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
 		int recordId
@@ -193,72 +196,122 @@ public interface AttributeIndexContract extends AttributeIndexScopeSpecificContr
 	 * Returns collection of all unique indexes in this {@link AttributeIndex} instance.
 	 */
 	@Nonnull
-	Set<AttributeKey> getUniqueIndexes();
+	Set<AttributeIndexKey> getUniqueIndexes();
 
 	/**
 	 * Returns collection of all filter indexes in this {@link AttributeIndex} instance.
 	 */
 	@Nonnull
-	Set<AttributeKey> getFilterIndexes();
+	Set<AttributeIndexKey> getFilterIndexes();
 
 	/**
 	 * Returns {@link FilterIndex} for passed lookup key.
 	 */
 	@Nullable
-	FilterIndex getFilterIndex(@Nonnull AttributeKey lookupKey);
+	FilterIndex getFilterIndex(@Nonnull AttributeIndexKey lookupKey);
 
 	/**
 	 * Returns index that maintains filterable attributes for records in the index.
 	 *
-	 * @param attributeName schema to set up the index for
+	 * @param referenceSchema the reference schema that holds the attribute - might be null for entity level attributes
+	 * @param attributeSchema the attribute schema to find the index for
 	 * @param locale might not be passed for language agnostic attributes
 	 * @return NULL value when there is no unique index associated with this `attributeName`
 	 */
 	@Nullable
-	FilterIndex getFilterIndex(@Nonnull String attributeName, @Nullable Locale locale);
+	FilterIndex getFilterIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	);
 
 	/**
 	 * Returns collection of all sort indexes in this {@link AttributeIndex} instance.
 	 */
 	@Nonnull
-	Set<AttributeKey> getSortIndexes();
+	Set<AttributeIndexKey> getSortIndexes();
 
 	/**
 	 * Returns {@link SortIndex} for passed lookup key.
 	 */
 	@Nullable
-	SortIndex getSortIndex(@Nonnull AttributeKey lookupKey);
+	SortIndex getSortIndex(@Nonnull AttributeIndexKey lookupKey);
 
 	/**
 	 * Returns index that maintains sortable attributes for records in the index.
 	 *
-	 * @param attributeName to set up the index for
+	 * @param referenceSchema the reference schema that holds the attribute - might be null for entity level attributes
+	 * @param attributeSchema the attribute schema to find the index for
 	 * @param locale might not be passed for language agnostic attributes
 	 * @return NULL value when there is no sort index associated with this `attributeName`
 	 */
 	@Nullable
-	SortIndex getSortIndex(@Nonnull String attributeName, @Nullable Locale locale);
+	SortIndex getSortIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	);
+
+	/**
+	 * Returns index that maintains sortable attributes for records in the index.
+	 *
+	 * @param entitySchema the entity schema to which the reference/attribute belongs
+	 * @param referenceSchema the reference schema that holds the attribute - might be null for entity level attributes
+	 * @param compoundSchema the attribute schema to find the index for
+	 * @param locale might not be passed for language agnostic attributes
+	 * @return NULL value when there is no sort index associated with this `attributeName`
+	 */
+	@Nullable
+	SortIndex getSortIndex(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nullable Locale locale
+	);
 
 	/**
 	 * Returns collection of all chain indexes in this {@link AttributeIndex} instance.
 	 */
 	@Nonnull
-	Set<AttributeKey> getChainIndexes();
+	Set<AttributeIndexKey> getChainIndexes();
 
 	/**
 	 * Returns {@link ChainIndex} for passed lookup key.
 	 */
 	@Nullable
-	ChainIndex getChainIndex(@Nonnull AttributeKey lookupKey);
+	ChainIndex getChainIndex(@Nonnull AttributeIndexKey lookupKey);
 
 	/**
 	 * Returns index that maintains chainable attributes for records in the index.
 	 *
+	 * @param referenceSchema the reference schema that holds the attribute - might be null for entity level attributes
+	 * @param attributeSchema the attribute schema to find the index for
 	 * @param locale might not be passed for language agnostic attributes
 	 * @return NULL value when there is no chain index associated with this `attributeName`
 	 */
 	@Nullable
-	ChainIndex getChainIndex(@Nonnull String attributeName, @Nullable Locale locale);
+	ChainIndex getChainIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	);
+
+	/**
+	 * Returns index that maintains chainable attributes for records in the index.
+	 *
+	 * @param entitySchema  the entity schema to which the reference/attribute belongs
+	 * @param referenceSchema the reference schema that holds the attribute - might be null for entity level attributes
+	 * @param compoundSchema the attribute schema to find the index for
+	 * @param locale might not be passed for language agnostic attributes
+	 * @return NULL value when there is no chain index associated with this `attributeName`
+	 */
+	@Nullable
+	ChainIndex getChainIndex(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nullable Locale locale
+	);
 
 	/**
 	 * Returns true when this index contains no data and may be safely purged.

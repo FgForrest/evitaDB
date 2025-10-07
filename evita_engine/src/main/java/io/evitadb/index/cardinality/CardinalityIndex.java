@@ -23,7 +23,6 @@
 
 package io.evitadb.index.cardinality;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -31,6 +30,7 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -148,7 +148,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
 	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, AttributeKey attribute) {
+	public StoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull AttributeIndexKey attribute) {
 		if (this.dirty.isTrue()) {
 			return new CardinalityIndexStoragePart(
 				entityIndexPrimaryKey, attribute, this

@@ -33,53 +33,33 @@ import io.evitadb.index.attribute.ChainIndex.ElementState;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ChainIndex} from/to binary format.
  *
+ * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
-public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStoragePart> {
+public class ChainIndexStoragePartSerializer_2025_5 extends Serializer<ChainIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, ChainIndexStoragePart chainIndex) {
-		output.writeInt(chainIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = chainIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(chainIndex.getAttributeIndexKey()), true);
-
-		final Map<Integer, ChainElementState> elementStates = chainIndex.getElementStates();
-		output.writeVarInt(elementStates.size(), true);
-		for (Entry<Integer, ChainElementState> entry : elementStates.entrySet()) {
-			output.writeInt(entry.getKey());
-			final ChainElementState state = entry.getValue();
-			output.writeInt(state.inChainOfHeadWithPrimaryKey());
-			output.writeInt(state.predecessorPrimaryKey());
-			output.writeInt(state.state().ordinal());
-		}
-
-		final int[][] chains = chainIndex.getChains();
-		output.writeVarInt(chains.length, true);
-		for (int[] chain : chains) {
-			output.writeVarInt(chain.length, true);
-			output.writeInts(chain, 0, chain.length);
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public ChainIndexStoragePart read(Kryo kryo, Input input, Class<? extends ChainIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
 		final int stateCount = input.readInt(true);
 		final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(stateCount);

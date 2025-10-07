@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.bitmap.Bitmap;
@@ -34,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -50,9 +50,9 @@ import java.util.Map;
 @NotThreadSafe
 @RequiredArgsConstructor
 @AllArgsConstructor
-@ToString(of = "attributeKey")
-public class UniqueIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = -4095785894036417656L;
+@ToString(of = "attributeIndexKey")
+public class UniqueIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
+	@Serial private static final long serialVersionUID = -3921198859032670410L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -61,7 +61,7 @@ public class UniqueIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Contains name and locale of the indexed attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Contains type of the attribute.
 	 */
@@ -79,14 +79,15 @@ public class UniqueIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Getter @Setter private Long storagePartPK;
 
+	@Nonnull
 	@Override
 	public AttributeIndexType getIndexType() {
 		return AttributeIndexType.UNIQUE;
 	}
 
 	@Override
-	public AttributeKey getStoragePartSourceKey() {
-		return this.attributeKey;
+	public AttributeIndexKey getStoragePartSourceKey() {
+		return this.attributeIndexKey;
 	}
 
 }

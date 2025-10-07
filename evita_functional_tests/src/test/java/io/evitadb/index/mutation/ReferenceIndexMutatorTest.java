@@ -34,6 +34,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -134,11 +137,17 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
 
+		final ReferenceSchema brandReferenceSchema = ReferenceSchema._internalBuild(
+			Entities.BRAND, Entities.BRAND, true, Cardinality.ZERO_OR_MORE, null, false,
+			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(
+				Scope.LIVE, ReferenceIndexType.FOR_FILTERING)}, new Scope[]{Scope.DEFAULT_SCOPE}
+		);
 		AttributeSchemaContract brandCodeSchema = AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false);
-		assertEquals(2, this.referenceTypesIndex.getUniqueIndex(brandCodeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getFilterIndex(ATTRIBUTE_BRAND_EAN, null).getRecordsEqualTo("EAN-001").getArray());
-		assertEquals(1, referenceIndex.getUniqueIndex(brandCodeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{1}, referenceIndex.getFilterIndex(ATTRIBUTE_BRAND_EAN, null).getRecordsEqualTo("EAN-001").getArray());
+		AttributeSchemaContract brandEanSchema = AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false);
+		assertEquals(2, this.referenceTypesIndex.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null).getRecordIdByUniqueValue("A"));
+		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getFilterIndex(brandReferenceSchema, brandEanSchema, null).getRecordsEqualTo("EAN-001").getArray());
+		assertEquals(1, referenceIndex.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null).getRecordIdByUniqueValue("A"));
+		assertArrayEquals(new int[]{1}, referenceIndex.getFilterIndex(brandReferenceSchema, brandEanSchema, null).getRecordsEqualTo("EAN-001").getArray());
 	}
 
 	@Nonnull

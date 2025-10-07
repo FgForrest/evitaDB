@@ -31,34 +31,30 @@ import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link CardinalityIndex} from/to binary format.
  *
+ * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
-public class CardinalityIndexStoragePartSerializer extends Serializer<CardinalityIndexStoragePart> {
+public class CardinalityIndexStoragePartSerializer_2025_5 extends Serializer<CardinalityIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, CardinalityIndexStoragePart filterIndex) {
-		output.writeInt(filterIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = filterIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(filterIndex.getAttributeIndexKey()), true);
-
-		kryo.writeObject(output, filterIndex.getCardinalityIndex());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public CardinalityIndexStoragePart read(Kryo kryo, Input input, Class<? extends CardinalityIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
 		final CardinalityIndex cardinalityIndex = kryo.readObject(input, CardinalityIndex.class);
 		return new CardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);

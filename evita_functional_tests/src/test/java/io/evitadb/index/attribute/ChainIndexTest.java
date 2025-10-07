@@ -23,9 +23,9 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -71,7 +71,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		5, new Predecessor(4)
 	);
 
-	private final ChainIndex index = new ChainIndex(new AttributeKey("a"));
+	private final ChainIndex index = new ChainIndex(new AttributeIndexKey(null, "a", null));
 
 	@DisplayName("Create consistent chain when new items are added in different orders")
 	@ParameterizedTest

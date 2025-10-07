@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Range;
@@ -50,9 +49,9 @@ import java.io.Serial;
  */
 @RequiredArgsConstructor
 @AllArgsConstructor
-@ToString(of = {"attributeKey", "entityIndexPrimaryKey"})
-public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = -3363238752052021735L;
+@ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
+public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
+	@Serial private static final long serialVersionUID = 942367579256351640L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -61,7 +60,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Contains name and locale of the indexed attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Contains the type of the objects kept as values in this particular filter index.
 	 */
@@ -69,7 +68,6 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */
-	@SuppressWarnings("rawtypes")
 	@Nonnull @Getter private final ValueToRecordBitmap[] histogramPoints;
 	/**
 	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
@@ -84,14 +82,15 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Getter @Setter private Long storagePartPK;
 
+	@Nonnull
 	@Override
 	public AttributeIndexType getIndexType() {
 		return AttributeIndexType.FILTER;
 	}
 
 	@Override
-	public AttributeKey getStoragePartSourceKey() {
-		return this.attributeKey;
+	public AttributeIndexKey getStoragePartSourceKey() {
+		return this.attributeIndexKey;
 	}
 
 }

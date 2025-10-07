@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -44,11 +45,13 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -74,29 +77,31 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
-			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Set<Scope> scopes = processingScope.getScopes();
+			final AttributeSchemaContract attributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
-			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+			if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
 				return FutureNotFormula.postProcess(
 					createNullGloballyUniqueSubtractionFormula(globalAttributeSchema, filterByVisitor),
-					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
+					formulas -> aggregateFormulas(attributeSchema, attributeKey, formulas)
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
+			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
 				return FutureNotFormula.postProcess(
-					createNullUniqueSubtractionFormula(attributeDefinition, filterByVisitor),
-					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
+					createNullUniqueSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
+					formulas -> aggregateFormulas(attributeSchema, attributeKey, formulas)
 				);
 			} else {
 				return FutureNotFormula.postProcess(
-					createNullFilterableSubtractionFormula(attributeDefinition, filterByVisitor),
-					formulas -> aggregateFormulas(attributeDefinition, attributeKey, formulas)
+					createNullFilterableSubtractionFormula(referenceSchema, attributeSchema, filterByVisitor),
+					formulas -> aggregateFormulas(attributeSchema, attributeKey, formulas)
 				);
 			}
 		} else {
@@ -111,19 +116,24 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
 	 * in filter indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
 	 *
-	 * @param attributeDefinition the schema definition of the attribute being processed
+	 * @param attributeSchema the schema definition of the attribute being processed
 	 * @param filterByVisitor     the visitor responsible for filtering operations
 	 * @return an array of Formulas representing the null filterable subtraction conditions
 	 */
 	@Nonnull
 	private static Formula[] createNullFilterableSubtractionFormula(
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		return filterByVisitor.getEntityIndexStream()
 			.map(
 				it -> {
-					final FilterIndex filterIndex = it.getFilterIndex(attributeDefinition.getName(), filterByVisitor.getLocale());
+					final FilterIndex filterIndex = it.getFilterIndex(
+						referenceSchema,
+						attributeSchema,
+						attributeSchema.isLocalized() ? filterByVisitor.getLocale() : null
+					);
 					if (filterIndex == null) {
 						return it.getAllPrimaryKeysFormula();
 					}
@@ -168,19 +178,22 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 	 * Creates an array of Formulas for filtering entities where a specified attribute is null based on information
 	 * in unique indexes. The formulas apply a subtraction operation to filter out records with non-null attributes.
 	 *
-	 * @param attributeDefinition the schema definition of the attribute being processed
+	 * @param attributeSchema the schema definition of the attribute being processed
 	 * @param filterByVisitor     the visitor responsible for filtering operations
 	 * @return an array of Formulas representing the null filterable subtraction conditions
 	 */
 	@Nonnull
 	private static Formula[] createNullUniqueSubtractionFormula(
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		return filterByVisitor.getEntityIndexStream()
 			.map(
 				it -> {
-					final UniqueIndex uniqueIndex = it.getUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
+					final UniqueIndex uniqueIndex = it.getUniqueIndex(
+						referenceSchema, attributeSchema, filterByVisitor.getLocale()
+					);
 					return uniqueIndex == null ?
 						EmptyFormula.INSTANCE :
 						new NotFormula(
@@ -230,13 +243,14 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
-			final AttributeSchemaContract attributeDefinition = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Set<Scope> scopes = processingScope.getScopes();
+			final AttributeSchemaContract attributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE)
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 			// if attribute is unique prefer O(1) hash map lookup over histogram
-			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
+			if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)
 			) {
 				return new AttributeFormula(
@@ -250,12 +264,13 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 						}
 					)
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
+			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
 				return new AttributeFormula(
-					attributeDefinition instanceof GlobalAttributeSchemaContract,
+					attributeSchema instanceof GlobalAttributeSchemaContract,
 					attributeKey,
 					filterByVisitor.applyOnUniqueIndexes(
-						attributeDefinition,
+						processingScope.getReferenceSchema(),
+						attributeSchema,
 						index -> {
 							final Bitmap recordIds = index.getRecordIds();
 							return recordIds.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(recordIds);
@@ -264,10 +279,11 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 				);
 			} else {
 				final AttributeFormula filteringFormula = new AttributeFormula(
-					attributeDefinition instanceof GlobalAttributeSchemaContract,
+					attributeSchema instanceof GlobalAttributeSchemaContract,
 					attributeKey,
 					filterByVisitor.applyOnFilterIndexes(
-						attributeDefinition,
+						processingScope.getReferenceSchema(),
+						attributeSchema,
 						FilterIndex::getAllRecordsFormula
 					)
 				);

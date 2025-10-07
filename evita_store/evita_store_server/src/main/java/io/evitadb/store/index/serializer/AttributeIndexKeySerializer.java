@@ -27,33 +27,30 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.store.spi.model.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 
 import java.util.Locale;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link AttributeKeyWithIndexType} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link AttributeIndexKey} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class AttributeKeyWithIndexTypeSerializer extends Serializer<AttributeKeyWithIndexType> {
+public class AttributeIndexKeySerializer extends Serializer<AttributeIndexKey> {
 
 	@Override
-	public void write(Kryo kryo, Output output, AttributeKeyWithIndexType attributeKeyWithIndexType) {
-		output.writeString(attributeKeyWithIndexType.getReferenceName());
-		output.writeString(attributeKeyWithIndexType.getAttributeName());
-		kryo.writeObjectOrNull(output, attributeKeyWithIndexType.getLocale(), Locale.class);
-		output.writeString(attributeKeyWithIndexType.getIndexType().name());
+	public void write(Kryo kryo, Output output, AttributeIndexKey attributeIndexKey) {
+		output.writeString(attributeIndexKey.referenceName());
+		output.writeString(attributeIndexKey.attributeName());
+		kryo.writeObjectOrNull(output, attributeIndexKey.locale(), Locale.class);
 	}
 
 	@Override
-	public AttributeKeyWithIndexType read(Kryo kryo, Input input, Class<? extends AttributeKeyWithIndexType> type) {
+	public AttributeIndexKey read(Kryo kryo, Input input, Class<? extends AttributeIndexKey> type) {
 		final String referenceName = input.readString();
 		final String attributeName = input.readString();
 		final Locale locale = kryo.readObjectOrNull(input, Locale.class);
-		final AttributeIndexType indexType = AttributeIndexType.valueOf(input.readString());
-		return new AttributeKeyWithIndexType(referenceName, attributeName, locale, indexType);
+		return new AttributeIndexKey(referenceName, attributeName, locale);
 	}
 
 }

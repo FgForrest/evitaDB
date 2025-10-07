@@ -31,49 +31,35 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.UniqueIndexStoragePart;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.UniqueIndex} from/to binary format.
  *
+ * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
-public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStoragePart> {
+public class UniqueIndexStoragePartSerializer_2025_5 extends Serializer<UniqueIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, UniqueIndexStoragePart uniqueIndex) {
-		output.writeInt(uniqueIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = uniqueIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeIndexKey()), true);
-
-		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
-		kryo.writeClass(output, plainType);
-		kryo.writeObject(output, uniqueIndex.getRecordIds());
-
-		final Map<Serializable, Integer> uniqueValueToRecordId = uniqueIndex.getUniqueValueToRecordId();
-		output.writeVarInt(uniqueValueToRecordId.size(), true);
-		for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			output.writeInt(entry.getValue());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
 	public UniqueIndexStoragePart read(Kryo kryo, Input input, Class<? extends UniqueIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 		final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
 
@@ -86,7 +72,7 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		}
 
 		return new UniqueIndexStoragePart(
-			entityIndexPrimaryKey, attributeIndexKey, attributeType, uniqueIndex, recordIds, uniquePartId
+			entityIndexPrimaryKey, attributeKey, attributeType, uniqueIndex, recordIds, uniquePartId
 		);
 	}
 

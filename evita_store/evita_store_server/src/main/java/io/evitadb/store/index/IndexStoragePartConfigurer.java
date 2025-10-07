@@ -43,8 +43,8 @@ import io.evitadb.store.entity.serializer.PriceWithInternalIdsSerializer_2024_11
 import io.evitadb.store.index.serializer.*;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.*;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -75,19 +75,41 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			EntityIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(this.keyCompressor), EntityIndexStoragePart.class)
 				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(this.keyCompressor))
+				.addBackwardCompatibleSerializer(5424554446828324138L, new EntityIndexStoragePartSerializer_2025_5(this.keyCompressor))
 				.addBackwardCompatibleSerializer(6028764096012501468L, new EntityIndexStoragePartSerializer_2025_6(this.keyCompressor)),
 			index++
 		);
-		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(this.keyCompressor), UniqueIndexStoragePart.class), index++);
+		kryo.register(
+			UniqueIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(this.keyCompressor), UniqueIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-4095785894036417656L, new UniqueIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+			index++
+		);
 		kryo.register(
 			FilterIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(this.keyCompressor), FilterIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(6163295675316818632L, new FilterIndexStoragePartSerializer_2024_5(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(6163295675316818632L, new FilterIndexStoragePartSerializer_2024_5(this.keyCompressor))
+				.addBackwardCompatibleSerializer(-3363238752052021735L, new FilterIndexStoragePartSerializer_2025_5(this.keyCompressor)),
 			index++
 		);
-		kryo.register(SortIndexStoragePart.class, new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(this.keyCompressor), SortIndexStoragePart.class), index++);
-		kryo.register(ChainIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(this.keyCompressor), ChainIndexStoragePart.class), index++);
-		kryo.register(CardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(this.keyCompressor), CardinalityIndexStoragePart.class), index++);
+		kryo.register(
+			SortIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(this.keyCompressor), SortIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(6163295675316818632L, new SortIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+			index++
+		);
+		kryo.register(
+			ChainIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(this.keyCompressor), ChainIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-2563092938071912295L, new ChainIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+			index++
+		);
+		kryo.register(
+			CardinalityIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(this.keyCompressor), CardinalityIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(6163295675316818632L, new CardinalityIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+			index++
+		);
 
 		kryo.register(EntityIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(AttributeIndexType.class, new EnumNameSerializer<>(), index++);
@@ -123,6 +145,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(ComparableCurrency.class, new SerialVersionBasedSerializer<>(new ComparableCurrencySerializer(), ComparableCurrency.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 		kryo.register(RepresentativeReferenceKey.class, new SerialVersionBasedSerializer<>(new RepresentativeReferenceKeySerializer(), RepresentativeReferenceKey.class), index++);
+		kryo.register(AttributeIndexKey.class, new SerialVersionBasedSerializer<>(new AttributeIndexKeySerializer(), AttributeIndexKey.class), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

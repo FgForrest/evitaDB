@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -344,13 +345,19 @@ public abstract class EntityIndex implements
 	/**
 	 * Retrieves a unique index for the given attribute schema and optional locale.
 	 *
+	 * @param referenceSchema The reference schema contract that is envelope for attribute schema contract.
+	 *                        Can be null when attribute is defined on entity level.
 	 * @param attributeSchema The schema of the attribute for which the unique index is being retrieved. Must not be null.
 	 * @param locale The locale for which the unique index is sought, can be null.
 	 * @return The unique index corresponding to the specified attribute schema and locale, or null if it does not exist.
 	 */
 	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
-		return this.attributeIndex.getUniqueIndex(attributeSchema, this.indexKey.scope(), locale);
+	public UniqueIndex getUniqueIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	) {
+		return this.attributeIndex.getUniqueIndex(referenceSchema, attributeSchema, this.indexKey.scope(), locale);
 	}
 
 	/**

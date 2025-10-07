@@ -80,14 +80,17 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 				"You probably need to limit the scope of the query."
 		);
 
-		//noinspection SuspiciousToArrayCall
 		return Stream.of(
 			new AttributeExactSorter(
 				attributeName,
 				Arrays.stream(attributeInSet.getAttributeValues())
 					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
 					.toArray(Serializable[]::new),
-				indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
+				indexForSort[0].getSortIndex(
+					processingScope.referenceSchema(),
+					attributeSchema,
+					orderByVisitor.getLocale()
+				)
 			)
 		);
 	}

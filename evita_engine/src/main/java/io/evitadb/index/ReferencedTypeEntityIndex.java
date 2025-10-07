@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -51,6 +50,7 @@ import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
@@ -181,7 +181,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * This transactional map (index) contains for each attribute single instance of {@link FilterIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
 	 */
-	@Nonnull private final TransactionalMap<AttributeKey, CardinalityIndex> cardinalityIndexes;
+	@Nonnull private final TransactionalMap<AttributeIndexKey, CardinalityIndex> cardinalityIndexes;
 	/**
 	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
 	 * contains entity primary keys referencing this entity.
@@ -253,7 +253,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull CardinalityIndex indexPrimaryKeyCardinality,
-		@Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes,
+		@Nonnull Map<AttributeIndexKey, CardinalityIndex> cardinalityIndexes,
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex
 	) {
 		super(
@@ -335,7 +335,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
 		super.getModifiedStorageParts(trappedChanges);
 
-		for (Entry<AttributeKey, CardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
+		for (Entry<AttributeIndexKey, CardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
 				.ifPresent(trappedChanges::addChangeToStore);
 		}
@@ -473,7 +473,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	) {
 		// first retrieve or create the cardinality index for given attribute
 		final CardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
@@ -518,7 +518,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		int recordId
 	) {
 		// first retrieve or create the cardinality index for given attribute
-		final AttributeKey attributeKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final AttributeIndexKey attributeKey = createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value);
 		final CardinalityIndex theCardinalityIndex = this.cardinalityIndexes.get(attributeKey);
 
 		Assert.isPremiseValid(
@@ -586,6 +586,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void insertSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
@@ -599,6 +600,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,

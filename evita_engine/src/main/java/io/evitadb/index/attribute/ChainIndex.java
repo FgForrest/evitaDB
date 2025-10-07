@@ -23,7 +23,6 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
@@ -43,9 +42,11 @@ import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -53,7 +54,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -123,41 +123,41 @@ public class ChainIndex implements
 	/**
 	 * Contains key identifying the attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
 	 * bulk insertion or read only state where transaction are not used.
 	 */
 	@Nullable private ChainIndexChanges chainIndexChanges;
 
-	public ChainIndex(@Nonnull AttributeKey attributeKey) {
-		this(null, attributeKey);
+	public ChainIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
+		this(null, attributeIndexKey);
 	}
 
-	public ChainIndex(@Nullable RepresentativeReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
+	public ChainIndex(@Nullable RepresentativeReferenceKey referenceKey, @Nonnull AttributeIndexKey attributeIndexKey) {
 		this.referenceKey = referenceKey;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(new HashMap<>(), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
-		this.elementStates = new TransactionalMap<>(new HashMap<>());
+		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
+		this.elementStates = new TransactionalMap<>(CollectionUtils.createHashMap(32));
 	}
 
 	public ChainIndex(
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
-		this(null, attributeKey, chains, elementStates);
+		this(null, attributeIndexKey, chains, elementStates);
 	}
 
 	public ChainIndex(
 		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
 		this.referenceKey = referenceKey;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(
 			Arrays.stream(chains)
@@ -176,12 +176,12 @@ public class ChainIndex implements
 
 	private ChainIndex(
 		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
 		this.referenceKey = referenceKey;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(elementStates);
@@ -464,7 +464,7 @@ public class ChainIndex implements
 			this.chainIndexChanges = null;
 			return new ChainIndexStoragePart(
 				entityIndexPrimaryKey,
-				this.attributeKey,
+				this.attributeIndexKey,
 				this.elementStates,
 				this.chains.values()
 					.stream()
@@ -507,7 +507,7 @@ public class ChainIndex implements
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ChainIndex(
 			this.referenceKey,
-			this.attributeKey,
+			this.attributeIndexKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
 		);

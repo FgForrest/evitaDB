@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 	 * Creates an AttributeFormula for a unique attribute by utilizing hash map lookups for efficient access.
 	 *
 	 * @param filterByVisitor     The visitor used to apply filters to unique indexes.
-	 * @param attributeDefinition The schema of the attribute.
+	 * @param attributeSchema The schema of the attribute.
 	 * @param attributeKey        The key of the attribute.
 	 * @param theComparedValues   A list of values to be compared against.
 	 * @return The created AttributeFormula for the given attribute parameters.
@@ -120,20 +120,21 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 	@Nonnull
 	private static AttributeFormula createUniqueAttributeFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull List<? extends Serializable> theComparedValues
 	) {
 		// if attribute is unique prefer O(1) hash map lookup over histogram
 		return new AttributeFormula(
-			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			FormulaFactory.or(
 				theComparedValues
 					.stream()
 					.map(
 						comparedValue -> filterByVisitor.applyOnFirstUniqueIndex(
-							attributeDefinition,
+							filterByVisitor.getProcessingScope().getReferenceSchema(),
+							attributeSchema,
 							index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
 								.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
 								.orElse(EmptyFormula.INSTANCE)
@@ -151,7 +152,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 	 * for applying specific filters to attribute indices.
 	 *
 	 * @param filterByVisitor     The visitor used to apply filters to filterable indexes.
-	 * @param attributeDefinition The schema of the attribute.
+	 * @param attributeSchema The schema of the attribute.
 	 * @param attributeKey        The key of the attribute.
 	 * @param theComparedValues   A list of values to be compared against.
 	 * @return The created AttributeFormula for the given filterable attribute parameters.
@@ -159,16 +160,17 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 	@Nonnull
 	private static AttributeFormula createFilterableAttributeFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull List<? extends Serializable> theComparedValues
 	) {
 		// use histogram lookup
 		return new AttributeFormula(
-			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			filterByVisitor.applyStreamOnFilterIndexes(
-				attributeDefinition,
+				filterByVisitor.getProcessingScope().getReferenceSchema(),
+				attributeSchema,
 				index -> theComparedValues.stream().map(index::getRecordsEqualToFormula)
 			)
 		);
@@ -187,12 +189,12 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
-			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
+			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
-			final Class<? extends Serializable> plainType = attributeDefinition.getPlainType();
+			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType);
 
 			final List<? extends Serializable> theComparedValues = Arrays.stream(comparedValues)
@@ -200,18 +202,18 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 				.map(normalizer)
 				.toList();
 
-			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
+			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, theComparedValues
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
+			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
-					filterByVisitor, attributeDefinition, attributeKey, theComparedValues
+					filterByVisitor, attributeSchema, attributeKey, theComparedValues
 				);
 			} else {
 				return createFilterableAttributeFormula(
-					filterByVisitor, attributeDefinition, attributeKey, theComparedValues
+					filterByVisitor, attributeSchema, attributeKey, theComparedValues
 				);
 			}
 		} else {

@@ -30,6 +30,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
@@ -209,6 +211,7 @@ public class ReducedEntityIndex extends EntityIndex
 
 	@Override
 	public void removeSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
@@ -216,11 +219,12 @@ public class ReducedEntityIndex extends EntityIndex
 		int recordId
 	) {
 		assertPartitioningIndex(referenceSchema, compoundSchemaContract);
-		super.removeSortAttributeCompound(referenceSchema, compoundSchemaContract, locale, value, recordId);
+		super.removeSortAttributeCompound(entitySchema, referenceSchema, compoundSchemaContract, locale, value, recordId);
 	}
 
 	@Override
 	public void insertSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
@@ -229,7 +233,7 @@ public class ReducedEntityIndex extends EntityIndex
 		int recordId
 	) {
 		assertPartitioningIndex(referenceSchema, compoundSchemaContract);
-		super.insertSortAttributeCompound(referenceSchema, compoundSchemaContract, attributeTypeProvider, locale, value, recordId);
+		super.insertSortAttributeCompound(entitySchema, referenceSchema, compoundSchemaContract, attributeTypeProvider, locale, value, recordId);
 	}
 
 	@Override
@@ -441,7 +445,8 @@ public class ReducedEntityIndex extends EntityIndex
 			() -> "The reference schema must be provided index data in reduced entity index!"
 		);
 		Assert.isPremiseValid(
-			referenceSchema.getAttribute(attributeSchema.getName()).isPresent() || referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			!(attributeSchema instanceof EntityAttributeSchemaContract)
+				|| referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
 		);
 	}
@@ -462,6 +467,7 @@ public class ReducedEntityIndex extends EntityIndex
 			referenceSchema != null,
 			() -> "The reference schema must be provided index data in reduced entity index!"
 		);
+		/* TODO JNO - this needs to be better distinguished - name is not enough!! */
 		Assert.isPremiseValid(
 			referenceSchema.getSortableAttributeCompound(compoundSchema.getName()).isPresent() || referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())

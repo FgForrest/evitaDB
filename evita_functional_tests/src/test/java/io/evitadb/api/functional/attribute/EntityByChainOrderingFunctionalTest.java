@@ -33,7 +33,6 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -53,6 +52,7 @@ import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -168,7 +168,7 @@ public class EntityByChainOrderingFunctionalTest {
 		productsInCategory.forEach((key, value) -> {
 			if (value != null) {
 				// we rely on ChainIndex correctness - it's tested elsewhere
-				final ChainIndex chainIndex = new ChainIndex(new AttributeKey(referenceAttributeName));
+				final ChainIndex chainIndex = new ChainIndex(new AttributeIndexKey(referenceName, referenceAttributeName, null));
 				for (SealedEntity entity : value) {
 					final ReferenceContract reference = entity.getReference(referenceName, key).orElseThrow();
 					final ChainableType attribute = reference.getAttribute(referenceAttributeName);

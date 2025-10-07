@@ -23,11 +23,11 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangePoint;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -57,8 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class FilterIndexTest implements TimeBoundedTestSupport {
-	private final FilterIndex stringAttribute = new FilterIndex(new AttributeKey("a"), String.class);
-	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeKey("b"), NumberRange.class);
+	private final FilterIndex stringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", null), String.class);
+	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
 
 	@Test
 	void shouldInsertNewStringRecordId() {
@@ -230,7 +230,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_Czech() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", new Locale("cs", "CZ")), String.class);
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", new Locale("cs", "CZ")), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -242,7 +242,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_English() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", Locale.ENGLISH), String.class);
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -344,7 +344,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 			100,
 			new TestState(
 				new StringBuilder(),
-				new FilterIndex(new AttributeKey("c"), IntegerNumberRange.class)
+				new FilterIndex(new AttributeIndexKey(null, "c", null), IntegerNumberRange.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -482,7 +482,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new FilterIndex(
-								new AttributeKey("a"),
+								new AttributeIndexKey(null, "a", null),
 								committed.getInvertedIndex().getValueToRecordBitmap(),
 								committed.getRangeIndex(),
 								Integer.class
