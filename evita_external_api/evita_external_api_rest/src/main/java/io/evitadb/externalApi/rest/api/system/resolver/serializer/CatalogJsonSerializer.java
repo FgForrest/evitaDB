@@ -77,13 +77,13 @@ public class CatalogJsonSerializer {
 	@Nonnull
 	private ObjectNode serialize(@Nonnull Catalog catalog) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.put(CatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString());
-		rootNode.put(CatalogDescriptor.NAME.name(), catalog.getName());
-		rootNode.put(CatalogDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalog.getSchema().getNameVariants()));
-		rootNode.put(CatalogDescriptor.VERSION.name(), String.valueOf(catalog.getVersion()));
-		rootNode.put(CatalogDescriptor.CATALOG_STATE.name(), catalog.getCatalogState().name());
-		rootNode.put(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), catalog.supportsTransaction());
-		rootNode.put(CatalogDescriptor.UNUSABLE.name(), false);
+		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_ID.name(), this.objectJsonSerializer.serializeObject(catalog.getCatalogId()));
+		rootNode.putIfAbsent(CatalogDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(catalog.getName()));
+		rootNode.putIfAbsent(CatalogDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalog.getSchema().getNameVariants()));
+		rootNode.putIfAbsent(CatalogDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(catalog.getVersion()));
+		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(catalog.getCatalogState()));
+		rootNode.putIfAbsent(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), this.objectJsonSerializer.serializeObject(catalog.supportsTransaction()));
+		rootNode.putIfAbsent(CatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(false));
 
 		final ArrayNode entityTypes = this.objectJsonSerializer.arrayNode();
 		catalog.getEntityTypes().forEach(entityTypes::add);
@@ -95,12 +95,12 @@ public class CatalogJsonSerializer {
 	@Nonnull
 	private ObjectNode serialize(@Nonnull UnusableCatalog unusableCatalog) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.put(UnusableCatalogDescriptor.CATALOG_ID.name(), unusableCatalog.getCatalogId().toString());
-		rootNode.put(UnusableCatalogDescriptor.NAME.name(), unusableCatalog.getName());
-		rootNode.put(UnusableCatalogDescriptor.CATALOG_STORAGE_PATH.name(), unusableCatalog.getCatalogStoragePath().toString());
-		rootNode.put(UnusableCatalogDescriptor.CAUSE.name(), unusableCatalog.getRepresentativeException().toString());
-		rootNode.put(CatalogDescriptor.CATALOG_STATE.name(), unusableCatalog.getCatalogState().toString());
-		rootNode.put(UnusableCatalogDescriptor.UNUSABLE.name(), true);
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_ID.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogId()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getName()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_STORAGE_PATH.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogStoragePath()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CAUSE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getRepresentativeException()));
+		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogState()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(true));
 
 		return rootNode;
 	}

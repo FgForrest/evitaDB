@@ -42,6 +42,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -110,10 +111,27 @@ public class ObjectJsonSerializer {
 		if (value instanceof UUID uuid) return this.jsonNodeFactory.textNode(serialize(uuid));
 		if (value instanceof Predecessor predecessor) return this.jsonNodeFactory.numberNode(serialize(predecessor));
 		if (value instanceof PriceContract price) return serialize(price);
-		if (value instanceof ExpressionNode expression) return this.jsonNodeFactory.textNode(expression.toString());
+		if (value instanceof ExpressionNode expression) return this.jsonNodeFactory.textNode(serialize(expression));
+		if (value instanceof Path path) return this.jsonNodeFactory.textNode(serialize(path));
+		if (value instanceof Exception exception) return this.jsonNodeFactory.textNode(serialize(exception));
 		if (value.getClass().isEnum()) return this.jsonNodeFactory.textNode(serialize((Enum<?>) value));
 
 		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
+	}
+
+	@Nonnull
+	private static String serialize(Exception exception) {
+		return exception.toString();
+	}
+
+	@Nonnull
+	private static String serialize(Path path) {
+		return path.toString();
+	}
+
+	@Nonnull
+	private static String serialize(ExpressionNode expression) {
+		return expression.toString();
 	}
 
 	/**

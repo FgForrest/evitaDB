@@ -30,6 +30,7 @@ import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogEndpointBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.cdcApi.CatalogCdcApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogDataApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogSchemaApiRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -73,6 +74,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 
 		new CatalogDataApiRestBuilder(this.buildingContext).build();
 		new CatalogSchemaApiRestBuilder(this.buildingContext).build();
+		new CatalogCdcApiRestBuilder(this.buildingContext).build();
 
 		return this.buildingContext.buildRest();
 	}

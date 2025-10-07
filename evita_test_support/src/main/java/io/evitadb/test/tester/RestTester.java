@@ -23,6 +23,12 @@
 
 package io.evitadb.test.tester;
 
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.websocket.WebSocketClient;
+import com.linecorp.armeria.client.websocket.WebSocketSession;
+import com.linecorp.armeria.common.websocket.WebSocketFrame;
+import com.linecorp.armeria.common.websocket.WebSocketFrameType;
+import com.linecorp.armeria.common.websocket.WebSocketWriter;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.test.tester.RestTester.Request;
 import io.restassured.http.Header;
@@ -33,15 +39,23 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 
 /**
  * Simple tester utility for easier testing of REST API. It uses REST Assured library as backend but test doesn't have
@@ -63,6 +77,56 @@ public class RestTester extends JsonExternalApiTester<Request> {
 	@Nonnull
 	public Request test(@Nonnull String catalogName) {
 		return new Request(this, catalogName);
+	}
+
+	/**
+	 * Connects to a websocket and provides tools to test the subprotocol
+	 *
+	 * @param catalogName where the REST API is located
+	 * @param writer accepts a writer to send an input data
+	 * @param waitForEvents specifies how many events should be received before the validator is called
+	 * @param validator accepts a list of received events and validates them
+	 */
+	public void testWebSocket(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<WebSocketWriter> writer,
+		int waitForEvents,
+		@Nonnull Consumer<List<String>> validator
+	) {
+		testWebSocket(catalogName, null, writer, waitForEvents, validator);
+	}
+
+	/**
+	 * Connects to a websocket and provides tools to test the subprotocol
+	 *
+	 * @param catalogName where the REST API is located
+	 * @param urlPathSuffix specifies REST API path suffix
+	 * @param writer accepts a writer to send an input data
+	 * @param waitForEvents specifies how many events should be received before the validator is called
+	 * @param validator accepts a list of received events and validates them
+	 */
+	public void testWebSocket(
+		@Nonnull String catalogName,
+		@Nullable String urlPathSuffix,
+		@Nonnull Consumer<WebSocketWriter> writer,
+		int waitForEvents,
+		@Nonnull Consumer<List<String>> validator
+	) {
+		final WebSocketClient client = WebSocketClient.builder(this.baseUrl)
+			.factory(ClientFactory.insecure())
+			.subprotocols("rest-transport-ws")
+			.build();
+		final WebSocketSession session = client.connect("/" + catalogName + (urlPathSuffix != null ? urlPathSuffix : "")).join();
+		final WebSocketWriter outbound = session.outbound();
+
+		final List<String> receivedEventsHolder = new LinkedList<>();
+		session.inbound().subscribe(new WebSocketSubscriber(receivedEventsHolder));
+		writer.accept(outbound);
+
+		await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
+		validator.accept(receivedEventsHolder);
+
+		outbound.close();
 	}
 
 	@SneakyThrows
@@ -251,6 +315,38 @@ public class RestTester extends JsonExternalApiTester<Request> {
 		 */
 		public ValidatableResponse executeAndExpectNotFoundAndThen() {
 			return executeAndThen(404);
+		}
+	}
+
+	@RequiredArgsConstructor
+	@Slf4j
+	private static class WebSocketSubscriber implements Subscriber<WebSocketFrame> {
+
+		@Nonnull
+		private final List<String> receivedEvents;
+
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			subscription.request(Long.MAX_VALUE);
+		}
+
+		@Override
+		public void onNext(WebSocketFrame webSocketFrame) {
+			if (webSocketFrame.type() == WebSocketFrameType.TEXT) {
+				this.receivedEvents.add(webSocketFrame.text());
+			} else {
+				log.warn("Non-text frame type: {}", webSocketFrame.type());
+			}
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			log.error("WebSocket subscriber error", throwable);
+		}
+
+		@Override
+		public void onComplete() {
+			log.info("WebSocket subscriber completed");
 		}
 	}
 }

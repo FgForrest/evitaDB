@@ -75,10 +75,10 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	                          @Nonnull Set<String> entityTypes) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 
-		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.version());
-		rootNode.put(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName());
+		rootNode.putIfAbsent(VersionedDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(catalogSchema.version()));
+		rootNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(catalogSchema.getName()));
 		rootNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalogSchema.getNameVariants()));
-		rootNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription());
+		rootNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(catalogSchema.getDescription()) : null);
 
 		rootNode.set(CatalogSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(catalogSchema));
 		rootNode.set(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), serializeEntitySchemas(entitySchemaFetcher, entityTypes));
@@ -104,17 +104,17 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeAttributeSchema(@Nonnull GlobalAttributeSchemaContract globalAttributeSchema) {
 		final ObjectNode attributeSchemaNode = this.objectJsonSerializer.objectNode();
-		attributeSchemaNode.put(NamedSchemaDescriptor.NAME.name(), globalAttributeSchema.getName());
+		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.getName()));
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
-		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
-		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice());
+		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(globalAttributeSchema.getDescription()) : null);
+		attributeSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(globalAttributeSchema.getDeprecationNotice()) : null);
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(globalAttributeSchema::getUniquenessType));
 		attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(globalAttributeSchema::isFilterableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(globalAttributeSchema::isSortableInScope));
-		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), globalAttributeSchema.isLocalized());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), globalAttributeSchema.isNullable());
-		attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), globalAttributeSchema.isRepresentative());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.isLocalized()));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.isNullable()));
+		attributeSchemaNode.putIfAbsent(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), this.objectJsonSerializer.serializeObject(globalAttributeSchema.isRepresentative()));
 		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(globalAttributeSchema.getType()));
 		attributeSchemaNode.set(
 			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),

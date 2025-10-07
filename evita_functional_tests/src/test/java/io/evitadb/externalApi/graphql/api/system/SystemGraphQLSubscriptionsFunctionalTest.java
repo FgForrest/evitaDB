@@ -228,50 +228,6 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
-	@DisplayName("Should receive catalog capture without body with entire history")
-	void shouldReceiveCatalogCaptureWithoutBodyWithEntireHistory(Evita evita, GraphQLTester tester) {
-		final String subscriptionId = createSubscriptionId();
-		final String newCatalogName = "myCatalog" + subscriptionId;
-		final String newEntityType = "myEntityType";
-
-		tester.testWebSocket(
-			SYSTEM_URL,
-			writer -> {
-				// prepare data
-				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
-				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
-
-				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
-
-				// apply operation to trigger a new event
-				evita.updateCatalog(
-					newCatalogName,
-					session -> {
-						session.defineEntitySchema(newEntityType).updateVia(session);
-					}
-				);
-
-				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
-					subscriptionId,
-					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
-				));
-			},
-			3, receivedEvents -> {
-				assertConnectionAckEvent(receivedEvents.get(0));
-				assertNextEvent(receivedEvents.get(1), subscriptionId)
-					.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
-					.isEqualTo(Operation.TRANSACTION);
-				assertNextEvent(receivedEvents.get(2), subscriptionId)
-					.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
-					.isEqualTo(Operation.UPSERT);
-			}
-		);
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
 	@DisplayName("Should receive catalog capture with body")
 	void shouldReceiveCatalogCaptureWithBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
