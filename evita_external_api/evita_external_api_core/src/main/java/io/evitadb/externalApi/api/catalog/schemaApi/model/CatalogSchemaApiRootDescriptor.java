@@ -58,15 +58,6 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
-    EndpointDescriptor ON_CATALOG_SCHEMA_CHANGE = EndpointDescriptor.builder()
-        .operation("onSchemaChange")
-        .urlPathItem("schema")
-        .classifier("catalog") // todo lho this cannot be present in final operation name, should it be here?
-        .description("""
-            Subscribes client to a stream of catalog schema changes which are sent over as individual capture events.
-            """)
-        .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
-        .build();
 
     EndpointDescriptor GET_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("get*schema")
@@ -85,12 +76,5 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();
-    EndpointDescriptor ON_COLLECTION_SCHEMA_CHANGE = EndpointDescriptor.builder()
-        .operation("on*SchemaChange")
-        .urlPathItem("schema")
-        .description("""
-            Subscribes client to a stream of specific collection schema changes which are sent over as individual capture events.
-            """)
-        .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
-        .build();
+
 }

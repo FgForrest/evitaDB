@@ -21,18 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.webSocket;
+package io.evitadb.externalApi.rest.api.catalog.cdcApi.dto;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import io.evitadb.api.requestResponse.cdc.CaptureSite;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
 
-// todo lho
-interface RestSubProtocol {
-    void sendResult(@Nonnull String operationId, @Nonnull Object executionResult) throws JsonProcessingException;
+/**
+ * DTO for {@link io.evitadb.api.requestResponse.cdc.CaptureSite}.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes({
+	@JsonSubTypes.Type(value = DataSiteDto.class, name = "DATA"),
+	@JsonSubTypes.Type(value = SchemaSiteDto.class, name = "SCHEMA"),
+})
+public interface CaptureSiteDto {
 
-    void completeWithError(Throwable cause);
-
-    void complete();
+	@Nonnull
+	CaptureSite<?> toSite();
 }

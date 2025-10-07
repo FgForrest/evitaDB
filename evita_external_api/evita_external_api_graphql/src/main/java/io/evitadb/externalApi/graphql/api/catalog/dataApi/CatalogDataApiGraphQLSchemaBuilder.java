@@ -702,7 +702,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nonnull
 	private BuiltFieldDescriptor buildOnCatalogDataChangeField() {
-		final GraphQLFieldDefinition onDataChangeField = CatalogDataApiRootDescriptor.ON_CATALOG_DATA_CHANGE
+		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_CATALOG_DATA_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
 			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
@@ -721,7 +721,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionOnDataChangeField(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext
 	) {
-		final GraphQLFieldDefinition onDataChangeField = CatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE
+		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(
 				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
 			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))

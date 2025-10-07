@@ -24,9 +24,13 @@
 package io.evitadb.externalApi.rest.io.webSocket;
 
 
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import org.reactivestreams.Publisher;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
@@ -34,7 +38,31 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface RestWebSocketExecutor<T> {
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class RestWebSocketExecutor<CTX extends RestHandlingContext, P> {
 
-	@Nonnull Publisher<T> subscribe(@Nonnull Map<String, Object> payload);
+	@Nonnull
+	protected final CTX restHandlingContext;
+
+	@Nonnull
+	public Publisher<Object> subscribe(@Nonnull Map<String, Object> payload) {
+		return this.doSubscribe(this.parsePayload(payload, this.getPayloadType()));
+	}
+
+	@Nonnull
+	protected abstract Publisher<Object> doSubscribe(@Nullable P payload);
+
+	@Nonnull
+	protected abstract Class<P> getPayloadType();
+
+	/**
+	 * Tries to parse input payload into data class.
+	 */
+	@Nullable
+	protected <T> T parsePayload(@Nonnull Map<String, Object> payload, @Nonnull Class<T> dataClass) {
+		if (Void.class.equals(dataClass) || payload.isEmpty()) {
+			return null;
+		}
+		return this.restHandlingContext.getObjectMapper().convertValue(payload, dataClass);
+	}
 }

@@ -21,18 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.webSocket;
+package io.evitadb.externalApi.rest.api.catalog.cdcApi.dto;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import io.evitadb.api.requestResponse.cdc.CaptureSite;
+import io.evitadb.api.requestResponse.cdc.DataSite;
+import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.dataType.ContainerType;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
+import javax.annotation.Nullable;
 
-// todo lho
-interface RestSubProtocol {
-    void sendResult(@Nonnull String operationId, @Nonnull Object executionResult) throws JsonProcessingException;
+/**
+ * REST API DTO for {@link io.evitadb.api.requestResponse.cdc.DataSite}.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ */
+public record DataSiteDto(
+	@Nullable String entityType,
+	@Nullable Integer entityPrimaryKey,
+	@Nullable Operation[] operation,
+	@Nullable ContainerType[] containerType,
+	@Nullable String[] containerName
+) implements CaptureSiteDto {
 
-    void completeWithError(Throwable cause);
-
-    void complete();
+	@Nonnull
+	@Override
+	public CaptureSite<?> toSite() {
+		return new DataSite(
+			this.entityType,
+			this.entityPrimaryKey,
+			this.operation,
+			this.containerType,
+			this.containerName
+		);
+	}
 }

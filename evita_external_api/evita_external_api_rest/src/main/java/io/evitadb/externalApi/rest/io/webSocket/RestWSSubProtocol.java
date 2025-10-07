@@ -25,11 +25,11 @@ package io.evitadb.externalApi.rest.io.webSocket;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.stream.StreamMessage;
 import com.linecorp.armeria.common.websocket.WebSocketCloseStatus;
 import com.linecorp.armeria.common.websocket.WebSocketWriter;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 
@@ -48,9 +48,7 @@ import static com.linecorp.armeria.internal.common.websocket.WebSocketUtil.maybe
  * Note: Inspired by Armeria's GraphQL WebSocket implementation
  */
 @Slf4j
-class RestWSSubProtocol {
-    // todo lho where to get it
-    private static final ObjectMapper mapper = new ObjectMapper();
+class RestWSSubProtocol<CTX extends RestHandlingContext> {
 
     private final HashMap<String, ExecutionResultSubscriber> graphqlSubscriptions = new HashMap<>();
 
@@ -58,14 +56,17 @@ class RestWSSubProtocol {
 
     private boolean connectionInitiated;
 
-    private final ServiceRequestContext ctx;
-    private final RestWebSocketExecutor restWebSocketExecutor;
+    private final ServiceRequestContext serviceContext;
+	private final CTX restHandlingContext;
+    private final RestWebSocketExecutor<CTX, ?> restWebSocketExecutor;
 
     public RestWSSubProtocol(
-        @Nonnull ServiceRequestContext ctx,
-        @Nonnull RestWebSocketExecutor restWebSocketExecutor
+        @Nonnull ServiceRequestContext serviceContext,
+		@Nonnull CTX restHandlingContext,
+        @Nonnull RestWebSocketExecutor<CTX, ?> restWebSocketExecutor
     ) {
-        this.ctx = ctx;
+        this.serviceContext = serviceContext;
+		this.restHandlingContext = restHandlingContext;
         this.restWebSocketExecutor = restWebSocketExecutor;
     }
 
@@ -98,7 +99,6 @@ class RestWSSubProtocol {
                         // Already initiated, that's an error
                         throw new RestWebSocketCloseException(4429, "Already initiated");
                     }
-                    final Object rawPayload = eventMap.get("payload");
 	                this.connectionInitiated = true;
                     writeConnectionAck(out);
                     break;
@@ -121,7 +121,6 @@ class RestWSSubProtocol {
                         }
 
                         try {
-	                        //noinspection unchecked
 	                        final Publisher<?> publisher = this.restWebSocketExecutor.subscribe(payload);
                             handleExecutionResult(out, id, publisher, null);
                         } catch (Throwable e) {
@@ -220,7 +219,7 @@ class RestWSSubProtocol {
                 });
 
 	    this.graphqlSubscriptions.put(id, executionResultSubscriber);
-        streamMessage.subscribe(executionResultSubscriber, this.ctx.eventLoop());
+        streamMessage.subscribe(executionResultSubscriber, this.serviceContext.eventLoop());
     }
 
     void cancel() {
@@ -237,8 +236,8 @@ class RestWSSubProtocol {
         }
     }
 
-    private static String serializeToJson(Object object) throws JsonProcessingException {
-        return mapper.writer().writeValueAsString(object);
+    private String serializeToJson(Object object) throws JsonProcessingException {
+        return this.restHandlingContext.getObjectMapper().writer().writeValueAsString(object);
     }
 
     @Nullable
@@ -275,10 +274,10 @@ class RestWSSubProtocol {
         }
     }
 
-    private static <T> T parseJsonString(String content, TypeReference<T> typeReference)
+    private <T> T parseJsonString(String content, TypeReference<T> typeReference)
             throws RestWebSocketCloseException {
         try {
-            return mapper.readValue(content, typeReference);
+            return this.restHandlingContext.getObjectMapper().readValue(content, typeReference);
         } catch (JsonProcessingException e) {
             throw new RestWebSocketCloseException(4400, "Invalid JSON");
         }
@@ -292,11 +291,11 @@ class RestWSSubProtocol {
         out.tryWrite("{\"type\":\"connection_ack\"}");
     }
 
-    private static void writeNext(WebSocketWriter out, String operationId, Object executionResult)
+    private void writeNext(WebSocketWriter out, String operationId, Object executionResult)
             throws JsonProcessingException {
         // todo lho
         final Map<String, Object> payload = new HashMap<>();
-        payload.put("data", executionResult);
+        payload.put("data", this.restHandlingContext.getObjectMapper().convertValue(executionResult, Map.class));
 
         final Map<String, Object> response = Map.of(
             "id", operationId,
@@ -308,14 +307,16 @@ class RestWSSubProtocol {
         out.tryWrite(event);
     }
 
-    private static void writeError(@Nonnull WebSocketWriter out, @Nonnull String operationId, @Nonnull RestExecutionError error)
+    private void writeError(@Nonnull WebSocketWriter out, @Nonnull String operationId, @Nonnull RestExecutionError error)
             throws JsonProcessingException {
         final Map<String, Object> errorResponse = Map.of(
             "type", "error",
             "id", operationId,
             // todo lho
             "payload", Map.of(
-                "message", error.message()
+                "error", Map.of(
+			        "message", error.message()
+		        )
             )
         );
         final String event = serializeToJson(errorResponse);
@@ -323,12 +324,14 @@ class RestWSSubProtocol {
         out.tryWrite(event);
     }
 
-    private static void writeError(WebSocketWriter out, String operationId, Throwable t) {
+    private void writeError(WebSocketWriter out, String operationId, Throwable t) {
         final Map<String, Object> errorResponse = Map.of(
                 "type", "error",
                 "id", operationId,
                 "payload", Map.of(
-                    "message", new RestExecutionError(t.getMessage()).message()
+					"error", Map.of(
+						"message", new RestExecutionError(t.getMessage()).message()
+					)
                 ));
         try {
             final String event = serializeToJson(errorResponse);
@@ -340,7 +343,7 @@ class RestWSSubProtocol {
         }
     }
 
-    private static void writeComplete(WebSocketWriter out, String operationId) {
+    private void writeComplete(WebSocketWriter out, String operationId) {
         try {
             final String json = serializeToJson(Map.of("type", "complete", "id", operationId));
             out.tryWrite(json);

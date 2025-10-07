@@ -21,18 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.webSocket;
+package io.evitadb.externalApi.rest.api.catalog.cdcApi.model;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
-import javax.annotation.Nonnull;
-import java.util.Map;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
-// todo lho
-interface RestSubProtocol {
-    void sendResult(@Nonnull String operationId, @Nonnull Object executionResult) throws JsonProcessingException;
+/**
+ * Root descriptor for CDC API.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ */
+public interface CatalogCdcApiRootDescriptor {
 
-    void completeWithError(Throwable cause);
-
-    void complete();
+	EndpointDescriptor CHANGE_CATALOG_CAPTURE = EndpointDescriptor.builder()
+		.operation("registerCatalogChangeCapture")
+		.urlPathItem("change-captures")
+		.description("Opens WebSocket connection for listening to catalog change captures")
+		// todo lho type???
+		.type(nonNull(Boolean.class))
+		.build();
 }

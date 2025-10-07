@@ -43,6 +43,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.GraphQLCatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnCatalogSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAssociatedDataSchemasDataFetcher;
@@ -304,7 +305,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 	@Nonnull
 	private BuiltFieldDescriptor buildOnCatalogSchemaChangeField() {
-		final GraphQLFieldDefinition onCatalogSchemaChangeField = CatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_CHANGE
+		final GraphQLFieldDefinition onCatalogSchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))

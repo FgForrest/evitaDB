@@ -136,22 +136,4 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
             """)
         // type is expected to be a collection-specific list of `Entity` objects
         .build();
-
-    EndpointDescriptor ON_CATALOG_DATA_CHANGE = EndpointDescriptor.builder()
-        .operation("onDataChange")
-        .urlPathItem("")
-        .description("""
-            Subscribes client to a stream of data changes for entire catalog which are sent over as individual capture events.
-            """)
-        .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
-        .build();
-
-	EndpointDescriptor ON_COLLECTION_DATA_CHANGE = EndpointDescriptor.builder()
-		.operation("on*DataChange")
-		.urlPathItem("")
-		.description("""
-            Subscribes client to a stream of data changes for specific collection which are sent over as individual capture events.
-            """)
-		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
-		.build();
 }
