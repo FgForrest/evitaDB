@@ -104,8 +104,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	void shouldInsertNewReference() {
 		final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(new ReferenceKey(Entities.BRAND, 10));
 		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, referenceKey));
+		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 		referenceInsert(
-			1, this.productSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null,
+			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null,
 			getEntityAttributeValueSupplierFactory(this.productSchema, 1), DO_NOTHING_CONSUMER
 		);
 		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
@@ -117,21 +118,25 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
 		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey(referenceKey)));
 		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(this.productSchema, 1);
+		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 
 		referenceInsert(
-			1, this.productSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(referenceKey), null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
+			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(referenceKey), null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(referenceMutation.getReferenceKey()), referenceMutation.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			referenceSchema, new RepresentativeReferenceKey(referenceMutation.getReferenceKey()), referenceMutation.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A"));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(a.getReferenceKey()), a.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			referenceSchema, new RepresentativeReferenceKey(a.getReferenceKey()), a.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001"));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(referenceMutation1.getReferenceKey()), referenceMutation1.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			referenceSchema, new RepresentativeReferenceKey(referenceMutation1.getReferenceKey()), referenceMutation1.getAttributeMutation()
 		);
 
 		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());

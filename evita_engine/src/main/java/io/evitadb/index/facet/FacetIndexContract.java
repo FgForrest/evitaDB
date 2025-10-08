@@ -53,7 +53,12 @@ public interface FacetIndexContract {
 	/**
 	 * Registers new facet to `referenceKey` for passed `entityPrimaryKey`.
 	 */
-	void addFacet(@Nonnull ReferenceKey referenceKey, @Nullable Integer groupId, int entityPrimaryKey);
+	void addFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	);
 
 	/**
 	 * Unregisters existing facet to `referenceKey` for passed `entityPrimaryKey`. Method automatically removes all
@@ -61,7 +66,12 @@ public interface FacetIndexContract {
 	 *
 	 * @throws IllegalArgumentException when `entityPrimaryKey` is not present in the index for passed facet
 	 */
-	void removeFacet(@Nonnull ReferenceKey referenceKey, @Nullable Integer groupId, int entityPrimaryKey);
+	void removeFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	);
 
 	/**
 	 * Returns set of {@link EntityReference#getType()} that has at least one facet indexed.

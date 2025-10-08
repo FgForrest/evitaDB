@@ -79,7 +79,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	@Tag(LONG_RUNNING_TEST)
 	@ParameterizedTest
 	@ValueSource(
-		strings = {"2024.5", "2025.1", "2025.3"}
+		strings = {"2024.5", "2025.1", "2025.3", "2025.6"}
 	)
 	void verifyBackwardCompatibilityTo(String version) throws IOException {
 		final Path targetDirectory = this.mainDirectory.resolve(version);
@@ -88,7 +88,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			log.info("Downloading and unzipping " + fileName);
 
 			targetDirectory.toFile().mkdirs();
-			// first download the file from https://evitadb.io/test/evita-demo-dataset_2024.5.zip to tmp folder and unzip it
+			// first download the file from https://evitadb.io/test/evita-demo-dataset_202X.Y.zip to tmp folder and unzip it
 			final Path targetZipFile = targetDirectory.resolve(fileName);
 			try (final InputStream is = new URL("https://evitadb.io/download/test/" + fileName).openStream()) {
 				Files.copy(is, targetZipFile, StandardCopyOption.REPLACE_EXISTING);
