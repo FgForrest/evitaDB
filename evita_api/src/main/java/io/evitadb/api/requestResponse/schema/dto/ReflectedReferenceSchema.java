@@ -1583,6 +1583,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	}
 
 	/**
+	 * We validate only attributes that are not inherited from the original reference. When attributes are inherited,
+	 * we don't control their indexing / faceting settings - they are controlled by the original reference schema.
+	 * But we still allow the reference to be non-indexed and then the index is not present on the reflected reference
+	 * either. We enforce reference to be indexed only when there is new explicitly defined attribute that needs indexing.
+	 *
+	 * @param attributeSchema the attribute schema contract to be checked for validation
+	 * @return true if the attribute should be validated, false otherwise
+	 */
+	@Override
+	protected boolean shouldValidate(@Nonnull AttributeSchemaContract attributeSchema) {
+		return !this.inheritedAttributes.contains(attributeSchema.getName());
+	}
+
+	/**
 	 * Verifies that the attributes of the reflected reference are available.
 	 */
 	private void assertAttributes() {

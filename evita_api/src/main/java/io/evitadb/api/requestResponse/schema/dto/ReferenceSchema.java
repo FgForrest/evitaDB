@@ -785,23 +785,28 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		for (Scope scope : Scope.values()) {
 			if (!this.isIndexedInScope(scope)) {
 				for (AttributeSchemaContract attribute : attributes.values()) {
-					if (attribute.isFilterableInScope(scope)) {
-						attributeErrors = Stream.concat(
-							attributeErrors,
-							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
-						);
-					}
-					if (attribute.isSortableInScope(scope)) {
-						attributeErrors = Stream.concat(
-							attributeErrors,
-							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
-						);
-					}
-					if (attribute.isUniqueInScope(scope)) {
-						attributeErrors = Stream.concat(
-							attributeErrors,
-							Stream.of("Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")
-						);
+					if (shouldValidate(attribute)) {
+						if (attribute.isFilterableInScope(scope)) {
+							attributeErrors = Stream.concat(
+								attributeErrors,
+								Stream.of(
+									"Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is filterable but reference schema is not indexed!")
+							);
+						}
+						if (attribute.isSortableInScope(scope)) {
+							attributeErrors = Stream.concat(
+								attributeErrors,
+								Stream.of(
+									"Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is sortable but reference schema is not indexed!")
+							);
+						}
+						if (attribute.isUniqueInScope(scope)) {
+							attributeErrors = Stream.concat(
+								attributeErrors,
+								Stream.of(
+									"Attribute `" + attribute.getName() + "` of reference schema `" + this.name + "` is unique but reference schema is not indexed!")
+							);
+						}
 					}
 				}
 			}
@@ -834,6 +839,16 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			}
 		}
 		return attributeErrors;
+	}
+
+	/**
+	 * Determines whether the given attribute schema should be validated.
+	 *
+	 * @param attributeSchema the attribute schema contract to be checked for validation
+	 * @return true if the attribute schema should be validated, false otherwise
+	 */
+	protected boolean shouldValidate(@Nonnull AttributeSchemaContract attributeSchema) {
+		return true;
 	}
 
 	/**

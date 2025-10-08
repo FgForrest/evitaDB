@@ -1291,7 +1291,7 @@ public final class Evita implements EvitaContract {
 							          }
 						          },
 						          () -> {
-									  log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName)
+									  log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
 							          FlightRecorder.removePeriodicEvent(this);
 						          }
 					          );
