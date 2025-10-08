@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2025.7-SNAPSHOT</version>
+	<version>2025.8-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
