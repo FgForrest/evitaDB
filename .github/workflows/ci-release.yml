@@ -135,7 +135,7 @@ jobs:
         commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
 
     - name: Upload dist.zip to release
-      uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
+      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
       if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -144,7 +144,7 @@ jobs:
         asset_content_type: application/zip
 
     - name: Upload dist.tar.gz to release
-      uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
+      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
       if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
