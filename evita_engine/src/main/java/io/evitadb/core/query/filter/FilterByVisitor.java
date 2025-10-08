@@ -789,9 +789,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			final ReducedEntityIndex reducedIndex = this.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class);
 			writer.add(reducedIndex.getReferenceKey().primaryKey());
 		}
-		return new ConstantFormula(
-			new BaseBitmap(writer.get())
-		);
+		final RoaringBitmap bitmap = writer.get();
+		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 	}
 
 	/**

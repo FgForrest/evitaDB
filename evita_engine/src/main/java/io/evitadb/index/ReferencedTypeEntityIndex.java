@@ -238,7 +238,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull EntityIndexKey entityIndexKey
 	) {
 		super(primaryKey, entityType, entityIndexKey);
-		this.indexPrimaryKeyCardinality = new CardinalityIndex(Integer.class);
+		this.indexPrimaryKeyCardinality = new CardinalityIndex(Long.class);
 		this.cardinalityIndexes = new TransactionalMap<>(CollectionUtils.createHashMap(16), CardinalityIndex.class, Function.identity());
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new);
 	}
