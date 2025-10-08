@@ -1027,7 +1027,14 @@ public final class Evita implements EvitaContract {
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
 						this.engineState.updateAndGet(
-							existingState -> existingState.withUpdatedCatalogInstance(updatedCatalog)
+							existingState -> {
+								if (existingState == null) {
+									// may be null, when the engine is shutting down
+									return null;
+								} else {
+									return existingState.withUpdatedCatalogInstance(updatedCatalog);
+								}
+							}
 						);
 						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
 							theUpdatedCatalog.notifyCatalogPresentInLiveView();
@@ -1039,14 +1046,21 @@ public final class Evita implements EvitaContract {
 			(cn, exception) -> {
 				log.error("Catalog {} is corrupted!", cn, exception);
 				this.engineState.updateAndGet(
-					existingState -> existingState.withUpdatedCatalogInstance(
-						new UnusableCatalog(
-							cn,
-							CatalogState.CORRUPTED,
-							this.configuration.storage().storageDirectory().resolve(cn),
-							(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
-						)
-					)
+					existingState -> {
+						if (existingState == null) {
+							// may be null, when the engine is shutting down
+							return null;
+						} else {
+							return existingState.withUpdatedCatalogInstance(
+								new UnusableCatalog(
+									cn,
+									CatalogState.CORRUPTED,
+									this.configuration.storage().storageDirectory().resolve(cn),
+									(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
+								)
+							);
+						}
+					}
 				);
 				this.emitEvitaStatistics();
 			},
@@ -1361,6 +1375,13 @@ public final class Evita implements EvitaContract {
 	private CompletableFuture<Void> closeCatalogs() {
 		final ExpandedEngineState expandedEngineState = this.engineState.get();
 		final Executor executor = this.engineTransactionManager.getExecutor();
+
+		// first we need to cancel all initial load futures - just in case some are still running
+		final ProgressingFuture<Catalog>[] initialFutures = this.getInitialLoadCatalogFutures();
+		for (ProgressingFuture<Catalog> initialFuture : initialFutures) {
+			initialFuture.cancel(true);
+		}
+		// then we need to close all catalogs in parallel
 		final ProgressingFuture<Void> closedFuture = new ProgressingFuture<>(
 			0,
 			// first we need to close all catalogs

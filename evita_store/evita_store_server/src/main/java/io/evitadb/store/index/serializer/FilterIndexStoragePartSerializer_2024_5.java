@@ -42,7 +42,8 @@ import lombok.RequiredArgsConstructor;
  */
 @Deprecated(since = "2024.3", forRemoval = true)
 @RequiredArgsConstructor
-public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIndexStoragePart> {
+public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -54,7 +55,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 	public FilterIndexStoragePart read(Kryo kryo, Input input, Class<? extends FilterIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
 		final InvertedIndex invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();

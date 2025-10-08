@@ -137,6 +137,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			)
 		) {
 
+			evita.waitUntilFullyInitialized();
 			final SystemStatus status = evita.management().getSystemStatus();
 			assertEquals(0, status.catalogsCorrupted());
 			assertEquals(1, status.catalogsActive());

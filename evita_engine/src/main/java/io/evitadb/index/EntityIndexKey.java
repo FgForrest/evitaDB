@@ -87,7 +87,7 @@ public record EntityIndexKey(
 		} else {
 			throw new GenericEvitaInternalError(
 				"Discriminator must be either String (for " + EntityIndexType.REFERENCED_ENTITY_TYPE + ") " +
-					"or ReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY + ")!"
+					"or RepresentativeReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY + ")!"
 			);
 		}
 	}

@@ -29,6 +29,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -78,8 +80,12 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final EntityIndexType entityIndexType = readEntityIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE ?
 			EntityIndexType.REFERENCED_ENTITY : readEntityIndexType;
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
-		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, discriminator);
+		final EntityIndexKey entityIndexKey = switch (entityIndexType) {
+			case GLOBAL -> new EntityIndexKey(entityIndexType);
+			case REFERENCED_ENTITY_TYPE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, discriminator);
+			case REFERENCED_ENTITY -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
+			case REFERENCED_HIERARCHY_NODE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
+		};
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 
