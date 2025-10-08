@@ -394,6 +394,28 @@ public class ReducedEntityIndex extends EntityIndex
 		);
 	}
 
+	@Override
+	public void addFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
+	}
+
+	@Override
+	public void removeFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
+	}
+
 	@Nonnull
 	@Override
 	public ReducedEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
