@@ -518,6 +518,15 @@
 					<doclint>none</doclint>
 					<failOnError>false</failOnError>
 				</configuration>
+				<executions>
+					<execution>
+						<id>attach-javadocs</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-deploy-plugin</artifactId>
@@ -570,6 +579,15 @@
 					<forceCreation>true</forceCreation>
 					<encoding>UTF-8</encoding>
 				</configuration>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>
