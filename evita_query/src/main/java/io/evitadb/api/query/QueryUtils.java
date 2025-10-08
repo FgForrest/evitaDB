@@ -112,7 +112,7 @@ public class QueryUtils {
 	 * Method finds filtering constraint of specified type in the passed query and returns it.
 	 */
 	@Nullable
-	public static <T extends FilterConstraint> T findFilter(@Nonnull Query query, @Nonnull Class<T> constraintType, @Nonnull Class<? extends RequireConstraint> stopContainerType) {
+	public static <T extends FilterConstraint> T findFilter(@Nonnull Query query, @Nonnull Class<T> constraintType, @Nonnull Class<? extends FilterConstraint> stopContainerType) {
 		//noinspection unchecked
 		return Optional.ofNullable(query.getFilterBy())
 			.map(it -> (T) FinderVisitor.findConstraint(it, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance))

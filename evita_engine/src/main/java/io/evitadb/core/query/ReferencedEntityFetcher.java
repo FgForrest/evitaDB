@@ -34,9 +34,11 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
@@ -632,113 +634,147 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			} else {
 				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
+				final Set<Scope> examinedScopes = gatherSearchedScopes(filterBy, scopes);
 
-				final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
-				final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityIds.size());
-				for (Scope scope : scopes) {
-					if (referenceSchema.isIndexedInScope(scope)) {
-						final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
-							Collections.emptyList() :
-							theFilterByVisitor.getReferencedRecordEntityIndexes(
-								new ReferenceHaving(
-									referenceSchema.getName(),
-									and(
-										ArrayUtils.mergeArrays(
-											new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
-											filterBy.getChildren()
-										)
-									)
-								),
-								Set.of(scope),
-								(es, eik) -> null
-							);
+				referencedPrimaryKeys = theFilterByVisitor
+					.getProcessingScope()
+					.doWithScope(
+						examinedScopes,
+						() -> {
+							final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityIds.size());
+							for (Scope scope : examinedScopes) {
+								if (referenceSchema.isIndexedInScope(scope)) {
+									final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityIds.isEmpty() ?
+										Collections.emptyList() :
+										theFilterByVisitor.getReferencedRecordEntityIndexes(
+											new ReferenceHaving(
+												referenceSchema.getName(),
+												and(
+													ArrayUtils.mergeArrays(
+														new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds.getArray())},
+														filterBy.getChildren()
+													)
+												)
+											),
+											examinedScopes,
+											(es, eik) -> null
+										);
 
-						Formula lastIndexFormula = null;
-						RepresentativeReferenceKey lastDiscriminator = null;
-						for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-							final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-							final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
-								(RepresentativeReferenceKey) indexKey.discriminator()
-							);
-							foundReferencedIds.add(discriminator.primaryKey());
+									Formula lastIndexFormula = null;
+									RepresentativeReferenceKey lastDiscriminator = null;
+									for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
+										final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
+										final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
+											(RepresentativeReferenceKey) indexKey.discriminator()
+										);
+										foundReferencedIds.add(discriminator.primaryKey());
 
-							final Formula resultFormula = computeResultWithPassedIndex(
-								referencedEntityIndex,
-								entitySchema,
-								referenceSchema,
-								theFilterByVisitor,
-								filterBy,
-								entityNestedQueryComparator,
-								EntityPrimaryKeyInSet.class
-							);
+										final Formula resultFormula = computeResultWithPassedIndex(
+											referencedEntityIndex,
+											entitySchema,
+											referenceSchema,
+											theFilterByVisitor,
+											filterBy,
+											entityNestedQueryComparator,
+											EntityPrimaryKeyInSet.class
+										);
 
-							if (lastDiscriminator == null) {
-								lastDiscriminator = discriminator;
-								lastIndexFormula = resultFormula;
-							} else if (Objects.equals(lastDiscriminator, discriminator)) {
-								if (lastIndexFormula != resultFormula) {
-									final Formula epkFormula = toFormula(entityPrimaryKeys.get(scope));
-									lastIndexFormula = FormulaFactory.or(
-										lastIndexFormula,
-										resultFormula,
-										epkFormula
-									);
-								}
-							} else {
-								Assert.isPremiseValid(
-									lastIndexFormula != null,
-									"Last index formula must be initialized!"
-								);
-								lastIndexFormula.initialize(executionContext);
-								final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-								final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
-								if (matchingPrimaryKeys.isEmpty()) {
-									validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
+										if (lastDiscriminator == null) {
+											lastDiscriminator = discriminator;
+											lastIndexFormula = resultFormula;
+										} else if (Objects.equals(lastDiscriminator, discriminator)) {
+											if (lastIndexFormula != resultFormula) {
+												final Formula epkFormula = toFormula(entityPrimaryKeys.get(scope));
+												lastIndexFormula = FormulaFactory.or(
+													lastIndexFormula,
+													resultFormula,
+													epkFormula
+												);
+											}
+										} else {
+											Assert.isPremiseValid(
+												lastIndexFormula != null,
+												"Last index formula must be initialized!"
+											);
+											lastIndexFormula.initialize(executionContext);
+											final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
+											final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
+											if (matchingPrimaryKeys.isEmpty()) {
+												validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
+											} else {
+												validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, matchingPrimaryKeys));
+												referencedPrimaryKeysWriter.add(finalLastDiscriminator.primaryKey());
+											}
+
+											lastIndexFormula = resultFormula;
+											lastDiscriminator = discriminator;
+										}
+									}
+									if (lastDiscriminator != null && lastIndexFormula != null) {
+										lastIndexFormula.initialize(executionContext);
+										final RepresentativeReferenceKey finalDiscriminator = lastDiscriminator;
+										final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
+										if (matchingPrimaryKeys.isEmpty()) {
+											validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, EmptyBitmap.INSTANCE));
+										} else {
+											validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, matchingPrimaryKeys));
+											referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
+										}
+									}
 								} else {
-									validityMappingOptional.ifPresent(it -> it.restrictTo(finalLastDiscriminator, matchingPrimaryKeys));
-									referencedPrimaryKeysWriter.add(finalLastDiscriminator.primaryKey());
+									final OfInt it = allReferencedEntityIds.iterator();
+									while (it.hasNext()) {
+										final int pkInScope = it.nextInt();
+										foundReferencedIds.add(pkInScope);
+										referencedPrimaryKeysWriter.add(pkInScope);
+									}
 								}
 
-								lastIndexFormula = resultFormula;
-								lastDiscriminator = discriminator;
 							}
-						}
-						if (lastDiscriminator != null && lastIndexFormula != null) {
-							lastIndexFormula.initialize(executionContext);
-							final RepresentativeReferenceKey finalDiscriminator = lastDiscriminator;
-							final Bitmap matchingPrimaryKeys = lastIndexFormula.compute();
-							if (matchingPrimaryKeys.isEmpty()) {
-								validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, EmptyBitmap.INSTANCE));
-							} else {
-								validityMappingOptional.ifPresent(it -> it.restrictTo(finalDiscriminator, matchingPrimaryKeys));
-								referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
-							}
-						}
-					} else {
-						final OfInt it = allReferencedEntityIds.iterator();
-						while (it.hasNext()) {
-							final int pkInScope = it.nextInt();
-							foundReferencedIds.add(pkInScope);
-							referencedPrimaryKeysWriter.add(pkInScope);
-						}
-					}
 
-				}
+							validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
 
-				referencedPrimaryKeys = referencedPrimaryKeysWriter.get();
+							initNestedQueryComparator(
+								entityNestedQueryComparator,
+								referenceSchema,
+								theFilterByVisitor.getQueryContext()
+							);
+
+							return referencedPrimaryKeysWriter.get();
+						}
+					);
 				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
-
-				validityMappingOptional.ifPresent(it -> it.forbidAllExcept(foundReferencedIds));
-
-				initNestedQueryComparator(
-					entityNestedQueryComparator,
-					referenceSchema,
-					theFilterByVisitor.getQueryContext()
-				);
 			}
 		}
 
 		return result;
+	}
+
+	/**
+	 * Gathers and returns the set of scopes that are to be examined based on the provided filter and initial scopes.
+	 * If the filter contains a local `EntityScope` constraint, its scopes are added to the provided scopes.
+	 *
+	 * In other words it combines "current" scopes with the scopes that are explicitly requested in the filter or
+	 * nearest `entityHaving` constraint. Currently it doesn't support more complex scenarios with multiple
+	 * `EntityScope` constraints - in that case the error is thrown (but it could be handled if some time is invested).
+	 *
+	 * @param filterBy the filter criteria that may contain constraints influencing the scopes to search
+	 * @param scopes the initial set of scopes to be considered for examination
+	 * @return a set of scopes that includes the initial scopes and any additional scopes derived from the filter criteria
+	 */
+	@Nonnull
+	private static Set<Scope> gatherSearchedScopes(@Nonnull FilterBy filterBy, @Nonnull Set<Scope> scopes) {
+		final EntityScope localScope = QueryUtils.findConstraint(filterBy, EntityScope.class);
+		final Set<Scope> examinedScopes;
+		if (localScope == null) {
+			examinedScopes = scopes;
+		} else {
+			examinedScopes = EnumSet.noneOf(Scope.class);
+			examinedScopes.addAll(scopes);
+			examinedScopes.addAll(localScope.getScope());
+		}
+		return examinedScopes;
 	}
 
 	/**

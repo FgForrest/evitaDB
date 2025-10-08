@@ -376,8 +376,17 @@ public class EvitaRequest {
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
 		this.expectedType = evitaRequest.expectedType;
 		this.debugModes = evitaRequest.debugModes;
-		this.scopes = evitaRequest.scopes;
-		this.scopesAsArray = evitaRequest.scopesAsArray;
+
+		final EntityScope overriddenScopes = QueryUtils.findFilter(
+			this.query, EntityScope.class, SeparateEntityScopeContainer.class
+		);
+		if (overriddenScopes == null) {
+			this.scopes = evitaRequest.scopes;
+			this.scopesAsArray = evitaRequest.scopesAsArray;
+		} else {
+			this.scopes = overriddenScopes.getScope();
+			this.scopesAsArray = this.scopes.toArray(Scope[]::new);
+		}
 	}
 
 	public EvitaRequest(
@@ -565,7 +574,7 @@ public class EvitaRequest {
 	@Nonnull
 	public int[] getPrimaryKeys() {
 		if (this.primaryKeys == null) {
-			this.primaryKeys = ofNullable(QueryUtils.findFilter(this.query, EntityPrimaryKeyInSet.class, SeparateEntityContentRequireContainer.class))
+			this.primaryKeys = ofNullable(QueryUtils.findFilter(this.query, EntityPrimaryKeyInSet.class, SeparateEntityScopeContainer.class))
 				.map(EntityPrimaryKeyInSet::getPrimaryKeys)
 				.orElse(ArrayUtils.EMPTY_INT_ARRAY);
 		}
