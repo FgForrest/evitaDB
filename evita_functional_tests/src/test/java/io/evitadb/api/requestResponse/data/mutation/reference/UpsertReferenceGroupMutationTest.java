@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.data.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -50,16 +51,15 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			"brand", 5,
 			"europe", 2
 		);
-		final EntitySchemaBuilder productSchemaBuilder = new EntitySchemaDecorator(() -> catalogSchema, productSchema).openForWrite();
-		mutation.verifyOrEvolveSchema(catalogSchema.openForWrite(), productSchemaBuilder);
+		final EntitySchemaBuilder productSchemaBuilder = new EntitySchemaDecorator(() -> this.catalogSchema, this.productSchema).openForWrite();
+		mutation.verifyOrEvolveSchema(this.catalogSchema.openForWrite(), productSchemaBuilder);
 		assertEquals("europe", productSchemaBuilder.getReference("brand").orElseThrow().getReferencedGroupType());
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
-				"brand",
-				5,
-				"brand", Cardinality.ZERO_OR_ONE,
+				this.productSchema,
+				ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
+				new ReferenceKey("brand", 5),
 				null
 			)
 		);
@@ -84,14 +84,14 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			"brand", 5,
 			"europe", 2
 		);
+		final GroupEntityReference group = new GroupEntityReference("brand", 78, 1, false);
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
-				"brand",
-				5,
-				"brand", Cardinality.ZERO_OR_ONE,
-				new GroupEntityReference("brand", 78, 1, false)
+				this.productSchema,
+				ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				new ReferenceKey("brand", 5),
+				group
 			)
 		);
 
@@ -115,11 +115,11 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			new SetReferenceGroupMutation(
 				"brand", 5,
 				"europe", 2
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new SetReferenceGroupMutation(
 				"brand", 10,
 				"europe", 8
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 
@@ -129,11 +129,11 @@ class UpsertReferenceGroupMutationTest extends AbstractMutationTest {
 			new SetReferenceGroupMutation(
 				"brand", 5,
 				"europe", 2
-			).getSkipToken(catalogSchema, productSchema),
+			).getSkipToken(this.catalogSchema, this.productSchema),
 			new SetReferenceGroupMutation(
 				"brand", 10,
 				"asia", 2
-			).getSkipToken(catalogSchema, productSchema)
+			).getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

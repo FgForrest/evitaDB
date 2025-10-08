@@ -1714,7 +1714,7 @@ public class ObjectBPlusTree<K extends Comparable<K>, V> implements ConsistencyS
 		@Nonnull
 		public <M extends Comparable<M>, N extends BPlusTreeNode<M, N>> N currentNode() {
 			//noinspection unchecked
-			return (N) this.siblings[index];
+			return (N) this.siblings[this.index];
 		}
 	}
 

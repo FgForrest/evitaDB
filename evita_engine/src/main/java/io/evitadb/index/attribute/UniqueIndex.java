@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
@@ -38,6 +37,7 @@ import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.UniqueIndexStoragePart;
 import lombok.Getter;
 
@@ -75,7 +75,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	/**
 	 * Contains key identifying the attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Contains type of the attribute.
 	 */
@@ -109,28 +109,28 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 		isTrue(value instanceof Comparable, "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
 	}
 
-	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType) {
+	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType) {
 		this.dirty = new TransactionalBoolean();
 		this.entityType = entityType;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.type = attributeType;
 		this.uniqueValueToRecordId = new TransactionalMap<>(new HashMap<>());
 		this.recordIds = new TransactionalBitmap();
 	}
 
-	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId) {
+	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId) {
 		this.dirty = new TransactionalBoolean();
 		this.entityType = entityType;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.type = attributeType;
 		this.uniqueValueToRecordId = new TransactionalMap<>(new HashMap<>(uniqueValueToRecordId));
 		this.recordIds = new TransactionalBitmap(uniqueValueToRecordId.values().stream().mapToInt(it -> it).toArray());
 	}
 
-	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeKey attributeKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId, @Nonnull Bitmap recordIds) {
+	public UniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId, @Nonnull Bitmap recordIds) {
 		this.dirty = new TransactionalBoolean();
 		this.entityType = entityType;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.type = attributeType;
 		this.uniqueValueToRecordId = new TransactionalMap<>(uniqueValueToRecordId);
 		this.recordIds = new TransactionalBitmap(recordIds);
@@ -168,12 +168,12 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	public Formula getRecordIdsFormula() {
 		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return new ConstantFormula(recordIds);
+			return new ConstantFormula(this.recordIds);
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = new ConstantFormula(recordIds);
+				this.memoizedAllRecordsFormula = new ConstantFormula(this.recordIds);
 			}
-			return memoizedAllRecordsFormula;
+			return this.memoizedAllRecordsFormula;
 		}
 	}
 
@@ -182,14 +182,14 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	 */
 	@Nonnull
 	public Bitmap getRecordIds() {
-		return recordIds;
+		return this.recordIds;
 	}
 
 	/**
 	 * Returns number of records in this index.
 	 */
 	public int size() {
-		return recordIds.size();
+		return this.recordIds.size();
 	}
 
 	/**
@@ -207,10 +207,10 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 		if (this.dirty.isTrue()) {
 			return new UniqueIndexStoragePart(
 				entityIndexPrimaryKey,
-				attributeKey,
-				type,
-				uniqueValueToRecordId,
-				recordIds
+				this.attributeIndexKey,
+				this.type,
+				this.uniqueValueToRecordId,
+				this.recordIds
 			);
 		} else {
 			return null;
@@ -238,7 +238,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			final UniqueIndex uniqueKeyIndex = new UniqueIndex(
-				entityType, attributeKey, type,
+				this.entityType, this.attributeIndexKey, this.type,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToRecordId),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
 			);
@@ -263,7 +263,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	 */
 	@Nonnull
 	Map<Serializable, Integer> getUniqueValueToRecordId() {
-		return Collections.unmodifiableMap(uniqueValueToRecordId);
+		return Collections.unmodifiableMap(this.uniqueValueToRecordId);
 	}
 
 	/*
@@ -299,7 +299,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	}
 
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, int recordId) {
-		final Integer existingRecordId = uniqueValueToRecordId.get(key);
+		final Integer existingRecordId = this.uniqueValueToRecordId.get(key);
 		assertUniqueKeyIsFree(key, recordId, existingRecordId);
 		this.uniqueValueToRecordId.put(key, recordId);
 		this.recordIds.add(recordId);
@@ -344,7 +344,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, int recordId, @Nullable Integer existingRecordId) {
 		if (!(existingRecordId == null || existingRecordId.equals(recordId))) {
-			throw new UniqueValueViolationException(attributeKey.attributeName(), attributeKey.locale(), key, entityType, existingRecordId, entityType, recordId);
+			throw new UniqueValueViolationException(this.attributeIndexKey.attributeName(), this.attributeIndexKey.locale(), key, this.entityType, existingRecordId, this.entityType, recordId);
 		}
 	}
 
@@ -352,8 +352,8 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 		isTrue(
 			Objects.equals(existingRecordId, expectedRecordId),
 			() -> existingRecordId == null ?
-				"No unique key exists for `" + attributeKey.attributeName() + "` key: `" + key + "`" + (attributeKey.locale() == null ? "" : " in locale `" + attributeKey.locale().toLanguageTag() + "`") + "!" :
-				"Unique key exists for `" + attributeKey.attributeName() + "` key: `" + key + "`" + (attributeKey.locale() == null ? "" : " in locale `" + attributeKey.locale().toLanguageTag() + "`") + " belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
+				"No unique key exists for `" + this.attributeIndexKey.attributeName() + "` key: `" + key + "`" + (this.attributeIndexKey.locale() == null ? "" : " in locale `" + this.attributeIndexKey.locale().toLanguageTag() + "`") + "!" :
+				"Unique key exists for `" + this.attributeIndexKey.attributeName() + "` key: `" + key + "`" + (this.attributeIndexKey.locale() == null ? "" : " in locale `" + this.attributeIndexKey.locale().toLanguageTag() + "`") + " belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
 		);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,23 +23,39 @@
 
 package io.evitadb.test.tester;
 
+import com.linecorp.armeria.client.ClientFactory;
+import com.linecorp.armeria.client.websocket.WebSocketClient;
+import com.linecorp.armeria.client.websocket.WebSocketSession;
+import com.linecorp.armeria.common.websocket.WebSocketFrame;
+import com.linecorp.armeria.common.websocket.WebSocketFrameType;
+import com.linecorp.armeria.common.websocket.WebSocketWriter;
 import io.evitadb.test.tester.GraphQLTester.Request;
 import io.restassured.http.Header;
 import io.restassured.response.ValidatableResponse;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.hamcrest.Matcher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_RESPONSE_JSON;
 import static io.evitadb.externalApi.http.MimeTypes.APPLICATION_JSON;
 import static io.restassured.RestAssured.given;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -65,10 +81,60 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		return new Request(this, catalogName);
 	}
 
+	/**
+	 * Connects to a websocket and provides tools to test the subprotocol
+	 *
+	 * @param catalogName where the GraphQL API is located
+	 * @param writer accepts a writer to send an input data
+	 * @param waitForEvents specifies how many events should be received before the validator is called
+	 * @param validator accepts a list of received events and validates them
+	 */
+	public void testWebSocket(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<WebSocketWriter> writer,
+		int waitForEvents,
+		@Nonnull Consumer<List<String>> validator
+	) {
+		testWebSocket(catalogName, null, writer, waitForEvents, validator);
+	}
+
+	/**
+	 * Connects to a websocket and provides tools to test the subprotocol
+	 *
+	 * @param catalogName where the GraphQL API is located
+	 * @param urlPathSuffix specifies GraphQL API path suffix
+	 * @param writer accepts a writer to send an input data
+	 * @param waitForEvents specifies how many events should be received before the validator is called
+	 * @param validator accepts a list of received events and validates them
+	 */
+	public void testWebSocket(
+		@Nonnull String catalogName,
+		@Nullable String urlPathSuffix,
+		@Nonnull Consumer<WebSocketWriter> writer,
+		int waitForEvents,
+		@Nonnull Consumer<List<String>> validator
+	) {
+		final WebSocketClient client = WebSocketClient.builder(this.baseUrl)
+			.factory(ClientFactory.insecure())
+			.subprotocols("graphql-transport-ws")
+			.build();
+		final WebSocketSession session = client.connect("/" + catalogName + (urlPathSuffix != null ? urlPathSuffix : "")).join();
+		final WebSocketWriter outbound = session.outbound();
+
+		final List<String> receivedEventsHolder = new LinkedList<>();
+		session.inbound().subscribe(new WebSocketSubscriber(receivedEventsHolder));
+		writer.accept(outbound);
+
+		await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
+		validator.accept(receivedEventsHolder);
+
+		outbound.close();
+	}
+
 	@SneakyThrows
 	private ValidatableResponse executeAndThen(@Nonnull Request request) {
 		final Map<String, Object> body = Map.of(
-			"query", request.getDocument(),
+			"query", Objects.requireNonNull(request.getDocument()),
 			"variables", request.getVariables()
 		);
 
@@ -79,7 +145,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 				.log()
 				.ifValidationFails().
 			when()
-				.post(baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
+				.post(this.baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
 			then()
 				.log()
 				.ifError();
@@ -93,7 +159,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 
 		@Nullable
 		private String urlPathSuffix;
-		@Nonnull
+		@Nullable
 		private String document;
 
 		private final Map<String, Object> variables = new HashMap<>();
@@ -145,7 +211,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 			if (!this.headers.containsKey(ACCEPT_HEADER)) {
 				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, APPLICATION_GRAPHQL_RESPONSE_JSON));
 			}
-			return tester.executeAndThen(this);
+			return this.tester.executeAndThen(this);
 		}
 
 		/**
@@ -171,6 +237,38 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		 */
 		public ValidatableResponse executeAndExpectErrorsAndThen() {
 			return executeAndThen(200, hasSize(greaterThan(0)));
+		}
+	}
+
+	@RequiredArgsConstructor
+	@Slf4j
+	private static class WebSocketSubscriber implements Subscriber<WebSocketFrame> {
+
+		@Nonnull
+		private final List<String> receivedEvents;
+
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			subscription.request(Long.MAX_VALUE);
+		}
+
+		@Override
+		public void onNext(WebSocketFrame webSocketFrame) {
+			if (webSocketFrame.type() == WebSocketFrameType.TEXT) {
+				this.receivedEvents.add(webSocketFrame.text());
+			} else {
+				log.warn("Non-text frame type: {}", webSocketFrame.type());
+			}
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			log.error("WebSocket subscriber error", throwable);
+		}
+
+		@Override
+		public void onComplete() {
+			log.info("WebSocket subscriber completed");
 		}
 	}
 }

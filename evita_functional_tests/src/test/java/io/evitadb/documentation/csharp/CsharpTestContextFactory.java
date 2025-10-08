@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class CsharpTestContextFactory implements TestContextFactory<CsharpTestCo
 	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Init C# query validator (" + profile + ")",
-			() -> testContextRef.set(new CsharpTestContext(profile))
+			() -> this.testContextRef.set(new CsharpTestContext(profile))
 		);
 	}
 
@@ -65,6 +65,6 @@ public class CsharpTestContextFactory implements TestContextFactory<CsharpTestCo
 	@Nonnull
 	@Override
 	public CsharpTestContext getContext() {
-		return Objects.requireNonNull(testContextRef.get());
+		return Objects.requireNonNull(this.testContextRef.get());
 	}
 }

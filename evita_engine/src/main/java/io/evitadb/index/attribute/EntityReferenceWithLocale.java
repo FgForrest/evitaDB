@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,13 +57,13 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 	@Nonnull
 	@Override
 	public String getType() {
-		return type;
+		return this.type;
 	}
 
 	@Nonnull
 	@Override
 	public Integer getPrimaryKey() {
-		return primaryKey;
+		return this.primaryKey;
 	}
 
 	@Override
@@ -76,17 +76,18 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 		if (this == o) return true;
 		if (o == null || !EntityReferenceContract.class.isAssignableFrom(o.getClass())) return false;
 		EntityReferenceContract<?> that = (EntityReferenceContract<?>) o;
-		return primaryKey == that.getPrimaryKey() && type.equals(that.getType());
+		return this.primaryKey == that.getPrimaryKey() && this.type.equals(that.getType());
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(type, primaryKey);
+		return Objects.hash(this.type, this.primaryKey);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return type + ": " + primaryKey + (locale == null ? "" : ":" + locale);
+		return this.type + ": " + this.primaryKey + (this.locale == null ? "" : ":" + this.locale);
 	}
 
 	/**
@@ -96,7 +97,7 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			// type
-			EvitaDataTypes.estimateSize(type) +
+			EvitaDataTypes.estimateSize(this.type) +
 			// primary key
 			MemoryMeasuringConstants.INT_SIZE +
 			// locale

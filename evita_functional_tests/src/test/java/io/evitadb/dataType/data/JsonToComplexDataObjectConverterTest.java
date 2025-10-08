@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,10 +61,10 @@ class JsonToComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject> converter = new ComplexDataObjectConverter<>(veryComplexObject);
 		final ComplexDataObject serializableForm = (ComplexDataObject) converter.getSerializableForm();
 
-		final ComplexDataObjectToJsonConverter toJsonConverter = new ComplexDataObjectToJsonConverter(objectMapper);
+		final ComplexDataObjectToJsonConverter toJsonConverter = new ComplexDataObjectToJsonConverter(this.objectMapper);
 		serializableForm.accept(toJsonConverter);
 
-		final ComplexDataObject deserializedForm = new JsonToComplexDataObjectConverter(objectMapper).fromJson(toJsonConverter.getJsonAsString());
+		final ComplexDataObject deserializedForm = new JsonToComplexDataObjectConverter(this.objectMapper).fromJson(toJsonConverter.getJsonAsString());
 		serializableForm.accept(new AutoTypingAsserter(deserializedForm.root()));
 	}
 
@@ -74,10 +74,10 @@ class JsonToComplexDataObjectConverterTest {
 		final ComplexDataObjectConverter<ArrayContainer> converter = new ComplexDataObjectConverter<>(veryComplexObject);
 		final ComplexDataObject serializableForm = (ComplexDataObject) converter.getSerializableForm();
 
-		final ComplexDataObjectToJsonConverter toJsonConverter = new ComplexDataObjectToJsonConverter(objectMapper);
+		final ComplexDataObjectToJsonConverter toJsonConverter = new ComplexDataObjectToJsonConverter(this.objectMapper);
 		serializableForm.accept(toJsonConverter);
 
-		final ComplexDataObject deserializedForm = new JsonToComplexDataObjectConverter(objectMapper).fromJson(toJsonConverter.getJsonAsString());
+		final ComplexDataObject deserializedForm = new JsonToComplexDataObjectConverter(this.objectMapper).fromJson(toJsonConverter.getJsonAsString());
 		serializableForm.accept(new AutoTypingAsserter(deserializedForm.root()));
 	}
 
@@ -87,8 +87,8 @@ class JsonToComplexDataObjectConverterTest {
 
 		@Override
 		public void visit(@Nonnull DataItemArray arrayItem) {
-			assertTrue(deserializedForm instanceof DataItemArray);
-			final DataItemArray deserializedItemArray = (DataItemArray) deserializedForm;
+			assertTrue(this.deserializedForm instanceof DataItemArray);
+			final DataItemArray deserializedItemArray = (DataItemArray) this.deserializedForm;
 			final DataItem[] serializedChildren = arrayItem.children();
 			final DataItem[] deserializedChildren = deserializedItemArray.children();
 			assertEquals(serializedChildren.length, deserializedChildren.length);
@@ -102,8 +102,8 @@ class JsonToComplexDataObjectConverterTest {
 
 		@Override
 		public void visit(@Nonnull DataItemMap mapItem) {
-			assertTrue(deserializedForm instanceof DataItemMap);
-			final DataItemMap deserializedItemMap = (DataItemMap) deserializedForm;
+			assertTrue(this.deserializedForm instanceof DataItemMap);
+			final DataItemMap deserializedItemMap = (DataItemMap) this.deserializedForm;
 			final Set<String> serializedPropertyNames = mapItem.getPropertyNames();
 			final Set<String> deserializedPropertyNames = deserializedItemMap.getPropertyNames();
 
@@ -124,8 +124,8 @@ class JsonToComplexDataObjectConverterTest {
 
 		@Override
 		public void visit(@Nonnull DataItemValue valueItem) {
-			assertTrue(deserializedForm instanceof DataItemValue);
-			final DataItemValue deserializedItem = (DataItemValue) deserializedForm;
+			assertTrue(this.deserializedForm instanceof DataItemValue);
+			final DataItemValue deserializedItem = (DataItemValue) this.deserializedForm;
 			final Serializable serializedValue = valueItem.value();
 			final Serializable deserializedValue = deserializedItem.value();
 

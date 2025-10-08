@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -65,7 +66,7 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface CacheSupervisor {
+public interface CacheSupervisor extends Closeable {
 
 	/**
 	 * Central accessor for creating a hash function that returns fast hashing function producing low collision hashes
@@ -161,5 +162,11 @@ public interface CacheSupervisor {
 		@Nonnull Supplier<ServerBinaryEntityDecorator> entityFetcher,
 		@Nonnull UnaryOperator<ServerBinaryEntityDecorator> enricher
 	);
+
+	/**
+	 * Close doesn't throw any exception.
+	 */
+	@Override
+	void close();
 
 }

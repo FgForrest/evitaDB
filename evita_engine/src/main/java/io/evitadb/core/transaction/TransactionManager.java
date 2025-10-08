@@ -24,20 +24,27 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.CommitProgressRecord;
+import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.ObservableExecutorService;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.async.SystemObservableExecutorService;
+import io.evitadb.core.cdc.CatalogChangeObserver;
+import io.evitadb.core.cdc.ChangeCatalogObserverContract;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.ObservableExecutorService;
+import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.TransactionTask;
@@ -48,14 +55,18 @@ import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendi
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -71,6 +82,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
@@ -85,7 +97,7 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class TransactionManager {
+public class TransactionManager implements Closeable {
 	/**
 	 * Represents reference to the currently active catalog version in the "live view" of the evitaDB engine.
 	 */
@@ -126,6 +138,11 @@ public class TransactionManager {
 	 * asynchronous reactive manner.
 	 */
 	private final SubmissionPublisher<ConflictResolutionTransactionTask> transactionalPipeline;
+	/**
+	 * Change observer that is used to notify all registered {@link io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher} about changes in the
+	 * catalog.
+	 */
+	@Getter private final ChangeCatalogObserverContract changeObserver;
 	/**
 	 * Contains the last catalog version appended successfully to the WAL (i.e. {@link #lastAssignedCatalogVersion} that
 	 * finally arrived to WAL file).
@@ -169,6 +186,10 @@ public class TransactionManager {
 	 * Lock used for propagating new catalog versions to live view.
 	 */
 	private final ReentrantLock catalogPropagationLock = new ReentrantLock(true);
+	/**
+	 * Name of the catalog.
+	 */
+	private String catalogName;
 
 	/**
 	 * Creates a new transaction based on the given parameters.
@@ -216,13 +237,13 @@ public class TransactionManager {
 			transaction,
 			() -> {
 				try {
-					log.debug("Materializing catalog version: {}", lastTransactionMutation.getCatalogVersion());
+					log.debug("Materializing catalog version: {}", lastTransactionMutation.getVersion());
 					return transactionHandler.commitCatalogChanges(
-						lastTransactionMutation.getCatalogVersion(),
+						lastTransactionMutation.getVersion(),
 						lastTransactionMutation
 					);
 				} catch (RuntimeException ex) {
-					log.error("Error while committing transaction: " + lastTransactionMutation.getCatalogVersion() + ".", ex);
+					log.error("Error while committing transaction: " + lastTransactionMutation.getVersion() + ".", ex);
 					throw ex;
 				}
 			}
@@ -240,7 +261,7 @@ public class TransactionManager {
 	) {
 		return System.currentTimeMillis() - start < timeoutMs &&
 			// and the next transaction is fully written by previous stage
-			latestCatalog.getLastCatalogVersionInMutationStream() > lastTransaction.getCatalogVersion();
+			latestCatalog.getLastCatalogVersionInMutationStream() > lastTransaction.getVersion();
 	}
 
 	public TransactionManager(
@@ -256,8 +277,19 @@ public class TransactionManager {
 		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		final ChangeDataCaptureOptions cdcOptions = configuration.server().changeDataCapture();
+		this.changeObserver = cdcOptions.enabled() ?
+			new CatalogChangeObserver(
+				cdcOptions,
+				requestExecutor,
+				scheduler,
+				catalog
+			) :
+			ChangeCatalogObserverContract.NO_OP;
+
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
+		this.catalogName = catalog.getName();
 		// fetch from the persistence store initially - might be greater than current version
 		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getLastCatalogVersionInMutationStream());
 		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
@@ -286,16 +318,16 @@ public class TransactionManager {
 	 * @return the catalog instance after processing the write-ahead log
 	 */
 	@Nonnull
-	public Catalog processWriteAheadLog(
+	public Catalog processEntireWriteAheadLog(
 		long nextCatalogVersion,
-		long timeoutMs,
-		boolean alive
+		@Nonnull LongConsumer progressCallback
 	) {
 		return processTransactions(
 			nextCatalogVersion,
-			timeoutMs,
-			alive,
-			true // we should obtain lock here easily, since this is called only on catalog instantiation
+			Long.MAX_VALUE,
+			false,
+			true, // we should obtain lock here easily, since this is called only on catalog instantiation
+			progressCallback
 		)
 			.map(ProcessResult::catalog)
 			.orElseGet(this.lastFinalizedCatalog::get);
@@ -338,7 +370,7 @@ public class TransactionManager {
 	 */
 	@Nonnull
 	public String getCatalogName() {
-		return this.livingCatalog.get().getName();
+		return this.catalogName;
 	}
 
 	/**
@@ -498,13 +530,13 @@ public class TransactionManager {
 	 * This method is used to indicate that a catalog is currently available in the live view.
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
-		final Catalog theLivingCatalog = getLivingCatalog();
+		final Catalog previousLivingCatalog = getLivingCatalog();
 		final long catalogVersion = livingCatalog.getVersion();
 		if (catalogVersion > 0L) {
 			Assert.isPremiseValid(
-				theLivingCatalog.getVersion() < catalogVersion || (theLivingCatalog == livingCatalog),
+				previousLivingCatalog.getVersion() < catalogVersion || (previousLivingCatalog == livingCatalog),
 				"Catalog versions must be in order! " +
-					"Expected " + theLivingCatalog.getVersion() + ", got " + catalogVersion + "."
+					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
 			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
 			Assert.isPremiseValid(
@@ -516,6 +548,7 @@ public class TransactionManager {
 		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, catalogVersion));
 		this.lastCatalogSchemaVersion.updateAndGet(current -> Math.max(current, livingCatalog.getSchema().version()));
 		this.livingCatalog.set(livingCatalog);
+		this.catalogName = livingCatalog.getName();
 
 		this.lastFinalizedCatalogVersionSchemaDelta.removeIf(
 			finalizedCatalogVersion -> {
@@ -533,6 +566,8 @@ public class TransactionManager {
 		if (this.lastFinalizedCatalogVersion.getAndUpdate(current -> Math.max(current, catalogVersion)) <= catalogVersion) {
 			this.lastFinalizedCatalog.set(livingCatalog);
 		}
+
+		this.changeObserver.notifyCatalogPresentInLiveView(livingCatalog);
 	}
 
 	/**
@@ -569,9 +604,9 @@ public class TransactionManager {
 			if (this.walAppendingLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();
 				Assert.isPremiseValid(
-					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getCatalogVersion(),
+					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getVersion(),
 					"Transaction cannot be written to the WAL out of order. " +
-						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getCatalogVersion() + "."
+						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getVersion() + "."
 				);
 				return getLivingCatalog()
 					.appendWalAndDiscard(
@@ -597,10 +632,17 @@ public class TransactionManager {
 	 * @param timeoutMs          The maximum time in milliseconds to process transactions.
 	 * @param alive              Indicates whether to process live transactions or not.
 	 * @param waitForLock        Indicates whether to wait for the trunk incorporation lock.
+	 * @param progressCallback   A callback to report progress during transaction processing.
 	 * @return The processed transaction.
 	 */
 	@Nonnull
-	public Optional<ProcessResult> processTransactions(long nextCatalogVersion, long timeoutMs, boolean alive, boolean waitForLock) {
+	public Optional<ProcessResult> processTransactions(
+		long nextCatalogVersion,
+		long timeoutMs,
+		boolean alive,
+		boolean waitForLock,
+		@Nonnull LongConsumer progressCallback
+	) {
 		try {
 			final boolean locked;
 			if (waitForLock) {
@@ -622,7 +664,7 @@ public class TransactionManager {
 				final long lastFinalizedVersion = getLastFinalizedCatalogVersion();
 				final Catalog latestCatalog = getLastFinalizedCatalog();
 
-				Stream<Mutation> committedMutationStream = null;
+				Stream<CatalogBoundMutation> committedMutationStream = null;
 				try {
 					// prepare finalizer that doesn't finish the catalog automatically but on demand
 					final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(latestCatalog);
@@ -635,7 +677,7 @@ public class TransactionManager {
 					} else {
 						committedMutationStream = latestCatalog.getCommittedMutationStream(readFromVersion);
 					}
-					final Iterator<Mutation> mutationIterator = committedMutationStream.iterator();
+					final Iterator<CatalogBoundMutation> mutationIterator = committedMutationStream.iterator();
 					if (!mutationIterator.hasNext()) {
 						// previous execution already processed all the mutations
 						return empty();
@@ -647,15 +689,15 @@ public class TransactionManager {
 							Mutation leadingMutation = mutationIterator.next();
 							// the first mutation of the transaction bulk must be transaction mutation
 							Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
-							firstTransactionId = firstTransactionId == -1 ? ((TransactionMutation) leadingMutation).getCatalogVersion() : firstTransactionId;
+							firstTransactionId = firstTransactionId == -1 ? ((TransactionMutation) leadingMutation).getVersion() : firstTransactionId;
 
 							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
 							long finalNextExpectedCatalogVersion = nextExpectedCatalogVersion;
 							Assert.isPremiseValid(
-								transactionMutation.getCatalogVersion() == nextExpectedCatalogVersion,
+								transactionMutation.getVersion() == nextExpectedCatalogVersion,
 								() -> new GenericEvitaInternalError(
 									"Unexpected catalog version! " +
-										"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
+										"Transaction mutation catalog version: " + transactionMutation.getVersion() + ", " +
 										"last finalized catalog version: " + finalNextExpectedCatalogVersion + "."
 								)
 
@@ -679,13 +721,14 @@ public class TransactionManager {
 							processed.add(transactionMutation.getCommitTimestamp());
 							nextExpectedCatalogVersion++;
 
+							progressCallback.accept(lastTransactionMutation.getVersion());
 							log.debug("Processed transaction: {}", lastTransactionMutation);
 						} while (
 							// there is something to process
 							mutationIterator.hasNext() &&
 								(
 									// we haven't reached expected version
-									lastTransactionMutation.getCatalogVersion() < nextCatalogVersion ||
+									lastTransactionMutation.getVersion() < nextCatalogVersion ||
 										// there is another transaction waiting and we still have a time
 										thereIsEnoughDataAndTime(timeoutMs, start, latestCatalog, lastTransactionMutation)
 								)
@@ -702,15 +745,17 @@ public class TransactionManager {
 					newCatalog = commitChangesToSharedCatalog(lastTransactionMutation, lastTransaction, transactionHandler);
 					updateLastFinalizedCatalog(
 						newCatalog,
-						lastTransactionMutation.getCatalogVersion(),
+						lastTransactionMutation.getVersion(),
 						newCatalog.getSchema().version() - this.lastCatalogSchemaVersion.get()
 					);
 
-					log.debug("Finalizing catalog: {}", lastTransactionMutation.getCatalogVersion());
+					log.debug("Finalizing catalog: {}", lastTransactionMutation.getVersion());
 
 				} catch (RuntimeException ex) {
 					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
 					latestCatalog.forgetVolatileData();
+					final Catalog catalog = this.lastFinalizedCatalog.get();
+					this.changeObserver.forgetMutationsAfter(catalog, catalog.getVersion());
 
 					// rethrow the exception - we will have to re-try the transaction
 					throw ex;
@@ -803,6 +848,28 @@ public class TransactionManager {
 	}
 
 	/**
+	 * Registers an observer to capture changes based on the provided request.
+	 *
+	 * @param request the request containing the criteria and configuration for capturing changes
+	 * @return an instance of ChangeCapturePublisher that allows the caller to manage the registered observer
+	 */
+	@Nonnull
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
+		return this.changeObserver.registerObserver(request);
+	}
+
+	@Override
+	public void close() throws IOException {
+		IOUtils.closeQuietly(
+			this.transactionalPipeline::close,
+			this.changeObserver::close,
+			this.walDrainingTask::close
+		);
+		this.livingCatalog.set(null);
+		this.lastFinalizedCatalog.set(null);
+	}
+
+	/**
 	 * Returns the last assigned catalog version to a transaction.
 	 *
 	 * @return the last assigned catalog version
@@ -823,7 +890,8 @@ public class TransactionManager {
 				this.lastWrittenCatalogVersion.get(),
 				this.configuration.transaction().flushFrequencyInMillis(),
 				true,
-				false // we should not wait for the lock here - if its already running it will process the transactions
+				false, // we should not wait for the lock here - if its already running it will process the transactions
+				Functions.noOpLongConsumer()
 			);
 		} catch (TransactionTimedOutException ex) {
 			// reschedule again
@@ -882,18 +950,19 @@ public class TransactionManager {
 	private int[] replayMutationsOnCatalog(
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull Transaction transaction,
-		@Nonnull Iterator<Mutation> mutationIterator
+		@Nonnull Iterator<CatalogBoundMutation> mutationIterator
 	) {
 		return Transaction.executeInTransactionIfProvided(
 			transaction,
 			() -> {
 				final Catalog lastFinalizedCatalog = getLastFinalizedCatalog();
-				lastFinalizedCatalog.setVersion(transactionMutation.getCatalogVersion());
+				lastFinalizedCatalog.setVersion(transactionMutation.getVersion());
+				this.changeObserver.processMutation(transactionMutation);
 				// init mutation counter
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
 				while (atomicMutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
-					final Mutation mutation = mutationIterator.next();
+					final CatalogBoundMutation mutation = mutationIterator.next();
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
@@ -916,6 +985,8 @@ public class TransactionManager {
 						lastFinalizedCatalog.applyMutation(mutation);
 						localMutationCount++;
 					}
+
+					this.changeObserver.processMutation(mutation);
 				}
 				// we should have processed all the mutations by now and the mutation count should match
 				Assert.isPremiseValid(
@@ -930,7 +1001,7 @@ public class TransactionManager {
 	}
 
 	/**
-	 * Result of the {@link #processTransactions(long, long, boolean, boolean)} method.
+	 * Result of the {@link #processTransactions(long, long, boolean, boolean, LongConsumer)} method.
 	 *
 	 * @param lastTransactionId                  the ID of the last processed transaction
 	 * @param processedAtomicMutations           the number of processed atomic mutations

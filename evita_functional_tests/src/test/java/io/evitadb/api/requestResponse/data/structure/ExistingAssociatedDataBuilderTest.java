@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 	@BeforeEach
 	void setUp() {
-		initialAssociatedData = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
+		this.initialAssociatedData = new InitialAssociatedDataBuilder(EntitySchema._internalBuild("whatever"))
 			.setAssociatedData("int", 1)
 			.setAssociatedData("range", IntegerNumberRange.between(4, 8))
 			.setAssociatedData("bigDecimal", new BigDecimal("1.123"))
@@ -63,22 +63,22 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldOverrideExistingAssociatedDataWithNewValue() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.setAssociatedData("int", 10);
 
 		assertEquals(Integer.valueOf(10), builder.getAssociatedData("int"));
-		assertEquals(Integer.valueOf(1), initialAssociatedData.getAssociatedData("int"));
+		assertEquals(Integer.valueOf(1), this.initialAssociatedData.getAssociatedData("int"));
 
 		final AssociatedData newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(10), newVersion.getAssociatedData("int"));
 		assertEquals(2L, newVersion.getAssociatedDataValue(new AssociatedDataKey("int")).orElseThrow().version());
-		assertEquals(Integer.valueOf(1), initialAssociatedData.getAssociatedData("int"));
+		assertEquals(Integer.valueOf(1), this.initialAssociatedData.getAssociatedData("int"));
 	}
 
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.setAssociatedData("int", 1)
 			.setAssociatedData("range", IntegerNumberRange.between(5, 11))
 			.setAssociatedData("range", IntegerNumberRange.between(4, 8));
@@ -88,23 +88,23 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldIgnoreMutationsThatProduceTheEquivalentAssociatedData() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.setAssociatedData("int", 1);
 
 		assertEquals(Integer.valueOf(1), builder.getAssociatedData("int"));
-		assertSame(builder.getAssociatedData("int"), initialAssociatedData.getAssociatedData("int"));
+		assertSame(builder.getAssociatedData("int"), this.initialAssociatedData.getAssociatedData("int"));
 
 		final AssociatedData newVersion = builder.build();
-		assertSame(newVersion.getAssociatedData("int"), initialAssociatedData.getAssociatedData("int"));
+		assertSame(newVersion.getAssociatedData("int"), this.initialAssociatedData.getAssociatedData("int"));
 	}
 
 	@Test
 	void shouldRemoveExistingAssociatedData() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.removeAssociatedData("int");
 
 		assertNull(builder.getAssociatedData("int"));
-		assertEquals(Integer.valueOf(1), initialAssociatedData.getAssociatedData("int"));
+		assertEquals(Integer.valueOf(1), this.initialAssociatedData.getAssociatedData("int"));
 
 		final AssociatedData newVersion = builder.build();
 
@@ -113,18 +113,18 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 		final AssociatedDataValue associatedDataValue = newVersion.getAssociatedDataValue(new AssociatedDataKey("int")).orElseThrow();
 		assertEquals(2L, associatedDataValue.version());
 		assertTrue(associatedDataValue.dropped());
-		assertEquals(Integer.valueOf(1), initialAssociatedData.getAssociatedData("int"));
+		assertEquals(Integer.valueOf(1), this.initialAssociatedData.getAssociatedData("int"));
 	}
 
 	@Test
 	void shouldRemoveExistingLocalizedAssociatedData() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.removeAssociatedData("greetings", Locale.GERMAN);
 
 		assertNull(builder.getAssociatedData("greetings", Locale.GERMAN));
 		assertEquals("Hello", builder.getAssociatedData("greetings", Locale.ENGLISH));
-		assertEquals(1L, initialAssociatedData.getAssociatedDataValue(new AssociatedDataKey("greetings", Locale.GERMAN)).orElseThrow().version());
-		assertEquals(1L, initialAssociatedData.getAssociatedDataValue(new AssociatedDataKey("greetings", Locale.ENGLISH)).orElseThrow().version());
+		assertEquals(1L, this.initialAssociatedData.getAssociatedDataValue(new AssociatedDataKey("greetings", Locale.GERMAN)).orElseThrow().version());
+		assertEquals(1L, this.initialAssociatedData.getAssociatedDataValue(new AssociatedDataKey("greetings", Locale.ENGLISH)).orElseThrow().version());
 
 		final AssociatedData newVersion = builder.build();
 
@@ -141,7 +141,7 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSucceedToAddNewAssociatedData() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.setAssociatedData("short", (short) 10);
 
 		assertEquals(Short.valueOf((short) 10), builder.getAssociatedData("short"));
@@ -153,7 +153,7 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnAccumulatedMutations() {
-		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedDataBuilder builder = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.setAssociatedData("int", 10)
 			.removeAssociatedData("int")
 			.setAssociatedData("short", (short) 5)
@@ -283,7 +283,7 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalAssociatedDataInstanceWhenNothingHasChanged() {
-		final AssociatedData newAssociatedData = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, initialAssociatedData)
+		final AssociatedData newAssociatedData = new ExistingAssociatedDataBuilder(PRODUCT_SCHEMA, this.initialAssociatedData)
 			.setAssociatedData("int", 1)
 			.setAssociatedData("range", IntegerNumberRange.between(4, 8))
 			.setAssociatedData("bigDecimal", new BigDecimal("1.123"))
@@ -291,7 +291,7 @@ class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 			.setAssociatedData("greetings", Locale.GERMAN, "Tschüss")
 			.build();
 
-		assertSame(initialAssociatedData, newAssociatedData);
+		assertSame(this.initialAssociatedData, newAssociatedData);
 	}
 
 }

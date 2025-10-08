@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	 * @param entitySchema the entity schema to be added
 	 */
 	public void addUpsertedEntitySchema(@Nonnull EntitySchemaContract entitySchema) {
-		if (baseAccessor == null) {
+		if (this.baseAccessor == null) {
 			// do nothing - this instance is immutable
 		} else {
 			if (this.entitySchemas == null) {
@@ -96,7 +96,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	 * @param name the name of the entity schema to be removed
 	 */
 	public void removeEntitySchema(@Nonnull String name) {
-		if (baseAccessor == null) {
+		if (this.baseAccessor == null) {
 			// do nothing - this instance is immutable
 		} else {
 			if (this.removedEntitySchemas == null) {
@@ -105,7 +105,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 			if (this.entitySchemas != null) {
 				this.entitySchemas.remove(name);
 			}
-			if (baseAccessor.getEntitySchema(name).isPresent()) {
+			if (this.baseAccessor.getEntitySchema(name).isPresent()) {
 				this.removedEntitySchemas.add(name);
 			}
 		}
@@ -118,7 +118,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	 * @param entitySchema the new entity schema to be added
 	 */
 	public void replaceEntitySchema(@Nonnull String oldName, @Nonnull EntitySchemaContract entitySchema) {
-		if (baseAccessor == null) {
+		if (this.baseAccessor == null) {
 			// do nothing - this instance is immutable
 		} else {
 			if (this.entitySchemas == null) {
@@ -128,7 +128,7 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 				this.removedEntitySchemas = new HashSet<>(8);
 			}
 			this.entitySchemas.put(entitySchema.getName(), entitySchema);
-			if (baseAccessor.getEntitySchema(oldName).isPresent()) {
+			if (this.baseAccessor.getEntitySchema(oldName).isPresent()) {
 				this.removedEntitySchemas.add(oldName);
 			}
 		}
@@ -153,20 +153,20 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 	@Nonnull
 	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		if (entitySchemas == null) {
-			if (baseAccessor == null) {
+		if (this.entitySchemas == null) {
+			if (this.baseAccessor == null) {
 				return empty();
 			} else {
 				return this.removedEntitySchemas == null || !this.removedEntitySchemas.contains(entityType) ?
-					baseAccessor.getEntitySchema(entityType) : empty();
+					this.baseAccessor.getEntitySchema(entityType) : empty();
 			}
 		} else {
-			final EntitySchemaContract updatedSchema = entitySchemas.get(entityType);
+			final EntitySchemaContract updatedSchema = this.entitySchemas.get(entityType);
 			if (updatedSchema != null) {
 				return of(updatedSchema);
-			} else if (baseAccessor != null) {
+			} else if (this.baseAccessor != null) {
 				return this.removedEntitySchemas == null || !this.removedEntitySchemas.contains(entityType) ?
-					baseAccessor.getEntitySchema(entityType) : empty();
+					this.baseAccessor.getEntitySchema(entityType) : empty();
 			} else {
 				return empty();
 			}

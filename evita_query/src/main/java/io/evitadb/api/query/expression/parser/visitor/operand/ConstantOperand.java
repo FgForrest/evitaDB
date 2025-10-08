@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Objects;
 
 /**
  * The ConstantOperand class represents an operator that always returns a constant value.
@@ -52,7 +53,7 @@ public class ConstantOperand implements ExpressionNode {
 	@Serial private static final long serialVersionUID = 272389410429555636L;
 	@Getter private final Serializable value;
 
-	public ConstantOperand(Serializable value) {
+	public ConstantOperand(@Nonnull Serializable value) {
 		Assert.isTrue(
 			value != null,
 			() -> new ParserException("Null value is not allowed!")
@@ -63,14 +64,14 @@ public class ConstantOperand implements ExpressionNode {
 	@Nonnull
 	@Override
 	public Serializable compute(@Nonnull PredicateEvaluationContext context) {
-		return value;
+		return this.value;
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		try {
-			final BigDecimal valueAsBigDecimal = EvitaDataTypes.toTargetType(value, BigDecimal.class);
+			final BigDecimal valueAsBigDecimal = Objects.requireNonNull(EvitaDataTypes.toTargetType(this.value, BigDecimal.class));
 			return BigDecimalNumberRange.between(valueAsBigDecimal, valueAsBigDecimal);
 		} catch (InconvertibleDataTypeException ex) {
 			return BigDecimalNumberRange.INFINITE;

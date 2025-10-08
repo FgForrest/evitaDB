@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ public class RemoveAssociatedDataSchemaMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof AssociatedDataSchemaMutation associatedDataSchemaMutation && Objects.equals(name, associatedDataSchemaMutation.getName())) {
+		if (existingMutation instanceof AssociatedDataSchemaMutation associatedDataSchemaMutation && Objects.equals(this.name, associatedDataSchemaMutation.getName())) {
 			return new MutationCombinationResult<>(true, null, this);
 		} else {
 			return null;
@@ -90,7 +90,7 @@ public class RemoveAssociatedDataSchemaMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			// the associated data schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
@@ -113,7 +113,7 @@ public class RemoveAssociatedDataSchemaMutation
 				entitySchema.getAttributes(),
 				entitySchema.getAssociatedData().values()
 					.stream()
-					.filter(it -> !it.getName().equals(name))
+					.filter(it -> !it.getName().equals(this.name))
 					.collect(
 						Collectors.toMap(
 							AssociatedDataSchemaContract::getName,
@@ -136,6 +136,6 @@ public class RemoveAssociatedDataSchemaMutation
 	@Override
 	public String toString() {
 		return "Remove associated data: " +
-			"name='" + name + '\'';
+			"name='" + this.name + '\'';
 	}
 }

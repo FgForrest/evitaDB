@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public class HierarchyTest {
 	@BeforeEach
 	void setUp() {
 		// create hierarchy of level infos to be used in the tests
-		levelInfo = new LevelInfo(
+		this.levelInfo = new LevelInfo(
 			new EntityReference("category", 1),
 			false,
 			5, 2,
@@ -109,7 +109,7 @@ public class HierarchyTest {
 
 	@Test
 	void shouldCollectAllHierarchyLevelInfos() {
-		final Set<Integer> allIds = levelInfo.collectAll(li -> true)
+		final Set<Integer> allIds = this.levelInfo.collectAll(li -> true)
 			.map(it -> it.entity().getPrimaryKey())
 			.collect(Collectors.toSet());
 		Assertions.assertEquals(9, allIds.size());
@@ -117,7 +117,7 @@ public class HierarchyTest {
 
 	@Test
 	void shouldCollectCertainHierarchyLevelInfos() {
-		final Set<Integer> allIds = levelInfo.collectAll(li -> li.entity().getPrimaryKey() % 2 == 0)
+		final Set<Integer> allIds = this.levelInfo.collectAll(li -> li.entity().getPrimaryKey() % 2 == 0)
 			.map(it -> it.entity().getPrimaryKey())
 			.collect(Collectors.toSet());
 		Assertions.assertEquals(4, allIds.size());

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,9 +26,13 @@ package io.evitadb.externalApi.http;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.SimpleDecoratingHttpService;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
+import io.evitadb.externalApi.utils.path.routing.PathHandlerDescriptor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -42,37 +46,76 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public class PathNormalizingHandler implements HttpService {
+public class PathNormalizingHandler extends SimpleDecoratingHttpService implements WebSocketHandler {
 	private static final char SLASH = '/';
 	private static final char QUESTION_MARK = '?';
 
-	@Nonnull private final HttpService next;
+	/**
+	 * Creates a new instance that decorates the specified {@link HttpService}.
+	 */
+	public PathNormalizingHandler(HttpService delegate) {
+		super(delegate);
+	}
 
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, HttpRequest req) throws Exception {
-		final String path;
-		if (!req.path().isEmpty() && req.path().charAt(req.path().length() - 1) == SLASH) {
-			path = req.path().substring(0, req.path().length() - 1);
-		} else if (req.path().isEmpty()) {
-			path = String.valueOf(SLASH);
-		} else if (req.path().contains(String.valueOf(QUESTION_MARK))) {
+		final String currentPath = req.path();
+		final String normalizedPath;
+		if (!currentPath.isEmpty() && currentPath.charAt(currentPath.length() - 1) == SLASH) {
+			normalizedPath = currentPath.substring(0, currentPath.length() - 1);
+		} else if (currentPath.isEmpty()) {
+			normalizedPath = String.valueOf(SLASH);
+		} else if (currentPath.contains(String.valueOf(QUESTION_MARK))) {
+			// todo lho fix?
 			final URI uri = req.uri();
 			final String baseUrl = Optional.ofNullable(uri.getQuery())
 				.map(query -> uri.getPath() + QUESTION_MARK + query)
 				.orElse(uri.getPath());
 			if (baseUrl.charAt(baseUrl.length() - 1) == SLASH) {
-				path = baseUrl.substring(0, baseUrl.length() - 1);
+				normalizedPath = baseUrl.substring(0, baseUrl.length() - 1);
 			} else {
-				path = baseUrl;
+				normalizedPath = baseUrl;
 			}
 		} else {
-			return next.serve(ctx, req);
+			return this.unwrap().serve(ctx, req);
 		}
 
- 		final RequestHeaders newHeaders = req.headers().withMutations(builder -> builder.set(":path", path));
-		return next.serve(ctx, req.withHeaders(newHeaders));
+ 		final RequestHeaders newHeaders = req.headers().withMutations(builder -> builder.set(":path", normalizedPath));
+		return this.unwrap().serve(ctx, req.withHeaders(newHeaders));
 	}
 
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		final WebSocketHandler webSocketHandler = this.unwrap().as(WebSocketHandler.class);
+		if (webSocketHandler == null) {
+			// todo lho verify error handling
+			throw new ExternalApiInternalError("Expected Web Socket handler.");
+		}
+
+		final String currentPath = in.path();
+		final String normalizedPath;
+		if (!currentPath.isEmpty() && currentPath.charAt(currentPath.length() - 1) == SLASH) {
+			normalizedPath = currentPath.substring(0, currentPath.length() - 1);
+		} else if (currentPath.isEmpty()) {
+			normalizedPath = String.valueOf(SLASH);
+		} else if (currentPath.contains(String.valueOf(QUESTION_MARK))) {
+			// todo lho fix?
+//			final URI uri = req.uri();
+//			final String baseUrl = Optional.ofNullable(uri.getQuery())
+//			                               .map(query -> uri.getPath() + QUESTION_MARK + query)
+//			                               .orElse(uri.getPath());
+//			if (baseUrl.charAt(baseUrl.length() - 1) == SLASH) {
+//				normalizedPath = baseUrl.substring(0, baseUrl.length() - 1);
+//			} else {
+//				normalizedPath = baseUrl;
+//			}
+			normalizedPath = currentPath;
+		} else {
+			return webSocketHandler.handle(ctx, in);
+		}
+
+		return webSocketHandler.handle(ctx, in.withPath(normalizedPath));
+	}
 }

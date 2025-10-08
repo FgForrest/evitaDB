@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ public class ModifyAttributeSchemaTypeMutation
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			if (existingMutation instanceof ModifyAttributeSchemaTypeMutation) {
 				return new MutationCombinationResult<>(null, this);
 			} else if (existingMutation instanceof SetAttributeSchemaFilterableMutation || existingMutation instanceof SetAttributeSchemaSortableMutation) {
@@ -114,7 +114,7 @@ public class ModifyAttributeSchemaTypeMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			if (existingMutation instanceof ModifyAttributeSchemaTypeMutation) {
 				return new MutationCombinationResult<>(null, this);
 			} else if (
@@ -138,13 +138,13 @@ public class ModifyAttributeSchemaTypeMutation
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		@SuppressWarnings("rawtypes")
-		final Class newType = EvitaDataTypes.toWrappedForm(type);
-		if (newType.equals(attributeSchema.getType()) && indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
+		final Class newType = EvitaDataTypes.toWrappedForm(this.type);
+		if (newType.equals(attributeSchema.getType()) && this.indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			//noinspection unchecked
 			return (S) GlobalAttributeSchema._internalBuild(
-				name,
+				this.name,
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
@@ -159,7 +159,7 @@ public class ModifyAttributeSchemaTypeMutation
 				ofNullable(globalAttributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
 					.orElse(null),
-				indexedDecimalPlaces
+				this.indexedDecimalPlaces
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			//noinspection unchecked
@@ -192,6 +192,7 @@ public class ModifyAttributeSchemaTypeMutation
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
+				attributeSchema.isRepresentative(),
 				newType,
 				ofNullable(attributeSchema.getDefaultValue())
 					.map(it -> EvitaDataTypes.toTargetType(it, newType))
@@ -203,11 +204,11 @@ public class ModifyAttributeSchemaTypeMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
 
@@ -221,9 +222,9 @@ public class ModifyAttributeSchemaTypeMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 
 		final EntityAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class);
@@ -236,7 +237,7 @@ public class ModifyAttributeSchemaTypeMutation
 	@Override
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, name);
+		final AttributeSchemaContract existingAttributeSchema = getReferenceAttributeSchemaOrThrow(entitySchema, referenceSchema, this.name);
 		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema
@@ -251,9 +252,9 @@ public class ModifyAttributeSchemaTypeMutation
 
 	@Override
 	public String toString() {
-		return "Modify attribute `" + name + "` schema: " +
-			"type=" + type +
-			", indexedDecimalPlaces=" + indexedDecimalPlaces;
+		return "Modify attribute `" + this.name + "` schema: " +
+			"type=" + this.type +
+			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
 	}
 
 }

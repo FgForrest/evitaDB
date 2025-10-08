@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -36,19 +38,14 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CatalogRelatedDataStructure;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
-import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
@@ -56,25 +53,15 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexReadContract;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
-import one.edee.oss.proxycian.PredicateMethodClassification;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
-import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
-import one.edee.oss.proxycian.util.ReflectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serial;
 import java.io.Serializable;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -95,82 +82,6 @@ import java.util.function.Function;
 public class ReducedEntityIndex extends EntityIndex
 	implements VoidTransactionMemoryProducer<ReducedEntityIndex>, CatalogRelatedDataStructure<ReducedEntityIndex>
 {
-	/**
-	 * Matcher for all Object.class methods that just delegates calls to super implementation.
-	 */
-	private static final PredicateMethodClassification<ReducedEntityIndex, Void, ReducedIndexProxyState> OBJECT_METHODS_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"Object methods",
-		(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, Object.class),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-			try {
-				return invokeSuper.call();
-			} catch (Exception e) {
-				throw new InvocationTargetException(e);
-			}
-		}
-	);
-	/**
-	 * Matcher for {@link EntityIndex#getId()} method that returns 0 as the index id cannot be generated for the index.
-	 */
-	private static final PredicateMethodClassification<ReducedEntityIndex, Void, ReducedIndexProxyState> GET_ID_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"getId",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReducedEntityIndex.class, "getId"),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> 0L
-	);
-	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getIndexKey()} method that delegates to the super implementation
-	 * returning the index key passed in constructor.
-	 */
-	private static final PredicateMethodClassification<ReducedEntityIndex, Void, ReducedIndexProxyState> GET_INDEX_KEY_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"getIndexKey",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReferencedTypeEntityIndex.class, "getIndexKey"),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-			try {
-				return invokeSuper.call();
-			} catch (Exception e) {
-				throw new InvocationTargetException(e);
-			}
-		}
-	);
-	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeys()} method that returns the super set of primary keys
-	 * from the proxy state object.
-	 */
-	private static final PredicateMethodClassification<ReducedEntityIndex, Void, ReducedIndexProxyState> GET_ALL_PRIMARY_KEYS_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"getAllPrimaryKeys",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReferencedTypeEntityIndex.class, "getAllPrimaryKeys"),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getSuperSetOfPrimaryKeysBitmap()
-	);
-	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeysFormula()} method that returns the super set of primary keys
-	 * from the proxy state object.
-	 */
-	private static final PredicateMethodClassification<ReducedEntityIndex, Void, ReducedIndexProxyState> GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"getAllPrimaryKeysFormula",
-		(method, proxyState) -> ReflectionUtils.isMethodDeclaredOn(method, ReferencedTypeEntityIndex.class, "getAllPrimaryKeysFormula"),
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getSuperSetOfPrimaryKeysFormula()
-	);
-	/**
-	 * Matcher for all other methods that throws a {@link ReferenceNotIndexedException} exception.
-	 */
-	private static final PredicateMethodClassification<ReducedEntityIndex, Void, ReducedIndexProxyState> THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION = new PredicateMethodClassification<>(
-		"All other methods",
-		(method, proxyState) -> true,
-		(method, state) -> null,
-		(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-			final EntityIndexKey theIndexKey = proxy.getIndexKey();
-			throw new ReferenceNotIndexedException(
-				((ReferenceKey) theIndexKey.discriminator()).referenceName(),
-				proxyState.getEntitySchema(),
-				theIndexKey.scope()
-			);
-		}
-	);
 
 	/**
 	 * This part of index collects information about prices of the entities. It provides data that are necessary for
@@ -178,50 +89,6 @@ public class ReducedEntityIndex extends EntityIndex
 	 */
 	@Delegate(types = PriceIndexReadContract.class)
 	@Getter private final PriceRefIndex priceIndex;
-
-	/**
-	 * Creates a proxy instance of {@link ReducedEntityIndex} that throws a {@link ReferenceNotIndexedException}
-	 * for any methods not explicitly handled within the proxy.
-	 *
-	 * @param entitySchema The schema contract for the entity associated with the index.
-	 * @param entityIndexKey The key for the entity index.
-	 * @return A proxy instance of {@link ReferencedTypeEntityIndex} that conditionally throws exceptions.
-	 */
-	@Nonnull
-	public static ReducedEntityIndex createThrowingStub(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull EntityIndexKey entityIndexKey,
-		@Nonnull int[] superSetOfPrimaryKeys
-	) {
-		return ByteBuddyProxyGenerator.instantiate(
-			new ByteBuddyDispatcherInvocationHandler<>(
-				new ReducedIndexProxyState(entitySchema, superSetOfPrimaryKeys),
-				// objects method must pass through
-				OBJECT_METHODS_IMPLEMENTATION,
-				// index id will be provided as 0, because this id cannot be generated for the index
-				GET_ID_IMPLEMENTATION,
-				// index key is known and will be used in additional code
-				GET_INDEX_KEY_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty bitmap
-				GET_ALL_PRIMARY_KEYS_IMPLEMENTATION,
-				// this is used to retrieve superset of primary keys in missing index - let's return empty formula
-				GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION,
-				// for all other methods we will throw the exception that the reference is not indexed
-				THROW_REFERENCE_NOT_FOUND_IMPLEMENTATION
-			),
-			new Class<?>[]{
-				ReducedEntityIndex.class
-			},
-			new Class<?>[]{
-				int.class,
-				String.class,
-				EntityIndexKey.class
-			},
-			new Object[]{
-				-1, entitySchema.getName(), entityIndexKey
-			}
-		);
-	}
 
 	public ReducedEntityIndex(
 		int primaryKey,
@@ -280,11 +147,21 @@ public class ReducedEntityIndex extends EntityIndex
 	 * The reference key is derived from the discriminator of the index key.
 	 *
 	 * @return the non-null {@link ReferenceKey} uniquely identifying a reference within the entity index.
-	 * @throws NullPointerException if the resolved reference key is null.
 	 */
 	@Nonnull
 	public ReferenceKey getReferenceKey() {
-		return Objects.requireNonNull((ReferenceKey) this.indexKey.discriminator());
+		return getRepresentativeReferenceKey().referenceKey();
+	}
+
+	/**
+	 * Retrieves a representative reference key associated with the current entity index.
+	 * The representative reference key is derived from the discriminator of the index key.
+	 *
+	 * @return the {@link RepresentativeReferenceKey} if it exists, otherwise null.
+	 */
+	@Nonnull
+	public RepresentativeReferenceKey getRepresentativeReferenceKey() {
+		return Objects.requireNonNull((RepresentativeReferenceKey) this.indexKey.discriminator());
 	}
 
 	@Override
@@ -315,24 +192,6 @@ public class ReducedEntityIndex extends EntityIndex
 	}
 
 	@Override
-	protected StoragePart createStoragePart(
-		boolean hierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
-		@Nonnull Set<PriceIndexKey> priceIndexKeys,
-		@Nonnull Set<String> facetIndexReferencedEntities
-	) {
-		return new EntityIndexStoragePart(
-			this.primaryKey, this.version, this.indexKey,
-			this.entityIds, this.entityIdsByLanguage,
-			attributeIndexStorageKeys,
-			priceIndexKeys,
-			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities,
-			null
-		);
-	}
-
-	@Override
 	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
 		super.getModifiedStorageParts(trappedChanges);
 		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
@@ -352,18 +211,20 @@ public class ReducedEntityIndex extends EntityIndex
 
 	@Override
 	public void removeSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
-		super.removeSortAttributeCompound(referenceSchema, compoundSchemaContract, locale, value, recordId);
+		assertPartitioningIndex(referenceSchema, compoundSchemaContract);
+		super.removeSortAttributeCompound(entitySchema, referenceSchema, compoundSchemaContract, locale, value, recordId);
 	}
 
 	@Override
 	public void insertSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nonnull Function<String, Class<?>> attributeTypeProvider,
@@ -371,8 +232,8 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable[] value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
-		super.insertSortAttributeCompound(referenceSchema, compoundSchemaContract, attributeTypeProvider, locale, value, recordId);
+		assertPartitioningIndex(referenceSchema, compoundSchemaContract);
+		super.insertSortAttributeCompound(entitySchema, referenceSchema, compoundSchemaContract, attributeTypeProvider, locale, value, recordId);
 	}
 
 	@Override
@@ -384,7 +245,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.removeSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 	}
 
@@ -397,7 +258,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.insertSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 	}
 
@@ -410,7 +271,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable[] value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.removeDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 	}
 
@@ -423,7 +284,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable[] value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.addDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 	}
 
@@ -436,7 +297,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 	}
 
@@ -449,7 +310,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.insertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
 	}
 
@@ -463,7 +324,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.removeUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
@@ -477,7 +338,7 @@ public class ReducedEntityIndex extends EntityIndex
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		assertPartitioningIndex(referenceSchema);
+		assertPartitioningIndex(referenceSchema, attributeSchema);
 		super.insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
@@ -533,6 +394,28 @@ public class ReducedEntityIndex extends EntityIndex
 		);
 	}
 
+	@Override
+	public void addFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
+	}
+
+	@Override
+	public void removeFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	) {
+		assertPartitioningIndex(referenceSchema);
+		super.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
+	}
+
 	@Nonnull
 	@Override
 	public ReducedEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
@@ -569,68 +452,66 @@ public class ReducedEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Ensures that the current index can be used for filtering and partitioning operations.
-	 * This method validates if the `indexType` of the current instance is set to
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}. If the validation fails,
-	 * an {@link IllegalArgumentException} is thrown with a descriptive error message.
+	 * Validates that the attribute is either a reference attribute or that the reference schema has index level set to
+	 * FOR_FILTERING_AND_PARTITIONING. Global entity attributes are indexed only on this particular indexing level.
 	 *
-	 * Throws an exception if this operation is invoked on indexes of a type other than
-	 * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
-	 *
-	 * @throws IllegalArgumentException if the `indexType` is not {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
+	 * @param referenceSchema the schema contract related to the reference
+	 * @param attributeSchema the schema contract for the attribute to be validated
 	 */
-	private void assertPartitioningIndex(@Nullable ReferenceSchemaContract referenceSchema) {
+	private void assertPartitioningIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
 		Assert.isPremiseValid(
-			referenceSchema == null || referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			referenceSchema != null,
+			() -> "The reference schema must be provided index data in reduced entity index!"
+		);
+		Assert.isPremiseValid(
+			!(attributeSchema instanceof EntityAttributeSchemaContract)
+				|| referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
 		);
 	}
 
 	/**
-	 * ReducedIndexProxyState is a private static class that acts as a proxy state,
-	 * holding a super set of primary keys and providing cached access to their representations
-	 * as a Bitmap and a Formula.
+	 * Validates that the attribute is either a reference attribute compound or that the reference schema has index
+	 * level set to FOR_FILTERING_AND_PARTITIONING. Global entity attribute compounds are indexed only on this
+	 * particular indexing level.
 	 *
-	 * The class lazily initializes these representations to optimize performance
-	 * and reduce unnecessary computation.
+	 * @param referenceSchema the schema contract related to the reference
+	 * @param compoundSchema the schema contract for the attribute to be validated
 	 */
-	@RequiredArgsConstructor
-	private static class ReducedIndexProxyState implements Serializable {
-		@Serial private static final long serialVersionUID = -3552741023659721189L;
-		@Getter private final @Nonnull EntitySchemaContract entitySchema;
-		private final @Nonnull int[] superSetOfPrimaryKeys;
-		private Bitmap superSetOfPrimaryKeysBitmap;
-		private Formula superSetOfPrimaryKeysFormula;
-
-		/**
-		 * Retrieves the bitmap representation of the super set of primary keys.
-		 * This method ensures the bitmap is initialized and cached for subsequent calls.
-		 *
-		 * @return a {@link Bitmap} containing the super set of primary keys
-		 */
-		@Nonnull
-		public Bitmap getSuperSetOfPrimaryKeysBitmap() {
-			if (this.superSetOfPrimaryKeysBitmap == null) {
-				this.superSetOfPrimaryKeysBitmap = ArrayUtils.isEmpty(this.superSetOfPrimaryKeys) ?
-					EmptyBitmap.INSTANCE : new ArrayBitmap(this.superSetOfPrimaryKeys);
-			}
-			return this.superSetOfPrimaryKeysBitmap;
-		}
-
-		/**
-		 * Retrieves the formula representation of the super set of primary keys.
-		 * This method ensures the formula is initialized and cached for subsequent calls.
-		 *
-		 * @return a {@link Formula} containing the super set of primary keys
-		 */
-		@Nonnull
-		public Formula getSuperSetOfPrimaryKeysFormula() {
-			if (this.superSetOfPrimaryKeysFormula == null) {
-				this.superSetOfPrimaryKeysFormula = ArrayUtils.isEmpty(this.superSetOfPrimaryKeys) ?
-					EmptyFormula.INSTANCE : new ConstantFormula(getSuperSetOfPrimaryKeysBitmap());
-			}
-			return this.superSetOfPrimaryKeysFormula;
-		}
-
+	private void assertPartitioningIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema
+	) {
+		Assert.isPremiseValid(
+			referenceSchema != null,
+			() -> "The reference schema must be provided index data in reduced entity index!"
+		);
+		/* TODO JNO - this needs to be better distinguished - name is not enough!! */
+		Assert.isPremiseValid(
+			referenceSchema.getSortableAttributeCompound(compoundSchema.getName()).isPresent() || referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
+		);
 	}
+
+	/**
+	 * Validates that the reference schema has index level set to FOR_FILTERING_AND_PARTITIONING.
+	 *
+	 * @param referenceSchema the schema contract related to the reference
+	 */
+	private void assertPartitioningIndex(
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		Assert.isPremiseValid(
+			referenceSchema != null,
+			() -> "The reference schema must be provided index data in reduced entity index!"
+		);
+		Assert.isPremiseValid(
+			referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
+		);
+	}
+
 }

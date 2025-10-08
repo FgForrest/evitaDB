@@ -46,7 +46,9 @@ import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.*;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
@@ -55,12 +57,14 @@ import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializ
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -194,14 +198,19 @@ public class EntityConverter {
 					grpcEntity.getVersion(),
 					entitySchema,
 					grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
-					references,
+					new References(
+						entitySchema,
+						references,
+						entitySchema.getReferences().keySet(),
+						evitaRequest::getReferenceChunkTransformer
+					),
 					new EntityAttributes(
 						entitySchema,
 						toAttributeValues(
 							grpcEntity.getGlobalAttributesMap(),
 							grpcEntity.getLocalizedAttributesMap()
 						),
-						entitySchema.getAttributes()
+						new LazyHashMap<>(4)
 					),
 					new AssociatedData(
 						entitySchema,
@@ -220,8 +229,7 @@ public class EntityConverter {
 						.stream()
 						.map(EvitaDataTypesConverter::toLocale)
 						.collect(Collectors.toSet()),
-					toScope(grpcEntity.getScope()),
-					evitaRequest::getReferenceChunkTransformer
+					toScope(grpcEntity.getScope())
 				),
 				entitySchema,
 				parentEntity,
@@ -300,17 +308,24 @@ public class EntityConverter {
 		} else {
 			group = null;
 		}
+		final String referenceName = grpcReference.getReferenceName();
+		final String referencedEntityType = grpcReference.hasReferencedEntityReference() ?
+			grpcReference.getReferencedEntityReference().getEntityType() :
+			grpcReference.getReferencedEntity().getEntityType();
+		final Cardinality cardinality = EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality())
+		                                                  .orElse(Cardinality.ZERO_OR_MORE);
 		return new Reference(
 			entitySchema,
+			entitySchema.getReference(referenceName)
+			            .orElseGet(() -> ReferencesBuilder.createImplicitSchema(entitySchema, referenceName, referencedEntityType, cardinality, group)),
 			grpcReference.getVersion(),
-			grpcReference.getReferenceName(),
-			grpcReference.hasReferencedEntityReference() ?
-				grpcReference.getReferencedEntityReference().getPrimaryKey() :
-				grpcReference.getReferencedEntity().getPrimaryKey(),
-			grpcReference.hasReferencedEntityReference() ?
-				grpcReference.getReferencedEntityReference().getEntityType() :
-				grpcReference.getReferencedEntity().getEntityType(),
-			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
+			new ReferenceKey(
+				referenceName,
+				grpcReference.hasReferencedEntityReference() ?
+					grpcReference.getReferencedEntityReference().getPrimaryKey() :
+					grpcReference.getReferencedEntity().getPrimaryKey(),
+				grpcReference.getInternalPrimaryKey()
+			),
 			group,
 			toAttributeValues(
 				grpcReference.getGlobalAttributesMap(),
@@ -411,6 +426,7 @@ public class EntityConverter {
 				final GrpcReference.Builder grpcReferenceBuilder = GrpcReference.newBuilder()
 					.setVersion(reference.version())
 					.setReferenceName(reference.getReferenceName())
+					.setInternalPrimaryKey(reference.getReferenceKey().internalPrimaryKey())
 					.setReferenceCardinality(EvitaEnumConverter.toGrpcCardinality(reference.getReferenceCardinality()))
 					.setVersion(reference.version());
 
@@ -664,7 +680,9 @@ public class EntityConverter {
 	@Nonnull
 	public static <T> T parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
 		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
-		return null;
+		throw new UnsupportedOperationException(
+			"Parsing of binary entities is not yet supported in gRPC API! Please use the sealed entity form instead."
+		);
 	}
 
 	/**
@@ -976,19 +994,19 @@ public class EntityConverter {
 		@Nullable
 		@Override
 		public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
-			return parentId -> parentEntity;
+			return parentId -> this.parentEntity;
 		}
 
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
+			return primaryKey -> this.entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
 		}
 
 		@Nullable
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return primaryKey -> groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
+			return primaryKey -> this.groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
 		}
 
 		@Nullable

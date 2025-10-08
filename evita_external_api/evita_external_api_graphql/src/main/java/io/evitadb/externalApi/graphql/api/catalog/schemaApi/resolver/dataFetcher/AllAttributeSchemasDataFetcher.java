@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Returns collection of {@link AttributeSchema}s from {@link AttributeSchemaProvider}.
@@ -55,8 +56,8 @@ public class AllAttributeSchemasDataFetcher implements DataFetcher<Collection<At
 
 	@Nonnull
 	@Override
-	public Collection<AttributeSchema> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final AttributeSchemaProvider<AttributeSchema> attributeSchemaProvider = environment.getSource();
+	public Collection<AttributeSchema> get(DataFetchingEnvironment environment) throws Exception {
+		final AttributeSchemaProvider<AttributeSchema> attributeSchemaProvider = Objects.requireNonNull(environment.getSource());
 		return attributeSchemaProvider.getAttributes().values();
 	}
 }

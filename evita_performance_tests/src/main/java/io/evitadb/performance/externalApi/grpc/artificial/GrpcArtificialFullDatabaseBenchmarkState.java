@@ -66,16 +66,16 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 	@Override
 	public void setUp() {
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
-			dataGenerator,
+			this.dataGenerator,
 			PRODUCT_COUNT,
 			this::shouldStartFromScratch,
 			this::isCatalogAvailable,
 			this::createEvitaInstanceFromExistingData,
 			this::createEmptyEvitaInstance,
 			getCatalogName(),
-			generatedEntities,
+			this.generatedEntities,
 			SEED,
-			randomEntityPicker,
+			this.randomEntityPicker,
 			this::processEntity,
 			this::processCreatedEntityReference,
 			this::createEntity,
@@ -85,7 +85,7 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 		this.productSchema = readyReadEvita.productSchema();
 
 		// start grpc server
-		server = new ExternalApiServer(
+		this.server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
 				.enable(SystemProvider.CODE, new SystemOptions(":" + SystemOptions.DEFAULT_SYSTEM_PORT))
@@ -93,7 +93,7 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 				.build(),
 			List.of(new GrpcProviderRegistrar(), new SystemProviderRegistrar())
 		);
-		server.start();
+		this.server.start();
 
 		super.setUp();
 	}

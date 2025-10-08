@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -94,13 +94,13 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 		HashMap<String, Integer> underlyingData = new LinkedHashMap<>();
 		underlyingData.put("a", 1);
 		underlyingData.put("b", 2);
-		tested = new TransactionalMap<>(underlyingData);
+		this.tested = new TransactionalMap<>(underlyingData);
 	}
 
 	@Test
 	void shouldNotModifyOriginalStateButCreateModifiedCopy() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("a", 3);
 				original.put("c", 3);
@@ -116,7 +116,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void removalsShouldNotModifyOriginalState() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove("a");
 				original.put("c", 3);
@@ -135,21 +135,21 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 		 * START: Q: 33,b: 29,S: 185,3: 86,c: 110,T: 181,e: 38,6: 91,J: 65
 		 * */
 
-		tested.clear();
-		tested.put("Q", 33);
-		tested.put("b", 29);
-		tested.put("S", 185);
-		tested.put("3", 86);
-		tested.put("c", 110);
-		tested.put("T", 181);
-		tested.put("e", 38);
-		tested.put("6", 91);
-		tested.put("J", 65);
+		this.tested.clear();
+		this.tested.put("Q", 33);
+		this.tested.put("b", 29);
+		this.tested.put("S", 185);
+		this.tested.put("3", 86);
+		this.tested.put("c", 110);
+		this.tested.put("T", 181);
+		this.tested.put("e", 38);
+		this.tested.put("6", 91);
+		this.tested.put("J", 65);
 
-		final HashMap<String, Integer> referenceMap = new HashMap<>(tested);
+		final HashMap<String, Integer> referenceMap = new HashMap<>(this.tested);
 
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 
 				/* +D:18#0+D:72 */
@@ -174,7 +174,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldMergeRemovalsAndUpdatesAndInsertionsOnTransactionCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove("a");
 				original.put("b", 3);
@@ -192,7 +192,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldInterpretIsEmptyCorrectly() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				assertFalse(original.isEmpty());
 
@@ -226,7 +226,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProduceValidValueCollection() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 				original.remove("b");
@@ -248,7 +248,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProduceValidKeySet() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 				original.remove("b");
@@ -270,7 +270,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProduceValidEntrySet() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 				original.remove("b");
@@ -292,7 +292,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldNotModifyOriginalStateOnKeySetIteratorRemoval() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 
@@ -317,7 +317,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldNotModifyOriginalStateOnValuesIteratorRemoval() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 
@@ -342,7 +342,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRemoveValuesWhileIteratingOverThem() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.clear();
 				original.put("ac", 1);
@@ -364,7 +364,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldMergeChangesInEntrySetIterator() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 
@@ -389,7 +389,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepIteratorContract() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 
@@ -433,7 +433,7 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepIteratorContractWhenItemsRemoved() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.put("c", 3);
 				original.remove("b");

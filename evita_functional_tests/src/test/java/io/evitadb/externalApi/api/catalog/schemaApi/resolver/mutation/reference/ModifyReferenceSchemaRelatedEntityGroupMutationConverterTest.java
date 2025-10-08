@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,15 +26,17 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,7 +51,7 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyReferenceSchemaRelatedEntityGroupMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceSchemaRelatedEntityGroupMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -60,7 +62,7 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 			true
 		);
 
-		final ModifyReferenceSchemaRelatedEntityGroupMutation convertedMutation1 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityGroupMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
@@ -69,7 +71,7 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyReferenceSchemaRelatedEntityGroupMutation convertedMutation2 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityGroupMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
@@ -86,7 +88,7 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 			false
 		);
 
-		final ModifyReferenceSchemaRelatedEntityGroupMutation convertedMutation1 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityGroupMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
@@ -99,7 +101,7 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
 					.build()
@@ -107,13 +109,35 @@ class ModifyReferenceSchemaRelatedEntityGroupMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReferenceSchemaRelatedEntityGroupMutation inputMutation = new ModifyReferenceSchemaRelatedEntityGroupMutation(
+			"tags",
+			"tagGroup",
+			true
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyReferenceSchemaRelatedEntityGroupMutation.class.getSimpleName())
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE.name(), "tagGroup")
+					.e(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), true)
+					.build()
+			);
 	}
 }

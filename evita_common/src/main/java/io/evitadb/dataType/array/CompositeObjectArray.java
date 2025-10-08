@@ -130,7 +130,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 * Returns true if the instance is empty and contains no numbers.
 	 */
 	public boolean isEmpty() {
-		return chunkPeek == -1;
+		return this.chunkPeek == -1;
 	}
 
 	/**
@@ -142,7 +142,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 			return null;
 		} else {
 			//noinspection unchecked
-			return currentChunk[chunkPeek];
+			return this.currentChunk[this.chunkPeek];
 		}
 	}
 
@@ -153,17 +153,17 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	public T get(int index) {
 		final int chunkIndex = index / CHUNK_SIZE;
 		final int indexInChunk = index % CHUNK_SIZE;
-		Assert.isTrue(chunkIndex < chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + chunks.size() + ").");
+		Assert.isTrue(chunkIndex < this.chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + this.chunks.size() + ").");
 		//noinspection unchecked
-		return chunks.get(chunkIndex)[indexInChunk];
+		return this.chunks.get(chunkIndex)[indexInChunk];
 	}
 
 	/**
 	 * Returns true if the specified record is already part of the array.
 	 */
 	public boolean contains(@Nonnull T recordId) {
-		for (Object[] chunk : chunks) {
-			if (monotonic) {
+		for (Object[] chunk : this.chunks) {
+			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
 				if (Arrays.binarySearch(chunk, recordId) >= 0) {
 					return true;
@@ -185,13 +185,13 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 * Returns index of the recordId in the array.
 	 */
 	public int indexOf(@Nonnull T recordId) {
-		for (int i = 0; i < chunks.size(); i++) {
-			final Object[] chunk = chunks.get(i);
+		for (int i = 0; i < this.chunks.size(); i++) {
+			final Object[] chunk = this.chunks.get(i);
 			int index;
-			if (monotonic) {
-				if (i == chunks.size() - 1) {
+			if (this.monotonic) {
+				if (i == this.chunks.size() - 1) {
 					// use fast binary search if array contains only monotonic record ids
-					index = chunkPeek >= 0 ? Arrays.binarySearch(chunk, 0, chunkPeek + 1, recordId) : -1;
+					index = this.chunkPeek >= 0 ? Arrays.binarySearch(chunk, 0, this.chunkPeek + 1, recordId) : -1;
 				} else {
 					// use fast binary search if array contains only monotonic record ids
 					index = Arrays.binarySearch(chunk, recordId);
@@ -223,16 +223,16 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 * the array is monotonically increasing.
 	 */
 	public <U> int indexOf(@Nonnull U recordId, @Nonnull ToIntBiFunction<T, U> comparator) {
-		Assert.isPremiseValid(monotonic, "The array must be monotonically increasing to use this method.");
-		for (int i = 0; i < chunks.size(); i++) {
-			final Object[] chunk = chunks.get(i);
+		Assert.isPremiseValid(this.monotonic, "The array must be monotonically increasing to use this method.");
+		for (int i = 0; i < this.chunks.size(); i++) {
+			final Object[] chunk = this.chunks.get(i);
 			int index;
-			if (i == chunks.size() - 1) {
+			if (i == this.chunks.size() - 1) {
 				// use fast binary search if array contains only monotonic record ids
 				// we can safely cast to Comparable because we know that the array is monotonic
 				//noinspection unchecked
-				index = chunkPeek >= 0 ?
-					ArrayUtils.binarySearch(chunk, recordId, 0, chunkPeek + 1, (o, u) -> comparator.applyAsInt((T) o, u))
+				index = this.chunkPeek >= 0 ?
+					ArrayUtils.binarySearch(chunk, recordId, 0, this.chunkPeek + 1, (o, u) -> comparator.applyAsInt((T) o, u))
 					: -1;
 			} else {
 				// use fast binary search if array contains only monotonic record ids
@@ -255,7 +255,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 * Returns the size of the array.
 	 */
 	public int getSize() {
-		return ((chunks.size() - 1) * CHUNK_SIZE) + chunkPeek + 1;
+		return ((this.chunks.size() - 1) * CHUNK_SIZE) + this.chunkPeek + 1;
 	}
 
 	/**
@@ -263,7 +263,7 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	 */
 	public void set(@Nonnull T recordId, int index) {
 		Assert.isTrue(index < getSize(), "Index " + index + " out of bounds (" + getSize() + ")!");
-		chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
+		this.chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
 	}
 
 	/**
@@ -272,19 +272,19 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	public void add(@Nonnull T record) {
 		// keep eye on monotonic row
 		//noinspection unchecked
-		if (monotonic && chunkPeek != -1 && ((Comparable<T>) record).compareTo(currentChunk[chunkPeek]) <= 0) {
-			monotonic = false;
+		if (this.monotonic && this.chunkPeek != -1 && ((Comparable<T>) record).compareTo(this.currentChunk[this.chunkPeek]) <= 0) {
+			this.monotonic = false;
 		}
 
 		// if last chunk was depleted obtain another one
-		if (++chunkPeek == CHUNK_SIZE) {
-			chunkPeek = 0;
+		if (++this.chunkPeek == CHUNK_SIZE) {
+			this.chunkPeek = 0;
 			//noinspection unchecked
-			currentChunk = (T[]) Array.newInstance(objectType, CHUNK_SIZE);
-			chunks.add(currentChunk);
+			this.currentChunk = (T[]) Array.newInstance(this.objectType, CHUNK_SIZE);
+			this.chunks.add(this.currentChunk);
 		}
 
-		currentChunk[chunkPeek] = record;
+		this.currentChunk[this.chunkPeek] = record;
 	}
 
 	/**
@@ -308,16 +308,16 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 		}
 
 		// reset monotonic flag if added objects violate monotonic row
-		if (monotonic) {
+		if (this.monotonic) {
 			//noinspection unchecked
-			if (chunkPeek != -1 && ((Comparable<T>) currentChunk[chunkPeek]).compareTo(objects[srcPosition]) >= 0) {
-				monotonic = false;
+			if (this.chunkPeek != -1 && ((Comparable<T>) this.currentChunk[this.chunkPeek]).compareTo(objects[srcPosition]) >= 0) {
+				this.monotonic = false;
 			} else {
 				T lastRecord = objects[srcPosition];
 				for (int i = srcPosition + 1; i < length; i++) {
 					//noinspection unchecked
 					if (((Comparable<T>) lastRecord).compareTo(objects[i]) >= 0) {
-						monotonic = false;
+						this.monotonic = false;
 						break;
 					}
 					lastRecord = objects[i];
@@ -333,20 +333,20 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 			final int copyPosition;
 
 			// if the current chunk is depleted borrow another one
-			if (chunkPeek + 1 == CHUNK_SIZE) {
-				chunkPeek = -1;
+			if (this.chunkPeek + 1 == CHUNK_SIZE) {
+				this.chunkPeek = -1;
 				//noinspection unchecked
-				currentChunk = (T[]) Array.newInstance(objectType, CHUNK_SIZE);
-				chunks.add(currentChunk);
+				this.currentChunk = (T[]) Array.newInstance(this.objectType, CHUNK_SIZE);
+				this.chunks.add(this.currentChunk);
 			}
-			copyPosition = chunkPeek + 1;
+			copyPosition = this.chunkPeek + 1;
 
 			final int availableSizeInChunk = CHUNK_SIZE - copyPosition;
 			final int copyLength = Math.min(availableSizeInChunk, restLength);
 
-			System.arraycopy(objects, currentSrcPos, currentChunk, copyPosition, copyLength);
+			System.arraycopy(objects, currentSrcPos, this.currentChunk, copyPosition, copyLength);
 
-			chunkPeek += copyLength;
+			this.chunkPeek += copyLength;
 			currentSrcPos += copyLength;
 			restLength -= copyLength;
 		}
@@ -358,8 +358,8 @@ public class CompositeObjectArray<T> implements Iterable<T>, Serializable {
 	@Nonnull
 	public T[] toArray() {
 		final int size = getSize();
-		@SuppressWarnings("unchecked") final T[] result = (T[]) Array.newInstance(objectType, size);
-		final Iterator<T[]> it = chunks.iterator();
+		@SuppressWarnings("unchecked") final T[] result = (T[]) Array.newInstance(this.objectType, size);
+		final Iterator<T[]> it = this.chunks.iterator();
 		int copied = 0;
 		while (copied < size) {
 			final Object[] chunk = it.next();

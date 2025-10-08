@@ -35,8 +35,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSche
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
@@ -45,7 +43,6 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -147,23 +144,25 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public static Optional<String> extractEntityTypeFromClass(@Nonnull Class<?> classToAnalyse, @Nonnull ReflectionLookup reflectionLookup) {
-		return reflectionLookup.extractFromClass(
-			classToAnalyse, EntityRef.class,
-			clazz -> {
-				final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
-				if (entityRef != null) {
-					return ofNullable(entityRef.value())
-						.filter(it -> !it.isBlank())
-						.or(() -> of(reflectionLookup.findOriginClass(clazz, entityRef).getSimpleName()));
+		return Objects.requireNonNull(
+			reflectionLookup.extractFromClass(
+				classToAnalyse, EntityRef.class,
+				clazz -> {
+					final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
+					if (entityRef != null) {
+						return ofNullable(entityRef.value())
+							.filter(it -> !it.isBlank())
+							.or(() -> of(reflectionLookup.findOriginClass(clazz, entityRef).getSimpleName()));
+					}
+					final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
+					if (entity != null) {
+						return ofNullable(entity.name())
+							.filter(it -> !it.isBlank())
+							.or(() -> of(reflectionLookup.findOriginClass(clazz, entity).getSimpleName()));
+					}
+					return empty();
 				}
-				final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
-				if (entity != null) {
-					return ofNullable(entity.name())
-						.filter(it -> !it.isBlank())
-						.or(() -> of(reflectionLookup.findOriginClass(clazz, entity).getSimpleName()));
-				}
-				return empty();
-			}
+			)
 		);
 	}
 
@@ -388,13 +387,7 @@ public class ClassSchemaAnalyzer {
 				);
 			}
 			if (attributeAnnotation.representative()) {
-				if (editor instanceof EntityAttributeSchemaBuilder entityBuilder) {
-					entityBuilder.representative();
-				} else if (editor instanceof GlobalAttributeSchemaBuilder entityBuilder) {
-					entityBuilder.representative();
-				} else {
-					throw new GenericEvitaInternalError("Reference attribute cannot be made representative!");
-				}
+				editor.representative();
 			}
 			if (attributeAnnotation.localized()) {
 				editor.localized();
@@ -542,13 +535,24 @@ public class ClassSchemaAnalyzer {
 	/**
 	 * Method determines the cardinality from {@link Reference#allowEmpty()} / {@link ReflectedReference#allowEmpty()}
 	 * and the return type of the method - if it returns array type the multiple cardinality is returned.
+	 *
+	 * @param referenceType type of the reference
+	 * @param allowEmpty    value of {@link Reference#allowEmpty()} / {@link ReflectedReference#allowEmpty()}
+	 * @param allowDuplicates value of {@link Reference#allowDuplicates()}
+	 * @return resolved cardinality
 	 */
 	@Nonnull
-	private static Cardinality getCardinality(@Nonnull Class<?> referenceType, boolean allowEmpty) {
+	private static Cardinality getCardinality(@Nonnull Class<?> referenceType, boolean allowEmpty, boolean allowDuplicates) {
 		final Cardinality cardinality;
 		if (referenceType.isArray()) {
-			cardinality = allowEmpty ? Cardinality.ZERO_OR_MORE : Cardinality.ONE_OR_MORE;
+			cardinality = allowEmpty ?
+				(allowDuplicates ? Cardinality.ZERO_OR_MORE_WITH_DUPLICATES : Cardinality.ZERO_OR_MORE) :
+				(allowDuplicates ? Cardinality.ONE_OR_MORE_WITH_DUPLICATES : Cardinality.ONE_OR_MORE);
 		} else {
+			Assert.isTrue(
+				!allowDuplicates,
+				"Cannot set `allowDuplicates` to `true` when reference is not a collection or array!"
+			);
 			cardinality = allowEmpty ? Cardinality.ZERO_OR_ONE : Cardinality.EXACTLY_ONE;
 		}
 		return cardinality;
@@ -601,7 +605,7 @@ public class ClassSchemaAnalyzer {
 		@Nonnull Class<?> modelClass,
 		@Nonnull BiFunction<String, Class<?>, Class<?>> subClassResolver,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull SchemaPostProcessor postProcessor
+		@Nullable SchemaPostProcessor postProcessor
 	) {
 		this.modelClass = modelClass;
 		this.subClassResolver = subClassResolver;
@@ -681,7 +685,7 @@ public class ClassSchemaAnalyzer {
 				}
 
 				// define sortable attribute compounds
-				defineSortableAttributeCompounds(modelClass, entityBuilder);
+				defineSortableAttributeCompounds(this.modelClass, entityBuilder);
 
 				// if the schema consumer is available invoke it
 				ofNullable(this.postProcessor)
@@ -730,7 +734,7 @@ public class ClassSchemaAnalyzer {
 				final Class<?> returnedType = verifyDataType(getReturnedType(this.modelClass, getter));
 				@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = (Class<? extends Serializable>) returnedType;
 				final Serializable defaultValue = getter.isDefault() ? extractDefaultValue(this.modelClass, getter) : null;
-				defineAttribute(catalogBuilder, entityBuilder, attributeAnnotation, attributeName, getter.toGenericString(), attributeType, defaultValue, attributesDefined);
+				defineAttribute(catalogBuilder, entityBuilder, attributeAnnotation, attributeName, getter.toGenericString(), attributeType, defaultValue, this.attributesDefined);
 			}
 			final AssociatedData associatedDataAnnotation = this.reflectionLookup.getAnnotationInstance(getter, AssociatedData.class);
 			if (associatedDataAnnotation != null) {
@@ -919,7 +923,7 @@ public class ClassSchemaAnalyzer {
 	) {
 		Assert.isTrue(
 			!this.primaryKeyDefined,
-			"Class `" + modelClass + "` contains multiple methods marked with `@PrimaryKey` annotation," +
+			"Class `" + this.modelClass + "` contains multiple methods marked with `@PrimaryKey` annotation," +
 				" which is not allowed!"
 		);
 		this.primaryKeyDefined = true;
@@ -1016,7 +1020,7 @@ public class ClassSchemaAnalyzer {
 			this.referencesDefined.put(referenceName, definer);
 		}
 
-		final Cardinality cardinality = getCardinality(referenceType, reference.allowEmpty());
+		final Cardinality cardinality = getCardinality(referenceType, reference.allowEmpty(), reference.allowDuplicates());
 		final Class<?> examinedReferenceType = referenceType.isArray() ? referenceType.getComponentType() : referenceType;
 		final TargetEntity targetEntity;
 		final TargetEntity targetEntityGroup;
@@ -1168,7 +1172,11 @@ public class ClassSchemaAnalyzer {
 			// set cardinality first
 			if (reference.allowEmpty() != InheritableBoolean.INHERITED) {
 				editor.withCardinality(
-					getCardinality(referenceType, reference.allowEmpty() == InheritableBoolean.TRUE)
+					getCardinality(
+						referenceType,
+						reference.allowEmpty() == InheritableBoolean.TRUE,
+					               false
+					)
 				);
 			}
 
@@ -1277,12 +1285,12 @@ public class ClassSchemaAnalyzer {
 	 * {@link SortableAttributeCompound} present on the specified class and processes them to
 	 * configure sortable attribute compounds within the provided editor.
 	 *
-	 * @param type the class type whose annotations are to be processed; must not be null
+	 * @param type   the class type whose annotations are to be processed; must not be null
 	 * @param editor the schema editor responsible for handling sortable attribute compounds; must not be null
 	 */
 	private void defineSortableAttributeCompounds(
 		@Nonnull Class<?> type,
-		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?,?> editor
+		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?, ?> editor
 	) {
 		Stream.concat(
 			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompounds.class)

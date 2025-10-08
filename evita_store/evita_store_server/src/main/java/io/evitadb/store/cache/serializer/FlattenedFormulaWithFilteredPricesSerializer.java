@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ public class FlattenedFormulaWithFilteredPricesSerializer extends AbstractFlatte
 		final long[] bitmapIds = readBitmapIds(input);
 		final Bitmap computedResult = readIntegerBitmap(input);
 		final PriceEvaluationContext priceEvaluationContext = readPriceEvaluationContext(kryo, input);
-		final FilteredPriceRecords filteredPriceRecords = readFilteredPriceRecords(kryo, input, globalEntityIndexAccessor, priceEvaluationContext);
+		final FilteredPriceRecords filteredPriceRecords = readFilteredPriceRecords(kryo, input, this.globalEntityIndexAccessor, priceEvaluationContext);
 
 		return new FlattenedFormulaWithFilteredPrices(
 			originalHash, transactionalIdHash, bitmapIds, computedResult,

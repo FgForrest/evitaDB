@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -71,7 +71,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		5, new Predecessor(4)
 	);
 
-	private final ChainIndex index = new ChainIndex(new AttributeKey("a"));
+	private final ChainIndex index = new ChainIndex(new AttributeIndexKey(null, "a", null));
 
 	@DisplayName("Create consistent chain when new items are added in different orders")
 	@ParameterizedTest
@@ -79,11 +79,11 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldTryAddingInDifferentOrders(int[] order) {
 		for (int pk : order) {
 			final Predecessor predecessor = PREDECESSOR_MAP.get(pk);
-			index.upsertPredecessor(predecessor, pk);
+			this.index.upsertPredecessor(predecessor, pk);
 		}
 
-		assertTrue(index.isConsistent());
-		assertArrayEquals(EXPECTED_CHAIN, index.getUnorderedLookup().getArray());
+		assertTrue(this.index.isConsistent());
+		assertArrayEquals(EXPECTED_CHAIN, this.index.getUnorderedLookup().getArray());
 	}
 
 	@DisplayName("Create consistent chain when randomly reordered")
@@ -92,17 +92,17 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldTryReordering(int[] order) {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
 		}
 		// now reorder randomly
 		for (int i = 0; i < order.length; i++) {
 			int pk = order[i];
 			final Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(order[i - 1]);
-			index.upsertPredecessor(predecessor, pk);
+			this.index.upsertPredecessor(predecessor, pk);
 		}
 
-		assertTrue(index.isConsistent(), "Index is inconsistent.");
-		assertArrayEquals(order, index.getUnorderedLookup().getArray());
+		assertTrue(this.index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(order, this.index.getUnorderedLookup().getArray());
 	}
 
 	@DisplayName("Create consistent chain when randomly removing elements and returning back")
@@ -111,20 +111,20 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldTryRemovingSingleElementsAndReturnItBack(int[] order) {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
 		}
 		for (int count = 1; count <= order.length; count++) {
 			// remove the first count elements
 			for (int i = 0; i < count; i++) {
-				index.removePredecessor(order[i]);
+				this.index.removePredecessor(order[i]);
 			}
 			// now return them back in
 			for (int i = 0; i < count; i++) {
-				index.upsertPredecessor(PREDECESSOR_MAP.get(order[i]), order[i]);
+				this.index.upsertPredecessor(PREDECESSOR_MAP.get(order[i]), order[i]);
 			}
 
-			assertTrue(index.isConsistent(), "Index is inconsistent.");
-			assertArrayEquals(EXPECTED_CHAIN, index.getUnorderedLookup().getArray());
+			assertTrue(this.index.isConsistent(), "Index is inconsistent.");
+			assertArrayEquals(EXPECTED_CHAIN, this.index.getUnorderedLookup().getArray());
 		}
 	}
 
@@ -133,16 +133,16 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldBreakCircularDependency() {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
 		}
 		// now reorder randomly
-		index.upsertPredecessor(new Predecessor(3), 1);
-		index.upsertPredecessor(new Predecessor(4), 2);
-		index.upsertPredecessor(new Predecessor(2), 5);
-		index.upsertPredecessor(new Predecessor(1), 4);
+		this.index.upsertPredecessor(new Predecessor(3), 1);
+		this.index.upsertPredecessor(new Predecessor(4), 2);
+		this.index.upsertPredecessor(new Predecessor(2), 5);
+		this.index.upsertPredecessor(new Predecessor(1), 4);
 
-		assertFalse(index.isConsistent(), "Index is inconsistent.");
-		assertArrayEquals(new int[] {5, 2, 3, 1, 4}, index.getUnorderedLookup().getArray());
+		assertFalse(this.index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {5, 2, 3, 1, 4}, this.index.getUnorderedLookup().getArray());
 		assertEquals(
 			"""
 			ChainIndex:
@@ -155,13 +155,13 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 			      - 3: SUCCESSOR of 2 🔗 2
 			      - 4: SUCCESSOR of 1 🔗 2
 			      - 5: SUCCESSOR of 2 🔗 5""",
-			index.toString()
+			this.index.toString()
 		);
 
-		index.upsertPredecessor(new Predecessor(), 3);
+		this.index.upsertPredecessor(new Predecessor(), 3);
 
-		assertTrue(index.isConsistent(), "Index is inconsistent.");
-		assertArrayEquals(new int[] {3, 1, 4, 2, 5}, index.getUnorderedLookup().getArray());
+		assertTrue(this.index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {3, 1, 4, 2, 5}, this.index.getUnorderedLookup().getArray());
 	}
 
 	@DisplayName("When adding a new element to the middle of the chain and then correcting it, the index should be consistent")
@@ -169,14 +169,14 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldIntroduceSplitChainDuringIndexingAndThenCorrectIt() {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
 		}
 		// now reorder randomly
-		index.upsertPredecessor(new Predecessor(3), 6);
-		index.upsertPredecessor(new Predecessor(6), 4);
+		this.index.upsertPredecessor(new Predecessor(3), 6);
+		this.index.upsertPredecessor(new Predecessor(6), 4);
 
-		assertTrue(index.isConsistent(), "Index is inconsistent.");
-		assertArrayEquals(new int[] {1, 2, 3, 6, 4, 5}, index.getUnorderedLookup().getArray());
+		assertTrue(this.index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {1, 2, 3, 6, 4, 5}, this.index.getUnorderedLookup().getArray());
 		assertEquals(
 			"""
 			ChainIndex:
@@ -189,7 +189,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 			      - 4: SUCCESSOR of 6 🔗 1
 			      - 5: SUCCESSOR of 4 🔗 1
 			      - 6: SUCCESSOR of 3 🔗 1""",
-			index.toString()
+			this.index.toString()
 		);
 	}
 
@@ -198,16 +198,16 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 	void shouldIntroduceReconnectSplitChainsFavouringLongerOne() {
 		// fill the index initially with the expected chain
 		for (int pk : EXPECTED_CHAIN) {
-			index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
 		}
 
 		// now reorder randomly
-		index.upsertPredecessor(new Predecessor(3), 6);
-		index.upsertPredecessor(new Predecessor(3), 7);
-		index.upsertPredecessor(new Predecessor(7), 8);
+		this.index.upsertPredecessor(new Predecessor(3), 6);
+		this.index.upsertPredecessor(new Predecessor(3), 7);
+		this.index.upsertPredecessor(new Predecessor(7), 8);
 
-		assertFalse(index.isConsistent(), "Index is inconsistent.");
-		assertArrayEquals(new int[] {1, 2, 3, 4, 5, 7, 8, 6}, index.getUnorderedLookup().getArray());
+		assertFalse(this.index.isConsistent(), "Index is inconsistent.");
+		assertArrayEquals(new int[] {1, 2, 3, 4, 5, 7, 8, 6}, this.index.getUnorderedLookup().getArray());
 		assertEquals(
 			"""
 			ChainIndex:
@@ -224,7 +224,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 			      - 6: SUCCESSOR of 3 🔗 6
 			      - 7: SUCCESSOR of 3 🔗 7
 			      - 8: SUCCESSOR of 7 🔗 7""",
-			index.toString()
+			this.index.toString()
 		);
 	}
 
@@ -235,24 +235,24 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < initialState.length; i++) {
 			int pk = initialState[i];
 			final Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(initialState[i - 1]);
-			index.upsertPredecessor(predecessor, pk);
+			this.index.upsertPredecessor(predecessor, pk);
 		}
 
-		assertTrue(index.isConsistent());
+		assertTrue(this.index.isConsistent());
 
-		index.upsertPredecessor(new Predecessor(12), 6);
-		index.upsertPredecessor(new Predecessor(6), 5);
-		index.removePredecessor(1);
-		index.upsertPredecessor(new Predecessor(5), 13);
-		index.upsertPredecessor(new Predecessor(13), 7);
-		index.removePredecessor(17);
-		index.upsertPredecessor(new Predecessor(7), 9);
-		index.upsertPredecessor(new Predecessor(9), 19);
-		index.upsertPredecessor(new Predecessor(19), 3);
-		index.upsertPredecessor(new Predecessor(3), 21);
-		index.removePredecessor(2);
+		this.index.upsertPredecessor(new Predecessor(12), 6);
+		this.index.upsertPredecessor(new Predecessor(6), 5);
+		this.index.removePredecessor(1);
+		this.index.upsertPredecessor(new Predecessor(5), 13);
+		this.index.upsertPredecessor(new Predecessor(13), 7);
+		this.index.removePredecessor(17);
+		this.index.upsertPredecessor(new Predecessor(7), 9);
+		this.index.upsertPredecessor(new Predecessor(9), 19);
+		this.index.upsertPredecessor(new Predecessor(19), 3);
+		this.index.upsertPredecessor(new Predecessor(3), 21);
+		this.index.removePredecessor(2);
 
-		assertTrue(index.isConsistent());
+		assertTrue(this.index.isConsistent());
 	}
 
 	@Test
@@ -261,11 +261,11 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		for (int i = 0; i < initialState.length; i++) {
 			int pk = initialState[i];
 			final Predecessor predecessor = i == 0 ? new Predecessor() : new Predecessor(initialState[i - 1]);
-			index.upsertPredecessor(predecessor, pk);
+			this.index.upsertPredecessor(predecessor, pk);
 		}
 
 		assertStateAfterCommit(
-			index,
+			this.index,
 			original -> {
 				original.upsertPredecessor(new Predecessor(-1), 8);
 				original.upsertPredecessor(new Predecessor(8), 2);
@@ -302,7 +302,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 				- 23, 26, 8, 3, 2, 4, 7, 6, 9, 10, 5, 11
 			
 			## No errors detected.""",
-			index.getConsistencyReport().report()
+			this.index.getConsistencyReport().report()
 		);
 	}
 
@@ -544,7 +544,7 @@ class ChainIndexTest implements TimeBoundedTestSupport {
 		final AtomicReference<int[]> desiredOrder = new AtomicReference<>(initialState);
 		defineTargetState(theRandom, originalState, initialCount, desiredOrder);
 		assertStateAfterCommit(
-			index,
+			this.index,
 			original -> {
 				final int[] targetState = desiredOrder.get();
 				try {

@@ -125,7 +125,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			return lambda.get();
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return tracingContext.executeWithinBlock(
+			return this.tracingContext.executeWithinBlock(
 				protocolName,
 				lambda,
 				attributes
@@ -145,7 +145,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			tracingContext.executeWithinBlock(
+			this.tracingContext.executeWithinBlock(
 				protocolName,
 				runnable,
 				attributes
@@ -164,7 +164,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			return lambda.get();
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			return tracingContext.executeWithinBlock(
+			return this.tracingContext.executeWithinBlock(
 				protocolName,
 				lambda,
 				attributes
@@ -179,7 +179,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 			return;
 		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			tracingContext.executeWithinBlock(
+			this.tracingContext.executeWithinBlock(
 				protocolName,
 				runnable
 			);
@@ -224,7 +224,7 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpRequ
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return TracingContext.executeWithClientContext(
 				clientIpAddress, clientUri, labels,
-				() -> tracingContext.executeWithinBlock(
+				() -> this.tracingContext.executeWithinBlock(
 					protocolName,
 					lambda
 				)

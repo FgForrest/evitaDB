@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,9 +63,9 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		if (catalogSchema.getCatalogEvolutionMode().containsAll(List.of(evolutionModes))) {
+		if (catalogSchema.getCatalogEvolutionMode().containsAll(List.of(this.evolutionModes))) {
 			// no need to change the schema
 			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
@@ -77,7 +77,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 					catalogSchema.getDescription(),
 					Stream.concat(
 							catalogSchema.getCatalogEvolutionMode().stream(),
-							Arrays.stream(evolutionModes)
+							Arrays.stream(this.evolutionModes)
 						)
 						.collect(Collectors.toSet()),
 					catalogSchema.getAttributes(),
@@ -95,6 +95,6 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 
 	@Override
 	public String toString() {
-		return "Allow: evolutionModes=" + Arrays.toString(evolutionModes);
+		return "Allow: evolutionModes=" + Arrays.toString(this.evolutionModes);
 	}
 }

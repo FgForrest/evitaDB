@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,9 +53,9 @@ public class ObjectPropertyDataTypeDescriptor implements PropertyDataTypeDescrip
 
 	@Nonnull
 	public ObjectDescriptor objectReference() {
-		if (objectReference instanceof ObjectDescriptor descriptor) {
+		if (this.objectReference instanceof ObjectDescriptor descriptor) {
 			return descriptor;
-		} else if (objectReference instanceof Supplier<?> supplier) {
+		} else if (this.objectReference instanceof Supplier<?> supplier) {
 			final Object descriptor = supplier.get();
 			Assert.isPremiseValid(
 				descriptor instanceof ObjectDescriptor,
@@ -69,11 +69,11 @@ public class ObjectPropertyDataTypeDescriptor implements PropertyDataTypeDescrip
 
 	@Override
 	public boolean nonNull() {
-		return nonNull;
+		return this.nonNull;
 	}
 
 	public boolean list() {
-		return list;
+		return this.list;
 	}
 
 	@Nonnull

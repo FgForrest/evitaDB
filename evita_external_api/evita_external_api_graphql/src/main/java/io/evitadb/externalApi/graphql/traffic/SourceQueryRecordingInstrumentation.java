@@ -150,7 +150,7 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 
 	@Nullable
 	private EvitaInternalSessionContract getInternalSession(@Nonnull GraphQLContext graphQLContext) {
-		if (!trafficRecordingOptions.sourceQueryTrackingEnabled()) {
+		if (!this.trafficRecordingOptions.sourceQueryTrackingEnabled()) {
 			return null;
 		}
 
@@ -169,7 +169,7 @@ public class SourceQueryRecordingInstrumentation extends SimplePerformantInstrum
 	private String serializeSourceQuery(@Nonnull ExecutionInput executionInput) {
 		final SourceQueryDto sourceQuery = SourceQueryDto.from(executionInput);
 		try {
-			return objectMapper.writeValueAsString(sourceQuery);
+			return this.objectMapper.writeValueAsString(sourceQuery);
 		} catch (JsonProcessingException e) {
 			log.error("Cannot serialize source query for traffic recording. Aborting.", e);
 			return null;

@@ -23,8 +23,11 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -38,10 +41,9 @@ import static java.util.Optional.ofNullable;
 /**
  * This class is key for accessing {@link EntityIndex} that is the most optimal for the client query.
  *
- * @param type         type of the index
- * @param scope        scope of the index (archive or living data set)
+ * @param type          type of the index
+ * @param scope         scope of the index (archive or living data set)
  * @param discriminator additional object that distinguishes multiple indexes of same {@link #type}
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public record EntityIndexKey(
@@ -59,14 +61,35 @@ public record EntityIndexKey(
 		this(type, scope, null);
 	}
 
-	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Serializable discriminator) {
-		this(type, Scope.DEFAULT_SCOPE, discriminator);
-	}
-
-	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope, @Nonnull Serializable discriminator) {
+	public EntityIndexKey(@Nonnull EntityIndexType type, @Nonnull Scope scope, @Nullable Serializable discriminator) {
 		this.type = type;
 		this.scope = scope;
-		this.discriminator = discriminator;
+		if (discriminator instanceof RepresentativeReferenceKey rrk) {
+			Assert.isPremiseValid(
+				type == EntityIndexType.REFERENCED_ENTITY,
+				() -> "When using `" + rrk + "` (RepresentativeReferenceKey) as discriminator, " +
+					"the index type must be " + EntityIndexType.REFERENCED_ENTITY + "!"
+			);
+			this.discriminator = rrk;
+		} else if (discriminator instanceof String str) {
+			Assert.isPremiseValid(
+				type == EntityIndexType.REFERENCED_ENTITY_TYPE,
+				() -> "When using " + RepresentativeReferenceKey.class.getSimpleName() + " (String) as discriminator, " +
+					"the index type must be " + EntityIndexType.REFERENCED_ENTITY_TYPE + "!"
+			);
+			this.discriminator = str;
+		} else if (discriminator == null) {
+			Assert.isPremiseValid(
+				type == EntityIndexType.GLOBAL,
+				() -> "When no discriminator is used, the index type must be " + EntityIndexType.GLOBAL + "!"
+			);
+			this.discriminator = null;
+		} else {
+			throw new GenericEvitaInternalError(
+				"Discriminator must be either String (for " + EntityIndexType.REFERENCED_ENTITY_TYPE + ") " +
+					"or RepresentativeReferenceKey (for " + EntityIndexType.REFERENCED_ENTITY + ")!"
+			);
+		}
 	}
 
 	@Override
@@ -74,27 +97,29 @@ public record EntityIndexKey(
 		return this;
 	}
 
-	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
-	public int compareTo(EntityIndexKey o) {
-		if (this.scope != o.scope) {
-			return Integer.compare(this.scope.ordinal(), o.scope.ordinal());
-		} else {
-			final int typeComparison = this.type.compareTo(o.type);
-			if (typeComparison == 0 && this.discriminator != null) {
-				if (this.discriminator instanceof Comparable) {
-					return o.discriminator != null ? ((Comparable) this.discriminator).compareTo(o.discriminator) : -1;
-				} else if (Objects.equals(this.discriminator, o.discriminator)) {
-					return 0;
-				} else {
-					return o.discriminator != null ? Integer.compare(System.identityHashCode(this.discriminator), System.identityHashCode(o.discriminator)) : -1;
+	public int compareTo(@Nonnull EntityIndexKey o) {
+		final int typeComparison = this.type.compareTo(o.type);
+		if (typeComparison == 0) {
+			return switch (this.type) {
+				case GLOBAL -> Integer.compare(this.scope.ordinal(), o.scope.ordinal());
+				case REFERENCED_ENTITY_TYPE -> {
+					final String thisDis = (String) Objects.requireNonNull(this.discriminator);
+					final String thatDis = (String) Objects.requireNonNull(o.discriminator);
+					yield thisDis.compareTo(thatDis);
 				}
-			} else {
-				return typeComparison;
-			}
+				case REFERENCED_ENTITY, REFERENCED_HIERARCHY_NODE -> {
+					final RepresentativeReferenceKey thisDis = (RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator);
+					final RepresentativeReferenceKey thatDis = (RepresentativeReferenceKey) Objects.requireNonNull(o.discriminator);
+					yield thisDis.compareTo(thatDis);
+				}
+			};
+		} else {
+			return typeComparison;
 		}
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " index: " +

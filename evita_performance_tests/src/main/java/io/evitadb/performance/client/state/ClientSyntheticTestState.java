@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,12 +37,14 @@ import io.evitadb.performance.client.ClientDataFullDatabaseState;
 import io.evitadb.performance.generators.RandomQueryGenerator;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.utils.Assert;
 import lombok.Data;
 import lombok.Getter;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 
+import javax.annotation.Nullable;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
@@ -66,12 +68,12 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 
 	private Deque<Query> preloadedQueries = new ArrayDeque<>(64);
 	private Path inputFolder;
-	private Kryo kryo;
-	private Input input;
+	@Nullable private Kryo kryo;
+	@Nullable private Input input;
 	/**
 	 * Query prepared for the measured invocation.
 	 */
-	@Getter protected QueryWithExpectedType queryWithExpectedType;
+	@Nullable @Getter protected QueryWithExpectedType queryWithExpectedType;
 
 	/**
 	 * Prepares artificial product for the next operation that is measured in the benchmark.
@@ -80,17 +82,19 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	public void prepareQueries() {
 		this.inputFolder = getDataDirectory().resolve(getCatalogName() + "_queries/queries.kryo");
 		try {
-			this.input = new ByteBufferInput(new FileInputStream(inputFolder.toFile()), 8_192);
+			this.input = new ByteBufferInput(new FileInputStream(this.inputFolder.toFile()), 8_192);
 			this.kryo = KryoFactory.createKryo(QuerySerializationKryoConfigurer.INSTANCE);
 			this.preloadedQueries = fetchNewQueries(PRELOADED_QUERY_COUNT);
 		} catch (FileNotFoundException e) {
-			throw new RuntimeException("Cannot access input folder: " + inputFolder);
+			throw new RuntimeException("Cannot access input folder: " + this.inputFolder);
 		}
 	}
 
 	@TearDown(Level.Iteration)
 	public void tearDown() {
-		this.input.close();
+		if (this.input != null) {
+			this.input.close();
+		}
 		this.input = null;
 		this.kryo = null;
 	}
@@ -100,10 +104,10 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.queryWithExpectedType = ofNullable(preloadedQueries.pollFirst()).map(QueryWithExpectedType::new).orElse(null);
+		this.queryWithExpectedType = ofNullable(this.preloadedQueries.pollFirst()).map(QueryWithExpectedType::new).orElse(null);
 		while (this.queryWithExpectedType == null) {
 			this.preloadedQueries = fetchNewQueries(PRELOADED_QUERY_COUNT);
-			this.queryWithExpectedType = new QueryWithExpectedType(preloadedQueries.pollFirst());
+			this.queryWithExpectedType = new QueryWithExpectedType(this.preloadedQueries.pollFirst());
 		}
 	}
 
@@ -111,16 +115,17 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 		final LinkedList<Query> fetchedQueries = new LinkedList<>();
 		synchronized (this.monitor) {
 			for (int i = 0; i < queryCount; i++) {
+				Assert.isPremiseValid(this.kryo != null && this.input != null, "Kryo or input stream is not initialized properly.");
 				try {
-					if (!input.canReadInt()) {
+					if (!this.input.canReadInt()) {
 						// reopen the same file again and read from start
 						this.input.close();
 						this.input = new ByteBufferInput(new FileInputStream(this.inputFolder.toFile()), 8_192);
 					}
 				} catch (FileNotFoundException e) {
-					throw new RuntimeException("Cannot access input folder: " + inputFolder);
+					throw new RuntimeException("Cannot access input folder: " + this.inputFolder);
 				}
-				fetchedQueries.add(kryo.readObject(input, Query.class));
+				fetchedQueries.add(this.kryo.readObject(this.input, Query.class));
 			}
 		}
 		return fetchedQueries;
@@ -131,9 +136,9 @@ public abstract class ClientSyntheticTestState extends ClientDataFullDatabaseSta
 		private final Query query;
 		private final Class<? extends EntityClassifier> expectedResult;
 
-		public QueryWithExpectedType(Query query) {
+		public QueryWithExpectedType(@Nullable Query query) {
 			this.query = query;
-			this.expectedResult = this.query.getRequire() != null && FinderVisitor.findConstraints(this.query.getRequire(), EntityContentRequire.class::isInstance, ExtraResultRequireConstraint.class::isInstance).isEmpty()
+			this.expectedResult = this.query != null && this.query.getRequire() != null && FinderVisitor.findConstraints(this.query.getRequire(), EntityContentRequire.class::isInstance, ExtraResultRequireConstraint.class::isInstance).isEmpty()
 				? EntityReferenceContract.class : SealedEntity.class;
 		}
 

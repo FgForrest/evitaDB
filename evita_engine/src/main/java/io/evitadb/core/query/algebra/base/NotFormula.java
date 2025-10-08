@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public class NotFormula extends AbstractCacheableFormula {
 		this.subtractedBitmap = null;
 		this.supersetBitmap = null;
 		this.initFields(subtractedFormula, supersetFormula);
-		Assert.isTrue(this.innerFormulas.length > 1, "And formula has no sense with " + innerFormulas.length + " inner formulas!");
+		Assert.isTrue(this.innerFormulas.length > 1, "And formula has no sense with " + this.innerFormulas.length + " inner formulas!");
 	}
 
 	public NotFormula(@Nonnull Formula subtractedFormula, @Nonnull Formula supersetFormula) {
@@ -91,10 +91,10 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (supersetBitmap != null && subtractedBitmap != null) {
-			return supersetBitmap.size();
+		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
+			return this.supersetBitmap.size();
 		} else {
-			return innerFormulas[1].getEstimatedCardinality();
+			return this.innerFormulas[1].getEstimatedCardinality();
 		}
 	}
 
@@ -114,8 +114,8 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Override
 	public String toString() {
-		if (subtractedBitmap != null && supersetBitmap != null) {
-			return "NOT: " + Stream.of(subtractedBitmap, supersetBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
+		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
+			return "NOT: " + Stream.of(this.subtractedBitmap, this.supersetBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
 		} else {
 			return "NOT";
 		}
@@ -130,20 +130,20 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	public long[] gatherBitmapIdsInternal() {
 		return LongStream.concat(
-				Stream.of(subtractedBitmap, supersetBitmap)
+				Stream.of(this.subtractedBitmap, this.supersetBitmap)
 					.filter(TransactionalLayerProducer.class::isInstance)
 					.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId()),
-				Arrays.stream(innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
+				Arrays.stream(this.innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
 			)
 			.toArray();
 	}
 
 	@Override
 	public long getEstimatedCostInternal() {
-		if (subtractedBitmap != null && supersetBitmap != null) {
+		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
 			try {
-				long costs = subtractedBitmap.size();
-				costs = Math.addExact(costs, supersetBitmap.size());
+				long costs = this.subtractedBitmap.size();
+				costs = Math.addExact(costs, this.supersetBitmap.size());
 				return Math.multiplyExact(costs, getOperationCost());
 			} catch (ArithmeticException ex) {
 				return Long.MAX_VALUE;
@@ -155,8 +155,8 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		if (supersetBitmap != null && subtractedBitmap != null) {
-			return Stream.of(supersetBitmap, subtractedBitmap).mapToLong(Bitmap::size).sum();
+		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
+			return Stream.of(this.supersetBitmap, this.subtractedBitmap).mapToLong(Bitmap::size).sum();
 		} else {
 			return super.getEstimatedBaseCost();
 		}
@@ -165,7 +165,7 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			Stream.of(subtractedBitmap, supersetBitmap)
+			Stream.of(this.subtractedBitmap, this.supersetBitmap)
 				.filter(Objects::nonNull)
 				.mapToLong(it -> {
 					if (it instanceof TransactionalLayerProducer) {
@@ -187,12 +187,12 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long getCostInternal() {
-		if (supersetBitmap != null && subtractedBitmap != null) {
-			return Stream.of(supersetBitmap, subtractedBitmap).mapToLong(Bitmap::size).sum();
+		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
+			return Stream.of(this.supersetBitmap, this.subtractedBitmap).mapToLong(Bitmap::size).sum();
 		} else {
-			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			final Bitmap supersetBitmap = this.innerFormulas[1].compute();
 			if (supersetBitmap.isEmpty()) {
-				return innerFormulas[1].getCost();
+				return this.innerFormulas[1].getCost();
 			} else {
 				return super.getCostInternal();
 			}
@@ -201,10 +201,10 @@ public class NotFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long getCostToPerformanceInternal() {
-		if (supersetBitmap != null && subtractedBitmap != null) {
+		if (this.supersetBitmap != null && this.subtractedBitmap != null) {
 			return getCost() / Math.max(1, compute().size());
 		} else {
-			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			final Bitmap supersetBitmap = this.innerFormulas[1].compute();
 			if (supersetBitmap.isEmpty()) {
 				return getCost() / Math.max(1, compute().size());
 			} else {
@@ -217,26 +217,26 @@ public class NotFormula extends AbstractCacheableFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		final Bitmap theResult;
-		if (subtractedBitmap != null && supersetBitmap != null) {
-			if (supersetBitmap.isEmpty()) {
+		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
+			if (this.supersetBitmap.isEmpty()) {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
 					RoaringBitmap.andNot(
-						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
-						RoaringBitmapBackedBitmap.getRoaringBitmap(subtractedBitmap)
+						RoaringBitmapBackedBitmap.getRoaringBitmap(this.supersetBitmap),
+						RoaringBitmapBackedBitmap.getRoaringBitmap(this.subtractedBitmap)
 					)
 				);
 			}
 		} else {
-			final Bitmap supersetBitmap = innerFormulas[1].compute();
+			final Bitmap supersetBitmap = this.innerFormulas[1].compute();
 			if (supersetBitmap.isEmpty()) {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
 					RoaringBitmap.andNot(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(supersetBitmap),
-						RoaringBitmapBackedBitmap.getRoaringBitmap(innerFormulas[0].compute())
+						RoaringBitmapBackedBitmap.getRoaringBitmap(this.innerFormulas[0].compute())
 					)
 				);
 			}

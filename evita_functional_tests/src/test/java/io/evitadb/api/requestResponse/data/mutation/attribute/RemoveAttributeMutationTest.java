@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ class RemoveAttributeMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldRemoveAttribute() {
 		final RemoveAttributeMutation mutation = new RemoveAttributeMutation(new AttributeKey("a"));
-		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte) 3));
+		final AttributeValue newValue = mutation.mutateLocal(this.productSchema, new AttributeValue(new AttributeKey("a"), (byte) 3));
 		assertTrue(newValue.dropped());
 		assertFalse(newValue.exists());
 		assertEquals((byte) 3, newValue.value());
@@ -54,7 +54,7 @@ class RemoveAttributeMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldFailToRemoveNonexistingAttribute() {
 		final RemoveAttributeMutation mutation = new RemoveAttributeMutation(new AttributeKey("a"));
-		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
+		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(this.productSchema, null));
 	}
 
 	@Test
@@ -63,7 +63,7 @@ class RemoveAttributeMutationTest extends AbstractMutationTest {
 		assertThrows(
 			InvalidMutationException.class,
 			() -> mutation.mutateLocal(
-				productSchema,
+				this.productSchema,
 				new AttributeValue(2, new AttributeKey("a"), 3, true)
 			)
 		);

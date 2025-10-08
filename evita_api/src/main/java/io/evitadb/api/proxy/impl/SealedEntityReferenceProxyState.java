@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.Assert;
@@ -76,74 +77,80 @@ public class SealedEntityReferenceProxyState
 	/**
 	 * Proxy class of the main entity class this reference proxy belongs to.
 	 */
-	@Nonnull private Class<?> entityProxyClass;
+	@Nonnull private final Class<?> entityProxyClass;
+	/**
+	 * Map of attribute types for the reference shared for all references of the same type.
+	 */
+	@Nonnull private final Map<String, AttributeSchemaContract> attributeTypes;
 
 	public SealedEntityReferenceProxyState(
 		@Nonnull EntityContract entity,
 		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
 		@Nonnull Class<?> entityProxyClass,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
+		@Nonnull Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
 	) {
 		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup, entityInstanceCache);
 		this.entityProxyClass = entityProxyClass;
 		this.entityPrimaryKeySupplier = entityPrimaryKeySupplier;
 		this.reference = reference;
+		this.attributeTypes = attributeTypes;
 	}
 
 	@Nonnull
 	@Override
 	public EntityClassifier getEntityClassifier() {
-		return new EntityReference(getType(), getPrimaryKey());
+		return new EntityReference(getType(), getPrimaryKeyOrThrowException());
 	}
 
 	/**
 	 * Method returns reference schema of the wrapped sealed entity reference.
 	 * @return reference schema
 	 */
-	@Nullable
+	@Nonnull
 	public ReferenceSchemaContract getReferenceSchema() {
-		return reference.getReferenceSchema().orElseThrow();
+		return this.reference.getReferenceSchemaOrThrow();
 	}
 
 	@Nonnull
 	public ReferenceBuilder getReferenceBuilderWithMutations(@Nonnull Collection<LocalMutation<?,?>> mutations) {
-		Assert.isPremiseValid(referenceBuilder == null, "Entity builder already created!");
-		if (reference instanceof ReferenceBuilder) {
-			Assert.isPremiseValid(referenceBuilder == null, "Entity builder already created!");
+		Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
+		if (this.reference instanceof ReferenceBuilder) {
+			Assert.isPremiseValid(this.referenceBuilder == null, "Entity builder already created!");
 		} else {
-			referenceBuilder = new ExistingReferenceBuilder(
-				reference, getEntitySchema(), mutations
+			this.referenceBuilder = new ExistingReferenceBuilder(
+				this.reference, getEntitySchema(), mutations, this.attributeTypes
 			);
 		}
-		return referenceBuilder;
+		return this.referenceBuilder;
 	}
 
 	@Override
 	@Nonnull
 	public ReferenceBuilder getReferenceBuilder() {
-		if (referenceBuilder == null) {
-			if (reference instanceof ReferenceBuilder theBuilder) {
-				referenceBuilder = theBuilder;
+		if (this.referenceBuilder == null) {
+			if (this.reference instanceof ReferenceBuilder theBuilder) {
+				this.referenceBuilder = theBuilder;
 			} else {
-				referenceBuilder = new ExistingReferenceBuilder(
-					reference, getEntitySchema()
+				this.referenceBuilder = new ExistingReferenceBuilder(
+					this.reference, getEntitySchema(), this.attributeTypes
 				);
 			}
 		}
-		return referenceBuilder;
+		return this.referenceBuilder;
 	}
 
 	@Override
 	public void notifyBuilderUpserted() {
-		if (referenceBuilder != null) {
+		if (this.referenceBuilder != null) {
 			this.referenceBuilder = new ExistingReferenceBuilder(
-				this.referenceBuilder.build(), getEntitySchema()
+				this.referenceBuilder.build(), getEntitySchema(), this.attributeTypes
 			);
 		}
 	}
@@ -151,7 +158,7 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public Optional<ReferenceBuilder> getReferenceBuilderIfPresent() {
-		return ofNullable(referenceBuilder);
+		return ofNullable(this.referenceBuilder);
 	}
 
 	@Override
@@ -161,17 +168,27 @@ public class SealedEntityReferenceProxyState
 			this.reference : this.referenceBuilder;
 	}
 
+	/**
+	 * Returns map of attribute types for the reference shared for all references of the same type.
+	 *
+	 * @return map of attribute types for the reference shared for all references of the same type
+	 */
+	@Nonnull
+	public Map<String, AttributeSchemaContract> getReferenceAttributeTypes() {
+		return this.attributeTypes;
+	}
+
 	@Nonnull
 	@Override
 	public String getType() {
-		return entity.getType();
+		return this.entity.getType();
 	}
 
 	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
-		return ofNullable(entity.getPrimaryKey())
-			.orElseGet(entityPrimaryKeySupplier);
+		return ofNullable(this.entity.getPrimaryKey())
+			.orElseGet(this.entityPrimaryKeySupplier);
 	}
 
 	/**
@@ -180,12 +197,12 @@ public class SealedEntityReferenceProxyState
 	 */
 	@Nonnull
 	public Class<?> getEntityProxyClass() {
-		return entityProxyClass;
+		return this.entityProxyClass;
 	}
 
 	@Override
 	public String toString() {
-		return reference instanceof ReferenceBuilder rb ?
-			rb.build().toString() : reference.toString();
+		return this.reference instanceof ReferenceBuilder rb ?
+			rb.build().toString() : this.reference.toString();
 	}
 }

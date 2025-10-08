@@ -42,6 +42,7 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -61,12 +62,12 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 		}
 		final EntityQueryContext context = environment.getLocalContext();
 		if (context == null) {
-			throw new GraphQLInternalError("Missing entity context");
+			throw new GraphQLInternalError("Missing content");
 		}
 
-		final String[] priceLists = resolveDesiredPricesLists(environment, context);
-		final Currency currency = resolveDesiredCurrency(environment, context);
-		final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity, context);
+		final String[] priceLists = resolveDesiredPricesLists(environment, entity);
+		final Currency currency = resolveDesiredCurrency(environment, entity);
+		final OffsetDateTime validIn = resolveDesiredValidIn(environment, entity);
 
 		final P result;
 		if (environment.getArguments().isEmpty()) {
@@ -80,10 +81,6 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 		final Locale customLocale = environment.getArgument(PriceForSaleFieldHeaderDescriptor.LOCALE.name());
 		final EntityQueryContext newContext = context.toBuilder()
-			.desiredPriceInPriceLists(priceLists)
-			.desiredPriceInCurrency(currency)
-			.desiredPriceValidIn(validIn)
-			.desiredPriceValidInNow(false)
 			.desiredLocale(customLocale != null ? customLocale : context.getDesiredLocale())
 			.build();
 
@@ -122,34 +119,31 @@ public abstract class AbstractPriceForSaleDataFetcher<P> implements DataFetcher<
 
 	@Nonnull
 	protected String[] resolveDesiredPricesLists(@Nonnull DataFetchingEnvironment environment,
-	                                             @Nonnull EntityQueryContext context) {
+												 @Nonnull EntityDecorator entity) {
 		//noinspection unchecked
 		return Optional.ofNullable((List<String>) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name()))
 			.map(it -> it.toArray(String[]::new))
 			.or(() -> Optional.ofNullable((String) environment.getArgument(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
 				.map(priceList -> new String[]{ priceList }))
-			.or(() -> Optional.ofNullable(context.getDesiredPriceInPriceLists()))
+			.or(() -> Optional.ofNullable(entity.getPricePredicate().getPriceLists()))
 			.orElseThrow(() -> new GraphQLInvalidArgumentException("Missing price list argument. You can use `" + PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name() + "` or `" + PriceForSaleFieldHeaderDescriptor.PRICE_LISTS.name() + "` parameter for specifying custom price list."));
 	}
 
 	@Nonnull
 	protected Currency resolveDesiredCurrency(@Nonnull DataFetchingEnvironment environment,
-	                                          @Nonnull EntityQueryContext context) {
+	                                          @Nonnull EntityDecorator entity) {
 		return Optional.ofNullable((Currency) environment.getArgument(PriceForSaleFieldHeaderDescriptor.CURRENCY.name()))
-			.or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
+			.or(() -> Optional.ofNullable(entity.getPricePredicate().getCurrency()))
 			.orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + PriceForSaleFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
 	}
 
 	@Nullable
 	protected OffsetDateTime resolveDesiredValidIn(@Nonnull DataFetchingEnvironment environment,
-	                                               @Nonnull EntityDecorator entity,
-	                                               @Nonnull EntityQueryContext context) {
+	                                               @Nonnull EntityDecorator entity) {
 		return Optional.ofNullable((OffsetDateTime) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_IN.name()))
 			.or(() -> Optional.ofNullable((Boolean) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name()))
 				.map(validNow -> validNow ? entity.getAlignedNow() : null))
-			.or(() -> Optional.ofNullable(context.getDesiredPriceValidIn()))
-			.or(() -> Optional.of(context.isDesiredPriceValidInNow())
-				.map(validNow -> validNow ? entity.getAlignedNow() : null))
+			.or(() -> Optional.ofNullable(entity.getPricePredicate().getValidIn()))
 			.orElse(null);
 	}
 

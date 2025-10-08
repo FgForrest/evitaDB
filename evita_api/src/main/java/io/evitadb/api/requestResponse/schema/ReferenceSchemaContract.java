@@ -172,7 +172,7 @@ public interface ReferenceSchemaContract extends
 	 *
 	 * These entity type variants are available only when {@link #isReferencedGroupTypeManaged()} is set to FALSE.
 	 */
-	@Nullable
+	@Nonnull
 	Map<NamingConvention, String> getGroupTypeNameVariants(
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher
 	);

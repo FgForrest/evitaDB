@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ public class CacheableAttributeHistogram implements EvitaResponseExtraResult {
 	 */
 	@Nullable
 	public CacheableHistogramContract getHistogram(String attributeName) {
-		return histograms.get(attributeName);
+		return this.histograms.get(attributeName);
 	}
 
 	/**
@@ -62,12 +62,12 @@ public class CacheableAttributeHistogram implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public Map<String, CacheableHistogramContract> getHistograms() {
-		return Collections.unmodifiableMap(histograms);
+		return Collections.unmodifiableMap(this.histograms);
 	}
 
 	@Override
 	public String toString() {
-		return histograms.entrySet().stream()
+		return this.histograms.entrySet().stream()
 			.map(it -> it.getKey() + ": " + it.getValue().toString())
 			.collect(Collectors.joining("\n"));
 	}

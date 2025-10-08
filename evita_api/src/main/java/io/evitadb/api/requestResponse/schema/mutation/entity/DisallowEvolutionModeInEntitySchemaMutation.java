@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -67,6 +68,7 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 		this.evolutionModes.addAll(evolutionModes);
 	}
 
+	@SerializableCreator
 	public DisallowEvolutionModeInEntitySchemaMutation(@Nonnull EvolutionMode... evolutionModes) {
 		this.evolutionModes = EnumSet.noneOf(EvolutionMode.class);
 		this.evolutionModes.addAll(Arrays.asList(evolutionModes));
@@ -85,22 +87,22 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 				new DisallowEvolutionModeInEntitySchemaMutation(
 					Stream.concat(
 							disallowEvolutionModeInEntitySchema.getEvolutionModes().stream(),
-							evolutionModes.stream()
+							this.evolutionModes.stream()
 						)
 						.collect(Collectors.toSet())
 				)
 			);
 		} else if (existingMutation instanceof AllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchema) {
 			final EvolutionMode[] modesToAdd = Arrays.stream(allowEvolutionModeInEntitySchema.getEvolutionModes())
-				.filter(added -> !evolutionModes.contains(added))
+				.filter(added -> !this.evolutionModes.contains(added))
 				.toArray(EvolutionMode[]::new);
-			final Set<EvolutionMode> modesToRemove = evolutionModes.stream()
+			final Set<EvolutionMode> modesToRemove = this.evolutionModes.stream()
 				.filter(it -> currentEntitySchema.getEvolutionMode().contains(it))
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
 				modesToAdd.length == 0 ? null : (modesToAdd.length == ((AllowEvolutionModeInEntitySchemaMutation) existingMutation).getEvolutionModes().length ? existingMutation : new AllowEvolutionModeInEntitySchemaMutation(modesToAdd)),
-				modesToRemove.size() == evolutionModes.size() ? this : (modesToRemove.isEmpty() ? null : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove))
+				modesToRemove.size() == this.evolutionModes.size() ? this : (modesToRemove.isEmpty() ? null : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove))
 			);
 		} else {
 			return null;
@@ -111,7 +113,7 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (entitySchema.getEvolutionMode().stream().noneMatch(evolutionModes::contains)) {
+		if (entitySchema.getEvolutionMode().stream().noneMatch(this.evolutionModes::contains)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -149,6 +151,6 @@ public class DisallowEvolutionModeInEntitySchemaMutation implements CombinableLo
 
 	@Override
 	public String toString() {
-		return "Disallow: evolutionModes=" + evolutionModes;
+		return "Disallow: evolutionModes=" + this.evolutionModes;
 	}
 }

@@ -33,11 +33,7 @@ import lombok.Builder;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Generic API-independent descriptor for properties like field or arguments in schema-based external APIs. This generic descriptor can be transformed
@@ -91,7 +87,7 @@ public record PropertyDescriptor(@Nonnull String name,
 	public String name() {
 		Assert.isPremiseValid(
 			isNameStatic(),
-			() -> new ExternalApiInternalError("Property name `" + name + "` requires you to provide schema to construct the final name.")
+			() -> new ExternalApiInternalError("Property name `" + this.name + "` requires you to provide schema to construct the final name.")
 		);
 		return this.name;
 	}
@@ -105,7 +101,7 @@ public record PropertyDescriptor(@Nonnull String name,
 	public String name(@Nullable String suffix, @Nonnull NamedSchemaContract... schema) {
 		Assert.isPremiseValid(
 			!isNameStatic(),
-			() -> new ExternalApiInternalError("Property name `" + name + "` is static, thus it doesn't support provided schema.")
+			() -> new ExternalApiInternalError("Property name `" + this.name + "` is static, thus it doesn't support provided schema.")
 		);
 		Assert.isPremiseValid(
 			schema.length > 0,

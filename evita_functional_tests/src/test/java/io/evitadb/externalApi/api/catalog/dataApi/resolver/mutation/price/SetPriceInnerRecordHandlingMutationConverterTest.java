@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,13 +29,13 @@ import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHan
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,21 +50,21 @@ class SetPriceInnerRecordHandlingMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new SetPriceInnerRecordHandlingMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetPriceInnerRecordHandlingMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final SetPriceInnerRecordHandlingMutation expectedMutation = new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.SUM);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
 				.build()
@@ -74,7 +74,20 @@ class SetPriceInnerRecordHandlingMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final SetPriceInnerRecordHandlingMutation inputMutation = new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.SUM);
+
+		assertEquals(
+			map()
+				.e(SetPriceInnerRecordHandlingMutationDescriptor.MUTATION_TYPE.name(), SetPriceInnerRecordHandlingMutation.class.getSimpleName())
+				.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name())
+				.build(),
+			this.converter.convertToOutput(inputMutation)
+		);
 	}
 }

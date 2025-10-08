@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	@Nonnull
 	@Override
 	public Formula getPostProcessedFormula() {
-		final Formula result = outputFormula;
+		final Formula result = this.outputFormula;
 		this.outputFormula = null;
 		return Objects.requireNonNull(result, "The visit method was not executed prior to calling `getPostProcessedFormula`!");
 	}
@@ -198,11 +198,11 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		if (outputFormula == null) {
+		if (this.outputFormula == null) {
 			this.outputFormula = formula;
 		}
 		if (formula instanceof final SelectionFormula selectionFormula) {
-			expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();
+			this.expectedComputationalCosts += selectionFormula.getDelegate().getEstimatedCost();
 		}
 		if (formula instanceof final RequirementsDefiner requirementsDefiner) {
 			final EntityFetchRequire entityRequire = requirementsDefiner.getEntityRequire();
@@ -272,7 +272,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * is present in the formula tree.
 	 */
 	private boolean isPrefetchPossible() {
-		return !conjunctiveEntityIds.isEmpty() && !requirements.isEmpty() && estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD;
+		return !this.conjunctiveEntityIds.isEmpty() && !this.requirements.isEmpty() && this.estimatedBitmapCardinality <= BITMAP_SIZE_THRESHOLD;
 	}
 
 	/**
@@ -281,7 +281,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 * prefetching would be less than result of this method, the prefetch would be executed.
 	 */
 	private long getExpectedComputationalCosts() {
-		return expectedComputationalCosts;
+		return this.expectedComputationalCosts;
 	}
 
 }

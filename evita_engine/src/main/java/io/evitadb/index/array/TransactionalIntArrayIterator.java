@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ class TransactionalIntArrayIterator implements OfInt {
 
 	@Override
 	public int nextInt() {
-		if (nextRecord == END_OF_STREAM) {
+		if (this.nextRecord == END_OF_STREAM) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
 		int recordToReturn = this.nextRecord;
@@ -60,7 +60,7 @@ class TransactionalIntArrayIterator implements OfInt {
 
 	@Override
 	public boolean hasNext() {
-		return nextRecord != END_OF_STREAM;
+		return this.nextRecord != END_OF_STREAM;
 	}
 
 	/**
@@ -70,12 +70,12 @@ class TransactionalIntArrayIterator implements OfInt {
 	private int computeNextRecord() {
 		// if insertion happens on this spot - first exhaust the insertion
 		if (this.insertion != null) {
-			if (this.insertion.length > insertionPosition + 1) {
-				return this.insertion[++insertionPosition];
+			if (this.insertion.length > this.insertionPosition + 1) {
+				return this.insertion[++this.insertionPosition];
 			} else {
 				// if the original record should not be removed, return it
 				this.insertion = null;
-				boolean originalRemoved = changes.isRemovalOnPosition(this.position);
+				boolean originalRemoved = this.changes.isRemovalOnPosition(this.position);
 				if (!originalRemoved && this.original.length > this.position) {
 					return this.original[this.position];
 				}
@@ -86,15 +86,15 @@ class TransactionalIntArrayIterator implements OfInt {
 			this.position++;
 
 			// if insertion should happen on this place, init insertion set and return first inserted element
-			this.insertion = changes.getInsertionOnPosition(this.position);
+			this.insertion = this.changes.getInsertionOnPosition(this.position);
 			if (this.insertion != null) {
 				this.insertionPosition = -1;
-				return this.insertion[++insertionPosition];
+				return this.insertion[++this.insertionPosition];
 			}
 
 			// if original record should be removed skip it - otherwise return
 			if (this.position < this.original.length) {
-				boolean removalPosition = changes.isRemovalOnPosition(this.position);
+				boolean removalPosition = this.changes.isRemovalOnPosition(this.position);
 				if (!removalPosition) {
 					return this.original[this.position];
 				}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,10 +29,12 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -45,30 +47,30 @@ import java.io.Serializable;
  */
 public class UpsertAttributeMutationConverter extends AttributeMutationConverter<UpsertAttributeMutation> {
 
-	@Nonnull
-	private final AttributeSchemaProvider<?> attributeSchemaProvider;
-
-	public UpsertAttributeMutationConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
-	                                        @Nonnull MutationObjectParser objectParser,
+	public UpsertAttributeMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                                        @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
-		this.attributeSchemaProvider = attributeSchemaProvider;
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UpsertAttributeMutationDescriptor.THIS.name();
+	protected Class<UpsertAttributeMutation> getMutationClass() {
+		return UpsertAttributeMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected UpsertAttributeMutation convert(@Nonnull Input input) {
+	protected UpsertAttributeMutation convertFromInput(@Nonnull Input input) {
 		final AttributeKey attributeKey = resolveAttributeKey(input);
 
-		final Class<? extends Serializable> valueType = input.getOptionalField(
+		final Class<? extends Serializable> valueType = input.getOptionalProperty(
 			UpsertAttributeMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
+		);
+		final AttributeSchemaProvider<?> attributeSchemaProvider = input.getContextValue(MutationConverterContext.ATTRIBUTE_SCHEMA_PROVIDER_KEY);
+		Assert.isPremiseValid(
+			attributeSchemaProvider != null,
+			() -> getExceptionFactory().createInternalError("Attribute schema provider is required for conversion from input.")
 		);
 		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
 		if (attributeSchema == null && valueType == null) {
@@ -82,7 +84,14 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 		}
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : attributeSchema.getType();
 
-		final Serializable targetValue = input.getRequiredField(UpsertAttributeMutationDescriptor.VALUE.name(), targetDataType);
+		final Serializable targetValue = input.getRequiredProperty(UpsertAttributeMutationDescriptor.VALUE.name(), targetDataType);
 		return new UpsertAttributeMutation(attributeKey, targetValue);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull UpsertAttributeMutation mutation, @Nonnull Output output) {
+		output.setProperty(UpsertAttributeMutationDescriptor.VALUE, mutation.getAttributeValue());
+		output.setProperty(UpsertAttributeMutationDescriptor.VALUE_TYPE, mutation.getAttributeValue().getClass());
+		super.convertToOutput(mutation, output);
 	}
 }

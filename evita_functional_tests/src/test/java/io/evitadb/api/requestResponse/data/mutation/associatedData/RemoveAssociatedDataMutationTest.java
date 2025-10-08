@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ class RemoveAssociatedDataMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldRemoveAssociatedData() {
 		final RemoveAssociatedDataMutation mutation = new RemoveAssociatedDataMutation(new AssociatedDataKey("a"));
-		final AssociatedDataValue newValue = mutation.mutateLocal(productSchema, new AssociatedDataValue(new AssociatedDataKey("a"), (byte) 3));
+		final AssociatedDataValue newValue = mutation.mutateLocal(this.productSchema, new AssociatedDataValue(new AssociatedDataKey("a"), (byte) 3));
 		assertTrue(newValue.dropped());
 		assertFalse(newValue.exists());
 		assertEquals((byte) 3, newValue.value());
@@ -54,7 +54,7 @@ class RemoveAssociatedDataMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldFailToRemoveNonexistingAssociatedData() {
 		final RemoveAssociatedDataMutation mutation = new RemoveAssociatedDataMutation(new AssociatedDataKey("a"));
-		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
+		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(this.productSchema, null));
 	}
 
 	@Test
@@ -63,7 +63,7 @@ class RemoveAssociatedDataMutationTest extends AbstractMutationTest {
 		assertThrows(
 			InvalidMutationException.class,
 			() -> mutation.mutateLocal(
-				productSchema,
+				this.productSchema,
 				new AssociatedDataValue(2, new AssociatedDataKey("a"), 3, true)
 			)
 		);

@@ -63,6 +63,8 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     private final List<GraphQLFieldDefinition> mutationFields = new LinkedList<>();
     @Nonnull
+    private final List<GraphQLFieldDefinition> subscriptionFields = new LinkedList<>();
+    @Nonnull
     private final Builder schemaBuilder = GraphQLSchema.newSchema();
     @Nonnull
     private final GraphQLCodeRegistry.Builder registryBuilder = GraphQLCodeRegistry.newCodeRegistry();
@@ -82,10 +84,10 @@ public class GraphQLSchemaBuildingContext {
      * Registers new custom enum if there is not enum with same name.
      */
     public void registerCustomEnumIfAbsent(@Nonnull GraphQLEnumType customEnum) {
-        if (registeredCustomEnums.contains(customEnum.getName())) {
+        if (this.registeredCustomEnums.contains(customEnum.getName())) {
             return;
         }
-        registeredCustomEnums.add(customEnum.getName());
+	    this.registeredCustomEnums.add(customEnum.getName());
         registerType(customEnum);
     }
 
@@ -93,28 +95,28 @@ public class GraphQLSchemaBuildingContext {
      * Register new GraphQL type to schema.
      */
     public void registerType(@Nonnull GraphQLType type) {
-        schemaBuilder.additionalType(type);
+	    this.schemaBuilder.additionalType(type);
     }
 
     /**
      * Register new GraphQL types to schema.
      */
     public void registerTypes(@Nonnull Set<GraphQLType> types) {
-        schemaBuilder.additionalTypes(types);
+	    this.schemaBuilder.additionalTypes(types);
     }
 
     /**
      * Register new GraphQL type resolver for interface type to schema.
      */
     public void registerTypeResolver(@Nonnull GraphQLInterfaceType interfaceType, @Nonnull TypeResolver typeResolver) {
-        registryBuilder.typeResolver(interfaceType, typeResolver);
+	    this.registryBuilder.typeResolver(interfaceType, typeResolver);
     }
 
     /**
      * Register new GraphQL type resolver for union type to schema.
      */
     public void registerTypeResolver(@Nonnull GraphQLUnionType unionType, @Nonnull TypeResolver typeResolver) {
-        registryBuilder.typeResolver(unionType, typeResolver);
+	    this.registryBuilder.typeResolver(unionType, typeResolver);
     }
 
     /**
@@ -123,7 +125,7 @@ public class GraphQLSchemaBuildingContext {
     public void registerDataFetcher(@Nonnull String objectName,
                                     @Nonnull PropertyDescriptor fieldDescriptor,
                                     @Nonnull DataFetcher<?> dataFetcher) {
-        registryBuilder.dataFetcher(
+	    this.registryBuilder.dataFetcher(
             coordinates(objectName, fieldDescriptor.name()),
             dataFetcher
         );
@@ -135,7 +137,7 @@ public class GraphQLSchemaBuildingContext {
     public void registerDataFetcher(@Nonnull ObjectDescriptor objectDescriptor,
                                     @Nonnull PropertyDescriptor fieldDescriptor,
                                     @Nonnull DataFetcher<?> dataFetcher) {
-        registryBuilder.dataFetcher(
+	    this.registryBuilder.dataFetcher(
             coordinates(objectDescriptor.name(), fieldDescriptor.name()),
             dataFetcher
         );
@@ -154,8 +156,8 @@ public class GraphQLSchemaBuildingContext {
             () -> new GraphQLSchemaBuildingError("Missing data fetcher for query field `" + queryFieldDescriptor.definition().getName() + "`.")
         );
 
-        queryFields.add(queryFieldDescriptor.definition());
-        registryBuilder.dataFetcher(
+	    this.queryFields.add(queryFieldDescriptor.definition());
+	    this.registryBuilder.dataFetcher(
             coordinates("Query", queryFieldDescriptor.definition().getName()),
             queryFieldDescriptor.dataFetcher()
         );
@@ -170,10 +172,26 @@ public class GraphQLSchemaBuildingContext {
             () -> new GraphQLSchemaBuildingError("Missing data fetcher for mutation field `" + mutationFieldDescriptor.definition().getName() + "`.")
         );
 
-        mutationFields.add(mutationFieldDescriptor.definition());
-        registryBuilder.dataFetcher(
+	    this.mutationFields.add(mutationFieldDescriptor.definition());
+	    this.registryBuilder.dataFetcher(
             coordinates("Mutation", mutationFieldDescriptor.definition().getName()),
             mutationFieldDescriptor.dataFetcher()
+        );
+    }
+
+    /**
+     * Register GraphQL field to the root subscription object in schema.
+     */
+    public void registerSubscriptionField(@Nonnull BuiltFieldDescriptor subscriptionFieldDescriptor) {
+        Assert.isPremiseValid(
+            subscriptionFieldDescriptor.dataFetcher() != null,
+            () -> new GraphQLSchemaBuildingError("Missing data fetcher for subscription field `" + subscriptionFieldDescriptor.definition().getName() + "`.")
+        );
+
+	    this.subscriptionFields.add(subscriptionFieldDescriptor.definition());
+	    this.registryBuilder.dataFetcher(
+            coordinates("Subscription", subscriptionFieldDescriptor.definition().getName()),
+            subscriptionFieldDescriptor.dataFetcher()
         );
     }
 
@@ -189,7 +207,7 @@ public class GraphQLSchemaBuildingContext {
                                       @Nonnull BuiltFieldDescriptor fieldDescriptor) {
         objectBuilder.field(fieldDescriptor.definition());
         if (fieldDescriptor.dataFetcher() != null) {
-            registryBuilder.dataFetcher(
+	        this.registryBuilder.dataFetcher(
                 coordinates(objectName, fieldDescriptor.definition().getName()),
                 fieldDescriptor.dataFetcher()
             );
@@ -208,7 +226,7 @@ public class GraphQLSchemaBuildingContext {
                                       @Nonnull BuiltFieldDescriptor fieldDescriptor) {
         objectBuilder.field(fieldDescriptor.definition());
         if (fieldDescriptor.dataFetcher() != null) {
-            registryBuilder.dataFetcher(
+	        this.registryBuilder.dataFetcher(
                 coordinates(objectDescriptor.name(), fieldDescriptor.definition().getName()),
                 fieldDescriptor.dataFetcher()
             );
@@ -218,16 +236,21 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     public GraphQLSchema buildGraphQLSchema() {
         final GraphQLObjectType.Builder queryObjectBuilder = newObject().name("Query");
-        queryFields.forEach(queryObjectBuilder::field);
-        schemaBuilder.query(queryObjectBuilder.build());
+	    this.queryFields.forEach(queryObjectBuilder::field);
+	    this.schemaBuilder.query(queryObjectBuilder.build());
 
-        if (!mutationFields.isEmpty()) {
+        if (!this.mutationFields.isEmpty()) {
             final GraphQLObjectType.Builder mutationObjectBuilder = newObject().name("Mutation");
-            mutationFields.forEach(mutationObjectBuilder::field);
-            schemaBuilder.mutation(mutationObjectBuilder.build());
+	        this.mutationFields.forEach(mutationObjectBuilder::field);
+	        this.schemaBuilder.mutation(mutationObjectBuilder.build());
+        }
+        if (!this.subscriptionFields.isEmpty()) {
+            final GraphQLObjectType.Builder subscriptionObjectBuilder = newObject().name("Subscription");
+	        this.subscriptionFields.forEach(subscriptionObjectBuilder::field);
+	        this.schemaBuilder.subscription(subscriptionObjectBuilder.build());
         }
 
-        schemaBuilder.codeRegistry(registryBuilder.build());
-        return schemaBuilder.build();
+	    this.schemaBuilder.codeRegistry(this.registryBuilder.build());
+        return this.schemaBuilder.build();
     }
 }

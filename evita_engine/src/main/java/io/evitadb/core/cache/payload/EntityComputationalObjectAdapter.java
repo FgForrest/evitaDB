@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -106,12 +106,12 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 
 	@Override
 	public long getHash() {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Nonnull
@@ -145,7 +145,7 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchema() {
-		return Objects.requireNonNull(entitySchemaFetcher.get());
+		return Objects.requireNonNull(this.entitySchemaFetcher.get());
 	}
 
 	/**
@@ -153,7 +153,7 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 */
 	@Nullable
 	public ServerEntityDecorator fetchEntity() {
-		return entityFetcher.get();
+		return this.entityFetcher.get();
 	}
 
 	/**
@@ -162,7 +162,7 @@ public class EntityComputationalObjectAdapter implements TransactionalDataRelate
 	 */
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull ServerEntityDecorator entity) {
-		return entityEnricher.apply(entity);
+		return this.entityEnricher.apply(entity);
 	}
 
 }

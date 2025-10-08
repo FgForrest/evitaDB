@@ -118,7 +118,7 @@ public class CertificatesLoader {
 	) throws IOException, CertificateException, NoSuchAlgorithmException {
 		try (InputStream inputStream = new FileInputStream(certificatePath)) {
 			 final Collection<? extends Certificate> certificateChain = certificateFactory.generateCertificates(inputStream);
-			 return certificateChain.stream().map(x -> (X509Certificate) x).toArray(X509Certificate[]::new);
+			 return certificateChain.stream().map(X509Certificate.class::cast).toArray(X509Certificate[]::new);
 		}
 	}
 
@@ -140,20 +140,20 @@ public class CertificatesLoader {
 	 */
 	@Nonnull
 	public LoadedCertificates reinitialize() {
-		final String certificateFile = certificatePath.certificate();
+		final String certificateFile = this.certificatePath.certificate();
 		if (certificateFile == null) {
 			throw new EvitaInvalidUsageException("Certificate file path is not set.");
 		}
 		try {
 			final TlsKeyPair tlsKeyPair = TlsKeyPair.of(
-				loadPrivateKey(certificatePath),
-				loadCertificateChain(certificateFactory, certificateFile)
+				loadPrivateKey(this.certificatePath),
+				loadCertificateChain(this.certificateFactory, certificateFile)
 			);
 
-			final List<X509Certificate> trustedCertificates = new ArrayList<>(clientAllowedCertificates.size());
-			final String certDirectoryPath = apiOptions.certificate().folderPath();
-			for (String clientCert : clientAllowedCertificates) {
-				final X509Certificate[] whitelistedClientCertificateChain = loadCertificateChain(certificateFactory, certDirectoryPath + clientCert);
+			final List<X509Certificate> trustedCertificates = new ArrayList<>(this.clientAllowedCertificates.size());
+			final String certDirectoryPath = this.apiOptions.certificate().folderPath();
+			for (String clientCert : this.clientAllowedCertificates) {
+				final X509Certificate[] whitelistedClientCertificateChain = loadCertificateChain(this.certificateFactory, certDirectoryPath + clientCert);
 				final X509Certificate whitelistedClientCertificate = whitelistedClientCertificateChain[0];
 				log.info("Whitelisted client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(whitelistedClientCertificate));
 				trustedCertificates.add(

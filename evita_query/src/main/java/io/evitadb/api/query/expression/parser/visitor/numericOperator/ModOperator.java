@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,8 +60,8 @@ public class ModOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimal compute(@Nonnull PredicateEvaluationContext context) {
-		final BigDecimal initial = operator[0].compute(context, BigDecimal.class);
-		return Arrays.stream(operator, 1, operator.length)
+		final BigDecimal initial = this.operator[0].compute(context, BigDecimal.class);
+		return Arrays.stream(this.operator, 1, this.operator.length)
 			.map(op -> op.compute(context, BigDecimal.class))
 			.reduce(initial, ModOperator::modulo);
 	}
@@ -69,7 +69,7 @@ public class ModOperator implements ExpressionNode {
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(ExpressionNode::determinePossibleRange)
 			.reduce((a, b) -> ExpressionNode.combine(a, b, ModOperator::modulo))
 			.orElseThrow();
@@ -85,7 +85,7 @@ public class ModOperator implements ExpressionNode {
 
 	@Override
 	public String toString() {
-		return Arrays.stream(operator)
+		return Arrays.stream(this.operator)
 			.map(ExpressionNode::toString)
 			.reduce((a, b) -> a + " % " + b)
 			.orElseThrow();

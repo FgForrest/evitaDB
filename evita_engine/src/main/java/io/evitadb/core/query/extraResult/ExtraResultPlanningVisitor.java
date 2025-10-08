@@ -232,13 +232,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nullable
 	public <T extends ExtraResultProducer> T findExistingProducer(Class<T> producerClass) {
-		if (producerClass.isInstance(lastReturnedProducer)) {
+		if (producerClass.isInstance(this.lastReturnedProducer)) {
 			//noinspection unchecked
-			return (T) lastReturnedProducer;
+			return (T) this.lastReturnedProducer;
 		}
-		for (ExtraResultProducer extraResultProducer : extraResultProducers) {
+		for (ExtraResultProducer extraResultProducer : this.extraResultProducers) {
 			if (producerClass.isInstance(extraResultProducer)) {
-				lastReturnedProducer = extraResultProducer;
+				this.lastReturnedProducer = extraResultProducer;
 				//noinspection unchecked
 				return (T) extraResultProducer;
 			}
@@ -253,14 +253,14 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula getFilteringFormulaWithoutUserFilter() {
-		if (filteringFormulaWithoutUserFilter == null) {
-			filteringFormulaWithoutUserFilter = ofNullable(
+		if (this.filteringFormulaWithoutUserFilter == null) {
+			this.filteringFormulaWithoutUserFilter = ofNullable(
 				FormulaCloner.clone(
-					filteringFormula,
+					this.filteringFormula,
 					formula -> formula instanceof UserFilterFormula ? null : formula
 				)).orElseGet(this::getSuperSetFormula);
 		}
-		return filteringFormulaWithoutUserFilter;
+		return this.filteringFormulaWithoutUserFilter;
 	}
 
 	/**
@@ -405,7 +405,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * Method registers the {@link ExtraResultProducer} instance.
 	 */
 	public void registerProducer(@Nullable ExtraResultProducer extraResultProducer) {
-		ofNullable(extraResultProducer).ifPresent(extraResultProducers::add);
+		ofNullable(extraResultProducer).ifPresent(this.extraResultProducers::add);
 	}
 
 	/**
@@ -483,7 +483,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * Returns true if the scope relates to top entity.
 	 */
 	public boolean isScopeOfQueriedEntity() {
-		return scope.size() <= 1;
+		return this.scope.size() <= 1;
 	}
 
 	/**
@@ -634,7 +634,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		 */
 		@Nonnull
 		public Optional<ReferenceSchemaContract> getReferenceSchema() {
-			return ofNullable(referenceSchemaAccessor.get());
+			return ofNullable(this.referenceSchemaAccessor.get());
 		}
 
 		/**
@@ -642,7 +642,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		 */
 		@Nonnull
 		public Optional<EntitySchemaContract> getEntitySchema() {
-			return ofNullable(entitySchemaAccessor.get());
+			return ofNullable(this.entitySchemaAccessor.get());
 		}
 
 		/**

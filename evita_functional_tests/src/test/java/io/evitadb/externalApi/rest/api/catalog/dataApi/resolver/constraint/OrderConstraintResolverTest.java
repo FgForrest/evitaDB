@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,8 +35,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.builder.ListBuilder.list;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,14 +52,14 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new OrderConstraintResolver(catalogSchema, new AtomicReference<>(new FilterConstraintResolver(catalogSchema)));
+		this.resolver = new OrderConstraintResolver(this.catalogSchema, new AtomicReference<>(new FilterConstraintResolver(this.catalogSchema)));
 	}
 
 	@Test
 	void shouldResolveValueOrderConstraint() {
 		assertEquals(
 			attributeNatural("CODE", OrderDirection.ASC),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeCodeNatural",
 				OrderDirection.ASC
@@ -71,8 +69,8 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueOrderConstraint() {
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", List.of()));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", Map.of()));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", List.of()));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", Map.of()));
 	}
 
 	@Test
@@ -83,7 +81,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				attributeNatural("CODE", OrderDirection.ASC),
 				random()
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"referenceCategoryProperty",
 				List.of(
@@ -98,8 +96,8 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveChildOrderConstraint() {
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", "abc"));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", Map.of()));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", "abc"));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", Map.of()));
 	}
 
 	@Test
@@ -116,7 +114,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			QueryPurifierVisitor.purify(
-				resolver.resolve(
+				this.resolver.resolve(
 					Entities.PRODUCT,
 					"orderBy",
 					List.of(
@@ -148,7 +146,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			QueryPurifierVisitor.purify(
-				resolver.resolve(
+				this.resolver.resolve(
 					Entities.PRODUCT,
 					"orderBy",
 					List.of(

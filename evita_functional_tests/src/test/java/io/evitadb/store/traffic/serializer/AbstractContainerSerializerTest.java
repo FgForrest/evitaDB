@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,10 +52,10 @@ abstract class AbstractContainerSerializerTest {
 	protected void assertSerializationRound(@Nonnull Object object) {
 		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 		try (final Output output = new Output(os, 4_096)) {
-			kryo.writeObject(output, object);
+			this.kryo.writeObject(output, object);
 		}
 		try (final Input input = new Input(os.toByteArray())) {
-			final Object deserialized = kryo.readObject(input, object.getClass());
+			final Object deserialized = this.kryo.readObject(input, object.getClass());
 			assertEquals(object, deserialized);
 		}
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -41,19 +40,30 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class PriceMutation implements LocalMutation<PriceContract, PriceKey> {
 	@Serial private static final long serialVersionUID = 2424285135744614172L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Identification of the price that the mutation affects.
 	 */
 	@Nonnull
 	@Getter protected final PriceKey priceKey;
 
+	protected PriceMutation(@Nonnull PriceKey priceKey) {
+		this.priceKey = priceKey;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	protected PriceMutation(@Nonnull PriceKey priceKey, long decisiveTimestamp) {
+		this.priceKey = priceKey;
+		this.decisiveTimestamp = decisiveTimestamp;
+	}
+
+	@Nonnull
 	@Override
 	public PriceKey getComparableKey() {
-		return priceKey;
+		return this.priceKey;
 	}
 
 	@Nonnull

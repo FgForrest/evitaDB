@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,6 +56,6 @@ public interface ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationD
 			Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice`
 			in `EntitySchema` or `ReferenceSchema`.
 			""")
-		.staticFields(List.of(NAME, DEPRECATION_NOTICE))
+		.staticFields(List.of(MUTATION_TYPE, NAME, DEPRECATION_NOTICE))
 		.build();
 }

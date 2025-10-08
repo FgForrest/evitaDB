@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -109,80 +109,80 @@ public class ReferenceDecorator implements ReferenceContract {
 
 	@Override
 	public boolean dropped() {
-		return delegate.dropped();
+		return this.delegate.dropped();
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey() {
-		return delegate.getReferenceKey();
+		return this.delegate.getReferenceKey();
 	}
 
 	@Nonnull
 	@Override
 	public String getReferencedEntityType() {
-		return delegate.getReferencedEntityType();
+		return this.delegate.getReferencedEntityType();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getReferencedEntity() {
-		return ofNullable(referencedEntity);
+		return ofNullable(this.referencedEntity);
 	}
 
 	@Nonnull
 	@Override
 	public Cardinality getReferenceCardinality() {
-		return delegate.getReferenceCardinality();
+		return this.delegate.getReferenceCardinality();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<GroupEntityReference> getGroup() {
-		return delegate.getGroup().filter(Droppable::exists);
+		return this.delegate.getGroup().filter(Droppable::exists);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getGroupEntity() {
-		return ofNullable(referencedGroupEntity);
+		return ofNullable(this.referencedGroupEntity);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<ReferenceSchemaContract> getReferenceSchema() {
-		return delegate.getReferenceSchema();
+		return this.delegate.getReferenceSchema();
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceSchemaContract getReferenceSchemaOrThrow() {
-		return delegate.getReferenceSchemaOrThrow();
+		return this.delegate.getReferenceSchemaOrThrow();
 	}
 
 	@Override
 	public int version() {
-		return delegate.version();
+		return this.delegate.version();
 	}
 
 	@Override
 	public boolean attributesAvailable() {
-		return attributePredicate.wasFetched();
+		return this.attributePredicate.wasFetched();
 	}
 
 	@Override
 	public boolean attributesAvailable(@Nonnull Locale locale) {
-		return attributePredicate.wasFetched(locale);
+		return this.attributePredicate.wasFetched(locale);
 	}
 
 	@Override
 	public boolean attributeAvailable(@Nonnull String attributeName) {
-		return attributePredicate.wasFetched(attributeName);
+		return this.attributePredicate.wasFetched(attributeName);
 	}
 
 	@Override
 	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return attributePredicate.wasFetched(attributeName, locale);
+		return this.attributePredicate.wasFetched(attributeName, locale);
 	}
 
 	@Nullable
@@ -207,16 +207,16 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
 		final AttributeKey attributeKey;
-		if (attributePredicate.isLocaleSet()) {
-			final Locale locale = attributePredicate.getLocale();
+		if (this.attributePredicate.isLocaleSet()) {
+			final Locale locale = this.attributePredicate.getLocale();
 			attributeKey = locale == null ?
 				new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		} else {
 			attributeKey = new AttributeKey(attributeName);
 		}
-		attributePredicate.checkFetched(new AttributeKey(attributeName));
-		return delegate.getAttributeValue(attributeKey)
-			.filter(attributePredicate);
+		this.attributePredicate.checkFetched(new AttributeKey(attributeName));
+		return this.delegate.getAttributeValue(attributeKey)
+			.filter(this.attributePredicate);
 	}
 
 	@Nullable
@@ -246,7 +246,7 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
-		return delegate.getAttributeSchema(attributeName);
+		return this.delegate.getAttributeSchema(attributeName);
 	}
 
 	@Nonnull
@@ -270,29 +270,29 @@ public class ReferenceDecorator implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		attributePredicate.checkFetched(attributeKey);
-		return delegate.getAttributeValue(attributeKey)
-			.filter(attributePredicate);
+		this.attributePredicate.checkFetched(attributeKey);
+		return this.delegate.getAttributeValue(attributeKey)
+			.filter(this.attributePredicate);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues() {
-		if (filteredAttributes == null) {
-			attributePredicate.checkFetched();
-			filteredAttributes = delegate.getAttributeValues()
+		if (this.filteredAttributes == null) {
+			this.attributePredicate.checkFetched();
+			this.filteredAttributes = this.delegate.getAttributeValues()
 				.stream()
-				.filter(attributePredicate)
+				.filter(this.attributePredicate)
 				.collect(Collectors.toList());
 		}
-		return filteredAttributes;
+		return this.filteredAttributes;
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AttributeValue> getAttributeValues(@Nonnull String attributeName) {
-		attributePredicate.checkFetched(new AttributeKey(attributeName));
-		return delegate.getAttributeValues(attributeName)
+		this.attributePredicate.checkFetched(new AttributeKey(attributeName));
+		return this.delegate.getAttributeValues(attributeName)
 			.stream()
 			.filter(it -> attributeName.equals(it.key().attributeName()))
 			.collect(Collectors.toList());
@@ -314,17 +314,17 @@ public class ReferenceDecorator implements ReferenceContract {
 
 	@Override
 	public boolean equals(Object obj) {
-		return delegate.equals(obj instanceof ReferenceDecorator ? ((ReferenceDecorator) obj).delegate : obj);
+		return this.delegate.equals(obj instanceof ReferenceDecorator ? ((ReferenceDecorator) obj).delegate : obj);
 	}
 
 	@Override
 	public int hashCode() {
-		return delegate.hashCode();
+		return this.delegate.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return delegate.toString();
+		return this.delegate.toString();
 	}
 
 }

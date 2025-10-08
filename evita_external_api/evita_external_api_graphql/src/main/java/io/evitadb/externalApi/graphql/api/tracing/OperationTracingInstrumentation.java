@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
 import graphql.language.OperationDefinition;
-
 import io.evitadb.api.observability.trace.TracingBlockReference;
 import io.evitadb.api.observability.trace.TracingContext;
 import io.evitadb.api.observability.trace.TracingContext.SpanAttribute;
@@ -60,15 +59,15 @@ public class OperationTracingInstrumentation extends SimplePerformantInstrumenta
 
     @Nonnull
     @Override
-    public InstrumentationContext<ExecutionResult> beginExecuteOperation(@Nonnull InstrumentationExecuteOperationParameters parameters,
-                                                                         @Nonnull InstrumentationState state) {
+    public InstrumentationContext<ExecutionResult> beginExecuteOperation(InstrumentationExecuteOperationParameters parameters,
+                                                                         InstrumentationState state) {
         final ExecutionContext executionContext = parameters.getExecutionContext();
         final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
         final String operationName = GraphQLOperationNameResolver.resolve(executionContext.getOperationDefinition());
 
         // this block is closed in GraphQLHandler because instrumentation doesn't provide way of executing code
         // in same thread as this callback (if parallel query execution is used), which is needed by the tracing tooling
-        final TracingBlockReference blockReference = tracingContext.createAndActivateBlockIfParentContextAvailable(
+        final TracingBlockReference blockReference = this.tracingContext.createAndActivateBlockIfParentContextAvailable(
             "GraphQL " + operation.name().toLowerCase() + " - " + operationName,
             new SpanAttribute("operation", operation.name()),
             new SpanAttribute("operationName", operationName)

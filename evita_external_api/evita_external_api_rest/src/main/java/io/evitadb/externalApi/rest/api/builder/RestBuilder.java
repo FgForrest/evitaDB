@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiUnionTransformer;
@@ -40,7 +41,6 @@ import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperatio
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationQueryParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -80,12 +80,12 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 	protected RestBuilder(@Nonnull C buildingContext) {
 		this.buildingContext = buildingContext;
 		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToOpenApiTypeTransformer(buildingContext);
-		this.propertyBuilderTransformer = new PropertyDescriptorToOpenApiPropertyTransformer(propertyDataTypeBuilderTransformer);
-		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(propertyBuilderTransformer);
+		this.propertyBuilderTransformer = new PropertyDescriptorToOpenApiPropertyTransformer(this.propertyDataTypeBuilderTransformer);
+		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(this.propertyBuilderTransformer);
 		this.unionBuilderTransformer = new ObjectDescriptorToOpenApiUnionTransformer();
 		this.dictionaryBuilderTransformer = new ObjectDescriptorToOpenApiDictionaryTransformer();
-		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(propertyDataTypeBuilderTransformer);
-		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(propertyDataTypeBuilderTransformer);
+		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(this.propertyDataTypeBuilderTransformer);
+		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(this.propertyDataTypeBuilderTransformer);
 	}
 
 	@Nonnull

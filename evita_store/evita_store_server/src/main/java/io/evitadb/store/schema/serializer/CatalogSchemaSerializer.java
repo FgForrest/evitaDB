@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -111,13 +111,13 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 		@Nonnull
 		@Override
 		public Collection<EntitySchemaContract> getEntitySchemas() {
-			return theCatalog.getEntitySchemaIndex().values();
+			return this.theCatalog.getEntitySchemaIndex().values();
 		}
 
 		@Nonnull
 		@Override
 		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-			return theCatalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
+			return this.theCatalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
 		}
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,17 +73,17 @@ class RangeIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddTransactionalItemsAndRollback() {
 		assertStateAfterRollback(
-			tested,
+			this.tested,
 			original -> {
 				original.addRecord(5, 10, 1);
 				original.addRecord(5, 10, 2);
 				original.addRecord(7, 10, 3);
 				original.addRecord(1, 5, 4);
 
-				assertTrue(tested.contains(1));
-				assertTrue(tested.contains(2));
-				assertTrue(tested.contains(3));
-				assertTrue(tested.contains(4));
+				assertTrue(this.tested.contains(1));
+				assertTrue(this.tested.contains(2));
+				assertTrue(this.tested.contains(3));
+				assertTrue(this.tested.contains(4));
 				assertTrue(
 					new StartsEndsDTO(
 						asListOfBitmaps(new int[0], new int[]{4}, new int[]{1, 2}, new int[]{3}, new int[0], new int[0]),
@@ -121,17 +121,17 @@ class RangeIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddTransactionalItemsAndCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.addRecord(5, 10, 1);
 				original.addRecord(5, 10, 2);
 				original.addRecord(7, 10, 3);
 				original.addRecord(1, 5, 4);
 
-				assertTrue(tested.contains(1));
-				assertTrue(tested.contains(2));
-				assertTrue(tested.contains(3));
-				assertTrue(tested.contains(4));
+				assertTrue(this.tested.contains(1));
+				assertTrue(this.tested.contains(2));
+				assertTrue(this.tested.contains(3));
+				assertTrue(this.tested.contains(4));
 			},
 			(original, committedVersion) -> {
 				assertFalse(original.contains(1));
@@ -253,103 +253,103 @@ class RangeIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldPassSimpleValidFrom() {
-		tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
-		tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
-		tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
-		tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 5), 4);
+		this.tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
+		this.tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
+		this.tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
+		this.tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 5), 4);
 
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{1, 2, 4});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 6)), new int[]{1, 3});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 1)), new int[]{1, 2});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{1, 2, 4});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 6)), new int[]{1, 3});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 1)), new int[]{1, 2});
 	}
 
 	@Test
 	void shouldPassValidFromWhenThereAreMultipleRangesForSingleRecord() {
-		tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
-		tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
-		tested.addRecord(timestampForDate(1, 7), Long.MAX_VALUE, 2);
-		tested.addRecord(timestampForDate(1, 1), timestampForDate(3, 3), 3);
-		tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
-		tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 7), 4);
+		this.tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
+		this.tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
+		this.tested.addRecord(timestampForDate(1, 7), Long.MAX_VALUE, 2);
+		this.tested.addRecord(timestampForDate(1, 1), timestampForDate(3, 3), 3);
+		this.tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
+		this.tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 7), 4);
 
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(2, 2)), new int[]{1, 2, 3});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(10, 3)), new int[]{1, 2});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{1, 2, 4});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(10, 5)), new int[]{1, 3, 4});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(2, 7)), new int[]{1, 2, 3, 4});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(6, 6)), new int[]{1, 3, 4});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(10, 7)), new int[]{1, 2, 3});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(2, 2)), new int[]{1, 2, 3});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(10, 3)), new int[]{1, 2});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{1, 2, 4});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(10, 5)), new int[]{1, 3, 4});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(2, 7)), new int[]{1, 2, 3, 4});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(6, 6)), new int[]{1, 3, 4});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(10, 7)), new int[]{1, 2, 3});
 	}
 
 	@Test
 	void shouldAddAndRemoveRecord() {
-		tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
-		tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
-		tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
-		tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 5), 4);
+		this.tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
+		this.tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
+		this.tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
+		this.tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 5), 4);
 
-		assertTrue(tested.contains(1));
-		assertTrue(tested.contains(2));
-		assertTrue(tested.contains(3));
-		assertTrue(tested.contains(4));
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{1, 2, 4});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 6)), new int[]{1, 3});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 1)), new int[]{1, 2});
+		assertTrue(this.tested.contains(1));
+		assertTrue(this.tested.contains(2));
+		assertTrue(this.tested.contains(3));
+		assertTrue(this.tested.contains(4));
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{1, 2, 4});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 6)), new int[]{1, 3});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 1)), new int[]{1, 2});
 
-		tested.removeRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
-		tested.removeRecord(timestampForDate(1, 4), timestampForDate(5, 5), 4);
+		this.tested.removeRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
+		this.tested.removeRecord(timestampForDate(1, 4), timestampForDate(5, 5), 4);
 
-		assertFalse(tested.contains(1));
-		assertTrue(tested.contains(2));
-		assertTrue(tested.contains(3));
-		assertFalse(tested.contains(4));
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{2});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 6)), new int[]{3});
-		assertFormulaResultsIn(tested.getRecordsFrom(timestampForDate(1, 1)), new int[]{2});
+		assertFalse(this.tested.contains(1));
+		assertTrue(this.tested.contains(2));
+		assertTrue(this.tested.contains(3));
+		assertFalse(this.tested.contains(4));
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 5)), new int[]{2});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 6)), new int[]{3});
+		assertFormulaResultsIn(this.tested.getRecordsFrom(timestampForDate(1, 1)), new int[]{2});
 	}
 
 	@Test
 	void shouldPassValidToWhenThereAreMultipleRangesForSingleRecord() {
-		tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
-		tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
-		tested.addRecord(timestampForDate(1, 7), Long.MAX_VALUE, 2);
-		tested.addRecord(timestampForDate(1, 1), timestampForDate(3, 3), 3);
-		tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
-		tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 7), 4);
+		this.tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
+		this.tested.addRecord(Long.MIN_VALUE, timestampForDate(5, 5), 2);
+		this.tested.addRecord(timestampForDate(1, 7), Long.MAX_VALUE, 2);
+		this.tested.addRecord(timestampForDate(1, 1), timestampForDate(3, 3), 3);
+		this.tested.addRecord(timestampForDate(5, 5), Long.MAX_VALUE, 3);
+		this.tested.addRecord(timestampForDate(1, 4), timestampForDate(5, 7), 4);
 
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(2, 2)), new int[]{1, 2, 3});
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(10, 3)), new int[]{1, 2});
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(1, 5)), new int[]{1, 2, 4});
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(10, 5)), new int[]{1, 3, 4});
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(2, 7)), new int[]{1, 2, 3, 4});
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(6, 6)), new int[]{1, 3, 4});
-		assertFormulaResultsIn(tested.getRecordsTo(timestampForDate(10, 7)), new int[]{1, 2, 3});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(2, 2)), new int[]{1, 2, 3});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(10, 3)), new int[]{1, 2});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(1, 5)), new int[]{1, 2, 4});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(10, 5)), new int[]{1, 3, 4});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(2, 7)), new int[]{1, 2, 3, 4});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(6, 6)), new int[]{1, 3, 4});
+		assertFormulaResultsIn(this.tested.getRecordsTo(timestampForDate(10, 7)), new int[]{1, 2, 3});
 	}
 
 	@Test
 	void shouldPassValidWithRangesOverlapping() {
-		tested.addRecord(1, 4, 1);
-		tested.addRecord(4, 7, 2);
-		tested.addRecord(7, 10, 3);
-		tested.addRecord(3, 5, 4);
-		tested.addRecord(6, 9, 5);
+		this.tested.addRecord(1, 4, 1);
+		this.tested.addRecord(4, 7, 2);
+		this.tested.addRecord(7, 10, 3);
+		this.tested.addRecord(3, 5, 4);
+		this.tested.addRecord(6, 9, 5);
 
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(Long.MIN_VALUE, Long.MAX_VALUE), new int[]{1, 2, 3, 4, 5});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(Long.MIN_VALUE, 2), new int[]{1});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(9, Long.MAX_VALUE), new int[]{3, 5});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(4, 7), new int[]{1, 2, 3, 4, 5});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(1, 2), new int[]{1});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(1, 1), new int[]{1});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(1, 3), new int[]{1, 4});
-		assertFormulaResultsIn(tested.getRecordsWithRangesOverlapping(7, 7), new int[]{2, 3, 5});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(Long.MIN_VALUE, Long.MAX_VALUE), new int[]{1, 2, 3, 4, 5});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(Long.MIN_VALUE, 2), new int[]{1});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(9, Long.MAX_VALUE), new int[]{3, 5});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(4, 7), new int[]{1, 2, 3, 4, 5});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(1, 2), new int[]{1});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(1, 1), new int[]{1});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(1, 3), new int[]{1, 4});
+		assertFormulaResultsIn(this.tested.getRecordsWithRangesOverlapping(7, 7), new int[]{2, 3, 5});
 	}
 
 	@Test
 	void shouldSerializeAndDeserialize() {
-		tested.addRecord(5, 10, 1);
-		tested.addRecord(5, 10, 2);
-		tested.addRecord(7, 10, 3);
-		tested.addRecord(1, 5, 4);
+		this.tested.addRecord(5, 10, 1);
+		this.tested.addRecord(5, 10, 2);
+		this.tested.addRecord(7, 10, 3);
+		this.tested.addRecord(1, 5, 4);
 
 		final Kryo kryo = new Kryo();
 
@@ -359,13 +359,13 @@ class RangeIndexTest implements TimeBoundedTestSupport {
 		kryo.register(int[].class);
 
 		final Output output = new Output(1024, -1);
-		kryo.writeObject(output, tested);
+		kryo.writeObject(output, this.tested);
 		output.flush();
 
 		byte[] bytes = output.getBuffer();
 
 		final RangeIndex deserializedTested = kryo.readObject(new Input(bytes), RangeIndex.class);
-		assertEquals(tested, deserializedTested);
+		assertEquals(this.tested, deserializedTested);
 	}
 
 	@ParameterizedTest(name = "RangeIndex should survive generational randomized test applying modifications on it")

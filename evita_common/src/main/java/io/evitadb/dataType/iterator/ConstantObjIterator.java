@@ -23,6 +23,7 @@
 
 package io.evitadb.dataType.iterator;
 
+import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -34,26 +35,26 @@ import java.util.NoSuchElementException;
 public class ConstantObjIterator<T> implements Iterator<T> {
 	private final T[] constant;
 	private int index = -1;
-	private T nextNumberToReturn = null;
+	@Nullable private T nextNumberToReturn = null;
 
 	public ConstantObjIterator(T[] constant) {
 		this.constant = constant;
 		if (this.constant.length > 0) {
-			this.nextNumberToReturn = this.constant[++index];
+			this.nextNumberToReturn = this.constant[++this.index];
 		}
 	}
 
 	@Override
 	public T next() {
-		if (nextNumberToReturn == null) {
+		if (this.nextNumberToReturn == null) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
 		final T numberToReturn = this.nextNumberToReturn;
-		final int nextIndex = index + 1;
-		if (nextIndex < constant.length) {
-			this.nextNumberToReturn = this.constant[++index];
+		final int nextIndex = this.index + 1;
+		if (nextIndex < this.constant.length) {
+			this.nextNumberToReturn = this.constant[++this.index];
 		} else {
-			index++;
+			this.index++;
 			this.nextNumberToReturn = null;
 		}
 		return numberToReturn;
@@ -61,7 +62,7 @@ public class ConstantObjIterator<T> implements Iterator<T> {
 
 	@Override
 	public boolean hasNext() {
-		return nextNumberToReturn != null;
+		return this.nextNumberToReturn != null;
 	}
 
 }

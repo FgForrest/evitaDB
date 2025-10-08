@@ -58,6 +58,8 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";
+	public static final String ATTRIBUTE_PRODUCT_LABEL = "label";
+	public static final String ATTRIBUTE_RELATION_TYPE = "relationType";
 	public static final String ATTRIBUTE_MARKETS = "markets";
 	public static final String ATTRIBUTE_ENUM = "enum";
 	public static final String ATTRIBUTE_OPTIONAL_AVAILABILITY = "optionalAvailability";
@@ -82,8 +84,8 @@ public class AbstractHundredProductsFunctionalTest {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = getRandomEntityPicker(session);
 
-			final List<EntityReference> storedPriceLists = dataGenerator.generateEntities(
-					dataGenerator.getSamplePriceListSchema(session),
+			final List<EntityReference> storedPriceLists = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSamplePriceListSchema(session),
 					randomEntityPicker,
 					SEED
 				)
@@ -91,8 +93,8 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
-					dataGenerator.getSampleCategorySchema(
+			final List<EntityReference> storedCategories = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleCategorySchema(
 						session,
 						builder -> {
 							builder
@@ -111,8 +113,8 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedStores = dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(
+			final List<EntityReference> storedStores = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleStoreSchema(
 						session,
 						builder -> {
 							builder
@@ -130,8 +132,8 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
-					dataGenerator.getSampleBrandSchema(
+			final List<EntityReference> storedBrands = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleBrandSchema(
 						session,
 						builder -> {
 							builder.withReferenceToEntity(
@@ -148,16 +150,16 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			dataGenerator.generateEntities(
-					dataGenerator.getSampleParameterGroupSchema(session),
+			this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleParameterGroupSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(10)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedParameters = dataGenerator.generateEntities(
-					dataGenerator.getSampleParameterSchema(
+			final List<EntityReference> storedParameters = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleParameterSchema(
 						session,
 						builder -> {
 							builder.withAttribute(
@@ -173,8 +175,8 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
-					dataGenerator.getSampleProductSchema(
+			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+					this.dataGenerator.getSampleProductSchema(
 						session,
 						builder -> {
 							builder
@@ -208,7 +210,23 @@ public class AbstractHundredProductsFunctionalTest {
 										.faceted()
 										.withGroupTypeRelatedToEntity(Entities.STORE)
 								)
-								.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ZERO_OR_MORE)
+								.withReferenceToEntity(
+									Entities.PRODUCT,
+									Entities.PRODUCT,
+									Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+									whichIs -> whichIs
+										.indexedForFiltering()
+										.withAttribute(
+											ATTRIBUTE_RELATION_TYPE,
+											String.class,
+											thatIs -> thatIs.filterable()
+											                .representative()
+										).withAttribute(
+											ATTRIBUTE_PRODUCT_LABEL,
+											String.class,
+											thatIs -> thatIs.localized()
+										)
+								)
 								.updateVia(session);
 							return builder.toInstance();
 						}
@@ -252,7 +270,7 @@ public class AbstractHundredProductsFunctionalTest {
 				tuple("originalStores", stores),
 				tuple("originalCategories", categories),
 				tuple("originalPriceLists", storedPriceLists),
-				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
+				tuple("categoryHierarchy", this.dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});
 	}

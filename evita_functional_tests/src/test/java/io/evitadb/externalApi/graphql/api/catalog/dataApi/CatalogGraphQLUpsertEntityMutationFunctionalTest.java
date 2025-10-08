@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,9 +27,11 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.test.Entities;
@@ -52,12 +54,12 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
-import static org.hamcrest.Matchers.not;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -106,7 +108,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 					map()
 						.e(TYPENAME_FIELD, "Empty")
 						.e(EntityDescriptor.PRIMARY_KEY.name(), 11)
-						.e(EntityDescriptor.VERSION.name(), 1)
+						.e(VersionedDescriptor.VERSION.name(), 1)
 						.build()
 				)
 			);
@@ -135,7 +137,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), 200)
-						.e(EntityDescriptor.VERSION.name(), 1)
+						.e(VersionedDescriptor.VERSION.name(), 1)
 						.build()
 				)
 			);
@@ -164,7 +166,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				equalTo(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), 10)
-						.e(EntityDescriptor.VERSION.name(), 1)
+						.e(VersionedDescriptor.VERSION.name(), 1)
 						.build()
 				)
 			);
@@ -229,8 +231,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
-			.e(EntityDescriptor.ATTRIBUTES.name(), map()
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
+			.e(
+				AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 				.e(ATTRIBUTE_NAME, "nový produkt")
 				.e(ATTRIBUTE_QUANTITY, ((BigDecimal) entity.getAttribute(ATTRIBUTE_QUANTITY)).add(BigDecimal.TEN).toString())
 				.e(ATTRIBUTE_DEPRECATED, null)
@@ -327,7 +330,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
 				.e(ASSOCIATED_DATA_LABELS, map()
 					.e("someField", "differentValue")
@@ -440,7 +443,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		// remove existing parent reference
 		final Map<String, Object> expectedBodyWithoutParent = map()
-			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
 			.build();
 		tester.test(TEST_CATALOG)
@@ -471,7 +474,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		// revert original parent
 		final Map<String, Object> expectedBodyReverted = map()
-			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), rootEntity.getPrimaryKey())
 			.build();
 		tester.test(TEST_CATALOG)
@@ -527,7 +530,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final Map<String, Object> expectedBodyWithNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.PRICES.name(), List.of(
 				map()
 					.e(PriceDescriptor.PRICE_ID.name(), 1_000_000_000)
@@ -617,7 +620,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final Map<String, Object> expectedBodyWithoutNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 2)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 2)
 			.e(EntityDescriptor.PRICES.name(), List.of())
 			.build();
 
@@ -695,7 +698,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final Map<String, Object> expectedBody = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+			.e(VersionedDescriptor.VERSION.name(), entity.version() + 1)
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
 			.build();
 
@@ -779,7 +782,8 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.stream()
 			.map(r -> map()
 				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
-				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+				.e(
+					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
 					.build())
 				.build())
@@ -787,7 +791,8 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
 			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
-			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+			.e(
+				AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
 			.build());
 

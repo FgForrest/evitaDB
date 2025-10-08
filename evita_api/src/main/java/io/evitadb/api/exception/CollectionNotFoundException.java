@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.api.exception;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -41,7 +40,7 @@ public class CollectionNotFoundException extends EvitaInvalidUsageException {
 		super("No collection found for entity type `" + entityType + "`!");
 	}
 
-	public CollectionNotFoundException(@Nullable Class<?> modelClass) {
+	public CollectionNotFoundException(@Nonnull Class<?> modelClass) {
 		super(
 			"Entity type cannot be resolved. Neither `@Entity` no `@EntityRef` " +
 				"annotation was found on model class: `" + modelClass.getName() + "`!"

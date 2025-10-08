@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,12 +80,12 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 
 	@Override
 	public long getHash() {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Override
 	public long getTransactionalIdHash() {
-		return entityPrimaryKey;
+		return this.entityPrimaryKey;
 	}
 
 	@Nonnull
@@ -119,7 +119,7 @@ public class BinaryEntityComputationalObjectAdapter implements TransactionalData
 	 */
 	@Nullable
 	public ServerBinaryEntityDecorator fetchEntity() {
-		return entityFetcher.get();
+		return this.entityFetcher.get();
 	}
 
 }

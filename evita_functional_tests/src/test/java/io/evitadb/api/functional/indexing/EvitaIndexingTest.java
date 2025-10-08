@@ -37,7 +37,6 @@ import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -45,12 +44,15 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.EntityCollection;
@@ -58,6 +60,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -84,7 +87,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
@@ -121,13 +123,14 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
 	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_VARIANT = "variant";
+	private static final AttributeSchema ATTRIBUTE_EAN_SCHEMA = AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false);
 	private Evita evita;
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
 		assertNotNull(categoryIndex);
-		assertTrue(categoryIndex.getUniqueIndex(AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false), null).getRecordIds().contains(recordId));
-		assertTrue(categoryIndex.getFilterIndex(new AttributeKey(ATTRIBUTE_EAN)).getAllRecords().contains(recordId));
-		assertTrue(ArrayUtils.contains(categoryIndex.getSortIndex(new AttributeKey(ATTRIBUTE_EAN)).getSortedRecords(), recordId));
+		assertTrue(categoryIndex.getUniqueIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getRecordIds().contains(recordId));
+		assertTrue(categoryIndex.getFilterIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getAllRecords().contains(recordId));
+		assertTrue(ArrayUtils.contains(categoryIndex.getSortIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getSortedRecords(), recordId));
 		assertTrue(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE).getIndexedPriceEntityIds().contains(recordId));
 		// EUR price is not indexed
 		assertNull(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_EUR, PriceInnerRecordHandling.NONE));
@@ -318,7 +321,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY,
 				scope,
-				new ReferenceKey(entityType, recordId)
+				new RepresentativeReferenceKey(new ReferenceKey(entityType, recordId))
 			)
 		);
 	}
@@ -356,15 +359,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
 	}
@@ -372,10 +375,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
 	@Test
 	void shouldUpdateCatalogWithAnotherProduct() {
-		final SealedEntity addedEntity = evita.updateCatalog(
+		final SealedEntity addedEntity = this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				evita.defineCatalog(TEST_CATALOG)
+				this.evita.defineCatalog(TEST_CATALOG)
 					.withDescription("Some description.")
 					.withEntitySchema(
 						Entities.PRODUCT,
@@ -393,7 +396,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final Optional<SealedEntity> fetchedEntity = session.getEntity(Entities.PRODUCT, addedEntity.getPrimaryKey());
@@ -436,12 +439,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode() {
 		final String someCatalogName = "differentCatalog";
 		try {
-			evita.defineCatalog(someCatalogName)
+			this.evita.defineCatalog(someCatalogName)
 				.withDescription("This is a tutorial catalog.")
-				.updateViaNewSession(evita);
+				.updateViaNewSession(this.evita);
 
-			assertTrue(evita.getCatalogNames().contains(someCatalogName));
-			evita.updateCatalog(
+			assertTrue(this.evita.getCatalogNames().contains(someCatalogName));
+			this.evita.updateCatalog(
 				someCatalogName,
 				session -> {
 					session.createNewEntity("Brand", 1)
@@ -503,7 +506,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			);
 
 		} finally {
-			evita.deleteCatalogIfExists(someCatalogName);
+			this.evita.deleteCatalogIfExists(someCatalogName);
 		}
 	}
 
@@ -511,7 +514,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldAllowCreatingCatalogAndEntityCollectionsAlongWithTheSchema() {
 		final String someCatalogName = "differentCatalog";
 		try {
-			evita.defineCatalog(someCatalogName)
+			this.evita.defineCatalog(someCatalogName)
 				.withDescription("Some description.")
 				.withEntitySchema(
 					Entities.PRODUCT,
@@ -519,10 +522,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.withDescription("My fabulous product.")
 						.withAttribute("someAttribute", String.class, thatIs -> thatIs.filterable().nullable())
 				)
-				.updateViaNewSession(evita);
+				.updateViaNewSession(this.evita);
 
-			assertTrue(evita.getCatalogNames().contains(someCatalogName));
-			evita.queryCatalog(
+			assertTrue(this.evita.getCatalogNames().contains(someCatalogName));
+			this.evita.queryCatalog(
 				someCatalogName,
 				session -> {
 					assertEquals("Some description.", session.getCatalogSchema().getDescription());
@@ -537,14 +540,14 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			);
 
 		} finally {
-			evita.deleteCatalogIfExists(someCatalogName);
+			this.evita.deleteCatalogIfExists(someCatalogName);
 		}
 	}
 
 	@Test
 	void shouldAllowUpdatingCatalogAndEntityCollectionsAlongWithTheSchema() {
 		/* first update the catalog the standard way */
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -556,7 +559,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		// now alter it again from the birds view
 		try {
-			evita.defineCatalog(TEST_CATALOG)
+			this.evita.defineCatalog(TEST_CATALOG)
 				.withDescription("Some description.")
 				.withEntitySchema(
 					Entities.PRODUCT,
@@ -564,9 +567,9 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.withDescription("My fabulous product.")
 						.withAttribute("someAttribute", String.class, thatIs -> thatIs.filterable().nullable())
 				)
-				.updateViaNewSession(evita);
+				.updateViaNewSession(this.evita);
 
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					assertEquals("Some description.", session.getCatalogSchema().getDescription());
@@ -589,14 +592,14 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			);
 
 		} finally {
-			evita.deleteCatalogIfExists(TEST_CATALOG);
+			this.evita.deleteCatalogIfExists(TEST_CATALOG);
 		}
 	}
 
 	@Test
 	void shouldFailToUpsertUnknownEntityToStrictlyValidatedCatalogSchema() {
 		/* set strict schema verification */
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
@@ -609,7 +612,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		// now try to upset an unknown entity
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.createNewEntity(Entities.PRODUCT)
@@ -623,7 +626,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldUpsertUnknownEntityToLaxlyValidatedCatalogSchema() {
 		/* set strict schema verification */
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
@@ -634,7 +637,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 
 		// now try to upset an unknown entity
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.createNewEntity(Entities.PRODUCT)
@@ -644,7 +647,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 
 		assertNotNull(
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					return session.queryOneSealedEntity(
@@ -668,7 +671,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCreateDeleteAndRecreateReferencedEntityWithSameAttribute() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY);
@@ -730,7 +733,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldCreateDeleteAndRecreateSortableAttributeForReferencedEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 
@@ -793,7 +796,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAdaptSupportedLocaleAndCurrencySet() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -850,7 +853,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldChangePriceInnerRecordHandlingAndRemovePrice() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -894,7 +897,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRemoveEntityLocaleWhenAllAttributesOfSuchLocaleAreRemoved() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -910,7 +913,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -926,7 +929,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll())
@@ -937,7 +940,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -955,7 +958,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRemoveEntityLocaleWhenAllReferenceAttributesOfSuchLocaleAreRemoved() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.BRAND);
@@ -984,7 +987,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -1004,7 +1007,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocalesAll())
@@ -1017,7 +1020,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -1036,7 +1039,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocalesAll())
@@ -1047,7 +1050,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -1067,7 +1070,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRemoveEntityLocaleWhenAllAssociatedDataOfSuchLocaleAreRemoved() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -1082,7 +1085,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -1098,7 +1101,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, associatedDataContentAll(), dataInLocalesAll())
@@ -1109,7 +1112,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity entity = session.getEntity(Entities.PRODUCT, 1, dataInLocalesAll())
@@ -1127,7 +1130,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAcceptNullInNonNullableAttributeWhenDefaultValueIsSet() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -1161,7 +1164,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAllWithAttributes())
@@ -1183,7 +1186,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldDifferentClientsSeeSchemaUnchangedUntilCommitted() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -1195,7 +1198,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 		// change schema by upserting first entity
-		try (final EvitaSessionContract session = evita.createReadWriteSession(TEST_CATALOG)) {
+		try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
 			// now implicitly update the schema
 			session
 				.createNewEntity(Entities.PRODUCT, 1)
@@ -1204,7 +1207,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 			// try to read the schema in different session
 			final Thread asyncThread = new Thread(() -> {
-				evita.queryCatalog(
+				this.evita.queryCatalog(
 					TEST_CATALOG,
 					differentSession -> {
 						final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
@@ -1224,7 +1227,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		// try to read the schema in different session when changes has been committed
 		final Thread asyncThread = new Thread(() -> {
-			evita.queryCatalog(
+			this.evita.queryCatalog(
 				TEST_CATALOG,
 				differentSession -> {
 					final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
@@ -1237,7 +1240,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAcceptNullForNonNullableLocalizedAttributeWhenEntityLocaleIsMissing() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -1256,7 +1259,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
@@ -1273,7 +1276,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		assertThrows(
 			MandatoryAttributesNotProvidedException.class,
 			() -> {
-				evita.updateCatalog(
+				this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
 						session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
@@ -1286,7 +1289,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
@@ -1298,7 +1301,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
@@ -1315,7 +1318,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToSetNonNullableAttributeToNull() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.updateEntitySchema(
@@ -1366,7 +1369,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToSetNonNullableAttributeToNullOnExistingEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -1408,7 +1411,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -1444,7 +1447,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAllowToCreateTwoUniqueAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.updateEntitySchema(
@@ -1464,7 +1467,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 			}
 		);
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
@@ -1477,7 +1480,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToCreateTwoNonUniqueAttributes() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.updateEntitySchema(
@@ -1509,7 +1512,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAllowToCreateTwoLocaleSpecificUniqueAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.updateEntitySchema(
@@ -1529,7 +1532,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 			}
 		);
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH)))).isPresent());
@@ -1542,7 +1545,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToCreateTwoLocaleSpecificNonUniqueAttributes() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.updateEntitySchema(
@@ -1574,7 +1577,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAllowToCreateTwoUniqueGloballyAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
@@ -1603,7 +1606,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 			}
 		);
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
@@ -1616,7 +1619,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToCreateTwoNonUniqueGloballyAttributes() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1658,7 +1661,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAllowToCreateTwoLocaleSpecificUniqueGloballyAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
@@ -1687,7 +1690,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 			}
 		);
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH)))).isPresent());
@@ -1700,7 +1703,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToCreateTwoLocaleSpecificNonUniqueGloballyAttributes() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1742,7 +1745,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldMarkPredecessorAsSortable() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
@@ -1755,11 +1758,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertTrue(
-					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isSortable()
+					session.getEntitySchemaOrThrowException("whatever").getAttribute("whatever").orElseThrow().isSortable()
 				);
 			}
 		);
@@ -1769,7 +1772,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldFailToMarkPredecessorAsFilterable() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1788,7 +1791,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldFailToSetUpReferencedEntityPredecessorAsDirectAttribute() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1807,7 +1810,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldFailToMarkReferencedEntityPredecessorAsFilterable() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1829,7 +1832,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldFailToSetUpPredecessorAsAssociatedData() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1848,7 +1851,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldFailToSetUpReferencedEntityPredecessorAsAssociatedData() {
 		assertThrows(
 			InvalidSchemaMutationException.class,
-			() -> evita.updateCatalog(
+			() -> this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getCatalogSchema()
@@ -1865,7 +1868,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldMarkCurrencyAsFilterable() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.getCatalogSchema()
@@ -1878,11 +1881,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				assertTrue(
-					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
+					session.getEntitySchemaOrThrowException("whatever").getAttribute("whatever").orElseThrow().isFilterable()
 				);
 			}
 		);
@@ -1891,7 +1894,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToSetNonNullableAssociatedDataToNull() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -1925,7 +1928,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToSetNonNullableAssociatedDataToNullOnExistingEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -1950,7 +1953,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 		try {
 
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -1979,12 +1982,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToViolateReferenceCardinalityExactlyZeroOrOne() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+						.verifySchemaStrictly()
 						.updateVia(session);
 
 					session.createNewEntity(Entities.PRODUCT, 1)
@@ -2007,12 +2011,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToViolateReferenceCardinalityExactlyZeroOrOneOnExistingEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE)
+					.verifySchemaStrictly()
 					.updateVia(session);
 
 				final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1)
@@ -2022,7 +2027,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
@@ -2047,12 +2052,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToViolateReferenceCardinalityExactlyOne() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
 						.defineEntitySchema(Entities.PRODUCT)
 						.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+						.verifySchemaStrictly()
 						.updateVia(session);
 
 					final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1);
@@ -2073,12 +2079,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToViolateReferenceCardinalityExactlyOneOnExistingEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+					.verifySchemaStrictly()
 					.updateVia(session);
 
 				final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1)
@@ -2088,7 +2095,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
@@ -2113,7 +2120,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	@Test
 	void shouldFailToViolateReferenceCardinalityExactlyOneOrMore() {
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session
@@ -2139,7 +2146,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToViolateReferenceCardinalityExactlyOneOrMoreOnExistingEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -2154,7 +2161,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 
 		try {
-			evita.updateCatalog(
+			this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
 					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
@@ -2178,7 +2185,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldChangePriceSellability() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -2211,7 +2218,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRemoveDeepStructureOfHierarchicalEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -2237,7 +2244,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldIndexAllAttributesAndPricesAfterReferenceToHierarchicalEntityIsSet() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -2280,7 +2287,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.upsertEntity(product);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
@@ -2321,7 +2328,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAvoidCreatingIndexesForNonIndexedReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session
@@ -2363,7 +2370,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.upsertEntity(product);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
@@ -2375,7 +2382,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRegisterNonLocalizedCompoundForEachCreatedEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2393,8 +2400,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 1));
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
 					.orElseThrow();
 
 				// this function allows us to repeatedly verify index contents
@@ -2402,7 +2413,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final EntityIndex globalIndex = getGlobalIndex(productCollection);
 					assertNotNull(globalIndex);
 
-					final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
+					final SortIndex sortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
 					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
 						assertNull(sortIndex);
 					} else {
@@ -2429,7 +2440,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldUpdateNonLocalizedEntityCompoundsOnChange() {
 		shouldRegisterNonLocalizedCompoundForEachCreatedEntity();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2441,15 +2452,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
-
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
+					.orElseThrow();
 
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
+				final SortIndex sortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
 				assertNotNull(sortIndex);
 
 				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
@@ -2462,7 +2476,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldDropNonLocalizedCompoundForEachRemovedEntity() {
 		shouldRegisterNonLocalizedCompoundForEachCreatedEntity();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2470,14 +2484,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.deleteEntity(Entities.PRODUCT, 1);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
 					.orElseThrow();
 
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
+				final SortIndex sortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
 				assertNull(sortIndex);
 			}
 		);
@@ -2485,7 +2503,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRegisterLocalizedCompoundForEachCreatedEntityLanguage() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2504,15 +2522,19 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.upsertEntity(session.createNewEntity(Entities.PRODUCT, 1));
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
 					.orElseThrow();
 
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				assertNull(globalIndex.getSortIndex(new AttributeKey(attributeCodeEan)));
-				assertNull(globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
+				assertNull(globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null));
+				assertNull(globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH));
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2524,7 +2546,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex updatedGlobalIndex = getGlobalIndex(productCollection);
 				assertNotNull(updatedGlobalIndex);
 
-				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
+				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
 				assertNotNull(englishSortIndex);
 
 				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
@@ -2539,12 +2561,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex updatedGlobalIndexAgain = getGlobalIndex(productCollection);
 				assertNotNull(updatedGlobalIndexAgain);
 
-				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
+				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
 				assertNotNull(englishSortIndexAgain);
 
 				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
-				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
+				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA);
 				assertNotNull(canadianSortIndex);
 
 				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
@@ -2563,7 +2585,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldUpdateLocalizedEntityCompoundsOnChange() {
 		shouldRegisterLocalizedCompoundForEachCreatedEntityLanguage();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2575,15 +2597,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
-
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
+					.orElseThrow();
 
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
+				final SortIndex sortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA);
 				assertNotNull(sortIndex);
 
 				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
@@ -2596,7 +2621,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldDropLocalizedCompoundForEachDroppedEntityLanguage() {
 		shouldRegisterLocalizedCompoundForEachCreatedEntityLanguage();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2609,18 +2634,22 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
 					.orElseThrow();
 
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
-				assertNull(globalIndex.getSortIndex(new AttributeKey(attributeCodeEan)));
+				assertNull(globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null));
 
-				final SortIndex englishSortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
+				final SortIndex englishSortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
 				assertNull(englishSortIndex);
 
-				final SortIndex canadianSortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
+				final SortIndex canadianSortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA);
 				assertNotNull(canadianSortIndex);
 				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
@@ -2633,9 +2662,9 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				final EntityIndex updatedGlobalIndex = getGlobalIndex(productCollection);
 				assertNotNull(updatedGlobalIndex);
-				assertNull(updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan)));
-				assertNull(updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
-				assertNull(updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
+				assertNull(updatedGlobalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null));
+				assertNull(updatedGlobalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH));
+				assertNull(updatedGlobalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA));
 			}
 		);
 	}
@@ -2644,7 +2673,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldRegisterEntityCompoundsInReducedIndexesOnTheirCreation() {
 		shouldRegisterNonLocalizedCompoundForEachCreatedEntity();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 
@@ -2678,14 +2707,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
 					.orElseThrow();
 
 				final Consumer<EntityIndex> verifyIndexContents = entityIndex -> {
 					assertNotNull(entityIndex);
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
+					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
 					assertNotNull(sortIndex);
 
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
@@ -2703,7 +2736,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldDropEntityCompoundsInReducedIndexesOnTheirRemoval() {
 		shouldRegisterEntityCompoundsInReducedIndexesOnTheirCreation();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2715,14 +2748,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
+					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final SortableAttributeCompoundSchemaContract codeEanCompoundSchema = productSchema
+					.getSortableAttributeCompound(attributeCodeEan)
 					.orElseThrow();
 
 				final Consumer<EntityIndex> verifyIndexContentsContains = entityIndex -> {
 					assertNotNull(entityIndex);
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
+					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
 					assertNotNull(sortIndex);
 
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
@@ -2738,7 +2775,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRegisterNonLocalizedReferenceCompoundForEachCreatedEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2789,15 +2826,21 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
 				// this function allows us to repeatedly verify index contents
-				final BiConsumer<EntityIndex, Serializable[]> verifyIndexContents = (entityIndex, expected) -> {
+				final TriConsumer<EntityIndex, String, Serializable[]> verifyIndexContents = (entityIndex, referenceName, expected) -> {
 					assertNotNull(entityIndex);
+					final SealedEntitySchema productSchema = productCollection.getSchema();
+					final ReferenceSchemaContract referenceSchema = productSchema
+						.getReferenceOrThrowException(referenceName);
+					final SortableAttributeCompoundSchemaContract compoundSchema = referenceSchema
+						.getSortableAttributeCompound(attributeCodeEan)
+						.orElseThrow();
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
+					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, referenceSchema, compoundSchema, null);
 					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
 						assertNull(sortIndex);
 					} else {
@@ -2806,8 +2849,16 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					}
 				};
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Serializable[]{null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Serializable[]{null, null});
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10),
+					Entities.CATEGORY,
+					new Serializable[]{null, null}
+				);
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20),
+					Entities.BRAND,
+					new Serializable[]{null, null}
+				);
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll())
 					.orElseThrow()
@@ -2826,8 +2877,16 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), new Serializable[]{"ABC", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Serializable[]{"ABC", "123"});
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10),
+					Entities.CATEGORY,
+					new Serializable[]{"ABC", "123"}
+				);
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20),
+					Entities.BRAND,
+					new Serializable[]{"ABC", "123"}
+				);
 			}
 		);
 	}
@@ -2836,13 +2895,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldDropNonLocalizedReferenceCompoundForEachRemovedEntity() {
 		shouldRegisterNonLocalizedReferenceCompoundForEachCreatedEntity();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.deleteEntity(Entities.PRODUCT, 1);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
@@ -2859,7 +2918,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRegisterLocalizedReferenceCompoundForEachCreatedEntityLanguage() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2912,18 +2971,40 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final ReferenceSchemaContract categoryReferenceSchema = productSchema
+					.getReferenceOrThrowException(Entities.CATEGORY);
+				final SortableAttributeCompoundSchemaContract categoryCodeEanCompoundSchema = categoryReferenceSchema
+					.getSortableAttributeCompound(attributeCodeEan)
+					.orElseThrow();
+				final ReferenceSchemaContract brandReferenceSchema = productSchema
+					.getReferenceOrThrowException(Entities.BRAND);
+				final SortableAttributeCompoundSchemaContract brandCodeEanCompoundSchema = brandReferenceSchema
+					.getSortableAttributeCompound(attributeCodeEan)
+					.orElseThrow();
 
-				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan)));
-				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
+				assertNull(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
+						.getSortIndex(productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, null)
+				);
+				assertNull(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
+						.getSortIndex(productSchema, brandReferenceSchema, brandCodeEanCompoundSchema, Locale.ENGLISH)
+				);
 
 				// this function allows us to repeatedly verify index contents
-				final TriConsumer<EntityIndex, Locale, Serializable[]> verifyIndexContents = (entityIndex, locale, expected) -> {
+				final QuadriConsumer<EntityIndex, String, Locale, Serializable[]> verifyIndexContents = (entityIndex, referenceName, locale, expected) -> {
 					assertNotNull(entityIndex);
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
+					final SortIndex sortIndex = entityIndex.getSortIndex(
+						productSchema,
+						productSchema.getReferenceOrThrowException(referenceName),
+						categoryCodeEanCompoundSchema,
+						locale
+					);
 					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
 						assertNull(sortIndex);
 					} else {
@@ -2943,8 +3024,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{null, null});
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10),
+					Entities.CATEGORY,
+					Locale.ENGLISH,
+					new Serializable[]{null, null}
+				);
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20),
+					Entities.BRAND,
+					Locale.CANADA,
+					new Serializable[]{null, null}
+				);
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2959,8 +3050,18 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{"The product", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{"The CA product", "456"});
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10),
+					Entities.CATEGORY,
+					Locale.ENGLISH,
+					new Serializable[]{"The product", "123"}
+				);
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20),
+					Entities.BRAND,
+					Locale.CANADA,
+					new Serializable[]{"The CA product", "456"}
+				);
 			}
 		);
 	}
@@ -2969,16 +3070,23 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldUpdateLocalizedEntityReferenceCompoundsOnChange() {
 		shouldRegisterLocalizedReferenceCompoundForEachCreatedEntityLanguage();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
 
 				// this function allows us to repeatedly verify index contents
-				final TriConsumer<EntityIndex, Locale, Serializable[]> verifyIndexContents = (entityIndex, locale, expected) -> {
+				final QuadriConsumer<EntityIndex, String, Locale, Serializable[]> verifyIndexContents = (entityIndex, referenceName, locale, expected) -> {
 					assertNotNull(entityIndex);
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
+					final SealedEntitySchema productSchema = session.getEntitySchemaOrThrowException(Entities.PRODUCT);
+					final ReferenceSchemaContract referenceSchema = productSchema
+						.getReferenceOrThrowException(referenceName);
+					final SortableAttributeCompoundSchemaContract compoundSchema = referenceSchema
+						.getSortableAttributeCompound(attributeCodeEan)
+						.orElseThrow();
+
+					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, referenceSchema, compoundSchema, locale);
 					assertNotNull(sortIndex);
 
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
@@ -3002,12 +3110,22 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Serializable[]{"Whatever", "567"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Serializable[]{"Else", "624"});
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10),
+					Entities.CATEGORY,
+					Locale.ENGLISH,
+					new Serializable[]{"Whatever", "567"}
+				);
+				verifyIndexContents.accept(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20),
+					Entities.BRAND,
+					Locale.CANADA,
+					new Serializable[]{"Else", "624"}
+				);
 			}
 		);
 	}
@@ -3016,7 +3134,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldDropLocalizedReferenceCompoundForEachDroppedEntityLanguage() {
 		shouldRegisterLocalizedReferenceCompoundForEachCreatedEntityLanguage();
 
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -3031,12 +3149,29 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.upsertVia(session);
 
 				// check there are no specialized entity indexes
-				final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+				final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
+				final SealedEntitySchema productSchema = productCollection.getSchema();
+				final ReferenceSchemaContract categoryReferenceSchema = productSchema
+					.getReferenceOrThrowException(Entities.CATEGORY);
+				final SortableAttributeCompoundSchemaContract categoryCodeEanCompoundSchema = categoryReferenceSchema
+					.getSortableAttributeCompound(attributeCodeEan)
+					.orElseThrow();
+				final ReferenceSchemaContract brandReferenceSchema = productSchema
+					.getReferenceOrThrowException(Entities.BRAND);
+				final SortableAttributeCompoundSchemaContract brandCodeEanCompoundSchema = brandReferenceSchema
+					.getSortableAttributeCompound(attributeCodeEan)
+					.orElseThrow();
 
-				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
-				assertNotNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
+				assertNull(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
+						.getSortIndex(productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
+				);
+				assertNotNull(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
+						.getSortIndex(productSchema, brandReferenceSchema, brandCodeEanCompoundSchema, Locale.CANADA)
+				);
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -3047,15 +3182,21 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10).getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH)));
-				assertNull(getReferencedEntityIndex(productCollection, Entities.BRAND, 20).getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA)));
+				assertNull(
+					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
+						.getSortIndex(productSchema, null, categoryCodeEanCompoundSchema, Locale.ENGLISH)
+				);
+				assertNull(
+					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
+						.getSortIndex(productSchema, null, categoryCodeEanCompoundSchema, Locale.CANADA)
+				);
 			}
 		);
 	}
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferencesOnEntityCreation() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3076,7 +3217,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupOneToManyReflectedReferencesIncludingAttributesOnEntityCreation() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.CATEGORY)
@@ -3115,7 +3256,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			}
 		);
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
@@ -3131,7 +3272,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToCreateReflectedReferenceWhenMandatoryAttributesHasNoDefaultValues() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributesWithoutDefaults(session);
@@ -3158,7 +3299,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferencesOnEntityCreationIncludingInheritedAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3185,7 +3326,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldUpdateInheritedAttributeOnReflectedReference() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3225,7 +3366,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldUpdateInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3265,7 +3406,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRemoveInheritedAttributeOnReflectedReference() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3305,7 +3446,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldRemoveInheritedAttributeOnReferenceWhenSetOnReflectedOne() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3345,7 +3486,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreation() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3366,7 +3507,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReferencesWhenReflectedOnesExistOnEntityCreationIncludingInheritedAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3392,7 +3533,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringCreation() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3410,7 +3551,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldFailToCreateReflectedReferencesWhenBaseEntityIsNotPresentDuringUpdate() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3435,7 +3576,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3456,7 +3597,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferencesByReferencesOnCreatedEntityIncludingInheritedValues() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3482,7 +3623,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntity() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3503,7 +3644,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReferencesByReflectedReferencesOnCreatedEntityIncludingInheritedAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3529,7 +3670,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReflectedReference() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3557,7 +3698,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReflectedReferenceIncludingInheritedAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3590,7 +3731,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReferenceViaReflectedReference() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3618,7 +3759,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallySetupReferenceViaReflectedReferenceWithInheritedAttributes() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchemaWithInheritedAttributes(session);
@@ -3651,7 +3792,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallyRemoveReferenceViaReflectedReferenceIsRemoved() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3680,7 +3821,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallyRemoveReflectedReferenceViaReferenceIsRemoved() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3709,7 +3850,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallyRemoveReflectedReferenceViaReferenceOnEntityRemoval() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);
@@ -3734,7 +3875,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	@Test
 	void shouldAutomaticallyRemoveReferenceViaReflectedReferenceOnEntityRemoval() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				createEntangledSchema(session);

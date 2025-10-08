@@ -153,14 +153,14 @@ public class GrpcAssertions {
 			final GrpcAttributeSchema actualAttributeSchema = actualAttributesMap.get(expectedAttributeEntry.getKey());
 
 			if (expectedAttributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-				assertEquals(GrpcAttributeSchemaType.GLOBAL, actualAttributeSchema.getSchemaType());
+				assertEquals(GrpcAttributeSchemaType.GLOBAL_SCHEMA, actualAttributeSchema.getSchemaType());
 				assertEquals(globalAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 				assertEquals(globalAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
 			} else if (expectedAttributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
-				assertEquals(GrpcAttributeSchemaType.ENTITY, actualAttributeSchema.getSchemaType());
+				assertEquals(GrpcAttributeSchemaType.ENTITY_SCHEMA, actualAttributeSchema.getSchemaType());
 				assertEquals(entityAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 			} else {
-				assertEquals(GrpcAttributeSchemaType.REFERENCE, actualAttributeSchema.getSchemaType());
+				assertEquals(GrpcAttributeSchemaType.REFERENCE_SCHEMA, actualAttributeSchema.getSchemaType());
 			}
 
 			assertEquals(expectedAttributeSchema.getName(), actualAttributeSchema.getName());

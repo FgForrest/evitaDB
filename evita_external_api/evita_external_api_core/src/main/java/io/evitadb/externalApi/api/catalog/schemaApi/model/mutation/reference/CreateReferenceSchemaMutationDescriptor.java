@@ -148,6 +148,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
 		.staticFields(List.of(
+			MUTATION_TYPE,
 			NAME,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,

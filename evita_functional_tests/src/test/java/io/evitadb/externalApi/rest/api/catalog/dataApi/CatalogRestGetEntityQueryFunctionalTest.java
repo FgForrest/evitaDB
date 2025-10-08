@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.ScopeAwareEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -51,8 +52,8 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -92,8 +93,8 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), "code")
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), "code")
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -125,7 +126,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.get("/PRODUCT/get")
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), archivedEntity.getPrimaryKey())
-				.e(GetEntityEndpointHeaderDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
+				.e(ScopeAwareEndpointHeaderDescriptor.SCOPE.name(), Scope.ARCHIVED.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -184,9 +185,9 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, codeAttribute)
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.LOCALE.name(), CZECH_LOCALE.toLanguageTag())
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList("code", "name"))
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), CZECH_LOCALE.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList("code", "name"))
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -220,8 +221,8 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, codeAttribute)
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList(ATTRIBUTE_CODE, ATTRIBUTE_NAME))
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), Arrays.asList(ATTRIBUTE_CODE, ATTRIBUTE_NAME))
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -258,9 +259,9 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.name(), true)
-				.e(GetEntityEndpointHeaderDescriptor.LOCALE.name(), CZECH_LOCALE.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.name(), true)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), CZECH_LOCALE.toLanguageTag())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -298,9 +299,9 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_URL, urlAttribute)
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), ATTRIBUTE_URL)
-				.e(GetEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name(), ATTRIBUTE_URL)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -408,7 +409,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
-				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
+				.e(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -444,7 +445,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
-				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
+				.e(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -497,7 +498,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), priceLists)
-				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
+				.e(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -533,9 +534,9 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name(), ASSOCIATED_DATA_LABELS)
-				.e(GetEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name(), ASSOCIATED_DATA_LABELS)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -571,8 +572,8 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
-				.e(GetEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name(), ASSOCIATED_DATA_LABELS)
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name(), ASSOCIATED_DATA_LABELS)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -607,7 +608,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(GetEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.name(), true)
+				.e(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.name(), true)
 				.build())
 			.executeAndThen()
 			.statusCode(200)

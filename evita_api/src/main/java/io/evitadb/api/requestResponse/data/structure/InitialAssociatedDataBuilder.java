@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,12 +27,14 @@ import io.evitadb.api.exception.InvalidDataTypeMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 
 import javax.annotation.Nonnull;
@@ -40,7 +42,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -63,6 +64,9 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
+	/**
+	 * Stable class version identifier used during Java serialization.
+	 */
 	@Serial private static final long serialVersionUID = 7714436064799237939L;
 	/**
 	 * Entity schema if available.
@@ -74,11 +78,49 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	private final Map<AssociatedDataKey, AssociatedDataValue> associatedDataValues;
 
 	/**
-	 * AssociatedDataBuilder constructor that will be used for building brand new {@link AssociatedData} container.
+	 * Creates a brand new mutable builder for constructing an {@link AssociatedData} container
+	 * from scratch.
+	 *
+	 * - Verifies all written entries against the provided {@link EntitySchemaContract}.
+	 * - Optimized for newly created entities where no change tracking is required.
+	 *
+	 * @param entitySchema non-null entity schema used for validation and locale support
 	 */
 	InitialAssociatedDataBuilder(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
-		this.associatedDataValues = new HashMap<>();
+		this.associatedDataValues = CollectionUtils.createHashMap(8);
+	}
+
+	/**
+	 * Creates a builder pre-populated with the provided associated data values.
+	 *
+	 * Each value is re-inserted via {@code setAssociatedData(...)} to ensure proper schema/type
+	 * verification and to respect localization.
+	 *
+	 * @param schema non-null entity schema used for validation
+	 * @param associatedDataValues initial values to populate this builder with
+	 */
+	InitialAssociatedDataBuilder(
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Collection<AssociatedDataValue> associatedDataValues
+	) {
+		this.entitySchema = schema;
+		this.associatedDataValues = CollectionUtils.createHashMap(associatedDataValues.size());
+		for (AssociatedDataValue associatedDataValue : associatedDataValues) {
+			final AssociatedDataKey associatedDataKey = associatedDataValue.key();
+			if (associatedDataKey.localized()) {
+				this.setAssociatedData(
+					associatedDataKey.associatedDataName(),
+					associatedDataKey.localeOrThrowException(),
+					associatedDataValue.value()
+				);
+			} else {
+				this.setAssociatedData(
+					associatedDataKey.associatedDataName(),
+					associatedDataValue.value()
+				);
+			}
+		}
 	}
 
 	@Nonnull
@@ -113,7 +155,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		associatedDataValues.remove(associatedDataKey);
+		this.associatedDataValues.remove(associatedDataKey);
 		return this;
 	}
 
@@ -125,8 +167,8 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass());
-			associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass());
+			this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 			return this;
 		}
 	}
@@ -136,8 +178,8 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	public <T extends Serializable> AssociatedDataBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
 		final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass());
-		associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
+		verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass());
+		this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 		return this;
 	}
 
@@ -145,7 +187,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nullable
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName) {
 		//noinspection unchecked
-		return (T) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
+		return (T) ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
 				.map(AssociatedDataValue::value)
 				.orElse(null);
 	}
@@ -153,7 +195,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nullable
 	@Override
 	public <T extends Serializable> T getAssociatedData(@Nonnull String associatedDataName, @Nonnull Class<T> dtoType, @Nonnull ReflectionLookup reflectionLookup) {
-		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
+		return ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
 				.map(AssociatedDataValue::value)
 				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, dtoType, reflectionLookup))
 				.orElse(null);
@@ -163,7 +205,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nullable
 	public <T extends Serializable> T[] getAssociatedDataArray(@Nonnull String associatedDataName) {
 		//noinspection unchecked
-		return (T[]) ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
+		return (T[]) ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)))
 			.map(AssociatedDataValue::value)
 			.orElse(null);
 	}
@@ -171,13 +213,13 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Optional<AssociatedDataValue> getAssociatedDataValue(@Nonnull String associatedDataName) {
-		return ofNullable(associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
+		return ofNullable(this.associatedDataValues.get(new AssociatedDataKey(associatedDataName)));
 	}
 
 	@Nonnull
 	@Override
 	public Collection<AssociatedDataValue> getAssociatedDataValues(@Nonnull String associatedDataName) {
-		return associatedDataValues
+		return this.associatedDataValues
 			.entrySet()
 			.stream()
 			.filter(it -> associatedDataName.equals(it.getKey().associatedDataName()))
@@ -205,7 +247,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass(), locale);
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass(), locale);
 			this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 			return this;
 		}
@@ -219,7 +261,7 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
 			final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-			verifyAssociatedDataIsInSchemaAndTypeMatch(entitySchema, associatedDataName, valueToStore.getClass(), locale);
+			verifyAssociatedDataIsInSchemaAndTypeMatch(this.entitySchema, associatedDataName, valueToStore.getClass(), locale);
 			this.associatedDataValues.put(associatedDataKey, new AssociatedDataValue(associatedDataKey, valueToStore));
 			return this;
 		}
@@ -288,15 +330,23 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 			);
 	}
 
-	@Nonnull
-	public Set<Locale> getAssociatedDataLocales() {
-		return this.associatedDataValues
-				.keySet()
-				.stream()
-				.map(AssociatedDataKey::locale)
-				.filter(Objects::nonNull)
-				.collect(Collectors.toSet());
-	}
+ @Nonnull
+ /**
+  * Returns the set of all locales that appear on any localized associated data currently
+  * stored in this builder.
+  *
+  * Non-localized entries are ignored.
+  *
+  * @return non-null set of locales present among localized associated data keys
+  */
+ public Set<Locale> getAssociatedDataLocales() {
+ 	return this.associatedDataValues
+ 			.keySet()
+ 			.stream()
+ 			.map(AssociatedDataKey::locale)
+ 			.filter(Objects::nonNull)
+ 			.collect(Collectors.toSet());
+ }
 
 	@Nonnull
 	@Override
@@ -307,7 +357,9 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Stream<? extends AssociatedDataMutation> buildChangeSet() {
-		throw new UnsupportedOperationException("Initial entity creation doesn't support change monitoring - it has no sense.");
+		return getAssociatedDataValues()
+			.stream()
+			.map(ad -> new UpsertAssociatedDataMutation(ad.key(), ad.valueOrThrowException()));
 	}
 
 	@Nonnull
@@ -341,7 +393,19 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		);
 	}
 
-	static void verifyAssociatedDataIsInSchemaAndTypeMatch(
+ /**
+ * Verifies that the associated data with the given name exists in the schema (or that evolution allows
+ * adding it) and that the provided value type is compatible with the configured type.
+ *
+ * This variant validates a non-localized value.
+ *
+ * @param entitySchema non-null entity schema used for validation
+ * @param associatedDataName non-null associated data name
+ * @param aClass nullable runtime type of the value to verify; when {@code null} only schema presence is checked
+ * @throws InvalidMutationException when the associated data is not present and evolution does not allow adding it
+ * @throws InvalidDataTypeMutationException when the value type is incompatible with the schema
+ */
+static void verifyAssociatedDataIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass
@@ -352,7 +416,19 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 		);
 	}
 
-	static void verifyAssociatedDataIsInSchemaAndTypeMatch(
+ /**
+ * Verifies schema presence and type compatibility for a potentially localized associated data value.
+ *
+ * When {@code locale} is non-null, localization constraints and supported locales are validated.
+ *
+ * @param entitySchema non-null entity schema
+ * @param associatedDataName non-null associated data name
+ * @param aClass nullable runtime type of the value; when {@code null} only schema/localization is checked
+ * @param locale nullable locale; when non-null validates localized schema and locale support
+ * @throws InvalidMutationException when schema/localization constraints are violated
+ * @throws InvalidDataTypeMutationException when the value type is incompatible with the schema
+ */
+static void verifyAssociatedDataIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass,
@@ -365,7 +441,24 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	}
 
 
-	static void verifyAssociatedDataIsInSchemaAndTypeMatch(
+ /**
+ * Low-level verification routine that performs full validation against an explicit
+ * {@link AssociatedDataSchemaContract} instance (when available).
+ *
+ * It validates:
+ * - presence or evolvability of the associated data in the schema
+ * - value type compatibility (when {@code aClass} provided)
+ * - localization rules and supported locales (when {@code locale} provided)
+ *
+ * @param entitySchema non-null entity schema
+ * @param associatedDataName non-null associated data name
+ * @param aClass nullable runtime type of the value
+ * @param locale nullable locale to validate localization constraints
+ * @param associatedDataSchema nullable explicit schema to validate against
+ * @throws InvalidMutationException on schema or localization violations
+ * @throws InvalidDataTypeMutationException on incompatible value type
+ */
+static void verifyAssociatedDataIsInSchemaAndTypeMatch(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String associatedDataName,
 		@Nullable Class<? extends Serializable> aClass,

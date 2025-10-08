@@ -23,8 +23,7 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
@@ -43,9 +42,11 @@ import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -53,7 +54,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -119,45 +119,45 @@ public class ChainIndex implements
 	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
 	 * is part of the global {@link GlobalEntityIndex}.
 	 */
-	@Getter @Nullable private final ReferenceKey referenceKey;
+	@Getter @Nullable private final RepresentativeReferenceKey referenceKey;
 	/**
 	 * Contains key identifying the attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
 	 * bulk insertion or read only state where transaction are not used.
 	 */
 	@Nullable private ChainIndexChanges chainIndexChanges;
 
-	public ChainIndex(@Nonnull AttributeKey attributeKey) {
-		this(null, attributeKey);
+	public ChainIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
+		this(null, attributeIndexKey);
 	}
 
-	public ChainIndex(@Nullable ReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
+	public ChainIndex(@Nullable RepresentativeReferenceKey referenceKey, @Nonnull AttributeIndexKey attributeIndexKey) {
 		this.referenceKey = referenceKey;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(new HashMap<>(), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
-		this.elementStates = new TransactionalMap<>(new HashMap<>());
+		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
+		this.elementStates = new TransactionalMap<>(CollectionUtils.createHashMap(32));
 	}
 
 	public ChainIndex(
-		@Nonnull AttributeKey attributeKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
-		this(null, attributeKey, chains, elementStates);
+		this(null, attributeIndexKey, chains, elementStates);
 	}
 
 	public ChainIndex(
-		@Nullable ReferenceKey referenceKey,
-		@Nonnull AttributeKey attributeKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
 		this.referenceKey = referenceKey;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(
 			Arrays.stream(chains)
@@ -175,13 +175,13 @@ public class ChainIndex implements
 	}
 
 	private ChainIndex(
-		@Nullable ReferenceKey referenceKey,
-		@Nonnull AttributeKey attributeKey,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
 		this.referenceKey = referenceKey;
-		this.attributeKey = attributeKey;
+		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(elementStates);
@@ -311,7 +311,7 @@ public class ChainIndex implements
 		final StringBuilder errors = new StringBuilder(512);
 
 		int overallCount = 0;
-		for (Entry<Integer, TransactionalUnorderedIntArray> entry : chains.entrySet()) {
+		for (Entry<Integer, TransactionalUnorderedIntArray> entry : this.chains.entrySet()) {
 			overallCount += entry.getValue().getLength();
 			final int[] unorderedList = entry.getValue().getArray();
 			if (unorderedList.length <= 0) {
@@ -380,7 +380,7 @@ public class ChainIndex implements
 			}
 		}
 
-		for (Entry<Integer, ChainElementState> entry : elementStates.entrySet()) {
+		for (Entry<Integer, ChainElementState> entry : this.elementStates.entrySet()) {
 			final int chainHeadPk = entry.getValue().inChainOfHeadWithPrimaryKey();
 			if (entry.getValue().state() == ElementState.SUCCESSOR) {
 				final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadPk);
@@ -412,7 +412,7 @@ public class ChainIndex implements
 			}
 		}
 
-		if (overallCount != elementStates.size()) {
+		if (overallCount != this.elementStates.size()) {
 			errors.append("\nThe number of elements in chains doesn't match " +
 				"the number of elements in element states!");
 		}
@@ -426,7 +426,7 @@ public class ChainIndex implements
 			state = ConsistencyState.INCONSISTENT;
 		}
 
-		final String chainsListing = chains.values()
+		final String chainsListing = this.chains.values()
 			.stream()
 			.map(it -> {
 				final StringBuilder sb = new StringBuilder("\t- ");
@@ -464,7 +464,7 @@ public class ChainIndex implements
 			this.chainIndexChanges = null;
 			return new ChainIndexStoragePart(
 				entityIndexPrimaryKey,
-				attributeKey,
+				this.attributeIndexKey,
 				this.elementStates,
 				this.chains.values()
 					.stream()
@@ -507,7 +507,7 @@ public class ChainIndex implements
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ChainIndex(
 			this.referenceKey,
-			this.attributeKey,
+			this.attributeIndexKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
 		);
@@ -516,8 +516,8 @@ public class ChainIndex implements
 	@Override
 	public String toString() {
 		return "ChainIndex" + (this.referenceKey == null ? "" : " (refKey: " + this.referenceKey + ")") + ":\n" +
-			"   - chains:\n" + chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
-			"   - elementStates:\n" + elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
+			"   - chains:\n" + this.chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
+			"   - elementStates:\n" + this.elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
 	}
 
 	/*
@@ -1179,19 +1179,20 @@ public class ChainIndex implements
 			this(previousState.inChainOfHeadWithPrimaryKey, previousState.predecessorPrimaryKey, newState);
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			switch (state) {
+			switch (this.state) {
 				case HEAD -> {
-					return "HEAD \uD83D\uDD17 " + inChainOfHeadWithPrimaryKey;
+					return "HEAD \uD83D\uDD17 " + this.inChainOfHeadWithPrimaryKey;
 				}
 				case SUCCESSOR -> {
-					return "SUCCESSOR of " + predecessorPrimaryKey + " \uD83D\uDD17 " + inChainOfHeadWithPrimaryKey;
+					return "SUCCESSOR of " + this.predecessorPrimaryKey + " \uD83D\uDD17 " + this.inChainOfHeadWithPrimaryKey;
 				}
 				case CIRCULAR -> {
-					return "CIRCULAR of " + predecessorPrimaryKey + " \uD83D\uDD17 " + inChainOfHeadWithPrimaryKey;
+					return "CIRCULAR of " + this.predecessorPrimaryKey + " \uD83D\uDD17 " + this.inChainOfHeadWithPrimaryKey;
 				}
-				default -> throw new IllegalStateException("Unexpected value: " + state);
+				default -> throw new IllegalStateException("Unexpected value: " + this.state);
 			}
 		}
 	}

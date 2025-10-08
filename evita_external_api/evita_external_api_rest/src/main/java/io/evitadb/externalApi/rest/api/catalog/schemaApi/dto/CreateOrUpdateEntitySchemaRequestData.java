@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,9 +44,9 @@ public class CreateOrUpdateEntitySchemaRequestData {
 
 	@Nonnull
 	public Optional<JsonNode> getMutations() {
-		if (mutations == null || mutations instanceof NullNode) {
+		if (this.mutations == null || this.mutations instanceof NullNode) {
 			return Optional.empty();
 		}
-		return Optional.of(mutations);
+		return Optional.of(this.mutations);
 	}
 }

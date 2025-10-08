@@ -79,13 +79,13 @@ class ListAttachmentKey<T> extends AttachmentKey<AttachmentList<T>> {
 		}
 		AttachmentList<?> list = (AttachmentList<?>) value;
 		final Class<?> listValueClass = list.getValueClass();
-		if (listValueClass != valueClass) {
+		if (listValueClass != this.valueClass) {
 			throw new ClassCastException();
 		}
 		return (AttachmentList<T>) list;
 	}
 
 	Class<T> getValueClass() {
-		return valueClass;
+		return this.valueClass;
 	}
 }

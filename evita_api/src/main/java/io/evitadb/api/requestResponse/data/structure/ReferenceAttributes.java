@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,8 +31,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Extension of {@link Attributes} for reference attributes.
@@ -45,18 +47,6 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 	 * Definition of the reference schema.
 	 */
 	final ReferenceSchemaContract referenceSchema;
-
-	public ReferenceAttributes(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		super(
-			entitySchema,
-			Collections.emptyList(),
-			referenceSchema.getAttributes()
-		);
-		this.referenceSchema = referenceSchema;
-	}
 
 	public ReferenceAttributes(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -80,8 +70,15 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 
 	@Nonnull
 	@Override
+	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
+		return this.referenceSchema.getAttribute(attributeName)
+		                           .or(() -> ofNullable(this.attributeTypes.get(attributeName)));
+	}
+
+	@Nonnull
+	@Override
 	protected AttributeNotFoundException createAttributeNotFoundException(@Nonnull String attributeName) {
-		return new AttributeNotFoundException(attributeName, referenceSchema, entitySchema);
+		return new AttributeNotFoundException(attributeName, this.referenceSchema, this.entitySchema);
 	}
 
 }

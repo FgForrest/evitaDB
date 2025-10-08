@@ -27,11 +27,11 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
 import lombok.RequiredArgsConstructor;
 
@@ -42,7 +42,8 @@ import lombok.RequiredArgsConstructor;
  */
 @Deprecated(since = "2024.3", forRemoval = true)
 @RequiredArgsConstructor
-public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIndexStoragePart> {
+public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -54,15 +55,29 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 	public FilterIndexStoragePart read(Kryo kryo, Input input, Class<? extends FilterIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
 		final InvertedIndex invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();
 		if (hasRangeIndex) {
 			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, null, invertedIndex.getValueToRecordBitmap(), intRangeIndex, uniquePartId);
+			return new FilterIndexStoragePart(
+				entityIndexPrimaryKey,
+				attributeKey,
+				null,
+				invertedIndex.getValueToRecordBitmap(),
+				intRangeIndex,
+				uniquePartId
+			);
 		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, null, invertedIndex.getValueToRecordBitmap(), null, uniquePartId);
+			return new FilterIndexStoragePart(
+				entityIndexPrimaryKey,
+				attributeKey,
+				null,
+				invertedIndex.getValueToRecordBitmap(),
+				null,
+				uniquePartId
+			);
 		}
 	}
 

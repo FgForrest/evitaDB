@@ -10,6 +10,7 @@ module evita.java.driver {
 
 	requires static jsr305;
 	requires static lombok;
+
 	requires org.slf4j;
 	requires com.google.protobuf;
 
@@ -23,5 +24,7 @@ module evita.java.driver {
 	requires io.grpc.stub;
 	requires com.linecorp.armeria.grpc;
 	requires com.linecorp.armeria;
+	requires org.reactivestreams;
+	requires io.netty.codec.http2;
 
 }

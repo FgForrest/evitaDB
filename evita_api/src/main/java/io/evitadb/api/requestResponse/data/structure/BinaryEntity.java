@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,17 +63,17 @@ public class BinaryEntity implements EntityClassifier {
 	@Nonnull
 	@Override
 	public String getType() {
-		return schema.getName();
+		return this.schema.getName();
 	}
 
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE
 			+ 5 * MemoryMeasuringConstants.ARRAY_BASE_SIZE
-			+ entityStoragePart.length
-			+ ofNullable(attributeStorageParts).stream().flatMap(Arrays::stream).mapToInt(it -> MemoryMeasuringConstants.ARRAY_BASE_SIZE + it.length).sum()
-			+ ofNullable(associatedDataStorageParts).stream().flatMap(Arrays::stream).mapToInt(it -> MemoryMeasuringConstants.ARRAY_BASE_SIZE + it.length).sum()
-			+ ofNullable(priceStoragePart).map(it -> it.length).orElse(0)
-			+ ofNullable(referenceStoragePart).map(it -> it.length).orElse(0);
+			+ this.entityStoragePart.length
+			+ ofNullable(this.attributeStorageParts).stream().flatMap(Arrays::stream).mapToInt(it -> MemoryMeasuringConstants.ARRAY_BASE_SIZE + it.length).sum()
+			+ ofNullable(this.associatedDataStorageParts).stream().flatMap(Arrays::stream).mapToInt(it -> MemoryMeasuringConstants.ARRAY_BASE_SIZE + it.length).sum()
+			+ ofNullable(this.priceStoragePart).map(it -> it.length).orElse(0)
+			+ ofNullable(this.referenceStoragePart).map(it -> it.length).orElse(0);
 	}
 
 }

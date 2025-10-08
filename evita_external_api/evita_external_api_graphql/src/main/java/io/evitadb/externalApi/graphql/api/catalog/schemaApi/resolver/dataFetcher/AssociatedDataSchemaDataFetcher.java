@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Finds and returns concrete {@link AssociatedDataSchemaContract} from current parent {@link EntitySchemaContract}
@@ -45,9 +46,9 @@ public class AssociatedDataSchemaDataFetcher implements DataFetcher<AssociatedDa
 
 	@Nonnull
 	@Override
-	public AssociatedDataSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EntitySchemaContract entitySchema = environment.getSource();
-		return entitySchema.getAssociatedData(name)
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find associated data schema for name `" + name + "` in entity schema `" + entitySchema.getName() + "`."));
+	public AssociatedDataSchemaContract get(DataFetchingEnvironment environment) throws Exception {
+		final EntitySchemaContract entitySchema = Objects.requireNonNull(environment.getSource());
+		return entitySchema.getAssociatedData(this.name)
+			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find associated data schema for name `" + this.name + "` in entity schema `" + entitySchema.getName() + "`."));
 	}
 }

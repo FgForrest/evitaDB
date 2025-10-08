@@ -42,7 +42,7 @@ jobs:
     steps:
 
     - name: Download release branch info
-      uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
+      uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
       if: ${{ github.event.workflow_run.conclusion == 'success' }}
       with:
         workflow: ${{ github.event.workflow_run.workflow_id }}
@@ -63,7 +63,7 @@ jobs:
         fi
 
     - name: Checkout code
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2    # checkout sources
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 checkout sources
       with:
         ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
@@ -78,7 +78,7 @@ jobs:
         hotfix-branch-pattern: 'release_.*'
 
     - name: Setup Java JDK
-      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0 setup JDK 17 for building
+      uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1  # setup JDK 17 for building
       with:
         distribution: 'temurin'
         java-version: '17'
@@ -135,7 +135,7 @@ jobs:
         commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
 
     - name: Upload dist.zip to release
-      uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
+      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
       if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -144,7 +144,7 @@ jobs:
         asset_content_type: application/zip
 
     - name: Upload dist.tar.gz to release
-      uses: actions/upload-release-asset@64e5e85fc528f162d7ba7ce2d15a3bb67efb3d80 # v1.0.1
+      uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
       if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}

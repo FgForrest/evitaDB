@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,51 +26,40 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.utils.Assert;
-import lombok.AccessLevel;
-import lombok.Getter;
+import io.evitadb.dataType.map.LazyHashMap;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Extension of the {@link InitialAttributesBuilder} for {@link ReferenceAttributes}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class InitialReferenceAttributesBuilder extends InitialAttributesBuilder<AttributeSchemaContract, InitialReferenceAttributesBuilder> {
+public class InitialReferenceAttributesBuilder
+	extends InitialAttributesBuilder<AttributeSchemaContract, InitialReferenceAttributesBuilder> {
 	@Serial private static final long serialVersionUID = -5627484741551461956L;
 	/**
 	 * Definition of the reference schema.
 	 */
 	private final ReferenceSchemaContract referenceSchema;
-	@Getter(AccessLevel.PRIVATE) private final String location;
 
-	public InitialReferenceAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema) {
-		super(entitySchema);
+	public InitialReferenceAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
+		super(entitySchema, attributeTypes);
 		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
-	}
-
-	public InitialReferenceAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, boolean suppressVerification) {
-		super(entitySchema, suppressVerification);
-		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
 	}
 
 	@Nonnull
 	@Override
 	public Supplier<String> getLocationResolver() {
-		return this::getLocation;
+		return () -> "`" + this.entitySchema.getName() + "` reference `" + this.referenceSchema.getName() + "`";
 	}
 
 	@Nonnull
@@ -82,44 +71,19 @@ public class InitialReferenceAttributesBuilder extends InitialAttributesBuilder<
 	@Nonnull
 	@Override
 	public ReferenceAttributes build() {
-		final Map<String, AttributeSchemaContract> newAttributes = this.attributeValues
-			.entrySet()
-			.stream()
-			.filter(entry -> this.referenceSchema.getAttribute(entry.getKey().attributeName()).isEmpty())
-			.map(Entry::getValue)
-			.map(AttributesBuilder::createImplicitReferenceAttributeSchema)
-			.collect(
-				Collectors.toUnmodifiableMap(
-					AttributeSchemaContract::getName,
-					Function.identity(),
-					(attributeType, attributeType2) -> {
-						Assert.isTrue(
-							Objects.equals(attributeType, attributeType2),
-							"Ambiguous situation - there are two attributes with the same name and different definition:\n" +
-								attributeType + "\n" +
-								attributeType2
-						);
-						return attributeType;
-					}
-				)
-			);
 		return new ReferenceAttributes(
 			this.entitySchema,
 			this.referenceSchema,
 			this.attributeValues.values(),
-			newAttributes.isEmpty() ?
-				this.referenceSchema.getAttributes() :
-				Stream.concat(
-						this.referenceSchema.getAttributes().entrySet().stream(),
-						newAttributes.entrySet().stream()
-					)
-					.collect(
-						Collectors.toUnmodifiableMap(
-							Entry::getKey,
-							Entry::getValue
-						)
-					)
+			this.attributeTypes == null ?
+				new LazyHashMap<>(4) :
+				this.attributeTypes
 		);
 	}
 
+	@Nonnull
+	@Override
+	protected AttributeSchemaContract createImplicitSchema(@Nonnull AttributeValue theAttributeValue) {
+		return AttributesBuilder.createImplicitReferenceAttributeSchema(theAttributeValue);
+	}
 }

@@ -84,7 +84,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
 		return Arrays.stream(Scope.values())
 			.filter(scopesToLookup::contains)
-			.map(scope -> queryContext.getIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
+			.map(scope -> queryContext.getEntityIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.map(

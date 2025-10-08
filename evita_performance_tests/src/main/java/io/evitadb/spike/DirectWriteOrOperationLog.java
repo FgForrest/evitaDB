@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -171,30 +173,30 @@ public class DirectWriteOrOperationLog {
 
 		@Override
 		public void putValue(String key, Integer value) {
-			values.put(key, value);
+			this.values.put(key, value);
 		}
 
 		@Override
 		public void removeValue(String key) {
-			values.remove(key);
+			this.values.remove(key);
 		}
 
 		@Override
 		public Map<String, Integer> getContainer() {
-			return values;
+			return this.values;
 		}
 
 		@Override
 		public Collection<WriteOperation> getChanges() {
 			final List<WriteOperation> changes = new LinkedList<>();
-			for (Entry<String, Integer> entry : values.entrySet()) {
-				final Object original = base.get(entry.getKey());
+			for (Entry<String, Integer> entry : this.values.entrySet()) {
+				final Object original = this.base.get(entry.getKey());
 				if (original == null || !original.equals(entry.getValue())) {
 					changes.add(new WriteOperation(entry.getKey(), entry.getValue(), OperationType.SET));
 				}
 			}
-			for (Entry<String, Integer> baseEntry : base.entrySet()) {
-				if (!values.containsKey(baseEntry.getKey())) {
+			for (Entry<String, Integer> baseEntry : this.base.entrySet()) {
+				if (!this.values.containsKey(baseEntry.getKey())) {
 					changes.remove(new WriteOperation(baseEntry.getKey(), baseEntry.getValue(), OperationType.REMOVE));
 				}
 			}
@@ -218,19 +220,19 @@ public class DirectWriteOrOperationLog {
 
 		@Override
 		public void putValue(String key, Integer value) {
-			operations.put(key, new WriteOperation(key, value, OperationType.SET));
+			this.operations.put(key, new WriteOperation(key, value, OperationType.SET));
 		}
 
 		@Override
 		public void removeValue(String key) {
-			operations.put(key, new WriteOperation(key, null, OperationType.REMOVE));
+			this.operations.put(key, new WriteOperation(key, null, OperationType.REMOVE));
 		}
 
 		@Override
 		public Map<String, Integer> getContainer() {
-			final LinkedHashMap<String, Integer> resultMap = new LinkedHashMap<>(baseValues.size() + operations.size());
-			resultMap.putAll(baseValues);
-			for (Entry<String, WriteOperation> entry : operations.entrySet()) {
+			final LinkedHashMap<String, Integer> resultMap = new LinkedHashMap<>(this.baseValues.size() + this.operations.size());
+			resultMap.putAll(this.baseValues);
+			for (Entry<String, WriteOperation> entry : this.operations.entrySet()) {
 				entry.getValue().apply(entry.getKey(), resultMap);
 			}
 			return resultMap;
@@ -238,15 +240,15 @@ public class DirectWriteOrOperationLog {
 
 		@Override
 		public Collection<WriteOperation> getChanges() {
-			return operations.values();
+			return this.operations.values();
 		}
 
 	}
 
-	public record WriteOperation(String key, Integer value, OperationType operation) {
+	public record WriteOperation(@Nonnull String key, @Nullable Integer value, @Nonnull OperationType operation) {
 		public void apply(String key, Map<String, Integer> resultMap) {
-			if (operation == OperationType.SET) {
-				resultMap.put(key, value);
+			if (this.operation == OperationType.SET) {
+				resultMap.put(key, this.value);
 			} else {
 				resultMap.remove(key);
 			}
@@ -267,7 +269,7 @@ public class DirectWriteOrOperationLog {
 		 */
 		@Setup(Level.Trial)
 		public void setUp() {
-			valueHolder = createValueHolder(DirectMapWriter::new);
+			this.valueHolder = createValueHolder(DirectMapWriter::new);
 		}
 
 	}
@@ -286,7 +288,7 @@ public class DirectWriteOrOperationLog {
 		 */
 		@Setup(Level.Trial)
 		public void setUp() {
-			valueHolder = createValueHolder(OperationWriter::new);
+			this.valueHolder = createValueHolder(OperationWriter::new);
 		}
 
 	}
@@ -302,9 +304,9 @@ public class DirectWriteOrOperationLog {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			newData = new HashMap<>(INITIAL_CAPACITY);
+			this.newData = new HashMap<>(INITIAL_CAPACITY);
 			for (int i = 0; i < 25; i++) {
-				newData.put(String.valueOf(100 + random.nextInt((int) (INITIAL_CAPACITY * 1.25))), i);
+				this.newData.put(String.valueOf(100 + random.nextInt((int) (INITIAL_CAPACITY * 1.25))), i);
 			}
 		}
 

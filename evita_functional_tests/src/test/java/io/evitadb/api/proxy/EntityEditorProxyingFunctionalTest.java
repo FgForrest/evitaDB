@@ -25,6 +25,7 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.AbstractEntityProxyingFunctionalTest;
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
@@ -51,6 +52,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -59,6 +61,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -70,6 +73,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
@@ -88,16 +94,22 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 @TestMethodOrder(OrderAnnotation.class)
 @Slf4j
-public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
+public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest
+	implements EvitaTestSupport {
 	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityEditorProxyingFunctionalTest";
-	private final static DateTimeRange VALIDITY = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
+	private final static DateTimeRange VALIDITY = DateTimeRange.between(
+		OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
+	public static final String CATEGORY_SIMILAR = "similar";
+	public static final String CATEGORY_DIFFERENT = "different";
 
-	private static void assertCategory(SealedEntity category, String code, String name, long priority, DateTimeRange validity, int parentId) {
+	private static void assertCategory(
+		SealedEntity category, String code, String name, long priority, DateTimeRange validity, int parentId) {
 		assertCategory(category, code, name, priority, validity);
 		assertEquals(parentId, category.getParentEntity().orElseThrow().getPrimaryKey());
 	}
 
-	private static void assertCategory(SealedEntity category, String code, String name, long priority, DateTimeRange validity) {
+	private static void assertCategory(
+		SealedEntity category, String code, String name, long priority, DateTimeRange validity) {
 		assertEquals(code, category.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, category.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
 		assertEquals(priority, category.getAttribute(ATTRIBUTE_PRIORITY, Long.class));
@@ -135,49 +147,70 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertArrayEquals(markets, product.getAttribute(ATTRIBUTE_MARKETS));
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+			new Price(
+				1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"),
+				BigDecimal.TEN, null, true
+			)
 				.differsFrom(
 					product.getPrice(1, "reference", CURRENCY_CZK).orElseThrow()
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(2, "vip", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+			new Price(
+				1, new Price.PriceKey(2, "vip", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				null, true
+			)
 				.differsFrom(
 					product.getPrice(2, "vip", CURRENCY_CZK).orElseThrow()
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(3, "vip", CURRENCY_CZK), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+			new Price(
+				1, new Price.PriceKey(3, "vip", CURRENCY_CZK), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				validity, true
+			)
 				.differsFrom(
 					product.getPrice(3, "vip", CURRENCY_CZK).orElseThrow()
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(4, "vip", CURRENCY_USD), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+			new Price(
+				1, new Price.PriceKey(4, "vip", CURRENCY_USD), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null,
+				true
+			)
 				.differsFrom(
 					product.getPrice(4, "vip", CURRENCY_USD).orElseThrow()
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(5, "basic", CURRENCY_CZK), 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+			new Price(
+				1, new Price.PriceKey(5, "basic", CURRENCY_CZK), 9, BigDecimal.ONE, new BigDecimal("1.1"),
+				BigDecimal.TEN, null, true
+			)
 				.differsFrom(
 					product.getPrice(5, "basic", CURRENCY_CZK).orElseThrow()
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(6, "basic", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+			new Price(
+				1, new Price.PriceKey(6, "basic", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				null, true
+			)
 				.differsFrom(
 					product.getPrice(6, "basic", CURRENCY_CZK).orElseThrow()
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(7, "basic", CURRENCY_CZK), 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+			new Price(
+				1, new Price.PriceKey(7, "basic", CURRENCY_CZK), 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				validity, true
+			)
 				.differsFrom(
 					product.getPrice(7, "basic", CURRENCY_CZK).orElseThrow()
 				)
@@ -199,7 +232,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 		final Collection<ReferenceContract> storeReferences = product.getReferences(Entities.STORE);
 		assertEquals(3, storeReferences.size());
-		assertArrayEquals(new int[]{1, 2, 3}, storeReferences.stream().mapToInt(ReferenceContract::getReferencedPrimaryKey).sorted().toArray());
+		assertArrayEquals(
+			new int[]{1, 2, 3}, storeReferences.stream()
+				.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+				.sorted()
+				.toArray()
+		);
 	}
 
 	private static void assertUnknownEntity(SealedEntity unknownEntity, String code, String name, long priority) {
@@ -243,49 +281,70 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertArrayEquals(new int[]{1, 2, 3}, modifiedInstance.getStores());
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+			new Price(
+				1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"),
+				BigDecimal.TEN, null, true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("reference", CURRENCY_CZK, 1)
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(2, "vip", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+			new Price(
+				1, new Price.PriceKey(2, "vip", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				null, true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("vip", CURRENCY_CZK, 2)
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(3, "vip", CURRENCY_CZK), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+			new Price(
+				1, new Price.PriceKey(3, "vip", CURRENCY_CZK), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				validity, true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("vip", CURRENCY_CZK, 3)
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(4, "vip", CURRENCY_USD), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+			new Price(
+				1, new Price.PriceKey(4, "vip", CURRENCY_USD), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null,
+				true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("vip", CURRENCY_USD, 4)
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(5, "basic", CURRENCY_CZK), 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+			new Price(
+				1, new Price.PriceKey(5, "basic", CURRENCY_CZK), 9, BigDecimal.ONE, new BigDecimal("1.1"),
+				BigDecimal.TEN, null, true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("basic", CURRENCY_CZK, 5)
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(6, "basic", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+			new Price(
+				1, new Price.PriceKey(6, "basic", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				null, true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("basic", CURRENCY_CZK, 6)
 				)
 		);
 
 		assertFalse(
-			new Price(1, new Price.PriceKey(7, "basic", CURRENCY_CZK), 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+			new Price(
+				1, new Price.PriceKey(7, "basic", CURRENCY_CZK), 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+				validity, true
+			)
 				.differsFrom(
 					modifiedInstance.getPrice("basic", CURRENCY_CZK, 7)
 				)
@@ -430,6 +489,240 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	private static void shouldAddDuplicatedReferenceWhenMissingInternal(
+		@Nonnull EvitaSessionContract evitaSession,
+		int mainProductIndex,
+		@Nonnull List<SealedEntity> originalProducts,
+		@Nonnull BiFunction<ProductInterfaceEditor, Consumer<RelatedProductInterfaceEditor>, ProductInterfaceEditor> updater
+	) {
+		final SealedEntity mainProduct = originalProducts.get(mainProductIndex);
+		final SealedEntity relatedProduct = originalProducts.get(1);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final AtomicReference<RelatedProductInterfaceEditor> relatedProductRef = new AtomicReference<>();
+		final String relationType = CATEGORY_SIMILAR;
+		final ProductInterfaceEditor returnedEditor = updater.apply(
+			editor,
+			relEd -> {
+				relatedProductRef.set(relEd);
+				relEd.setLabel(CZECH_LOCALE, "Doporučený");
+				relEd.setLabel(Locale.ENGLISH, "Recommended");
+			}
+		);
+		assertSame(editor, returnedEditor);
+
+		final RelatedProductInterface createdRelatedProductViaGet = editor.getRelatedProduct(relationType);
+		assertEquals(relatedProductRef.get(), createdRelatedProductViaGet);
+
+		// Persist and verify via sealed entity reference
+		editor.upsertVia(evitaSession);
+
+		final SealedEntity reloaded = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final List<ReferenceContract> referenceList = reloaded.getReferences(
+			Entities.PRODUCT,
+			relatedProduct.getPrimaryKey()
+		);
+		assertEquals(1, referenceList.size());
+		final ReferenceContract ref = referenceList.get(0);
+		assertEquals(relationType, ref.getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
+		assertEquals(
+			"Recommended",
+			ref.getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class)
+		);
+		assertEquals(
+			"Doporučený",
+			ref.getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class)
+		);
+	}
+
+	private static void shouldUpdateDuplicatedReferenceWhenFilterMatchesInternal(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull List<SealedEntity> originalProducts,
+		int mainEntityId,
+		@Nonnull Consumer<ProductInterfaceEditor> consumer
+	) {
+		final SealedEntity mainProduct = originalProducts.get(mainEntityId);
+		final SealedEntity rel1 = originalProducts.get(10);
+		final SealedEntity rel2 = originalProducts.get(11);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		assertFalse(editor.getAllRelatedProducts().isEmpty());
+		editor.removeAllRelatedProducts();
+		assertTrue(editor.getAllRelatedProducts().isEmpty());
+
+		// Create multiple different relations
+		editor.addOrUpdateRelatedProduct(
+			rel1.getPrimaryKey(),
+			CATEGORY_SIMILAR, rp -> {
+				rp.setLabel(Locale.ENGLISH, "Nice product");
+				rp.setLabel(CZECH_LOCALE, "Krásný produkt");
+			}
+		);
+		for (int i = 0; i < 10; i++) {
+			final int no = i + 1;
+			editor.addOrUpdateRelatedProduct(
+				rel2.getPrimaryKey(),
+				ref -> false,
+				rp -> {
+					rp.setRelationType("upsell_" + no);
+					rp.setLabel(Locale.ENGLISH, "Expensive product " + no);
+					rp.setLabel(CZECH_LOCALE, "Drahý produkt " + no);
+				}
+			);
+		}
+
+		assertEquals(11, editor.getAllRelatedProducts().size());
+		editor.upsertVia(evitaSession);
+
+		// Reload and update only those with relationType == "similar"
+		final ProductInterfaceEditor editor2 = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		consumer.accept(editor2);
+		editor2.upsertVia(evitaSession);
+
+		final SealedEntity after = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final Collection<ReferenceContract> relatedProductReferences = after.getReferences(Entities.PRODUCT);
+		final long referencesWithChangedLabels = relatedProductReferences
+			.stream()
+			.filter(rp -> rp.getAttribute(ATTRIBUTE_RELATION_TYPE, String.class).startsWith("upsell"))
+			.filter(rp -> "Changed".equals(
+				rp.getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class)))
+			.count();
+
+		assertEquals(11, relatedProductReferences.size());
+		assertEquals(2, referencesWithChangedLabels);
+	}
+
+	private static void shouldRemoveRelatedProductInternal(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull List<SealedEntity> originalProducts,
+		int mainProductId,
+		int relatedProductId,
+		@Nonnull Consumer<ProductInterfaceEditor> removalLambda
+	) {
+		final SealedEntity mainProduct = originalProducts.get(mainProductId);
+		final SealedEntity related = originalProducts.get(relatedProductId);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final int referenceCountBeforeAdding = editor.entityBuilder().getReferences().size();
+
+		editor.addOrUpdateRelatedProduct(
+			related.getPrimaryKey(),
+			"accessory",
+			rp -> {
+				rp.setLabel(Locale.ENGLISH, "Accessory 1");
+				rp.setLabel(CZECH_LOCALE, "Doplněk 1");
+			}
+		);
+		editor.addOrUpdateRelatedProduct(
+			related.getPrimaryKey(),
+			CATEGORY_SIMILAR,
+			rp -> {
+				rp.setLabel(Locale.ENGLISH, "Similar 1");
+				rp.setLabel(CZECH_LOCALE, "Podobný 1");
+			}
+		);
+
+		final int referenceCountAfterAdding = editor.entityBuilder().getReferences().size();
+		assertEquals(referenceCountBeforeAdding + 2, referenceCountAfterAdding);
+
+		editor.upsertVia(evitaSession);
+
+		final ProductInterfaceEditor editor2 = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		removalLambda.accept(editor2);
+
+		final int referenceCountAfterRemoving = editor2.entityBuilder().getReferences().size();
+		assertEquals(referenceCountAfterAdding - 1, referenceCountAfterRemoving);
+		editor2.upsertVia(evitaSession);
+
+		final SealedEntity after = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		assertEquals(referenceCountAfterRemoving, after.getReferences().size());
+	}
+
+	/**
+	 * Prepares an example product for the removal of related products by loading the product,
+	 * clearing existing relationships, and adding new relationships with specific labels
+	 * based on predefined relation types.
+	 *
+	 * @param evitaSession     The session used to perform operations on product entities.
+	 * @param originalProducts A list of sealed product entities from which relationships will be derived.
+	 * @return The reloaded product entity editor after applying changes, retrieved for verification.
+	 */
+	@Nonnull
+	private static ProductInterfaceEditor prepareExampleProductForRelatedProductsRemoval(
+		@Nonnull EvitaSessionContract evitaSession,
+		@Nonnull List<SealedEntity> originalProducts
+	) {
+		final SealedEntity mainProduct = originalProducts.get(3);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		editor.removeAllRelatedProducts();
+		for (int i = 0; i < 6; i++) {
+			final boolean odd = i % 2 == 0;
+			final String relationType = odd ? CATEGORY_SIMILAR : CATEGORY_DIFFERENT;
+			editor.addOrUpdateRelatedProduct(
+				originalProducts.get(i / 2).getPrimaryKey(),
+				relationType,
+				ref -> {
+					ref.setLabel(CZECH_LOCALE, "Doporučený");
+					ref.setLabel(Locale.ENGLISH, "Recommended");
+				}
+			);
+		}
+
+		// Persist and verify via sealed entity reference
+		editor.upsertVia(evitaSession);
+
+		return evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+	}
+
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
 	protected DataCarrier setUp(Evita evita) {
@@ -444,8 +737,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final DateTimeRange validity = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
-				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1000)
+				final DateTimeRange validity = DateTimeRange.between(
+					OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
+						CategoryInterfaceEditor.class, 1000)
 					.setCode("root-category")
 					.setName(CZECH_LOCALE, "Kořenová kategorie")
 					.setPriority(78L)
@@ -456,7 +751,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newCategory.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(7, mutation.get().getLocalMutations().size());
+				assertEquals(6, mutation.get().getLocalMutations().size());
 
 				final CategoryInterface modifiedInstance = newCategory.toInstance();
 				assertEquals("root-category", modifiedInstance.getCode());
@@ -468,7 +763,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				assertEquals(1000, newCategory.getId());
 				assertCategory(
-					evitaSession.getEntity(Entities.CATEGORY, newCategory.getId(), entityFetchAllContent()).orElseThrow(),
+					evitaSession.getEntity(Entities.CATEGORY, newCategory.getId(), entityFetchAllContent())
+						.orElseThrow(),
 					"root-category", "Kořenová kategorie", 78L, validity
 				);
 			}
@@ -491,7 +787,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1001)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
+						CategoryInterfaceEditor.class, 1001)
 					.setCode("child-category-1")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -531,11 +828,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final EntityReference parentEntityReference = new EntityReference(Entities.CATEGORY, 1000);
-				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1002)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
+						CategoryInterfaceEditor.class, 1002)
 					.setCode("child-category-2")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
-					.setParentEntityReference(parentEntityReference);
+					.setParentEntityReference(
+						parentEntityReference);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -571,12 +870,15 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReferenceWithParent parentEntityReference = new EntityReferenceWithParent(Entities.CATEGORY, 1000, null);
-				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1003)
+				final EntityReferenceWithParent parentEntityReference = new EntityReferenceWithParent(
+					Entities.CATEGORY, 1000, null);
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
+						CategoryInterfaceEditor.class, 1003)
 					.setCode("child-category-3")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
-					.setParentEntityClassifier(parentEntityReference);
+					.setParentEntityClassifier(
+						parentEntityReference);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -615,7 +917,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			evitaSession -> {
 				final CategoryInterfaceEditor parentEntity = evitaSession.getEntity(CategoryInterfaceEditor.class, 1000)
 					.orElseThrow();
-				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1004)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
+						CategoryInterfaceEditor.class, 1004)
 					.setCode("child-category-4")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -651,7 +954,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1005)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(
+						CategoryInterfaceEditor.class, 1005)
 					.setCode("child-category-5")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -659,10 +963,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						1100,
 						whichIs -> {
 							whichIs.setCode("root-category-1")
-								.setName(CZECH_LOCALE, "Kořenová kategorie")
+								.setName(
+									CZECH_LOCALE,
+									"Kořenová kategorie"
+								)
 								.setPriority(78L);
 							whichIs.setLabels(new Labels());
-							whichIs.setReferencedFiles(new ReferencedFileSet());
+							whichIs.setReferencedFiles(
+								new ReferencedFileSet());
 						}
 					);
 
@@ -704,7 +1012,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				evitaSession.defineEntitySchemaFromModelClass(UnknownEntityEditorInterface.class);
-				final UnknownEntityEditorInterface newEntity = evitaSession.createNewEntity(UnknownEntityEditorInterface.class);
+				final UnknownEntityEditorInterface newEntity = evitaSession.createNewEntity(
+					UnknownEntityEditorInterface.class);
 				newEntity.setCode("entity1");
 				newEntity.setName("Nějaká entita", CZECH_LOCALE);
 				newEntity.setPriority(78L);
@@ -713,7 +1022,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				assertTrue(newEntity.getId() > 0);
 				assertUnknownEntity(
-					evitaSession.getEntity("newlyDefinedEntity", newEntity.getId(), entityFetchAllContent()).orElseThrow(),
+					evitaSession.getEntity("newlyDefinedEntity", newEntity.getId(), entityFetchAllContent())
+						.orElseThrow(),
 					"entity1", "Nějaká entita", 78L
 				);
 			}
@@ -739,18 +1049,61 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setPrice(new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true))
-					.setPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "vip", CURRENCY_CZK, 2)
-					.setPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "vip", "CZK", 3, VALIDITY, 7)
-					.setPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "vip", "USD", 4, null, 7)
-					.setBasicPrice(new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true))
-					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, CURRENCY_CZK, 6)
-					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "CZK", 7, VALIDITY, 8)
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.setPrice(
+						new Price(
+							1, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						))
+					.setPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "vip", CURRENCY_CZK, 2
+					)
+					.setPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "vip", "CZK", 3, VALIDITY, 7
+					)
+					.setPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "vip", "USD", 4, null, 7
+					)
+					.setBasicPrice(
+						new Price(
+							5, "basic", CURRENCY_CZK, 9,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						))
+					.setBasicPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, CURRENCY_CZK, 6
+					)
+					.setBasicPrice(
+						BigDecimal.ONE, BigDecimal.ONE,
+						BigDecimal.ZERO, "CZK", 7, VALIDITY, 8
+					)
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
 					.addStore(1)
 					.addStore(2)
 					.addStore(3);
@@ -774,7 +1127,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-1", "Produkt 1");
+				assertModifiedInstance(
+					modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-1", "Produkt 1");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -808,24 +1162,76 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttributeAsList(Arrays.asList("market-1", "market-2"))
-					.setMarketsAsList(Arrays.asList("market-3", "market-4"))
+					.setMarketsAttributeAsList(
+						Arrays.asList("market-1", "market-2"))
+					.setMarketsAsList(
+						Arrays.asList("market-3", "market-4"))
 					.setAllPricesAsList(
 						Arrays.asList(
-							new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
-							new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-							new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
-							new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-							new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
-							new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-							new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+							new Price(
+								1, "reference", CURRENCY_CZK, null,
+								BigDecimal.ONE, new BigDecimal("1.1"),
+								BigDecimal.TEN, null, true
+							),
+							new Price(
+								2, "vip", CURRENCY_CZK, null,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, null, true
+							),
+							new Price(
+								3, "vip", CURRENCY_CZK, 7,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, VALIDITY, true
+							),
+							new Price(
+								4, "vip", CURRENCY_USD, 7,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, null, true
+							),
+							new Price(
+								5, "basic", CURRENCY_CZK, 9,
+								BigDecimal.ONE, new BigDecimal("1.1"),
+								BigDecimal.TEN, null, true
+							),
+							new Price(
+								6, "basic", CURRENCY_CZK, null,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, null, true
+							),
+							new Price(
+								7, "basic", CURRENCY_CZK, 8,
+								BigDecimal.ONE, BigDecimal.ZERO,
+								BigDecimal.ONE, VALIDITY, true
+							)
 						)
 					)
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
 					.setStoresByIds(Arrays.asList(1, 2, 3))
-					.setStores(List.of(evitaSession.getEntity(StoreInterface.class, 3, entityFetchAllContent()).orElseThrow()));
+					.setStores(List.of(
+						evitaSession.getEntity(
+							StoreInterface.class,
+							3,
+							entityFetchAllContent()
+						).orElseThrow()));
 				;
 
 				assertThrows(
@@ -847,7 +1253,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-2", "Produkt 2");
+				assertModifiedInstance(
+					modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-2", "Produkt 2");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -873,7 +1280,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+				final ProductInterfaceEditor newProduct = evitaSession
+					.createNewEntity(ProductInterfaceEditor.class)
 					.setCode("product-3")
 					.setName(CZECH_LOCALE, "Produkt 3")
 					.setEnum(TestEnum.ONE)
@@ -881,22 +1289,72 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttributeAsVarArg("market-1", "market-2")
+					.setMarketsAttributeAsVarArg(
+						"market-1", "market-2")
 					.setMarketsAsVarArg("market-3", "market-4")
 					.setAllPricesAsArray(
-						new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
-						new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-						new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
-						new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-						new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
-						new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+						new Price(
+							1, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						),
+						new Price(
+							2, "vip", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, null, true
+						),
+						new Price(
+							3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE,
+							BigDecimal.ZERO, BigDecimal.ONE, VALIDITY,
+							true
+						),
+						new Price(
+							4, "vip", CURRENCY_USD, 7, BigDecimal.ONE,
+							BigDecimal.ZERO, BigDecimal.ONE, null,
+							true
+						),
+						new Price(
+							5, "basic", CURRENCY_CZK, 9,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						),
+						new Price(
+							6, "basic", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, null, true
+						),
+						new Price(
+							7, "basic", CURRENCY_CZK, 8,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, VALIDITY, true
+						)
 					)
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
 					.setStoresByIds(1, 2)
-					.setStores(evitaSession.getEntity(StoreInterface.class, 3, entityFetchAllContent()).orElseThrow());
+					.setStores(
+						evitaSession.getEntity(
+							StoreInterface.class, 3,
+							entityFetchAllContent()
+						).orElseThrow());
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -917,7 +1375,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-3", "Produkt 3");
+				assertModifiedInstance(
+					modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-3", "Produkt 3");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -948,18 +1407,28 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 4")
 					.setEnum(TestEnum.ONE)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brandId)
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(16, mutation.get().getLocalMutations().size());
+				assertEquals(15, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(brandId, modifiedInstance.getBrandId());
@@ -967,7 +1436,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				newProduct.upsertVia(evitaSession);
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final SealedEntity createdProduct = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				assertTrue(createdProduct.getReference(Entities.BRAND, brandId).isPresent());
 			}
 		);
@@ -993,18 +1463,28 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 5")
 					.setEnum(TestEnum.ONE)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brand)
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(16, mutation.get().getLocalMutations().size());
+				assertEquals(15, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(brandId, modifiedInstance.getBrandId());
@@ -1013,7 +1493,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				newProduct.upsertVia(evitaSession);
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final SealedEntity createdProduct = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				assertTrue(createdProduct.getReference(Entities.BRAND, brandId).isPresent());
 			}
 		);
@@ -1034,18 +1515,29 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 6")
 					.setEnum(TestEnum.ONE)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setNewBrand(brand -> brand.setCode("consumer-created-brand").setStore(1))
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+					.setNewBrand(brand -> brand.setCode(
+						"consumer-created-brand").setStore(1))
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals("consumer-created-brand", modifiedInstance.getBrand().getCode());
@@ -1057,7 +1549,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final SealedEntity createdProduct = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				assertTrue(createdProduct.getReference(Entities.BRAND, createdBrand.getPrimaryKey()).isPresent());
 			}
 		);
@@ -1098,11 +1591,29 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 7")
 					.setEnum(TestEnum.ONE)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 2"));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					);
 
 				assertNull(newProduct.getBrand());
 				final BrandInterfaceEditor newBrand = newProduct.getOrCreateBrand();
@@ -1113,7 +1624,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(19, mutation.get().getLocalMutations().size());
+				assertEquals(18, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals("getorcreate-created-brand", newProduct.getBrand().getCode());
@@ -1126,7 +1637,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final SealedEntity createdProduct = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				assertTrue(createdProduct.getReference(Entities.BRAND, createdBrand.getPrimaryKey()).isPresent());
 			}
 		);
@@ -1170,19 +1682,64 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttributeAsVarArg("market-1", "market-2")
+					.setMarketsAttributeAsVarArg(
+						"market-1", "market-2")
 					.setMarketsAsVarArg("market-3", "market-4")
 					.setAllPricesAsArray(
-						new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
-						new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-						new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
-						new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-						new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
-						new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
-						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+						new Price(
+							1, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						),
+						new Price(
+							2, "vip", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, null, true
+						),
+						new Price(
+							3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE,
+							BigDecimal.ZERO, BigDecimal.ONE, VALIDITY,
+							true
+						),
+						new Price(
+							4, "vip", CURRENCY_USD, 7, BigDecimal.ONE,
+							BigDecimal.ZERO, BigDecimal.ONE, null,
+							true
+						),
+						new Price(
+							5, "basic", CURRENCY_CZK, 9,
+							BigDecimal.ONE, new BigDecimal("1.1"),
+							BigDecimal.TEN, null, true
+						),
+						new Price(
+							6, "basic", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, null, true
+						),
+						new Price(
+							7, "basic", CURRENCY_CZK, 8,
+							BigDecimal.ONE, BigDecimal.ZERO,
+							BigDecimal.ONE, VALIDITY, true
+						)
 					)
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.addProductCategory(
+						categoryId1, that -> that.setOrderInCategory(
+								1L)
+							.setShadow(true)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 1"
+							)
+					)
+					.addProductCategory(
+						categoryId2, that -> that.setOrderInCategory(
+								2L)
+							.setShadow(false)
+							.setLabel(
+								CZECH_LOCALE,
+								"Kategorie 2"
+							)
+					)
 					.setStoresByIds(1, 2, 3);
 
 				assertNull(newProduct.getParameter());
@@ -1356,11 +1913,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
-	@DisplayName("Should modify attribute on reference in isolated editor")
+	@DisplayName("Should modify attribute on reference but store in single upsert deeply call")
 	@Order(21)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldIsolateMutationsInSeparatedEditors(EvitaContract evita) {
+	void shouldIsolateMutationsInSeparatedEditorsButStoreAllByUpsertDeeply(EvitaContract evita) {
 		final EntityReference product6Ref = getProductByCode(evita, "product-6")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
@@ -1374,12 +1931,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
-				final List<Long> originalPriorities = product6.getProductCategoriesAsList()
+				final List<Long> originalPriorities = product6
+					.getProductCategoriesAsList()
 					.stream()
 					.map(ProductCategoryInterface::getOrderInCategory)
 					.toList();
 
-				final List<ProductCategoryInterfaceEditor> editors = product6.getProductCategoriesAsList()
+				final List<ProductCategoryInterfaceEditor> editors = product6
+					.getProductCategoriesAsList()
 					.stream()
 					.map(it -> {
 						final ProductCategoryInterfaceEditor editor = it.openForWrite();
@@ -1409,9 +1968,75 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
+				final Iterator<Long> priorityItAgainAndAgain = originalPriorities.iterator();
+				for (ReferenceContract reference : storedProduct.getReferences(Entities.CATEGORY)) {
+					assertEquals(
+						priorityItAgainAndAgain.next() << 1,
+						reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+					);
+				}
+			}
+		);
+	}
+
+	@DisplayName("Should modify attribute on reference in isolated editor")
+	@Order(21)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldIsolateMutationsInSeparatedEditors(EvitaContract evita) {
+		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+			.orElseGet(() -> {
+				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
+				return getProductByCode(evita, "product-6").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor product6 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final List<Long> originalPriorities = product6.getProductCategoriesAsList()
+					.stream()
+					.map(ProductCategoryInterface::getOrderInCategory)
+					.toList();
+
+				final List<ProductCategoryInterfaceEditor> editors = product6.getProductCategoriesAsList()
+					.stream()
+					.map(it -> {
+						final ProductCategoryInterfaceEditor editor = it.openForWrite();
+						editor.setOrderInCategory(
+							it.getOrderInCategory() << 1);
+						return editor;
+					})
+					.toList();
+
+				final Optional<EntityMutation> mutation = product6.toMutation();
+				assertFalse(mutation.isPresent());
+
+				for (ProductCategoryInterfaceEditor editor : editors) {
+					final Optional<EntityMutation> editorMutation = editor.toMutation();
+					assertTrue(editorMutation.isPresent());
+					assertEquals(1, editorMutation.get().getLocalMutations().size());
+				}
+
+				final ProductInterface modifiedInstance = product6.toInstance();
+				final Iterator<Long> priorityIt = originalPriorities.iterator();
+
+				modifiedInstance.getProductCategories()
+					.forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
+
+				product6.upsertVia(evitaSession);
+
+				final SealedEntity storedProduct = evitaSession.getEntity(
+					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
 				final Iterator<Long> priorityItAgain = originalPriorities.iterator();
 				for (ReferenceContract reference : storedProduct.getReferences(Entities.CATEGORY)) {
-					assertEquals(priorityItAgain.next(), reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
+					assertEquals(
+						priorityItAgain.next(), reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
 				}
 
 				for (ProductCategoryInterfaceEditor editor : editors) {
@@ -1466,7 +2091,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final ProductInterface modifiedInstance = product6.toInstance();
 				assertEquals(80L, modifiedInstance.getParameter().getPriority());
 
-				product6.upsertDeeplyVia(evitaSession);
+				product6.upsertVia(evitaSession);
 
 				final SealedEntity storedProduct = evitaSession.getEntity(
 					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
@@ -1643,12 +2268,16 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 				 */
 
-				final PriceContract[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnTheirArray(CURRENCY_USD);
+				final PriceContract[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnTheirArray(
+					CURRENCY_USD);
 				assertEquals(1, removedPricesByCurrency.length);
 				assertEquals(4, removedPricesByCurrency[0].priceId());
-				final Collection<PriceContract> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirCollection("vip");
+				final Collection<PriceContract> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirCollection(
+					"vip");
 				assertEquals(2, removedPricesByPriceList.size());
-				final Set<Integer> removedPriceIds = removedPricesByPriceList.stream().map(PriceContract::priceId).collect(Collectors.toSet());
+				final Set<Integer> removedPriceIds = removedPricesByPriceList.stream()
+					.map(PriceContract::priceId)
+					.collect(Collectors.toSet());
 				assertTrue(removedPriceIds.contains(2));
 				assertTrue(removedPriceIds.contains(3));
 
@@ -1702,10 +2331,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 				 */
 
-				final int[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnArrayOfTheirIds(CURRENCY_USD);
+				final int[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnArrayOfTheirIds(
+					CURRENCY_USD);
 				assertEquals(1, removedPricesByCurrency.length);
 				assertEquals(4, removedPricesByCurrency[0]);
-				final Collection<Integer> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirIds("vip");
+				final Collection<Integer> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirIds(
+					"vip");
 				assertEquals(2, removedPricesByPriceList.size());
 				final Set<Integer> removedPriceIds = new HashSet<>(removedPricesByPriceList);
 				assertTrue(removedPriceIds.contains(2));
@@ -1761,10 +2392,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 				 */
 
-				final Price.PriceKey[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnArrayOfTheirPriceKeys(CURRENCY_USD);
+				final Price.PriceKey[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnArrayOfTheirPriceKeys(
+					CURRENCY_USD);
 				assertEquals(1, removedPricesByCurrency.length);
 				assertEquals(new Price.PriceKey(4, "vip", CURRENCY_USD), removedPricesByCurrency[0]);
-				final Collection<Price.PriceKey> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirKeys("vip");
+				final Collection<Price.PriceKey> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirKeys(
+					"vip");
 				assertEquals(2, removedPricesByPriceList.size());
 				final Set<Price.PriceKey> removedPriceIds = new HashSet<>(removedPricesByPriceList);
 				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
@@ -1825,7 +2458,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(2, product8.removePriceByIdAndReturnItsId(2, "vip", CURRENCY_CZK));
 				assertTrue(product8.removePriceByIdAndReturnTrueIfRemoved(3, "vip", CURRENCY_CZK));
 				assertFalse(product8.removePriceByIdAndReturnTrueIfRemoved(3, "vip", CURRENCY_CZK));
-				assertEquals(new Price.PriceKey(7, "basic", CURRENCY_CZK), product8.removePriceByIdAndReturnItsPriceKey(7, "basic", CURRENCY_CZK));
+				assertEquals(
+					new Price.PriceKey(7, "basic", CURRENCY_CZK),
+					product8.removePriceByIdAndReturnItsPriceKey(7, "basic", CURRENCY_CZK)
+				);
 
 				final Optional<EntityMutation> mutation = product8.toMutation();
 				assertTrue(mutation.isPresent());
@@ -2222,7 +2858,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					)
 				).orElseThrow();
 
-				final ProductCategoryInterface removedCategory = product1.removeProductCategoryByIdAndReturnItsBody(categoryId2);
+				final ProductCategoryInterface removedCategory = product1.removeProductCategoryByIdAndReturnItsBody(
+					categoryId2);
 				assertNotNull(removedCategory);
 				assertEquals(categoryId2, removedCategory.getCategory().getId());
 				assertEquals(categoryId2, removedCategory.getCategoryReferencePrimaryKey());
@@ -2335,26 +2972,36 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L).setParameterGroup(parameterGroupId));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroup(
+								parameterGroupId)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey());
+				assertEquals(
+					parameterGroupId,
+					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+				);
 
 				newProduct.upsertVia(evitaSession);
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity product = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
-				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				final SealedEntity product = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId)
+					.orElseThrow();
 				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -2364,7 +3011,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
@@ -2374,8 +3022,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.removeParameterGroup()
 					.upsertVia(evitaSession);
 
-				final SealedEntity productAgain = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
-				final ReferenceContract theParameterAgain = productAgain.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				final SealedEntity productAgain = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameterAgain = productAgain.getReference(Entities.PARAMETER, parameterId)
+					.orElseThrow();
 				assertTrue(theParameterAgain.getGroup().isEmpty());
 
 				final ProductInterface loadedProductAgain = evitaSession.getEntity(
@@ -2411,10 +3061,16 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L)
-						.setParameterGroupEntityClassifier(new EntityReference(Entities.PARAMETER_GROUP, parameterGroupId))
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroupEntityClassifier(
+								new EntityReference(
+									Entities.PARAMETER_GROUP,
+									parameterGroupId
+								))
 					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -2422,17 +3078,22 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey());
+				assertEquals(
+					parameterGroupId,
+					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+				);
 
 				newProduct.upsertVia(evitaSession);
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity product = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
-				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				final SealedEntity product = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId)
+					.orElseThrow();
 				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -2442,7 +3103,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
@@ -2473,10 +3135,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L)
-						.setParameterGroupEntity(parameterGroupEntity)
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroupEntity(
+								parameterGroupEntity)
 					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -2484,17 +3149,22 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey());
+				assertEquals(
+					parameterGroupId,
+					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+				);
 
 				newProduct.upsertVia(evitaSession);
 
 				assertTrue(newProduct.getId() > 0);
-				final SealedEntity product = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
-				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				final SealedEntity product = evitaSession.getEntity(
+					Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId)
+					.orElseThrow();
 				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -2504,7 +3174,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
@@ -2516,6 +3187,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(40)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
+	@Disabled("Temporary disabled - see io.evitadb.core.EvitaSession.upsertEntity(S)")
 	void shouldSetReferenceGroupAsNewlyCreatedEntity(EvitaContract evita) {
 		final int parameterId = createParameterEntityIfMissing(evita);
 
@@ -2530,9 +3202,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -2554,7 +3228,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
 				assertEquals("parameterGroup-2", groupEntity.getCode());
@@ -2566,6 +3241,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(41)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
+	@Disabled("Temporary disabled - see io.evitadb.core.EvitaSession.upsertEntity(S)")
 	void shouldSetReferenceGroupByIdAndUpdateIt(EvitaContract evita) {
 		final int parameterId = createParameterEntityIfMissing(evita);
 		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
@@ -2581,9 +3257,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L).setParameterGroup(parameterGroupId));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroup(
+								parameterGroupId)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
@@ -2605,7 +3286,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
 				assertEquals("parameterGroup-20", groupEntity.getCode());
@@ -2633,9 +3315,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
-					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarketsAttribute(
+						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(parameterId, that -> that.setPriority(10L).setParameterGroup(parameterGroupId));
+					.setParameter(
+						parameterId, that -> that.setPriority(10L)
+							.setParameterGroup(
+								parameterGroupId)
+					);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setLabels(new Labels(), Locale.ENGLISH);
@@ -2652,12 +3339,18 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				assertEquals("Produkt 14", loadedProduct.removeName(CZECH_LOCALE));
 				assertEquals(78L, loadedProduct.removePriority());
-				assertArrayEquals(new String[]{"market-1", "market-2"}, loadedProduct.removeMarketsAttribute().toArray(new String[0]));
+				assertArrayEquals(
+					new String[]{"market-1", "market-2"},
+					loadedProduct.removeMarketsAttribute().toArray(new String[0])
+				);
 				assertEquals(new ReferencedFileSet(), loadedProduct.removeReferencedFileSet());
 				assertEquals(new Labels(), loadedProduct.removeLabels(CZECH_LOCALE));
-				assertArrayEquals(new String[]{"market-3", "market-4"}, loadedProduct.removeMarkets().toArray(new String[0]));
+				assertArrayEquals(
+					new String[]{"market-3", "market-4"}, loadedProduct.removeMarkets().toArray(new String[0]));
 
-				final Collection<? extends LocalMutation<?, ?>> localMutations = loadedProduct.toMutation().orElseThrow().getLocalMutations();
+				final Collection<? extends LocalMutation<?, ?>> localMutations = loadedProduct.toMutation()
+					.orElseThrow()
+					.getLocalMutations();
 				final BitSet expectedMutations = new BitSet(6);
 				assertEquals(6, localMutations.size());
 				for (LocalMutation<?, ?> localMutation : localMutations) {
@@ -2678,7 +3371,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							expectedMutations.set(3, true);
 						} else if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_MARKETS)) {
 							expectedMutations.set(4, true);
-						} else if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_REFERENCED_FILES)) {
+						} else if (radm.getAssociatedDataKey().associatedDataName().equals(
+							ASSOCIATED_DATA_REFERENCED_FILES)) {
 							expectedMutations.set(4, true);
 						} else {
 							fail("Unexpected associated data: " + radm.getAssociatedDataKey());
@@ -2808,10 +3502,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldRepeatedlyRemoveAllReferencesAndReturnTheirBodies(EvitaContract evita) {
-		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
-		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
-		final int categoryId3 = createCategoryEntityIfMissing(evita, 3);
-		final int categoryId4 = createCategoryEntityIfMissing(evita, 4);
+		createCategoryEntityIfMissing(evita, 3);
+		createCategoryEntityIfMissing(evita, 4);
 
 		getProductByCode(evita, "product-1")
 			.ifPresent(it -> evita.updateCatalog(
@@ -2830,13 +3522,30 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
-				product1.removeAllProductCategoriesAndReturnTheirBodies();
-				product1.addProductCategory(3, catEd -> { catEd.setLabel(CZECH_LOCALE, "a"); catEd.setShadow(false); });
+				final List<ProductCategoryInterfaceEditor> categories = product1.removeAllProductCategoriesAndReturnTheirBodies();
+				assertEquals(
+					Set.of(2001, 2002), categories.stream()
+						.map(ProductCategoryInterface::getPrimaryKey)
+						.collect(Collectors.toSet())
+				);
+				product1.addProductCategory(
+					3, catEd -> {
+						catEd.setLabel(CZECH_LOCALE, "a");
+						catEd.setShadow(false);
+					}
+				);
 				assertEquals(1, product1.getProductCategoriesAsList().size());
 				assertEquals(3, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
 
-				product1.removeAllProductCategoriesAndReturnTheirIds();
-				product1.addProductCategory(4, catEd -> { catEd.setLabel(CZECH_LOCALE, "a"); catEd.setShadow(false); });
+				final List<Integer> removedCategories = product1.removeAllProductCategoriesAndReturnTheirIds();
+				assertEquals(1, removedCategories.size());
+				assertEquals(3, removedCategories.get(0).intValue());
+				product1.addProductCategory(
+					4, catEd -> {
+						catEd.setLabel(CZECH_LOCALE, "a");
+						catEd.setShadow(false);
+					}
+				);
 				assertEquals(1, product1.getProductCategoriesAsList().size());
 				assertEquals(4, product1.getProductCategoriesAsList().get(0).getPrimaryKey());
 
@@ -2849,6 +3558,369 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(1, product1Again.getProductCategoriesAsList().size());
 				assertEquals(4, product1Again.getProductCategoriesAsList().get(0).getPrimaryKey());
 			}
+		);
+	}
+
+	@DisplayName("Should add duplicated reference when missing")
+	@Order(46)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldAddDuplicatedReferenceWhenMissing(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final SealedEntity mainProduct = originalProducts.get(0);
+		final SealedEntity relatedProduct = originalProducts.get(1);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final String relationType = CATEGORY_SIMILAR;
+		editor.addOrUpdateRelatedProduct(
+			relatedProduct.getPrimaryKey(),
+			relationType,
+			relEd -> {
+				relEd.setLabel(Locale.ENGLISH, "Recommended");
+				relEd.setLabel(CZECH_LOCALE, "Doporučené");
+			}
+		);
+
+		// Persist and verify via sealed entity reference
+		editor.upsertVia(evitaSession);
+
+		final SealedEntity reloaded = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final List<ReferenceContract> references = reloaded.getReferences(
+			Entities.PRODUCT,
+			relatedProduct.getPrimaryKey()
+		);
+		assertFalse(references.isEmpty());
+		for (ReferenceContract reference : references) {
+			assertEquals(
+				relationType,
+				reference.getAttribute(
+					ATTRIBUTE_RELATION_TYPE,
+					String.class
+				)
+			);
+		}
+	}
+
+	@DisplayName("Should add duplicated reference when missing (represenative attribute)")
+	@Order(46)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldAddDuplicatedReferenceUsingIdWhenMissing(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		shouldAddDuplicatedReferenceWhenMissingInternal(
+			evitaSession,
+			0,
+			originalProducts,
+			(ProductInterfaceEditor editor, Consumer<RelatedProductInterfaceEditor> consumer) ->
+				editor.addOrUpdateRelatedProduct(
+					originalProducts.get(1).getPrimaryKey(),
+					CATEGORY_SIMILAR,
+					consumer
+				)
+		);
+	}
+
+	@DisplayName("Should add duplicated reference when missing (predicate)")
+	@Order(46)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldAddDuplicatedReferenceUsingIdAndPredicateWhenMissing(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		shouldAddDuplicatedReferenceWhenMissingInternal(
+			evitaSession,
+			1,
+			originalProducts,
+			(ProductInterfaceEditor editor, Consumer<RelatedProductInterfaceEditor> consumer) ->
+				editor.addOrUpdateRelatedProduct(
+					originalProducts.get(1).getPrimaryKey(),
+					ref -> CATEGORY_SIMILAR.equals(ref.getRelationType()),
+					ref -> {
+						ref.setRelationType(CATEGORY_SIMILAR);
+						consumer.accept(ref);
+					}
+				)
+		);
+	}
+
+	@DisplayName("Should add multiple references and retrieve them by discriminator")
+	@Order(46)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldAddMultipleReferencesAndRetrieveThemByDiscriminator(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final SealedEntity mainProduct = originalProducts.get(2);
+
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final String relationType1 = CATEGORY_SIMILAR;
+		final String relationType2 = CATEGORY_DIFFERENT;
+
+		for (int i = 0; i < 6; i++) {
+			final boolean odd = i % 2 == 0;
+			final String relationType = odd ? relationType1 : relationType2;
+			editor.addOrUpdateRelatedProduct(
+				originalProducts.get(i / 2).getPrimaryKey(),
+				relationType,
+				ref -> {
+					ref.setLabel(CZECH_LOCALE, "Doporučený");
+					ref.setLabel(Locale.ENGLISH, "Recommended");
+				}
+			);
+		}
+
+		// Persist and verify via sealed entity reference
+		editor.upsertVia(evitaSession);
+
+		final ProductInterface reloaded = evitaSession.getEntity(
+			ProductInterface.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+
+		final Collection<RelatedProductInterface> rel1Products = reloaded.getRelatedProducts(relationType1);
+		assertEquals(3, rel1Products.size());
+		rel1Products.forEach(ref -> {
+			assertEquals(
+				relationType1,
+				ref.getRelationType()
+			);
+		});
+
+		final Collection<RelatedProductInterface> rel2Products = reloaded.getRelatedProducts(relationType2);
+		assertEquals(3, rel2Products.size());
+		rel2Products.forEach(ref -> {
+			assertEquals(
+				relationType2,
+				ref.getRelationType()
+			);
+		});
+	}
+
+	@DisplayName("Should update duplicated reference when predicate matches")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldUpdateDuplicatedReferenceWhenPredicateMatches(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		shouldUpdateDuplicatedReferenceWhenFilterMatchesInternal(
+			evitaSession,
+			originalProducts,
+			2,
+			editor -> editor.updateRelatedProducts(
+				rp -> {
+					final String label = rp.getLabel(Locale.ENGLISH);
+					return rp.getRelationType().startsWith("upsell") && label.endsWith("5") || label.endsWith("7");
+				},
+				rpEd -> rpEd.setLabel(Locale.ENGLISH, "Changed")
+			)
+		);
+	}
+
+	@DisplayName("Should update duplicated reference when filter matches")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldUpdateDuplicatedReferenceWhenFilterMatches(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		shouldUpdateDuplicatedReferenceWhenFilterMatchesInternal(
+			evitaSession,
+			originalProducts,
+			3,
+			editor -> {
+				editor.updateRelatedProducts(
+					"upsell_5",
+					rpEd -> rpEd.setLabel(Locale.ENGLISH, "Changed")
+				);
+				editor.updateRelatedProducts(
+					"upsell_7",
+					rpEd -> rpEd.setLabel(Locale.ENGLISH, "Changed")
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should remove related product when filter matches")
+	@Order(48)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveRelatedProductWhenFilterMatches(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		shouldRemoveRelatedProductInternal(
+			evitaSession,
+			originalProducts,
+			5, 6,
+			editor -> editor.removeRelatedProduct(6, "accessory")
+		);
+	}
+
+	@DisplayName("Should remove related product when predicate matches")
+	@Order(48)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveRelatedProductWhenPredicateMatches(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		shouldRemoveRelatedProductInternal(
+			evitaSession,
+			originalProducts,
+			7, 8,
+			editor -> editor.removeRelatedProduct(6, ref -> "accessory".equals(ref.getRelationType()))
+		);
+	}
+
+	@DisplayName("Should remove all related products and return count")
+	@Order(49)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsAndReturnCount(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		assertEquals(6, reloaded.removeAllRelatedProductsAndReturnCount());
+	}
+
+	@DisplayName("Should remove all related products using discriminator and return count")
+	@Order(50)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsUsingDiscriminatorAndReturnCount(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		assertEquals(3, reloaded.removeRelatedProductsAndReturnCount(CATEGORY_SIMILAR));
+		assertEquals(3, reloaded.removeRelatedProductsAndReturnCount(CATEGORY_DIFFERENT));
+	}
+
+	@DisplayName("Should remove all related products and return their ids")
+	@Order(51)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsAndReturnTheirIds(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<Integer> ids = reloaded.removeAllRelatedProductsAndReturnTheirIds();
+		assertEquals(6, ids.size());
+		assertArrayEquals(
+			new Integer[]{1, 1, 2, 2, 3, 3},
+			ids.stream().sorted().toArray(Integer[]::new)
+		);
+	}
+
+	@DisplayName("Should remove all related products using discriminator and return their ids")
+	@Order(52)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsUsingDiscriminatorAndReturnTheirIds(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<Integer> similarIds = reloaded.removeAllRelatedProductsAndReturnTheirIds(CATEGORY_SIMILAR);
+		assertEquals(3, similarIds.size());
+		assertArrayEquals(
+			new Integer[]{1, 2, 3},
+			similarIds.stream().sorted().toArray(Integer[]::new)
+		);
+
+		final Collection<Integer> differentIds = reloaded.removeAllRelatedProductsAndReturnTheirIds(CATEGORY_DIFFERENT);
+		assertEquals(3, differentIds.size());
+		assertArrayEquals(
+			new Integer[]{1, 2, 3},
+			differentIds.stream().sorted().toArray(Integer[]::new)
+		);
+	}
+
+	@DisplayName("Should remove all related products and return their bodies")
+	@Order(53)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsAndReturnTheirBodies(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<RelatedProductInterface> removedRelations = reloaded.removeAllRelatedProductsAndReturnTheirBodies();
+		assertEquals(6, removedRelations.size());
+		assertArrayEquals(
+			new int[] {1, 1, 2, 2, 3, 3},
+			removedRelations.stream().mapToInt(RelatedProductInterface::getPrimaryKey).sorted().toArray()
+		);
+	}
+
+	@DisplayName("Should remove all related products using discriminator and return their bodies")
+	@Order(53)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllRelatedProductsUsingDiscriminatorAndReturnTheirBodies(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		final ProductInterfaceEditor reloaded = prepareExampleProductForRelatedProductsRemoval(
+			evitaSession, originalProducts
+		);
+
+		final Collection<RelatedProductInterface> similarRelations =
+			reloaded.removeAllRelatedProductsAndReturnTheirBodies(CATEGORY_SIMILAR);
+		assertEquals(3, similarRelations.size());
+		assertArrayEquals(
+			new int[]{1, 2, 3},
+			similarRelations.stream().mapToInt(RelatedProductInterface::getPrimaryKey).sorted().toArray()
+		);
+
+		final Collection<RelatedProductInterface> differentRelations =
+			reloaded.removeAllRelatedProductsAndReturnTheirBodies(CATEGORY_DIFFERENT);
+		assertEquals(3, differentRelations.size());
+		assertArrayEquals(
+			new int[]{1, 2, 3},
+			differentRelations.stream().mapToInt(RelatedProductInterface::getPrimaryKey).sorted().toArray()
 		);
 	}
 

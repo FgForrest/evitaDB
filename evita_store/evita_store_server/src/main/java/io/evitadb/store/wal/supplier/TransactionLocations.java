@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Optional.ofNullable;
@@ -50,11 +52,11 @@ public class TransactionLocations {
 	/**
 	 * The full known transaction location history maintained in this object.
 	 */
-	private CompositeObjectArray<TransactionLocation> locations = new CompositeObjectArray<>(TransactionLocation.class, true);
+	@Nullable private CompositeObjectArray<TransactionLocation> locations = new CompositeObjectArray<>(TransactionLocation.class, true);
 	/**
 	 * The last known transaction location maintained in this object.
 	 */
-	private TransactionLocation lastLocation;
+	@Nullable private TransactionLocation lastLocation;
 
 	/**
 	 * Returns the number of transaction locations maintained in this object.
@@ -62,11 +64,11 @@ public class TransactionLocations {
 	 * @return the number of transaction locations, or -1 if the lock could not be acquired
 	 */
 	public int size() {
-		if (lock.tryLock()) {
+		if (this.lock.tryLock()) {
 			try {
 				return this.locations == null ? 1 : this.locations.getSize();
 			} finally {
-				lock.unlock();
+				this.lock.unlock();
 			}
 		} else {
 			return -1;
@@ -82,13 +84,13 @@ public class TransactionLocations {
 	public boolean cut() {
 		Assert.isPremiseValid(this.locations != null, "The locations are already cut!");
 		try {
-			if (lock.tryLock(100, MILLISECONDS)) {
+			if (this.lock.tryLock(100, MILLISECONDS)) {
 				try {
 					this.lastLocation = this.locations.getLast();
 					this.locations = null;
 					return true;
 				} finally {
-					lock.unlock();
+					this.lock.unlock();
 				}
 			}
 		} catch (InterruptedException ignored) {
@@ -109,15 +111,15 @@ public class TransactionLocations {
 		if (this.locations == null) {
 			this.locations = new CompositeObjectArray<>(TransactionLocation.class);
 		}
-		if (lock.tryLock()) {
+		if (this.lock.tryLock()) {
 			try {
 				final boolean canBeAppended = ofNullable(this.locations.getLast())
-					.map(it -> it.catalogVersion() + 1 == transactionMutation.getCatalogVersion())
+					.map(it -> it.catalogVersion() + 1 == transactionMutation.getVersion())
 					.orElse(true);
 				if (canBeAppended) {
 					this.locations.add(
 						new TransactionLocation(
-							transactionMutation.getCatalogVersion(),
+							transactionMutation.getVersion(),
 							startPosition,
 							transactionMutation.getMutationCount(),
 							transactionMutation.getWalSizeInBytes()
@@ -125,7 +127,7 @@ public class TransactionLocations {
 					);
 				}
 			} finally {
-				lock.unlock();
+				this.lock.unlock();
 			}
 		}
 	}
@@ -140,17 +142,17 @@ public class TransactionLocations {
 		notifyAboutUsage();
 		final CompositeObjectArray<TransactionLocation> locs = this.locations;
 		if (locs != null) {
-			if (lock.tryLock()) {
+			if (this.lock.tryLock()) {
 				try {
 					final int index = locs.indexOf(
 						catalogVersion,
 						(transactionLocation, cv) -> Long.compare(transactionLocation.catalogVersion(), cv)
 					);
 					return index >= 0 ?
-						locs.get(index).startPosition() :
-						ofNullable(locs.getLast()).map(TransactionLocation::startPosition).orElse(0L);
+						Objects.requireNonNull(locs.get(index)).startPosition() :
+						0L;
 				} finally {
-					lock.unlock();
+					this.lock.unlock();
 				}
 			}
 		} else {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
@@ -48,7 +49,7 @@ import java.util.stream.Stream;
  */
 @Immutable
 @ThreadSafe
-public non-sealed interface SchemaMutation extends Mutation {
+public non-sealed interface SchemaMutation extends CatalogBoundMutation {
 
 	@Override
 	@Nonnull
@@ -57,6 +58,7 @@ public non-sealed interface SchemaMutation extends Mutation {
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
+
 		if (predicate.test(this)) {
 			return Stream.of(
 				ChangeCatalogCapture.schemaCapture(

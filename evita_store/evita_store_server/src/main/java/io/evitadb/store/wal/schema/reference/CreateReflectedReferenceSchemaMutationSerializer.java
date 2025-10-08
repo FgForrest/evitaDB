@@ -63,7 +63,7 @@ public class CreateReflectedReferenceSchemaMutationSerializer extends Serializer
 			writeScopeArray(kryo, output, mutation.getFacetedInScopes());
 		}
 
-		kryo.writeObject(output, mutation.getAttributesInheritanceBehavior());
+		kryo.writeObject(output, mutation.getAttributeInheritanceBehavior());
 
 		final String[] attributesExcludedFromInheritance = mutation.getAttributeInheritanceFilter();
 		output.writeVarInt(attributesExcludedFromInheritance.length, true);

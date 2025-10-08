@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,13 +28,13 @@ import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,21 +49,21 @@ class SetParentMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter =  new SetParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter =  new SetParentMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final SetParentMutation expectedMutation = new SetParentMutation(1);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = this.converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), "1")
 				.build()
@@ -73,7 +73,7 @@ class SetParentMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = this.converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 10)
 				.build()
@@ -86,7 +86,20 @@ class SetParentMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final SetParentMutation inputMutation = new SetParentMutation(1);
+
+		assertEquals(
+			map()
+				.e(SetParentMutationDescriptor.MUTATION_TYPE.name(),  SetParentMutation.class.getSimpleName())
+				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
+				.build(),
+			this.converter.convertToOutput(inputMutation)
+		);
 	}
 }

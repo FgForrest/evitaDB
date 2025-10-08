@@ -18,6 +18,8 @@
 
 package io.evitadb.externalApi.utils.path.routing;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,12 +43,8 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 	public CopyOnWriteMap() {
 	}
 
-	public CopyOnWriteMap(Map<K, V> existing) {
-		this.delegate = new HashMap<>(existing);
-	}
-
 	@Override
-	public synchronized V putIfAbsent(K key, V value) {
+	public synchronized V putIfAbsent(@Nonnull K key, V value) {
 		final Map<K, V> delegate = this.delegate;
 		V existing = delegate.get(key);
 		if(existing != null) {
@@ -57,8 +55,9 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 	}
 
 	@Override
-	public synchronized boolean remove(Object key, Object value) {
+	public synchronized boolean remove(@Nonnull Object key, Object value) {
 		final Map<K, V> delegate = this.delegate;
+		//noinspection SuspiciousMethodCalls
 		V existing = delegate.get(key);
 		if(existing.equals(value)) {
 			removeInternal(key);
@@ -68,7 +67,7 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 	}
 
 	@Override
-	public synchronized boolean replace(K key, V oldValue, V newValue) {
+	public synchronized boolean replace(@Nonnull K key, @Nonnull V oldValue, @Nonnull V newValue) {
 		final Map<K, V> delegate = this.delegate;
 		V existing = delegate.get(key);
 		if(existing.equals(oldValue)) {
@@ -79,7 +78,7 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 	}
 
 	@Override
-	public synchronized V replace(K key, V value) {
+	public synchronized V replace(@Nonnull K key, @Nonnull V value) {
 		final Map<K, V> delegate = this.delegate;
 		V existing = delegate.get(key);
 		if(existing != null) {
@@ -91,27 +90,27 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 
 	@Override
 	public int size() {
-		return delegate.size();
+		return this.delegate.size();
 	}
 
 	@Override
 	public boolean isEmpty() {
-		return delegate.isEmpty();
+		return this.delegate.isEmpty();
 	}
 
 	@Override
 	public boolean containsKey(Object key) {
-		return delegate.containsKey(key);
+		return this.delegate.containsKey(key);
 	}
 
 	@Override
 	public boolean containsValue(Object value) {
-		return delegate.containsValue(value);
+		return this.delegate.containsValue(value);
 	}
 
 	@Override
 	public V get(Object key) {
-		return delegate.get(key);
+		return this.delegate.get(key);
 	}
 
 	@Override
@@ -125,45 +124,48 @@ public class CopyOnWriteMap<K,V> implements ConcurrentMap<K, V> {
 	}
 
 	@Override
-	public synchronized void putAll(Map<? extends K, ? extends V> m) {
+	public synchronized void putAll(@Nonnull Map<? extends K, ? extends V> m) {
 		final Map<K, V> delegate = new HashMap<>(this.delegate);
-		for(Entry<? extends K, ? extends V> e : m.entrySet()) {
-			delegate.put(e.getKey(), e.getValue());
-		}
+		delegate.putAll(m);
 		this.delegate = delegate;
 	}
 
 	@Override
 	public synchronized void clear() {
-		delegate = Collections.emptyMap();
+		this.delegate = Collections.emptyMap();
 	}
 
+	@Nonnull
 	@Override
 	public Set<K> keySet() {
-		return delegate.keySet();
+		return this.delegate.keySet();
 	}
 
+	@Nonnull
 	@Override
 	public Collection<V> values() {
-		return delegate.values();
+		return this.delegate.values();
 	}
 
+	@Nonnull
 	@Override
 	public Set<Entry<K, V>> entrySet() {
-		return delegate.entrySet();
+		return this.delegate.entrySet();
 	}
 
 	//must be called under lock
+	@Nullable
 	private V putInternal(final K key, final V value) {
 		final Map<K, V> delegate = new HashMap<>(this.delegate);
-		V existing = delegate.put(key, value);
+		final V existing = delegate.put(key, value);
 		this.delegate = delegate;
 		return existing;
 	}
 
 	public V removeInternal(final Object key) {
 		final Map<K, V> delegate = new HashMap<>(this.delegate);
-		V existing = delegate.remove(key);
+		//noinspection SuspiciousMethodCalls
+		final V existing = delegate.remove(key);
 		this.delegate = delegate;
 		return existing;
 	}

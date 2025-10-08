@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,24 +76,24 @@ public abstract sealed class NumberRange<T extends Number> implements Range<T>, 
 
 	@Override
 	public long getFrom() {
-		return fromToCompare;
+		return this.fromToCompare;
 	}
 
 	@Override
 	public long getTo() {
-		return toToCompare;
+		return this.toToCompare;
 	}
 
 	@Nullable
 	@Override
 	public T getPreciseFrom() {
-		return from;
+		return this.from;
 	}
 
 	@Nullable
 	@Override
 	public T getPreciseTo() {
-		return to;
+		return this.to;
 	}
 
 	/**
@@ -103,7 +103,7 @@ public abstract sealed class NumberRange<T extends Number> implements Range<T>, 
 	public boolean isWithin(@Nonnull T valueToCheck) {
 		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
 		final long valueToCompare = toComparableLong(EvitaDataTypes.toTargetType(valueToCheck, getSupportedType()), 0L);
-		return fromToCompare <= valueToCompare && valueToCompare <= toToCompare;
+		return this.fromToCompare <= valueToCompare && valueToCompare <= this.toToCompare;
 	}
 
 	@Override
@@ -120,8 +120,8 @@ public abstract sealed class NumberRange<T extends Number> implements Range<T>, 
 	@Nonnull
 	@Override
 	public String toString() {
-		return OPEN_CHAR + ofNullable(from).map(Object::toString).orElse("") +
-			INTERVAL_JOIN + ofNullable(to).map(Object::toString).orElse("") + CLOSE_CHAR;
+		return OPEN_CHAR + ofNullable(this.from).map(Object::toString).orElse("") +
+			INTERVAL_JOIN + ofNullable(this.to).map(Object::toString).orElse("") + CLOSE_CHAR;
 	}
 
 	/**

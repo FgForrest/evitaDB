@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,42 +81,42 @@ public class DataMutationBuilder {
 	}
 
 	public void buildCommonTypes() {
-		buildingContext.registerType(SetEntityScopeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetParentMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetEntityScopeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetParentMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
 
 	@Nonnull
 	public OpenApiTypeReference buildEntityUpsertRequestObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder upsertEntityObjectBuilder = EntityUpsertRequestDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(EntityUpsertRequestDescriptor.THIS.name(entitySchema));
 
 		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema(entitySchema);
 
 		localMutationSchema.ifPresent(objectSchema ->
 			upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.MUTATIONS
-				.to(propertyBuilderTransformer)
+				.to(this.propertyBuilderTransformer)
 				.type(nonNull(arrayOf(localMutationSchema.get())))));
 
 		upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.REQUIRE
-			.to(propertyBuilderTransformer)
-			.type(nonNull(requireConstraintSchemaBuilder.build(entitySchema.getName()))));
+			.to(this.propertyBuilderTransformer)
+			.type(nonNull(this.requireConstraintSchemaBuilder.build(entitySchema.getName()))));
 
-		return buildingContext.registerType(upsertEntityObjectBuilder.build());
+		return this.buildingContext.registerType(upsertEntityObjectBuilder.build());
 	}
 
 	@Nonnull
@@ -124,7 +124,7 @@ public class DataMutationBuilder {
 		final String schemaName = LocalMutationAggregateDescriptor.THIS.name(entitySchema);
 
 		final OpenApiObject.Builder localMutationObjectBuilder = LocalMutationAggregateDescriptor.THIS
-			.to(objectBuilderTransformer)
+			.to(this.objectBuilderTransformer)
 			.name(schemaName)
 			.description(LocalMutationAggregateDescriptor.THIS.description(entitySchema.getName()));
 
@@ -132,43 +132,43 @@ public class DataMutationBuilder {
 
 		if (!entitySchema.getAssociatedData().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ASSOCIATED_DATA)) {
 			hasAnyMutations = true;
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.to(this.propertyBuilderTransformer));
 		}
 
 		if (!entitySchema.getAttributes().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ATTRIBUTES)) {
 			hasAnyMutations = true;
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.to(this.propertyBuilderTransformer));
 		}
 
 		if (entitySchema.isWithHierarchy() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_HIERARCHY)) {
 			hasAnyMutations = true;
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.to(propertyBuilderTransformer)
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.to(this.propertyBuilderTransformer)
 				.type(DataTypesConverter.getOpenApiScalar(Boolean.class)));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.to(this.propertyBuilderTransformer));
 		}
 
 		if (entitySchema.isWithPrice() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_PRICES)) {
 			hasAnyMutations = true;
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.to(this.propertyBuilderTransformer));
 		}
 
 		if (!entitySchema.getReferences().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_REFERENCES)) {
 			hasAnyMutations = true;
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.to(propertyBuilderTransformer));
-			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.to(this.propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.to(this.propertyBuilderTransformer));
 		}
 
 		if (!hasAnyMutations) {
 			return Optional.empty();
 		}
-		return Optional.of(buildingContext.registerType(localMutationObjectBuilder.build()));
+		return Optional.of(this.buildingContext.registerType(localMutationObjectBuilder.build()));
 	}
 }

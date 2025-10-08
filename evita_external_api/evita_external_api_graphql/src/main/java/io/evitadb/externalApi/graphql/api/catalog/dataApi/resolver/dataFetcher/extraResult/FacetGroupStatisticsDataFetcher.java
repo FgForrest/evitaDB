@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Extracts list of all {@link FacetGroupStatistics} of certain reference name from {@link FacetSummary}.
@@ -46,11 +47,11 @@ public class FacetGroupStatisticsDataFetcher implements DataFetcher<Collection<F
 
 	@Nonnull
 	@Override
-	public Collection<FacetGroupStatistics> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final FacetSummary facetSummary = environment.getSource();
+	public Collection<FacetGroupStatistics> get(DataFetchingEnvironment environment) throws Exception {
+		final FacetSummary facetSummary = Objects.requireNonNull(environment.getSource());
 		return facetSummary.getReferenceStatistics()
 			.stream()
-			.filter(it -> it.getReferenceName().equals(referenceSchema.getName()))
+			.filter(it -> it.getReferenceName().equals(this.referenceSchema.getName()))
 			.toList();
 	}
 }

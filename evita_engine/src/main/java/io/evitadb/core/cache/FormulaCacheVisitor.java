@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,13 +81,13 @@ public class FormulaCacheVisitor extends FormulaCloner {
 	 */
 	@Nullable
 	public Formula[] analyseChildren(@Nonnull Formula formula) {
-		treeStack.push(new CacheSubTree());
-		parents.push(formula);
+		this.treeStack.push(new CacheSubTree());
+		this.parents.push(formula);
 		for (Formula innerFormula : formula.getInnerFormulas()) {
 			innerFormula.accept(this);
 		}
-		parents.pop();
-		final CacheSubTree theTree = (CacheSubTree) treeStack.pop();
+		this.parents.pop();
+		final CacheSubTree theTree = (CacheSubTree) this.treeStack.pop();
 		final Set<Formula> updatedChildren = theTree.getChildren();
 		return theTree.containsNonCacheableFormula() ? null : updatedChildren.toArray(Formula[]::new);
 	}
@@ -126,7 +126,7 @@ public class FormulaCacheVisitor extends FormulaCloner {
 		 * Returns TRUE if the subtree contains {@link NonCacheableFormula}.
 		 */
 		public boolean containsNonCacheableFormula() {
-			return containsNonCacheableFormula.get();
+			return this.containsNonCacheableFormula.get();
 		}
 
 		public void setContainsNonCacheableFormula() {

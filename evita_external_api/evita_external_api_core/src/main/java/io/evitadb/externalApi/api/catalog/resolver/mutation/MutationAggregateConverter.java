@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,15 +42,15 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public abstract class MutationAggregateConverter<M extends Mutation, R extends MutationConverter<? extends M>> {
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
+public abstract class MutationAggregateConverter<M extends Mutation, C extends MutationConverter<M>> {
 
 	/**
-	 * Parses input object into Java primitive or generic {@link Map} to resolve into {@link Mutation}.
+	 * Maps input object into Java primitive or generic {@link Map} to resolve into {@link Mutation} or other way around.
 	 */
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final MutationObjectParser objectParser;
+	private final MutationObjectMapper objectMapper;
 	/**
 	 * Handles exception creation that can occur during resolving.
 	 */
@@ -64,20 +65,34 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	protected abstract String getMutationAggregateName();
 
 	/**
-	 * Returns mappings of mutation resolvers to names of mutations. These resolver are used for resolving inner individual
+	 * Returns mappings of mutation converters to names of mutations. These resolvers are used for resolving inner individual
 	 * mutations
 	 */
 	@Nonnull
-	protected abstract Map<String, R> getResolvers();
+	protected abstract Map<String, C> getConverters();
+
+	protected void registerConverter(@Nonnull String name, @Nonnull MutationConverter<? extends M> converter) {
+		//noinspection unchecked
+		getConverters().put(name, (C) converter);
+	}
 
 	/**
 	 * Resolve raw input local mutation parsed from JSON into actual list of {@link Mutation} based on implementation of
 	 * resolver.
 	 */
 	@Nonnull
-	public List<M> convert(@Nullable Object rawInputMutationObject) {
-		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convert(new Input(getMutationAggregateName(), inputMutationObject, exceptionFactory));
+	public List<M> convertFromInput(@Nullable Object rawInputMutationObject) {
+		return this.convertFromInput(rawInputMutationObject, MutationConverterContext.EMPTY);
+	}
+
+	/**
+	 * Resolve raw input local mutation parsed from JSON into actual list of {@link Mutation} based on implementation of
+	 * resolver.
+	 */
+	@Nonnull
+	public List<M> convertFromInput(@Nullable Object rawInputMutationObject, @Nonnull Map<String, Object> context) {
+		final Object inputMutationObject = this.objectMapper.parse(rawInputMutationObject);
+		return convertFromInput(new Input(getMutationAggregateName(), inputMutationObject, this.exceptionFactory, context));
 	}
 
 	/**
@@ -85,7 +100,7 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	 * resolver.
 	 */
 	@Nonnull
-	protected List<M> convert(@Nonnull Input input) {
+	protected List<M> convertFromInput(@Nonnull Input input) {
 		final List<M> mutations = new LinkedList<>();
 
 		final Map<String, Object> mutationAggregate = Optional.of(input.getRequiredValue())
@@ -100,9 +115,9 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 			.get();
 
 		mutationAggregate.forEach((mutationName, mutation) -> {
-			final R resolver = Optional.ofNullable(getResolvers().get(mutationName))
+			final C resolver = Optional.ofNullable(getConverters().get(mutationName))
 				.orElseThrow(() -> getExceptionFactory().createInvalidArgumentException("Unknown mutation `" + mutationName + "`."));
-			mutations.add(resolver.convert(mutation));
+			mutations.add(resolver.convertFromInput(mutation, input.createChildContext()));
 		});
 
 		return mutations;

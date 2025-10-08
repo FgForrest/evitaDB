@@ -27,7 +27,7 @@ import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
-import java.util.function.BiFunction;
+import java.util.function.IntFunction;
 
 /**
  * Exception indicating that a Write Ahead Log (WAL) has been corrupted.
@@ -48,15 +48,14 @@ public class WriteAheadLogCorruptedException extends EvitaInternalError {
 	}
 
 	public WriteAheadLogCorruptedException(
-		@Nonnull String catalogName,
 		int walIndex,
 		long lastVersion,
 		long firstVersion,
-		@Nonnull BiFunction<String, Integer, String> getWalFileName
+		@Nonnull IntFunction<String> walFileNameProvider
 	) {
 		super(
-			"First version of the WAL file `" + getWalFileName.apply(catalogName, walIndex) + "` doesn't follow up to the last version of the" +
-				" previous WAL file `" + getWalFileName.apply(catalogName, walIndex - 1) + "`! Last version found: `" +
+			"First version of the WAL file `" + walFileNameProvider.apply(walIndex) + "` doesn't follow up to the last version of the" +
+				" previous WAL file `" + walFileNameProvider.apply(walIndex - 1) + "`! Last version found: `" +
 				lastVersion + "`, first version of the next WAL file : `" + firstVersion + "`! ",
 			"First version of the WAL file doesn't follow up to the last version of the previous WAL file!"
 		);

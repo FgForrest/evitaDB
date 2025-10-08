@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,11 +69,11 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		V value = target.get(new LatentKey<>(key));
+		V value = this.target.get(new LatentKey<>(key));
 		if (value == null) {
 			value = defaultValue(key);
 			if (value != null) {
-				V previousValue = target.putIfAbsent(new WeakKey<>(key, this), value);
+				V previousValue = this.target.putIfAbsent(new WeakKey<>(key, this), value);
 				if (previousValue != null) {
 					value = previousValue;
 				}
@@ -92,7 +92,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		return target.containsKey(new LatentKey<>(key));
+		return this.target.containsKey(new LatentKey<>(key));
 	}
 
 	/**
@@ -106,14 +106,14 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		return target.put(new WeakKey<>(key, this), value);
+		return this.target.put(new WeakKey<>(key, this), value);
 	}
 
 	/**
 	 * @see Map#computeIfAbsent(Object, Function)
 	 */
 	public V computeIfAbsent(K key, Function<K, V> computer) {
-		return target.computeIfAbsent(
+		return this.target.computeIfAbsent(
 			new WeakKey<>(key, this),
 			kWeakKey -> computer.apply(kWeakKey.get())
 		);
@@ -129,7 +129,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			throw new NullPointerException();
 		}
 		expungeStaleEntries();
-		return target.remove(new LatentKey<>(key));
+		return this.target.remove(new LatentKey<>(key));
 	}
 
 	/**
@@ -137,7 +137,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 */
 	public void clear() {
 		expungeStaleEntries();
-		target.clear();
+		this.target.clear();
 	}
 
 	/**
@@ -158,7 +158,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	public void expungeStaleEntries() {
 		Reference<?> reference;
 		while ((reference = poll()) != null) {
-			target.remove(reference);
+			this.target.remove(reference);
 		}
 	}
 
@@ -168,13 +168,13 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 	 * @return The minimum size of this map.
 	 */
 	public int approximateSize() {
-		return target.size();
+		return this.target.size();
 	}
 
 	@Nonnull
 	@Override
 	public Iterator<Entry<K, V>> iterator() {
-		return new EntryIterator(target.entrySet().iterator());
+		return new EntryIterator(this.target.entrySet().iterator());
 	}
 
 	/*
@@ -214,12 +214,12 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		WeakKey(T key, ReferenceQueue<? super T> queue) {
 			super(key, queue);
-			hashCode = System.identityHashCode(key);
+			this.hashCode = System.identityHashCode(key);
 		}
 
 		@Override
 		public int hashCode() {
-			return hashCode;
+			return this.hashCode;
 		}
 
 		@Override
@@ -246,21 +246,21 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		LatentKey(T key) {
 			this.key = key;
-			hashCode = System.identityHashCode(key);
+			this.hashCode = System.identityHashCode(key);
 		}
 
 		@Override
 		public boolean equals(Object other) {
 			if (other instanceof LatentKey<?>) {
-				return ((LatentKey<?>) other).key == key;
+				return ((LatentKey<?>) other).key == this.key;
 			} else {
-				return ((WeakKey<?>) other).get() == key;
+				return ((WeakKey<?>) other).get() == this.key;
 			}
 		}
 
 		@Override
 		public int hashCode() {
-			return hashCode;
+			return this.hashCode;
 		}
 	}
 
@@ -278,29 +278,29 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 		}
 
 		private void findNext() {
-			while (iterator.hasNext()) {
-				nextEntry = iterator.next();
-				nextKey = nextEntry.getKey().get();
-				if (nextKey != null) {
+			while (this.iterator.hasNext()) {
+				this.nextEntry = this.iterator.next();
+				this.nextKey = this.nextEntry.getKey().get();
+				if (this.nextKey != null) {
 					return;
 				}
 			}
-			nextEntry = null;
-			nextKey = null;
+			this.nextEntry = null;
+			this.nextKey = null;
 		}
 
 		@Override
 		public boolean hasNext() {
-			return nextKey != null;
+			return this.nextKey != null;
 		}
 
 		@Override
 		public Map.Entry<K, V> next() {
-			if (nextKey == null || nextEntry == null) {
+			if (this.nextKey == null || this.nextEntry == null) {
 				throw new NoSuchElementException();
 			}
 			try {
-				return new SimpleEntry(nextKey, nextEntry);
+				return new SimpleEntry(this.nextKey, this.nextEntry);
 			} finally {
 				findNext();
 			}
@@ -325,12 +325,12 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 
 		@Override
 		public K getKey() {
-			return key;
+			return this.key;
 		}
 
 		@Override
 		public V getValue() {
-			return entry.getValue();
+			return this.entry.getValue();
 		}
 
 		@Override
@@ -338,7 +338,7 @@ public class WeakConcurrentMap<K, V> extends ReferenceQueue<K>
 			if (value == null) {
 				throw new NullPointerException();
 			}
-			return entry.setValue(value);
+			return this.entry.setValue(value);
 		}
 	}
 }

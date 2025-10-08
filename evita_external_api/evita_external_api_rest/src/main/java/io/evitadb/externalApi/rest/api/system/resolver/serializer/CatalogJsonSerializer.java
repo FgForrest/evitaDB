@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.CorruptedCatalog;
+import io.evitadb.core.UnusableCatalog;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
-import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
@@ -57,8 +57,8 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	public ObjectNode serialize(@Nonnull CatalogContract c) {
-		if (c instanceof CorruptedCatalog corruptedCatalog) {
-			return serialize(corruptedCatalog);
+		if (c instanceof UnusableCatalog unusableCatalog) {
+			return serialize(unusableCatalog);
 		} else if (c instanceof Catalog catalog) {
 			return serialize(catalog);
 		} else {
@@ -68,7 +68,7 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	public ArrayNode serialize(@Nonnull Collection<CatalogContract> catalogs) {
-		final ArrayNode arrayNode = objectJsonSerializer.arrayNode();
+		final ArrayNode arrayNode = this.objectJsonSerializer.arrayNode();
 		catalogs.forEach(catalog -> arrayNode.add(serialize(catalog)));
 
 		return arrayNode;
@@ -76,16 +76,16 @@ public class CatalogJsonSerializer {
 
 	@Nonnull
 	private ObjectNode serialize(@Nonnull Catalog catalog) {
-		final ObjectNode rootNode = objectJsonSerializer.objectNode();
-		rootNode.put(CatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString());
-		rootNode.put(CatalogDescriptor.NAME.name(), catalog.getName());
-		rootNode.put(CatalogDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalog.getSchema().getNameVariants()));
-		rootNode.put(CatalogDescriptor.VERSION.name(), String.valueOf(catalog.getVersion()));
-		rootNode.put(CatalogDescriptor.CATALOG_STATE.name(), catalog.getCatalogState().name());
-		rootNode.put(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), catalog.supportsTransaction());
-		rootNode.put(CatalogDescriptor.CORRUPTED.name(), false);
+		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
+		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_ID.name(), this.objectJsonSerializer.serializeObject(catalog.getCatalogId()));
+		rootNode.putIfAbsent(CatalogDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(catalog.getName()));
+		rootNode.putIfAbsent(CatalogDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalog.getSchema().getNameVariants()));
+		rootNode.putIfAbsent(CatalogDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(catalog.getVersion()));
+		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(catalog.getCatalogState()));
+		rootNode.putIfAbsent(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), this.objectJsonSerializer.serializeObject(catalog.supportsTransaction()));
+		rootNode.putIfAbsent(CatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(false));
 
-		final ArrayNode entityTypes = objectJsonSerializer.arrayNode();
+		final ArrayNode entityTypes = this.objectJsonSerializer.arrayNode();
 		catalog.getEntityTypes().forEach(entityTypes::add);
 		rootNode.set(CatalogDescriptor.ENTITY_TYPES.name(), entityTypes);
 
@@ -93,20 +93,21 @@ public class CatalogJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serialize(@Nonnull CorruptedCatalog corruptedCatalog) {
-		final ObjectNode rootNode = objectJsonSerializer.objectNode();
-		rootNode.put(CorruptedCatalogDescriptor.CATALOG_ID.name(), corruptedCatalog.getCatalogId().toString());
-		rootNode.put(CorruptedCatalogDescriptor.NAME.name(), corruptedCatalog.getName());
-		rootNode.put(CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH.name(), corruptedCatalog.getCatalogStoragePath().toString());
-		rootNode.put(CorruptedCatalogDescriptor.CAUSE.name(), corruptedCatalog.getCause().toString());
-		rootNode.put(CorruptedCatalogDescriptor.CORRUPTED.name(), true);
+	private ObjectNode serialize(@Nonnull UnusableCatalog unusableCatalog) {
+		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_ID.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogId()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getName()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_STORAGE_PATH.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogStoragePath()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CAUSE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getRepresentativeException()));
+		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogState()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(true));
 
 		return rootNode;
 	}
 
 	@Nonnull
 	private ObjectNode serializeNameVariants(@Nonnull Map<NamingConvention, String> nameVariants) {
-		final ObjectNode nameVariantsNode = objectJsonSerializer.objectNode();
+		final ObjectNode nameVariantsNode = this.objectJsonSerializer.objectNode();
 		nameVariantsNode.put(NameVariantsDescriptor.CAMEL_CASE.name(), nameVariants.get(NamingConvention.CAMEL_CASE));
 		nameVariantsNode.put(NameVariantsDescriptor.PASCAL_CASE.name(), nameVariants.get(NamingConvention.PASCAL_CASE));
 		nameVariantsNode.put(NameVariantsDescriptor.SNAKE_CASE.name(), nameVariants.get(NamingConvention.SNAKE_CASE));

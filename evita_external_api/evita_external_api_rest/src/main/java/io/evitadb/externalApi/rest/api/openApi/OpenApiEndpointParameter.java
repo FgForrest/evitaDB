@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,15 +83,15 @@ public class OpenApiEndpointParameter {
 		parameter.in(this.location.getLocation());
 		parameter.name(this.name);
 		parameter.description(this.description);
-		if (deprecationNotice != null) {
+		if (this.deprecationNotice != null) {
 			parameter.deprecated(true); // openapi doesn't support false here
 		}
 		if (this.type instanceof OpenApiNonNull) {
 			parameter.required(true); // openapi doesn't support false here
 		}
 		parameter.schema(this.type.toSchema());
-		if (defaultValue != null) {
-			parameter.getSchema().setDefault(DEFAULT_VALUE_SERIALIZER.serializeObject(defaultValue));
+		if (this.defaultValue != null) {
+			parameter.getSchema().setDefault(DEFAULT_VALUE_SERIALIZER.serializeObject(this.defaultValue));
 		}
 		return parameter;
 	}
@@ -168,14 +168,14 @@ public class OpenApiEndpointParameter {
 		@Nonnull
 		public OpenApiEndpointParameter build() {
 			Assert.isPremiseValid(
-				name != null && !name.isEmpty(),
+				this.name != null && !this.name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing parameter name.")
 			);
 			Assert.isPremiseValid(
-				type != null,
-				() -> new OpenApiBuildingError("Parameter `" + name + "` is missing type.")
+				this.type != null,
+				() -> new OpenApiBuildingError("Parameter `" + this.name + "` is missing type.")
 			);
-			return new OpenApiEndpointParameter(location, name, description, deprecationNotice, type, defaultValue);
+			return new OpenApiEndpointParameter(this.location, this.name, this.description, this.deprecationNotice, this.type, this.defaultValue);
 		}
 	}
 

@@ -27,11 +27,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
+import io.evitadb.externalApi.http.RoutableWebSocket;
+import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -54,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class RestRouter implements HttpService {
+public class RestRouter implements HttpService, WebSocketHandler {
 
 	private static final String SYSTEM_API_NAME = "system";
 
@@ -85,7 +88,13 @@ public class RestRouter implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		return delegateRouter.serve(ctx, req);
+		return this.delegateRouter.serve(ctx, req);
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		return this.delegateRouter.handle(ctx, in);
 	}
 
 	/**
@@ -116,9 +125,9 @@ public class RestRouter implements HttpService {
 	 * Unregisters all APIs associated with the defined catalog.
 	 */
 	public void unregisterCatalogApi(@Nonnull String catalogName) {
-		final boolean catalogRegistered = registeredApis.remove(catalogName);
+		final boolean catalogRegistered = this.registeredApis.remove(catalogName);
 		if (catalogRegistered) {
-			delegateRouter.removePrefixPath(constructApiPath(catalogName).toString());
+			this.delegateRouter.removePrefixPath(constructApiPath(catalogName).toString());
 		}
 	}
 
@@ -133,7 +142,7 @@ public class RestRouter implements HttpService {
 			endpoint.path().toString(),
 			CorsService.standaloneFilter(
 				endpoint.handler()
-					.decorate(service -> new RestExceptionHandler(objectMapper, service))
+					.decorate(service -> new RestExceptionHandler(this.objectMapper, service))
 			)
 		);
 	}

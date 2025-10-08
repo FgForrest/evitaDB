@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,13 +84,13 @@ public class TestQueryExecutionContext extends QueryExecutionContext {
 				toEntity(it),
 				getSchema(),
 				null,
-				new LocaleSerializablePredicate(evitaRequest),
-				new HierarchySerializablePredicate(evitaRequest),
-				new AttributeValueSerializablePredicate(evitaRequest),
-				new AssociatedDataValueSerializablePredicate(evitaRequest),
-				new ReferenceContractSerializablePredicate(evitaRequest),
-				new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-				evitaRequest.getAlignedNow(),
+				new LocaleSerializablePredicate(this.evitaRequest),
+				new HierarchySerializablePredicate(this.evitaRequest),
+				new AttributeValueSerializablePredicate(this.evitaRequest),
+				new AssociatedDataValueSerializablePredicate(this.evitaRequest),
+				new ReferenceContractSerializablePredicate(this.evitaRequest),
+				new PriceContractSerializablePredicate(this.evitaRequest, (Boolean) null),
+				this.evitaRequest.getAlignedNow(),
 				0, 0,
 				null
 			)

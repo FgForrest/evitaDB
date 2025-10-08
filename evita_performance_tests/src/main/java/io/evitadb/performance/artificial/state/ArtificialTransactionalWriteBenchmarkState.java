@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 						SEED
 					)
 					.limit(5)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleCategorySchema(session),
@@ -96,7 +96,7 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 						SEED
 					)
 					.limit(10)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSamplePriceListSchema(session),
@@ -104,7 +104,7 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 						SEED
 					)
 					.limit(4)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleStoreSchema(session),
@@ -112,9 +112,9 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 						SEED
 					)
 					.limit(12)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
-				this.productSchema = dataGenerator.getSampleProductSchema(session);
+				this.productSchema = this.dataGenerator.getSampleProductSchema(session);
 				this.dataGenerator.generateEntities(
 						this.productSchema,
 						this.randomEntityPicker,
@@ -127,7 +127,7 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 			}
 		);
 		// create product modificator
-		this.modificationFunction = dataGenerator.createModificationFunction(randomEntityPicker, getRandom());
+		this.modificationFunction = this.dataGenerator.createModificationFunction(this.randomEntityPicker, getRandom());
 		// create product iterator
 		this.productIterator = getProductStream().iterator();
 	}
@@ -137,7 +137,7 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 	 */
 	@Override
 	public EvitaSessionContract getSession() {
-		return getSession(() -> evita.createReadWriteSession(getCatalogName()));
+		return getSession(() -> this.evita.createReadWriteSession(getCatalogName()));
 	}
 
 	/**
@@ -154,8 +154,8 @@ public class ArtificialTransactionalWriteBenchmarkState extends ArtificialBenchm
 	public void closeEvita() {
 		this.evita.close();
 		System.out.println("\nInitial database size was " + INITIAL_COUNT_OF_PRODUCTS + " of records.");
-		System.out.println("Inserted " + insertCounter.get() + " records in iteration.");
-		System.out.println("Updated " + updateCounter.get() + " records in iteration.");
+		System.out.println("Inserted " + this.insertCounter.get() + " records in iteration.");
+		System.out.println("Updated " + this.updateCounter.get() + " records in iteration.");
 	}
 
 }

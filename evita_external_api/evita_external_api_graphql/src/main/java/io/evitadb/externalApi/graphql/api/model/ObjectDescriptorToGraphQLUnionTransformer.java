@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
-
 /**
  * Transforms API-independent {@link ObjectDescriptor} to GraphQL union definition.
  *
@@ -39,7 +37,7 @@ import javax.annotation.Nonnull;
 public class ObjectDescriptorToGraphQLUnionTransformer implements ObjectDescriptorTransformer<GraphQLUnionType.Builder> {
 
 	@Override
-	public GraphQLUnionType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLUnionType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLUnionType.Builder unionBuilder = GraphQLUnionType.newUnionType();
 
 		if (objectDescriptor.isNameStatic()) {

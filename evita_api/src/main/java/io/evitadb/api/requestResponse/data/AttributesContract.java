@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -329,7 +329,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		 * Returns true if attribute is localized.
 		 */
 		public boolean localized() {
-			return locale != null;
+			return this.locale != null;
 		}
 
 		/**
@@ -349,7 +349,7 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 
 		@Override
 		public int compareTo(AttributeKey o) {
-			return ComparatorUtils.compareLocale(locale, o.locale, () -> attributeName.compareTo(o.attributeName));
+			return ComparatorUtils.compareLocale(this.locale, o.locale, () -> this.attributeName.compareTo(o.attributeName));
 		}
 
 		/**
@@ -359,14 +359,15 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		public int estimateSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 				// attribute name
-				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeStringSize(attributeName) +
+				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeStringSize(this.attributeName) +
 				// locale
 				MemoryMeasuringConstants.REFERENCE_SIZE;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return attributeName + (locale == null ? "" : ":" + locale);
+			return this.attributeName + (this.locale == null ? "" : ":" + this.locale);
 		}
 	}
 
@@ -428,14 +429,14 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 			final Serializable theValue = this.value;
 			Assert.isPremiseValid(
 				theValue != null,
-				"Attribute value " + key.attributeName() + " is unexpectedly null!"
+				"Attribute value " + this.key.attributeName() + " is unexpectedly null!"
 			);
 			return theValue;
 		}
 
 		@Override
 		public int compareTo(AttributeValue o) {
-			return key.compareTo(o.key);
+			return this.key.compareTo(o.key);
 		}
 
 		/**
@@ -449,9 +450,9 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 				// dropped
 				MemoryMeasuringConstants.BYTE_SIZE +
 				// key
-				key.estimateSize() +
+				this.key.estimateSize() +
 				// value size estimate
-				MemoryMeasuringConstants.REFERENCE_SIZE + (value == null ? 0 : EvitaDataTypes.estimateSize(value));
+				MemoryMeasuringConstants.REFERENCE_SIZE + (this.value == null ? 0 : EvitaDataTypes.estimateSize(this.value));
 		}
 
 		/**
@@ -460,9 +461,9 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 		@Override
 		public boolean differsFrom(@Nullable AttributeValue otherAttributeValue) {
 			if (otherAttributeValue == null) return true;
-			if (!Objects.equals(key, otherAttributeValue.key)) return true;
-			if (!Objects.equals(value, otherAttributeValue.value)) return true;
-			return dropped != otherAttributeValue.dropped;
+			if (!Objects.equals(this.key, otherAttributeValue.key)) return true;
+			if (!Objects.equals(this.value, otherAttributeValue.value)) return true;
+			return this.dropped != otherAttributeValue.dropped;
 		}
 
 		@Override
@@ -472,26 +473,27 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 
 			AttributeValue that = (AttributeValue) o;
 
-			if (version != that.version) return false;
-			return key.equals(that.key);
+			if (this.version != that.version) return false;
+			return this.key.equals(that.key);
 		}
 
 		public int hashCode() {
-			int result = version;
-			result = 31 * result + key.hashCode();
+			int result = this.version;
+			result = 31 * result + this.key.hashCode();
 			return result;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return (dropped ? "❌ " : "") +
-				"\uD83D\uDD11 " + key.attributeName() + " " +
-				(key.locale() == null ? "" : "(" + key.locale() + ")") +
+			return (this.dropped ? "❌ " : "") +
+				"\uD83D\uDD11 " + this.key.attributeName() + " " +
+				(this.key.locale() == null ? "" : "(" + this.key.locale() + ")") +
 				": " +
 				(
-					value instanceof Object[] ?
-						("[" + Arrays.stream((Object[]) value).map(Object::toString).collect(Collectors.joining(",")) + "]") :
-						value
+					this.value instanceof Object[] ?
+						("[" + Arrays.stream((Object[]) this.value).map(Object::toString).collect(Collectors.joining(",")) + "]") :
+						this.value
 				);
 		}
 	}

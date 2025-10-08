@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ class UpsertAttributeMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldCreateNewAttribute() {
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation(new AttributeKey("a"), (byte)5);
-		final AttributeValue newValue = mutation.mutateLocal(productSchema, null);
+		final AttributeValue newValue = mutation.mutateLocal(this.productSchema, null);
 		assertEquals((byte)5, newValue.value());
 		assertEquals(1L, newValue.version());
 	}
@@ -51,7 +51,7 @@ class UpsertAttributeMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldIncrementVersionByUpdatingAttribute() {
 		final UpsertAttributeMutation mutation = new UpsertAttributeMutation(new AttributeKey("a"), (byte)5);
-		final AttributeValue newValue = mutation.mutateLocal(productSchema, new AttributeValue(new AttributeKey("a"), (byte)3));
+		final AttributeValue newValue = mutation.mutateLocal(this.productSchema, new AttributeValue(new AttributeKey("a"), (byte)3));
 		assertEquals((byte) 5, newValue.value());
 		assertEquals(2L, newValue.version());
 	}
@@ -59,24 +59,24 @@ class UpsertAttributeMutationTest extends AbstractMutationTest {
 	@Test
 	void shouldReturnSameSkipToken() {
 		assertEquals(
-				new UpsertAttributeMutation(new AttributeKey("abc"), "B").getSkipToken(catalogSchema, productSchema),
-				new UpsertAttributeMutation(new AttributeKey("abc"), "C").getSkipToken(catalogSchema, productSchema)
+				new UpsertAttributeMutation(new AttributeKey("abc"), "B").getSkipToken(this.catalogSchema, this.productSchema),
+				new UpsertAttributeMutation(new AttributeKey("abc"), "C").getSkipToken(this.catalogSchema, this.productSchema)
 		);
 		assertEquals(
-				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "B").getSkipToken(catalogSchema, productSchema),
-				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "C").getSkipToken(catalogSchema, productSchema)
+				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "B").getSkipToken(this.catalogSchema, this.productSchema),
+				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "C").getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 
 	@Test
 	void shouldReturnDifferentSkipToken() {
 		assertNotEquals(
-				new UpsertAttributeMutation(new AttributeKey("abc"), "B").getSkipToken(catalogSchema, productSchema),
-				new UpsertAttributeMutation(new AttributeKey("abe"), "C").getSkipToken(catalogSchema, productSchema)
+				new UpsertAttributeMutation(new AttributeKey("abc"), "B").getSkipToken(this.catalogSchema, this.productSchema),
+				new UpsertAttributeMutation(new AttributeKey("abe"), "C").getSkipToken(this.catalogSchema, this.productSchema)
 		);
 		assertNotEquals(
-				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "B").getSkipToken(catalogSchema, productSchema),
-				new UpsertAttributeMutation(new AttributeKey("abc", Locale.GERMAN), "C").getSkipToken(catalogSchema, productSchema)
+				new UpsertAttributeMutation(new AttributeKey("abc", Locale.ENGLISH), "B").getSkipToken(this.catalogSchema, this.productSchema),
+				new UpsertAttributeMutation(new AttributeKey("abc", Locale.GERMAN), "C").getSkipToken(this.catalogSchema, this.productSchema)
 		);
 	}
 

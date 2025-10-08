@@ -472,11 +472,11 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 			evitaSession.getEntitySchema(theClass)
 		);
 
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(theClass));
+		assertNotNull(evitaSession.getEntitySchemaOrThrowException(Entities.PRODUCT));
+		assertNotNull(evitaSession.getEntitySchemaOrThrowException(theClass));
 		assertEquals(
-			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrow(theClass)
+			evitaSession.getEntitySchemaOrThrowException(Entities.PRODUCT),
+			evitaSession.getEntitySchemaOrThrowException(theClass)
 		);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,14 +26,16 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associate
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -48,7 +50,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new CreateAssociatedDataSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new CreateAssociatedDataSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -62,9 +64,9 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			true
 		);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convert(
+		final CreateAssociatedDataSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -74,9 +76,9 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation2 = converter.convert(
+		final CreateAssociatedDataSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), "String")
@@ -97,9 +99,9 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			false
 		);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convert(
+		final CreateAssociatedDataSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
-				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+				.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
 				.build()
 		);
@@ -110,7 +112,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
@@ -118,13 +120,41 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
-					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final CreateAssociatedDataSchemaMutation inputMutation = new CreateAssociatedDataSchemaMutation(
+			"labels",
+			"desc",
+			"depr",
+			String.class,
+			true,
+			true
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(CreateAssociatedDataSchemaMutationDescriptor.MUTATION_TYPE.name(), CreateAssociatedDataSchemaMutation.class.getSimpleName())
+					.e(AssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
+					.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
+					.e(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class.getSimpleName())
+					.e(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED.name(), true)
+					.e(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE.name(), true)
+					.build()
+			);
 	}
 }

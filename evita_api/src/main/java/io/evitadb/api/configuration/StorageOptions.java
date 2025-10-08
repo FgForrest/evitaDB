@@ -30,7 +30,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Configuration options related to the key-value storage.
@@ -87,7 +88,7 @@ public record StorageOptions(
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
 	int outputBufferSize,
-	int maxOpenedReadHandles,
+	@Nullable Integer maxOpenedReadHandles,
 	boolean syncWrites,
 	boolean compress,
 	boolean computeCRC32C,
@@ -103,7 +104,7 @@ public record StorageOptions(
 	public static final Path DEFAULT_EXPORT_DIRECTORY = Paths.get("").resolve("export");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
-	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
+	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors() * 20;
 	public static final boolean DEFAULT_SYNC_WRITES = true;
 	public static final boolean DEFAULT_COMPRESS = false;
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
@@ -175,7 +176,7 @@ public record StorageOptions(
 		long lockTimeoutSeconds,
 		long waitOnCloseSeconds,
 		int outputBufferSize,
-		int maxOpenedReadHandles,
+		@Nullable Integer maxOpenedReadHandles,
 		boolean syncWrites,
 		boolean compress,
 		boolean computeCRC32C,
@@ -185,12 +186,12 @@ public record StorageOptions(
 		long exportDirectorySizeLimitBytes,
 		long exportFileHistoryExpirationSeconds
 	) {
-		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
-		this.exportDirectory = Optional.ofNullable(exportDirectory).orElse(DEFAULT_EXPORT_DIRECTORY);
+		this.storageDirectory = ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
+		this.exportDirectory = ofNullable(exportDirectory).orElse(DEFAULT_EXPORT_DIRECTORY);
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.outputBufferSize = outputBufferSize;
-		this.maxOpenedReadHandles = maxOpenedReadHandles;
+		this.maxOpenedReadHandles = ofNullable(maxOpenedReadHandles).orElse(DEFAULT_MAX_OPENED_READ_HANDLES);
 		this.syncWrites = syncWrites;
 		this.compress = compress;
 		this.computeCRC32C = computeCRC32C;
@@ -199,6 +200,16 @@ public record StorageOptions(
 		this.timeTravelEnabled = timeTravelEnabled;
 		this.exportDirectorySizeLimitBytes = exportDirectorySizeLimitBytes;
 		this.exportFileHistoryExpirationSeconds = exportFileHistoryExpirationSeconds;
+	}
+
+	/**
+	 * Returns the maximum number of opened read handles if it is explicitly specified,
+	 * or the default value if it is not set.
+	 *
+	 * @return the maximum number of opened read handles or the default value.
+	 */
+	public int maxOpenedReadHandlesOrDefault() {
+		return this.maxOpenedReadHandles != null ? this.maxOpenedReadHandles : DEFAULT_MAX_OPENED_READ_HANDLES;
 	}
 
 	/**
@@ -230,7 +241,7 @@ public record StorageOptions(
 			this.lockTimeoutSeconds = storageOptions.lockTimeoutSeconds;
 			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
 			this.outputBufferSize = storageOptions.outputBufferSize;
-			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
+			this.maxOpenedReadHandles = ofNullable(storageOptions.maxOpenedReadHandles).orElse(DEFAULT_MAX_OPENED_READ_HANDLES);
 			this.syncWrites = storageOptions.syncWrites;
 			this.compression = storageOptions.compress;
 			this.computeCRC32C = storageOptions.computeCRC32C;
@@ -330,20 +341,20 @@ public record StorageOptions(
 		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
-				storageDirectory,
-				exportDirectory,
-				lockTimeoutSeconds,
-				waitOnCloseSeconds,
-				outputBufferSize,
-				maxOpenedReadHandles,
-				syncWrites,
-				compression,
-				computeCRC32C,
-				minimalActiveRecordShare,
-				fileSizeCompactionThresholdBytes,
-				timeTravelEnabled,
-				exportDirectorySizeLimitBytes,
-				exportFileHistoryExpirationSeconds
+				this.storageDirectory,
+				this.exportDirectory,
+				this.lockTimeoutSeconds,
+				this.waitOnCloseSeconds,
+				this.outputBufferSize,
+				this.maxOpenedReadHandles,
+				this.syncWrites,
+				this.compression,
+				this.computeCRC32C,
+				this.minimalActiveRecordShare,
+				this.fileSizeCompactionThresholdBytes,
+				this.timeTravelEnabled,
+				this.exportDirectorySizeLimitBytes,
+				this.exportFileHistoryExpirationSeconds
 			);
 		}
 

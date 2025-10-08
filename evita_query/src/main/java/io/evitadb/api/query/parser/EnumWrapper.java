@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,9 +73,9 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 	@Nonnull
 	public <E extends Enum<E>> E toEnum(@Nonnull Class<E> targetEnum) {
 		return Arrays.stream(targetEnum.getEnumConstants())
-			.filter(enumValue -> enumValue.name().equals(value))
+			.filter(enumValue -> enumValue.name().equals(this.value))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInvalidUsageException("Unknown value `" + value + "` for enum `" + targetEnum.getSimpleName() + "`."));
+			.orElseThrow(() -> new EvitaInvalidUsageException("Unknown value `" + this.value + "` for enum `" + targetEnum.getSimpleName() + "`."));
 	}
 
 	/**
@@ -83,16 +83,16 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 	 */
 	public boolean canBeMappedTo(@Nonnull Class<? extends Enum<?>> targetEnum) {
 		return Arrays.stream(targetEnum.getEnumConstants())
-			.anyMatch(enumValue -> enumValue.name().equals(value));
+			.anyMatch(enumValue -> enumValue.name().equals(this.value));
 	}
 
 	@Override
 	public int compareTo(EnumWrapper o) {
-		return value.compareTo(o.getValue());
+		return this.value.compareTo(o.getValue());
 	}
 
 	@Override
 	public String toString() {
-		return value;
+		return this.value;
 	}
 }

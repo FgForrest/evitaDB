@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.ResponseHeadersBuilder;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
@@ -55,7 +56,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class CorsService extends SimpleDecoratingHttpService {
+public class CorsService extends SimpleDecoratingHttpService implements WebSocketHandler {
 
 	private static final String REQUEST_HEADERS_DELIMITER_PATTERN = ",";
 	private static final int CORS_MAX_AGE = 300;
@@ -117,7 +118,7 @@ public class CorsService extends SimpleDecoratingHttpService {
 		final String requestOrigin = req.headers().get(HttpHeaderNames.ORIGIN);
 		// only verify CORS requests, non-CORS requests needs to be handled in a standard way
 		if (isCorsRequest(requestOrigin)) {
-			if (preflightEnabled && isPreflightRequest(req)) {
+			if (this.preflightEnabled && isPreflightRequest(req)) {
 				final String requestMethod = req.headers().get(HttpHeaderNames.ACCESS_CONTROL_REQUEST_METHOD);
 				if (!isRequestMethodAllowed(requestMethod)) {
 					log.warn("Forbidden request method `{}` for origin `{}` is trying to access the API.", requestMethod, requestOrigin);
@@ -138,6 +139,13 @@ public class CorsService extends SimpleDecoratingHttpService {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		// todo lho
+		return Objects.requireNonNull(unwrap().as(WebSocketHandler.class)).handle(ctx, in);
+	}
+
 	private static boolean isCorsRequest(@Nullable String requestOrigin) {
 		return requestOrigin != null;
 	}
@@ -147,7 +155,7 @@ public class CorsService extends SimpleDecoratingHttpService {
 			log.warn("Missing request method in preflight request.");
 			return false;
 		}
-		return allowedMethods.contains(requestMethod.toLowerCase());
+		return this.allowedMethods.contains(requestMethod.toLowerCase());
 	}
 
 	private boolean isRequestHeaderAllowed(@Nullable String requestHeaders) {
@@ -158,7 +166,7 @@ public class CorsService extends SimpleDecoratingHttpService {
 		return Arrays.stream(requestHeaders.split(REQUEST_HEADERS_DELIMITER_PATTERN))
 			.map(String::trim)
 			.map(String::toLowerCase)
-			.allMatch(allowedHeaders::contains);
+			.allMatch(this.allowedHeaders::contains);
 	}
 
 	@Nonnull
@@ -177,8 +185,8 @@ public class CorsService extends SimpleDecoratingHttpService {
 		final HttpResponseBuilder responseBuilder = HttpResponse.builder();
 
 		responseBuilder.header(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-		responseBuilder.header(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, allowedMethods.stream().map(Objects::toString).collect(Collectors.joining(", ")));
-		responseBuilder.header(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, String.join(", ", allowedHeaders));
+		responseBuilder.header(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, this.allowedMethods.stream().map(Objects::toString).collect(Collectors.joining(", ")));
+		responseBuilder.header(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, String.join(", ", this.allowedHeaders));
 		responseBuilder.header(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE, CORS_MAX_AGE);
 		responseBuilder.status(HttpStatus.OK);
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,13 +95,13 @@ public class OpenApiUnion implements OpenApiComplexType {
 	@Override
 	public Schema<Object> toSchema() {
 		final Schema<Object> schema = new Schema<>();
-		switch (type) {
-			case ONE_OF -> objects.forEach(it -> schema.addOneOfItem(it.toSchema()));
-			case ANY_OF -> objects.forEach(it -> schema.addAnyOfItem(it.toSchema()));
-			case ALL_OF -> objects.forEach(it -> schema.addAllOfItem(it.toSchema()));
+		switch (this.type) {
+			case ONE_OF -> this.objects.forEach(it -> schema.addOneOfItem(it.toSchema()));
+			case ANY_OF -> this.objects.forEach(it -> schema.addAnyOfItem(it.toSchema()));
+			case ALL_OF -> this.objects.forEach(it -> schema.addAllOfItem(it.toSchema()));
 		}
-		if (discriminator != null) {
-			schema.discriminator(new Discriminator().propertyName(discriminator));
+		if (this.discriminator != null) {
+			schema.discriminator(new Discriminator().propertyName(this.discriminator));
 		}
 
 		schema.name(this.name);
@@ -202,14 +202,14 @@ public class OpenApiUnion implements OpenApiComplexType {
 		@Nonnull
 		public OpenApiUnion build() {
 			Assert.isPremiseValid(
-				name != null && !name.isEmpty(),
+				this.name != null && !this.name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing object name.")
 			);
 			Assert.isPremiseValid(
-				!objects.isEmpty(),
+				!this.objects.isEmpty(),
 				() -> new OpenApiBuildingError("Missing union objects")
 			);
-			return new OpenApiUnion(name, description, deprecationNotice, type, discriminator, objects);
+			return new OpenApiUnion(this.name, this.description, this.deprecationNotice, this.type, this.discriminator, this.objects);
 		}
 	}
 }

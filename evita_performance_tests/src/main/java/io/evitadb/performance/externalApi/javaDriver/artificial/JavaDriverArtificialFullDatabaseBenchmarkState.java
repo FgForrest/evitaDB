@@ -69,16 +69,16 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 	@Setup(Level.Trial)
 	public void setUp() {
 		final ReadyReadEvita readyReadEvita = generateReadTestDataset(
-			dataGenerator,
+			this.dataGenerator,
 			PRODUCT_COUNT,
 			this::shouldStartFromScratch,
 			this::isCatalogAvailable,
 			this::createEvitaInstanceFromExistingData,
 			this::createEmptyEvitaInstance,
 			getCatalogName(),
-			generatedEntities,
+			this.generatedEntities,
 			SEED,
-			randomEntityPicker,
+			this.randomEntityPicker,
 			this::processEntity,
 			this::processCreatedEntityReference,
 			this::createEntity,
@@ -88,7 +88,7 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 		this.productSchema = readyReadEvita.productSchema();
 
 		// start grpc server and system api
-		server = new ExternalApiServer(
+		this.server = new ExternalApiServer(
 			this.evita,
 			ApiOptions.builder()
 				.enable(SystemProvider.CODE, new SystemOptions(":" + SystemOptions.DEFAULT_SYSTEM_PORT))
@@ -96,7 +96,7 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 				.build(),
 			List.of(new SystemProviderRegistrar(), new GrpcProviderRegistrar())
 		);
-		server.start();
+		this.server.start();
 
 		this.driver = new EvitaClient(
 			EvitaClientConfiguration.builder()

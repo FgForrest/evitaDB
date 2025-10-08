@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
@@ -87,6 +88,7 @@ public class SetAttributeSchemaFilterableMutation
 		);
 	}
 
+	@SerializableCreator
 	public SetAttributeSchemaFilterableMutation(
 		@Nonnull String name,
 		@Nullable Scope[] filterableInScopes
@@ -102,7 +104,7 @@ public class SetAttributeSchemaFilterableMutation
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof SetAttributeSchemaFilterableMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaFilterableMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -116,7 +118,7 @@ public class SetAttributeSchemaFilterableMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetAttributeSchemaFilterableMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaFilterableMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -186,6 +188,7 @@ public class SetAttributeSchemaFilterableMutation
 					attributeSchema.getSortableInScopes(),
 					attributeSchema.isLocalized(),
 					attributeSchema.isNullable(),
+					attributeSchema.isRepresentative(),
 					(Class) attributeSchema.getType(),
 					attributeSchema.getDefaultValue(),
 					attributeSchema.getIndexedDecimalPlaces()
@@ -196,7 +199,7 @@ public class SetAttributeSchemaFilterableMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(

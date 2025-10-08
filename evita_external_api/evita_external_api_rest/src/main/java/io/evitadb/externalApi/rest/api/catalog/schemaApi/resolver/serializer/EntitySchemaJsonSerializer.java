@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
@@ -65,17 +65,17 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	                          @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 
-		rootNode.put(VersionedDescriptor.VERSION.name(), entitySchema.version());
-		rootNode.put(NamedSchemaDescriptor.NAME.name(), entitySchema.getName());
+		rootNode.putIfAbsent(VersionedDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(entitySchema.version()));
+		rootNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(entitySchema.getName()));
 		rootNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(entitySchema.getNameVariants()));
-		rootNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), entitySchema.getDescription());
-		rootNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice());
-		rootNode.put(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey());
-		rootNode.put(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy());
+		rootNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), entitySchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(entitySchema.getDescription()) : null);
+		rootNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(entitySchema.getDeprecationNotice()) : null);
+		rootNode.putIfAbsent(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), this.objectJsonSerializer.serializeObject(entitySchema.isWithGeneratedPrimaryKey()));
+		rootNode.putIfAbsent(EntitySchemaDescriptor.WITH_HIERARCHY.name(), this.objectJsonSerializer.serializeObject(entitySchema.isWithHierarchy()));
 		rootNode.set(EntitySchemaDescriptor.HIERARCHY_INDEXED.name(), serializeFlagInScopes(entitySchema::isHierarchyIndexedInScope));
-		rootNode.put(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice());
+		rootNode.putIfAbsent(EntitySchemaDescriptor.WITH_PRICE.name(), this.objectJsonSerializer.serializeObject(entitySchema.isWithPrice()));
 		rootNode.set(EntitySchemaDescriptor.PRICE_INDEXED.name(), serializeFlagInScopes(entitySchema::isPriceIndexedInScope));
-		rootNode.put(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces());
+		rootNode.putIfAbsent(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), this.objectJsonSerializer.serializeObject(entitySchema.getIndexedPricePlaces()));
 		rootNode.set(EntitySchemaDescriptor.LOCALES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getLocales().stream().map(Locale::toLanguageTag).toList()));
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
 		rootNode.set(EntitySchemaDescriptor.EVOLUTION_MODE.name(), this.objectJsonSerializer.serializeCollection(entitySchema.getEvolutionMode().stream().map(EvolutionMode::name).toList()));
@@ -106,18 +106,18 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema) {
 		final ObjectNode attributeSchemaNode = this.objectJsonSerializer.objectNode();
-		attributeSchemaNode.put(NamedSchemaDescriptor.NAME.name(), attributeSchema.getName());
+		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(attributeSchema.getName()));
 		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
-		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription());
-		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice());
+		attributeSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(attributeSchema.getDescription()) : null);
+		attributeSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(attributeSchema.getDeprecationNotice()) : null);
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), serializeUniquenessType(attributeSchema::getUniquenessType));
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
 			attributeSchemaNode.putIfAbsent(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), serializeGlobalUniquenessType(globalAttributeSchema::getGlobalUniquenessType));
 		}
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.FILTERABLE.name(), serializeFlagInScopes(attributeSchema::isFilterableInScope));
 		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.SORTABLE.name(), serializeFlagInScopes(attributeSchema::isSortableInScope));
-		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isLocalized()));
+		attributeSchemaNode.putIfAbsent(AttributeSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(attributeSchema.isNullable()));
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
 			attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
 		}
@@ -151,10 +151,10 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema) {
 		final ObjectNode schemaNode = this.objectJsonSerializer.objectNode();
-		schemaNode.put(NamedSchemaDescriptor.NAME.name(), sortableAttributeCompoundSchema.getName());
+		schemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(sortableAttributeCompoundSchema.getName()));
 		schemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(sortableAttributeCompoundSchema.getNameVariants()));
-		schemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), sortableAttributeCompoundSchema.getDescription());
-		schemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), sortableAttributeCompoundSchema.getDeprecationNotice());
+		schemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), sortableAttributeCompoundSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(sortableAttributeCompoundSchema.getDescription()) : null);
+		schemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), sortableAttributeCompoundSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(sortableAttributeCompoundSchema.getDeprecationNotice()) : null);
 
 		final ArrayNode sortableAttributeCompoundArray = this.objectJsonSerializer.arrayNode();
 		sortableAttributeCompoundSchema.getAttributeElements()
@@ -169,9 +169,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeAttributeElement(@Nonnull AttributeElement attributeElement) {
 		final ObjectNode attributeElementNode = this.objectJsonSerializer.objectNode();
-		attributeElementNode.put(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), attributeElement.attributeName());
-		attributeElementNode.put(AttributeElementDescriptor.DIRECTION.name(), attributeElement.direction().name());
-		attributeElementNode.put(AttributeElementDescriptor.BEHAVIOUR.name(), attributeElement.behaviour().name());
+		attributeElementNode.putIfAbsent(AttributeElementDescriptor.ATTRIBUTE_NAME.name(), this.objectJsonSerializer.serializeObject(attributeElement.attributeName()));
+		attributeElementNode.putIfAbsent(AttributeElementDescriptor.DIRECTION.name(), this.objectJsonSerializer.serializeObject(attributeElement.direction()));
+		attributeElementNode.putIfAbsent(AttributeElementDescriptor.BEHAVIOUR.name(), this.objectJsonSerializer.serializeObject(attributeElement.behaviour()));
 		return attributeElementNode;
 	}
 
@@ -193,13 +193,13 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeAssociatedDataSchema(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
 		final ObjectNode associatedDataSchemaNode = this.objectJsonSerializer.objectNode();
-		associatedDataSchemaNode.put(NamedSchemaDescriptor.NAME.name(), associatedDataSchema.getName());
+		associatedDataSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.getName()));
 		associatedDataSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(associatedDataSchema.getNameVariants()));
-		associatedDataSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), associatedDataSchema.getDescription());
-		associatedDataSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), associatedDataSchema.getDeprecationNotice());
+		associatedDataSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), associatedDataSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(associatedDataSchema.getDescription()) : null);
+		associatedDataSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), associatedDataSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(associatedDataSchema.getDeprecationNotice()) : null);
 		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(associatedDataSchema.getType()));
-		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.LOCALIZED.name(), associatedDataSchema.isLocalized());
-		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.NULLABLE.name(), associatedDataSchema.isNullable());
+		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.LOCALIZED.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isLocalized()));
+		associatedDataSchemaNode.putIfAbsent(AssociatedDataSchemaDescriptor.NULLABLE.name(), this.objectJsonSerializer.serializeObject(associatedDataSchema.isNullable()));
 
 		return associatedDataSchemaNode;
 	}
@@ -226,17 +226,17 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
         @Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final ObjectNode referenceSchemaNode = this.objectJsonSerializer.objectNode();
-		referenceSchemaNode.put(NamedSchemaDescriptor.NAME.name(), referenceSchema.getName());
+		referenceSchemaNode.putIfAbsent(NamedSchemaDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(referenceSchema.getName()));
 		referenceSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getNameVariants()));
-		referenceSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), referenceSchema.getDescription());
-		referenceSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), referenceSchema.getDeprecationNotice());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.CARDINALITY.name(), referenceSchema.getCardinality().name());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), referenceSchema.getReferencedEntityType());
+		referenceSchemaNode.putIfAbsent(NamedSchemaDescriptor.DESCRIPTION.name(), referenceSchema.getDescription() != null ? this.objectJsonSerializer.serializeObject(referenceSchema.getDescription()) : null);
+		referenceSchemaNode.putIfAbsent(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), referenceSchema.getDeprecationNotice() != null ? this.objectJsonSerializer.serializeObject(referenceSchema.getDeprecationNotice()) : null);
+		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.CARDINALITY.name(), this.objectJsonSerializer.serializeObject(referenceSchema.getCardinality()));
+		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), this.objectJsonSerializer.serializeObject(referenceSchema.getReferencedEntityType()));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getEntityTypeNameVariants(entitySchemaFetcher)));
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), referenceSchema.isReferencedEntityTypeManaged());
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType());
+		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), this.objectJsonSerializer.serializeObject(referenceSchema.isReferencedEntityTypeManaged()));
+		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType() != null ? this.objectJsonSerializer.serializeObject(referenceSchema.getReferencedGroupType()) : null);
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getGroupTypeNameVariants(entitySchemaFetcher)));
-		referenceSchemaNode.put(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged());
+		referenceSchemaNode.putIfAbsent(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), this.objectJsonSerializer.serializeObject(referenceSchema.isReferencedGroupTypeManaged()));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED.name(), serializeReferenceIndexTypes(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED.name(), serializeFlagInScopes(referenceSchema::isFacetedInScope));
 

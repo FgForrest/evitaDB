@@ -35,11 +35,13 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
-import io.evitadb.core.async.Scheduler;
-import io.evitadb.core.async.SequentialTask;
+import io.evitadb.core.executor.ClientRunnableTask;
+import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.executor.SequentialTask;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.spi.model.EngineState;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
@@ -134,7 +136,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	 */
 	@Nonnull
 	public ExportFileService exportFileService() {
-		return exportFileService;
+		return this.exportFileService;
 	}
 
 	@Nonnull
@@ -244,7 +246,13 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 				catalogName, this.evita.getConfiguration().storage(),
 				fileId, pathToFile, totalBytesExpected, deleteAfterRestore
 			),
-			this.evita.createLoadCatalogTask(catalogName)
+			new ClientRunnableTask<>(
+				catalogName,
+				"registerInactiveCatalog",
+				"Registering restored catalog " + catalogName + ".",
+				Void.class,
+				session -> this.evita.registerRestoredCatalog(catalogName)
+			)
 		);
 	}
 
@@ -322,18 +330,27 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 	@Override
 	public SystemStatus getSystemStatus() {
 		final Collection<CatalogContract> catalogs = this.evita.getCatalogs();
-		final int corruptedCatalogs = (int) catalogs
-			.stream()
-			.filter(it -> it instanceof CorruptedCatalog)
-			.count();
+		int corruptedCatalogs = 0;
+		int inactiveCatalogs = 0;
+		for (CatalogContract catalog : catalogs) {
+			switch (catalog.getCatalogState()) {
+				case CORRUPTED -> corruptedCatalogs++;
+				case INACTIVE -> inactiveCatalogs++;
+			}
+		}
+
+		final EngineState engineState = this.evita.getEngineState().engineState();
 
 		return new SystemStatus(
 			VersionUtils.readVersion(),
 			this.started,
+			engineState.version(),
+			engineState.introducedAt(),
 			Duration.between(this.started, OffsetDateTime.now()),
 			this.evita.getConfiguration().name(),
 			corruptedCatalogs,
-			catalogs.size() - corruptedCatalogs
+			catalogs.size() - corruptedCatalogs,
+			inactiveCatalogs
 		);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart.AttributesSetKey;
 import io.evitadb.store.entity.serializer.AttributesSetKeySerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer;
+import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_2025_5;
 import io.evitadb.store.index.serializer.PriceIndexKeySerializer;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -79,7 +80,12 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 			index++
 		);
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
-		kryo.register(AttributeKeyWithIndexType.class, new SerialVersionBasedSerializer<>(new AttributeKeyWithIndexTypeSerializer(), AttributeKeyWithIndexType.class), index++);
+		kryo.register(
+			AttributeKeyWithIndexType.class,
+			new SerialVersionBasedSerializer<>(new AttributeKeyWithIndexTypeSerializer(), AttributeKeyWithIndexType.class)
+				.addBackwardCompatibleSerializer(2526424804226344907L, new AttributeKeyWithIndexTypeSerializer_2025_5()),
+			index++
+		);
 		kryo.register(PriceIndexKey.class, new SerialVersionBasedSerializer<>(new PriceIndexKeySerializer(), PriceIndexKey.class), index++);
 
 		Assert.isPremiseValid(index < 800, "Index count overflow.");

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,59 +24,66 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.List;
 
 /**
- * Resolves input local mutation aggregate objects parsed from JSON into a {@link EntityUpsertMutation}.
+ * TODO lho docs
  *
- * @param <A> type of input object containing aggregates
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-@RequiredArgsConstructor
-public abstract class EntityUpsertMutationConverter<A> {
+public class EntityUpsertMutationConverter extends MutationConverter<EntityUpsertMutation> {
 
 	@Nonnull
-	@Getter(AccessLevel.PROTECTED)
-	private final EntitySchemaContract entitySchema;
-	@Nonnull
-	@Getter(AccessLevel.PROTECTED)
-	private LocalMutationAggregateConverter localMutationAggregateResolver;
+	private final DelegatingLocalMutationConverter delegatingLocalMutationConverter;
 
-	protected EntityUpsertMutationConverter(@Nonnull EntitySchemaContract entitySchema,
-	                                     @Nonnull ObjectMapper objectMapper,
-	                                     @Nonnull MutationObjectParser objectParser,
-	                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
-		this.entitySchema = entitySchema;
-		this.localMutationAggregateResolver = new LocalMutationAggregateConverter(objectMapper, entitySchema, objectParser, exceptionFactory);
+	public EntityUpsertMutationConverter(
+		@Nonnull ObjectMapper objectMapper,
+		@Nonnull MutationObjectMapper mutationObjectMapper,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
+		super(mutationObjectMapper, exceptionFactory);
+		this.delegatingLocalMutationConverter = new DelegatingLocalMutationConverter(
+			objectMapper,
+			mutationObjectMapper,
+			exceptionFactory
+		);
 	}
 
 	@Nonnull
-	public EntityUpsertMutation convert(@Nullable Integer primaryKey,
-	                                    @Nonnull EntityExistence entityExistence,
-	                                    @Nonnull A inputLocalMutationAggregates) {
-		final List<Object> rawInputLocalMutationAggregates = convertAggregates(inputLocalMutationAggregates);
-		final List<LocalMutation<?, ?>> localMutations = rawInputLocalMutationAggregates.stream()
-			.flatMap(agg -> localMutationAggregateResolver.convert(agg).stream())
-			.toList();
-
-		return new EntityUpsertMutation(entitySchema.getName(), primaryKey, entityExistence, localMutations);
+	@Override
+	protected EntityUpsertMutation convertFromInput(@Nonnull Input input) {
+		// All APIs currently use EntityUpsertMutationFactory implementations because
+		// the part of the mutation is specification in the endpoints itself. No need to implement it here too.
+		throw new UnsupportedOperationException("Use EntityUpsertMutationFactory instead.");
 	}
 
-	/**
-	 * Resolvers input aggregates from input object into list of individual aggregates
-	 */
+	@Override
+	protected void convertToOutput(@Nonnull EntityUpsertMutation mutation, @Nonnull Output output) {
+		output.setProperty(EntityUpsertMutationDescriptor.MUTATION_TYPE, mutation.getClass().getSimpleName());
+		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_PRIMARY_KEY, mutation.getEntityPrimaryKey());
+		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_TYPE, mutation.getEntityType());
+		output.setProperty(EntityUpsertMutationDescriptor.ENTITY_EXISTENCE, mutation.expects());
+		//noinspection unchecked
+		output.setProperty(
+			EntityUpsertMutationDescriptor.LOCAL_MUTATIONS,
+			this.delegatingLocalMutationConverter.convertToOutput((List<LocalMutation<?,?>>) mutation.getLocalMutations())
+		);
+	}
+
 	@Nonnull
-	protected abstract List<Object> convertAggregates(@Nonnull A inputLocalMutationAggregates);
+	@Override
+	protected Class<EntityUpsertMutation> getMutationClass() {
+		return EntityUpsertMutation.class;
+	}
 }

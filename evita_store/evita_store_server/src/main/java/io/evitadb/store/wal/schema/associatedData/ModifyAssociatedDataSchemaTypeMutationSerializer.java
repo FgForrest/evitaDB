@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,10 +46,11 @@ public class ModifyAssociatedDataSchemaTypeMutationSerializer extends Serializer
 
 	@Override
 	public ModifyAssociatedDataSchemaTypeMutation read(Kryo kryo, Input input, Class<? extends ModifyAssociatedDataSchemaTypeMutation> type) {
+		final String name = input.readString();
 		//noinspection unchecked
 		final Class<? extends Serializable> theType = kryo.readClass(input).getType();
 		return new ModifyAssociatedDataSchemaTypeMutation(
-			input.readString(),
+			name,
 			theType
 		);
 	}

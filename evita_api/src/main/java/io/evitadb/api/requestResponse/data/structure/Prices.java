@@ -185,7 +185,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	/**
@@ -195,10 +195,10 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Override
 	public Optional<PriceContract> getPrice(@Nonnull PriceKey priceKey) {
 		Assert.isTrue(
-			withPrice,
-			() -> new EntityHasNoPricesException(entitySchema.getName())
+			this.withPrice,
+			() -> new EntityHasNoPricesException(this.entitySchema.getName())
 		);
-		return Optional.ofNullable(priceIndex.get(priceKey));
+		return Optional.ofNullable(this.priceIndex.get(priceKey));
 	}
 
 	/**
@@ -207,20 +207,20 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	public Optional<PriceContract> getPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		Assert.isTrue(
-			withPrice,
-			() -> new EntityHasNoPricesException(entitySchema.getName())
+			this.withPrice,
+			() -> new EntityHasNoPricesException(this.entitySchema.getName())
 		);
-		return Optional.ofNullable(priceIndex.get(new PriceKey(priceId, priceList, currency)));
+		return Optional.ofNullable(this.priceIndex.get(new PriceKey(priceId, priceList, currency)));
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPrice(@Nonnull String priceList, @Nonnull Currency currency) throws UnexpectedResultCountException, ContextMissingException {
 		Assert.isTrue(
-			withPrice,
-			() -> new EntityHasNoPricesException(entitySchema.getName())
+			this.withPrice,
+			() -> new EntityHasNoPricesException(this.entitySchema.getName())
 		);
-		final List<PriceContract> matchingPrices = priceIndex.entrySet()
+		final List<PriceContract> matchingPrices = this.priceIndex.entrySet()
 			.stream()
 			.filter(it -> it.getKey().priceList().equals(priceList) && it.getKey().currency().equals(currency))
 			.map(Entry::getValue)
@@ -236,7 +236,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 
 	@Override
 	public boolean pricesAvailable() {
-		return withPrice;
+		return this.withPrice;
 	}
 
 	@Override
@@ -288,9 +288,9 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	public Collection<PriceContract> getPrices() {
 		Assert.isTrue(
 			this.withPrice || this.entitySchema.allows(EvolutionMode.ADDING_PRICES),
-			() -> new EntityHasNoPricesException(entitySchema.getName())
+			() -> new EntityHasNoPricesException(this.entitySchema.getName())
 		);
-		return priceIndex.values();
+		return this.priceIndex.values();
 	}
 
 	/**
@@ -314,7 +314,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	 */
 	@Nonnull
 	public Optional<PriceContract> getPriceWithoutSchemaCheck(@Nonnull PriceKey priceKey) {
-		return ofNullable(priceIndex.get(priceKey));
+		return ofNullable(this.priceIndex.get(priceKey));
 	}
 
 	/**
@@ -325,11 +325,11 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 		if (this == otherPrices) return false;
 		if (otherPrices == null) return true;
 
-		if (version != otherPrices.version) return true;
-		if (priceInnerRecordHandling != otherPrices.priceInnerRecordHandling) return true;
-		if (priceIndex.size() != otherPrices.priceIndex.size()) return true;
+		if (this.version != otherPrices.version) return true;
+		if (this.priceInnerRecordHandling != otherPrices.priceInnerRecordHandling) return true;
+		if (this.priceIndex.size() != otherPrices.priceIndex.size()) return true;
 
-		for (Entry<PriceKey, PriceContract> entry : priceIndex.entrySet()) {
+		for (Entry<PriceKey, PriceContract> entry : this.priceIndex.entrySet()) {
 			final PriceContract otherPrice = otherPrices.getPrice(entry.getKey()).orElse(null);
 			if (otherPrice == null || entry.getValue().differsFrom(otherPrice)) {
 				return true;
@@ -342,7 +342,7 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	public String toString() {
 		if (pricesAvailable()) {
 			final Collection<PriceContract> prices = getPrices();
-			return "selects " + priceInnerRecordHandling + " from: " +
+			return "selects " + this.priceInnerRecordHandling + " from: " +
 				(
 					prices.isEmpty() ?
 						"no price" :

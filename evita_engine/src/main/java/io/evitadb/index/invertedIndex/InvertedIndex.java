@@ -53,6 +53,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -190,7 +191,7 @@ public class InvertedIndex implements
 		if (!internal) {
 			final ConsistencyReport consistencyReport = checkConsistency(buckets, comparator);
 			if (consistencyReport.state() != ConsistencySensitiveDataStructure.ConsistencyState.CONSISTENT) {
-				throw new MonotonicRowCorruptedException(consistencyReport.report());
+				throw new MonotonicRowCorruptedException(Objects.requireNonNull(consistencyReport.report()));
 			}
 		}
 		//noinspection unchecked
@@ -545,12 +546,12 @@ public class InvertedIndex implements
 					(b1, b2) -> comparator.compare(b1.getValue(), b2.getValue())
 				);
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
-					normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
+					this.normalizedStartIndex = startIndex >= 0 ? startIndex + 1 : -1 * (startIndex) - 1;
 				} else {
-					normalizedStartIndex = startIndex >= 0 ? startIndex : -1 * (startIndex) - 1;
+					this.normalizedStartIndex = startIndex >= 0 ? startIndex : -1 * (startIndex) - 1;
 				}
 			} else {
-				normalizedStartIndex = 0;
+				this.normalizedStartIndex = 0;
 			}
 
 			if (lessThanEq != null) {
@@ -561,12 +562,12 @@ public class InvertedIndex implements
 					(b1, b2) -> comparator.compare(b1.getValue(), b2.getValue())
 				);
 				if (boundsHandling == BoundsHandling.EXCLUSIVE) {
-					normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
+					this.normalizedEndIndex = endIndex >= 0 ? endIndex : (-1 * (endIndex) - 1);
 				} else {
-					normalizedEndIndex = endIndex >= 0 ? endIndex + 1 : (-1 * (endIndex) - 1);
+					this.normalizedEndIndex = endIndex >= 0 ? endIndex + 1 : (-1 * (endIndex) - 1);
 				}
 			} else {
-				normalizedEndIndex = points.length;
+				this.normalizedEndIndex = points.length;
 			}
 		}
 

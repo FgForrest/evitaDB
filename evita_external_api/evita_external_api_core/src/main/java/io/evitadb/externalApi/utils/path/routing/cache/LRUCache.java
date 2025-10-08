@@ -68,24 +68,24 @@ public class LRUCache<K, V> {
 	}
 
 	public void add(K key, V newValue) {
-		CacheEntry<K, V> value = cache.get(key);
+		CacheEntry<K, V> value = this.cache.get(key);
 		if (value == null) {
 			long expires;
-			if(maxAge == -1) {
+			if(this.maxAge == -1) {
 				expires = -1;
 			} else {
-				expires = System.currentTimeMillis() + maxAge;
+				expires = System.currentTimeMillis() + this.maxAge;
 			}
 			value = new CacheEntry<>(key, newValue, expires);
-			CacheEntry result = cache.putIfAbsent(key, value);
+			CacheEntry result = this.cache.putIfAbsent(key, value);
 			if (result != null) {
 				value = result;
 				value.setValue(newValue);
 			}
 			bumpAccess(value);
-			if (cache.size() > maxEntries) {
+			if (this.cache.size() > this.maxEntries) {
 				//remove the oldest
-				CacheEntry<K, V> oldest = accessQueue.poll();
+				CacheEntry<K, V> oldest = this.accessQueue.poll();
 				if (oldest != value) {
 					this.remove(oldest.key());
 				}
@@ -94,7 +94,7 @@ public class LRUCache<K, V> {
 	}
 
 	public V get(K key) {
-		CacheEntry<K, V> cacheEntry = cache.get(key);
+		CacheEntry<K, V> cacheEntry = this.cache.get(key);
 		if (cacheEntry == null) {
 			return null;
 		}
@@ -106,7 +106,7 @@ public class LRUCache<K, V> {
 			}
 		}
 
-		if(!fifo) {
+		if(!this.fifo) {
 			if (cacheEntry.hit() % SAMPLE_INTERVAL == 0) {
 				bumpAccess(cacheEntry);
 			}
@@ -119,28 +119,28 @@ public class LRUCache<K, V> {
 		Object prevToken = cacheEntry.claimToken();
 		if (!Boolean.FALSE.equals(prevToken)) {
 			if (prevToken != null) {
-				accessQueue.removeToken(prevToken);
+				this.accessQueue.removeToken(prevToken);
 			}
 
 			Object token = null;
 			try {
-				token = accessQueue.offerLastAndReturnToken(cacheEntry);
+				token = this.accessQueue.offerLastAndReturnToken(cacheEntry);
 			} catch (Throwable t) {
 				// In case of disaster (OOME), we need to release the claim, so leave it aas null
 			}
 
 			if (!cacheEntry.setToken(token) && token != null) { // Always set if null
-				accessQueue.removeToken(token);
+				this.accessQueue.removeToken(token);
 			}
 		}
 	}
 
 	public V remove(K key) {
-		CacheEntry<K, V> remove = cache.remove(key);
+		CacheEntry<K, V> remove = this.cache.remove(key);
 		if (remove != null) {
 			Object old = remove.clearToken();
 			if (old != null) {
-				accessQueue.removeToken(old);
+				this.accessQueue.removeToken(old);
 			}
 			return remove.getValue();
 		} else {
@@ -149,8 +149,8 @@ public class LRUCache<K, V> {
 	}
 
 	public void clear() {
-		cache.clear();
-		accessQueue.clear();
+		this.cache.clear();
+		this.accessQueue.clear();
 	}
 
 	public static final class CacheEntry<K, V> {
@@ -178,12 +178,12 @@ public class LRUCache<K, V> {
 		}
 
 		public V getValue() {
-			return value;
+			return this.value;
 		}
 
 		public int hit() {
 			for (; ; ) {
-				int i = hits;
+				int i = this.hits;
 
 				if (hitsUpdater.weakCompareAndSet(this, i, ++i)) {
 					return i;
@@ -193,7 +193,7 @@ public class LRUCache<K, V> {
 		}
 
 		public K key() {
-			return key;
+			return this.key;
 		}
 
 		Object claimToken() {
@@ -219,7 +219,7 @@ public class LRUCache<K, V> {
 		}
 
 		public long getExpires() {
-			return expires;
+			return this.expires;
 		}
 	}
 }

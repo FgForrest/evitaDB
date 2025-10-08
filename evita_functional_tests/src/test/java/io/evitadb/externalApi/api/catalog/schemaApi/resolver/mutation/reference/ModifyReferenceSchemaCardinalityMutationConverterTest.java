@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,17 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaCardinalityMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,7 +52,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyReferenceSchemaCardinalityMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReferenceSchemaCardinalityMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -60,7 +62,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 			Cardinality.ONE_OR_MORE
 		);
 
-		final ModifyReferenceSchemaCardinalityMutation convertedMutation1 = converter.convert(
+		final ModifyReferenceSchemaCardinalityMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE)
@@ -68,7 +70,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyReferenceSchemaCardinalityMutation convertedMutation2 = converter.convert(
+		final ModifyReferenceSchemaCardinalityMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
@@ -81,21 +83,33 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE)
 					.build()
 			)
 		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> converter.convert(
-				map()
-					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
-					.build()
-			)
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReferenceSchemaCardinalityMutation inputMutation = new ModifyReferenceSchemaCardinalityMutation(
+			"tags",
+			Cardinality.ONE_OR_MORE
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyReferenceSchemaCardinalityMutation.class.getSimpleName())
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE.name())
+					.build()
+			);
 	}
 }

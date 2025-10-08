@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -34,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -50,9 +50,9 @@ import java.util.Map;
 @NotThreadSafe
 @RequiredArgsConstructor
 @AllArgsConstructor
-@ToString(of = "attributeKey")
-public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = 6163295675316818632L;
+@ToString(of = "attributeIndexKey")
+public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
+	@Serial private static final long serialVersionUID = -7076092972784353868L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -61,7 +61,7 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	/**
 	 * Contains name and locale of the indexed attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Contains type of the attribute and comparison properties.
 	 */
@@ -85,14 +85,15 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	 */
 	@Getter @Setter private Long storagePartPK;
 
+	@Nonnull
 	@Override
 	public AttributeIndexType getIndexType() {
 		return AttributeIndexType.SORT;
 	}
 
 	@Override
-	public AttributeKey getStoragePartSourceKey() {
-		return attributeKey;
+	public AttributeIndexKey getStoragePartSourceKey() {
+		return this.attributeIndexKey;
 	}
 
 }

@@ -125,7 +125,9 @@ public class CreateSortableAttributeCompoundSchemaMutation
 				this.attributeElements
 			)
 		) {
-			final SortableAttributeCompoundSchemaContract createdVersion = mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null);
+			final SortableAttributeCompoundSchemaContract createdVersion = Objects.requireNonNull(
+				mutate(currentEntitySchema, null, (SortableAttributeCompoundSchemaContract) null)
+			);
 			final SortableAttributeCompoundSchemaContract existingVersion = currentEntitySchema.getSortableAttributeCompound(this.name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,
@@ -143,7 +145,7 @@ public class CreateSortableAttributeCompoundSchemaMutation
 						makeMutationIfDifferent(
 							SortableAttributeCompoundSchemaContract.class, createdVersion, existingVersion,
 							sacs -> sacs.getIndexedInScopes().toArray(Scope[]::new),
-							newValue -> new SetSortableAttributeCompoundIndexedMutation(this.name, newValue)
+							newValue -> new SetSortableAttributeCompoundSchemaIndexedMutation(this.name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)

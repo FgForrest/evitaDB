@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,20 +124,20 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 	@Nonnull
 	public List<Accumulator> getResult(@Nonnull Accumulator startNode) {
-		final Iterator<Accumulator> it = accumulator.iterator();
+		final Iterator<Accumulator> it = this.accumulator.iterator();
 		Accumulator current = startNode;
 
 		while (it.hasNext()) {
 			final Accumulator next = it.next();
 			next.add(current);
-			if (siblingsStatisticsComputer != null) {
-				final List<Accumulator> siblings = siblingsStatisticsComputer.createStatistics(
-					executionContext,
-					filterPredicate,
+			if (this.siblingsStatisticsComputer != null) {
+				final List<Accumulator> siblings = this.siblingsStatisticsComputer.createStatistics(
+					this.executionContext,
+					this.filterPredicate,
 					next.getEntity().getPrimaryKey(),
 					current.getEntity().getPrimaryKey()
 				);
-				if (omitSiblings) {
+				if (this.omitSiblings) {
 					siblings.forEach(s -> {
 						next.registerOmittedChild();
 						next.registerOmittedCardinality(s.getQueriedEntitiesFormula());
@@ -149,13 +149,13 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 			current = next;
 		}
 
-		if (siblingsStatisticsComputer == null || omitSiblings) {
+		if (this.siblingsStatisticsComputer == null || this.omitSiblings) {
 			return Collections.singletonList(current);
 		} else {
 			return Stream.concat(
-					siblingsStatisticsComputer.createStatistics(
-						executionContext,
-						filterPredicate, null,
+					this.siblingsStatisticsComputer.createStatistics(
+						this.executionContext,
+						this.filterPredicate, null,
 						current.getEntity().getPrimaryKey()
 					).stream(),
 					Stream.of(current)
@@ -169,21 +169,21 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
 		// traverse parents - filling up the accumulator
 		final int entityPrimaryKey = node.entityPrimaryKey();
-		if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+		if (this.scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
 			selfTraversingPredicate.traverse(entityPrimaryKey, level, distance, traverser);
 		} else {
 			traverser.run();
 		}
 
-		if (scopePredicate.test(entityPrimaryKey, level, distance)) {
-			if (filterPredicate.test(entityPrimaryKey)) {
+		if (this.scopePredicate.test(entityPrimaryKey, level, distance)) {
+			if (this.filterPredicate.test(entityPrimaryKey)) {
 				// and create element in accumulator that will be filled in
-				accumulator.push(
+				this.accumulator.push(
 					new Accumulator(
-						executionContext,
-						requestedPredicate.test(entityPrimaryKey),
-						entityFetcher.apply(executionContext, entityPrimaryKey),
-						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
+						this.executionContext,
+						this.requestedPredicate.test(entityPrimaryKey),
+						this.entityFetcher.apply(this.executionContext, entityPrimaryKey),
+						() -> this.queriedEntityComputer.apply(node.entityPrimaryKey())
 					)
 				);
 			}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.entity;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
@@ -66,6 +67,7 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 		this.locales = new HashSet<>(locales);
 	}
 
+	@SerializableCreator
 	public DisallowLocaleInEntitySchemaMutation(@Nonnull Locale... locales) {
 		this.locales = new HashSet<>(locales.length);
 		this.locales.addAll(Arrays.asList(locales));
@@ -84,7 +86,7 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 				new DisallowLocaleInEntitySchemaMutation(
 					Stream.concat(
 							disallowLocaleInEntitySchema.getLocales().stream(),
-							locales.stream()
+							this.locales.stream()
 						)
 						.distinct()
 						.toArray(Locale[]::new)
@@ -92,15 +94,15 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 			);
 		} else if (existingMutation instanceof AllowLocaleInEntitySchemaMutation allowLocaleInEntitySchema) {
 			final Locale[] localesToAdd = Arrays.stream(allowLocaleInEntitySchema.getLocales())
-				.filter(added -> !locales.contains(added))
+				.filter(added -> !this.locales.contains(added))
 				.toArray(Locale[]::new);
-			final Set<Locale> localesToRemove = locales.stream()
+			final Set<Locale> localesToRemove = this.locales.stream()
 				.filter(it -> currentEntitySchema.getLocales().contains(it))
 				.collect(Collectors.toSet());
 
 			return new MutationCombinationResult<>(
 				localesToAdd.length == 0 ? null : (localesToAdd.length == ((AllowLocaleInEntitySchemaMutation) existingMutation).getLocales().length ? existingMutation : new AllowLocaleInEntitySchemaMutation(localesToAdd)),
-				localesToRemove.size() == locales.size() ? this : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
+				localesToRemove.size() == this.locales.size() ? this : (localesToRemove.isEmpty() ? null : new DisallowLocaleInEntitySchemaMutation(localesToRemove))
 			);
 		} else {
 			return null;
@@ -111,7 +113,7 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (entitySchema.getLocales().stream().noneMatch(locales::contains)) {
+		if (entitySchema.getLocales().stream().noneMatch(this.locales::contains)) {
 			// no need to change the schema
 			return entitySchema;
 		} else {
@@ -149,6 +151,6 @@ public class DisallowLocaleInEntitySchemaMutation implements CombinableLocalEnti
 
 	@Override
 	public String toString() {
-		return "Disallow: locales=" + locales;
+		return "Disallow: locales=" + this.locales;
 	}
 }

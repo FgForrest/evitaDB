@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ public class MutableCatalogHeader {
 	 * Returns list of all known entity types registered in this header.
 	 */
 	public Collection<String> getEntityTypes() {
-		return entityTypesIndex.keySet();
+		return this.entityTypesIndex.keySet();
 	}
 
 	/**
@@ -108,13 +108,13 @@ public class MutableCatalogHeader {
 	 */
 	@Nullable
 	public MutableCatalogEntityHeader getEntityTypeHeader(@Nonnull String entityType) {
-		return entityTypesIndex.get(entityType);
+		return this.entityTypesIndex.get(entityType);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = catalogName.hashCode();
-		result = 31 * result + entityTypesIndex.hashCode();
+		int result = this.catalogName.hashCode();
+		result = 31 * result + this.entityTypesIndex.hashCode();
 		return result;
 	}
 
@@ -125,8 +125,8 @@ public class MutableCatalogHeader {
 
 		MutableCatalogHeader that = (MutableCatalogHeader) o;
 
-		if (!catalogName.equals(that.catalogName)) return false;
-		return entityTypesIndex.equals(that.entityTypesIndex);
+		if (!this.catalogName.equals(that.catalogName)) return false;
+		return this.entityTypesIndex.equals(that.entityTypesIndex);
 	}
 
 }

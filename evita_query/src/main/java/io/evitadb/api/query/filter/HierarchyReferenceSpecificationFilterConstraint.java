@@ -24,7 +24,6 @@
 package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.ReferenceConstraint;
 
 /**
  * This interface marks all filtering constraints that can be used to further specify facet queries and that can

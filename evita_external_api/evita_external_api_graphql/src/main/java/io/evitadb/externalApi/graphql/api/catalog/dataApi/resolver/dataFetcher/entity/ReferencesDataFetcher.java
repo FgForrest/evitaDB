@@ -27,7 +27,6 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -52,15 +51,15 @@ public class ReferencesDataFetcher implements DataFetcher<Collection<ReferenceCo
 
     @Nonnull
     @Override
-    public Collection<ReferenceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Collection<ReferenceContract> get(DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
         Assert.isPremiseValid(entity != null, "Entity must not be null.");
         Assert.isPremiseValid(
-            referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE,
+	        this.referenceSchema.getCardinality().getMax() > 1,
             () -> new GraphQLQueryResolvingInternalError(
-                "Reference `" + referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
+                "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        return entity.getReferences(referenceSchema.getName());
+        return entity.getReferences(this.referenceSchema.getName());
     }
 }

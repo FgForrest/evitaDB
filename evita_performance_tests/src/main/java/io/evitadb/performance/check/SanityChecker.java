@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ public class SanityChecker implements EvitaTestSupport {
 		final Path queryDirectory = getAndVerifyDirectory(args[1]);
 		final int threadCount = args.length > 2 ? Integer.parseInt(args[2]) : Runtime.getRuntime().availableProcessors();
 		this.queryLimit = args.length > 3 ? Integer.parseInt(args[3]) : Integer.MAX_VALUE;
-		this.preloadedQueryCount = Math.min(queryLimit / threadCount, PRELOADED_QUERY_COUNT);
+		this.preloadedQueryCount = Math.min(this.queryLimit / threadCount, PRELOADED_QUERY_COUNT);
 		this.input = new ByteBufferInput(new FileInputStream(queryDirectory.resolve("queries.kryo").toFile()), 8_192);
 		this.kryo = KryoFactory.createKryo(QuerySerializationKryoConfigurer.INSTANCE);
 
@@ -157,7 +157,7 @@ public class SanityChecker implements EvitaTestSupport {
 			try {
 				while (true) {
 					synchronized (this) {
-						System.out.println(overallStatistics.toString());
+						System.out.println(this.overallStatistics.toString());
 						Thread.sleep(10_000);
 					}
 				}
@@ -183,29 +183,29 @@ public class SanityChecker implements EvitaTestSupport {
 			try {
 				this.preloadedQueries = this.querySupplier.get();
 				while (!this.preloadedQueries.isEmpty()) {
-					evitaInstance.queryCatalog(
-						catalogName, session -> {
+					this.evitaInstance.queryCatalog(
+						this.catalogName, session -> {
 							while (!this.preloadedQueries.isEmpty()) {
 								final Query theQuery = this.preloadedQueries.removeFirst();
 								final boolean pkOnly = FinderVisitor.findConstraints(theQuery.getRequire(), EntityContentRequire.class::isInstance, ExtraResultRequireConstraint.class::isInstance).isEmpty();
 								final long start = System.nanoTime();
 								if (pkOnly) {
 									final EvitaResponse<EntityReference> response = session.query(theQuery, EntityReference.class);
-									overallStatistics.recordResponseEntityReference(System.nanoTime() - start, response);
+									this.overallStatistics.recordResponseEntityReference(System.nanoTime() - start, response);
 								} else {
 									final EvitaResponse<SealedEntity> response = session.query(theQuery, SealedEntity.class);
-									overallStatistics.recordResponseSealedEntity(System.nanoTime() - start, response);
+									this.overallStatistics.recordResponseSealedEntity(System.nanoTime() - start, response);
 								}
 							}
 							return null;
 						}
 					);
-					this.preloadedQueries = querySupplier.get();
+					this.preloadedQueries = this.querySupplier.get();
 				}
 			} catch (Exception ex) {
 				ex.printStackTrace();
 			} finally {
-				countDownLatch.countDown();
+				this.countDownLatch.countDown();
 			}
 		}
 
@@ -221,16 +221,16 @@ public class SanityChecker implements EvitaTestSupport {
 	}
 
 	private Deque<Query> fetchNewQueries() {
-		synchronized (monitor) {
+		synchronized (this.monitor) {
 			final LinkedList<Query> fetchedQueries = new LinkedList<>();
-			if (!finished) {
-				for (int i = 0; i < preloadedQueryCount && queriesFetched++ < queryLimit; i++) {
-					if (!input.canReadInt()) {
+			if (!this.finished) {
+				for (int i = 0; i < this.preloadedQueryCount && this.queriesFetched++ < this.queryLimit; i++) {
+					if (!this.input.canReadInt()) {
 						this.input.close();
-						finished = true;
+						this.finished = true;
 						break;
 					}
-					fetchedQueries.add(kryo.readObject(input, Query.class));
+					fetchedQueries.add(this.kryo.readObject(this.input, Query.class));
 				}
 			}
 			return fetchedQueries;

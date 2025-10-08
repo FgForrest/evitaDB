@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -77,6 +78,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 		);
 	}
 
+	@SerializableCreator
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes) {
 		this.name = name;
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
@@ -97,7 +99,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof SetAttributeSchemaGloballyUniqueMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetAttributeSchemaGloballyUniqueMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -139,18 +141,18 @@ public class SetAttributeSchemaGloballyUniqueMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
+		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
-				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
+				"The attribute `" + this.name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor,
 			// this leads to refresh of the attribute schema
-			new UseGlobalAttributeSchemaMutation(name)
+			new UseGlobalAttributeSchemaMutation(this.name)
 		);
 	}
 
@@ -162,7 +164,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 
 	@Override
 	public String toString() {
-		return "Set attribute `" + name + "` schema: " +
+		return "Set attribute `" + this.name + "` schema: " +
 			", uniqueGlobally=(" + (Arrays.stream(this.uniqueGloballyInScopes).map(it -> it.scope() + ": " + it.uniquenessType().name())) + ")";
 	}
 

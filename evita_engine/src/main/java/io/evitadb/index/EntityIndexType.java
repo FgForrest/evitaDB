@@ -25,8 +25,11 @@ package io.evitadb.index;
 
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
 /**
  * EntityIndexType enumeration keeps constants for all types of {@link EntityIndex EntityIndexes} that are used to
@@ -42,15 +45,23 @@ public enum EntityIndexType {
 	 */
 	GLOBAL,
 	/**
-	 * Index that contains referenced entity ids that are connected with special {@link Entity#getType()}.
-	 * This index is used when query contains {@link ReferenceHaving} query
-	 * is used.
+	 * Index contains attribute indexes containing only data for reference attributes and as indexed values
+	 * are used {@link EntityIndex#primaryKey primary keys} of entity indexes of {@link #REFERENCED_ENTITY} type.
+	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} constraint is used and
+	 * contains indexed values of reference attributes only.
+	 *
+	 * Discriminator is `String` representing the {@link ReferenceSchemaContract#getName()}.
 	 */
 	REFERENCED_ENTITY_TYPE,
 	/**
 	 * Index that contains record ids that are connected with certain referenced {@link Entity#getType()} and {@link Entity#getPrimaryKey()}.
-	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} query
-	 * is used.
+	 * This index is used when query contains {@link ReferenceHaving} or {@link HierarchyWithin} constraint is used and
+	 * contains copy of all indexed reference attributes and entity attributes of the indexed (source) entity.
+	 *
+	 * Discriminator is {@link RepresentativeReferenceKey} instance that combines information about the
+	 * {@link ReferenceSchemaContract#getName()}, referenced entity {@link EntityContract#getPrimaryKey()} and
+	 * set of representative attribute values that distinguish this reference from other references of the same type
+	 * and the same target entity.
 	 */
 	REFERENCED_ENTITY,
 	/**

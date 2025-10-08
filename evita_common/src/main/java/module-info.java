@@ -5,6 +5,8 @@ module evita.common {
 
 	exports io.evitadb.dataType;
 	exports io.evitadb.dataType.data;
+	exports io.evitadb.dataType.map;
+	exports io.evitadb.dataType.set;
 	exports io.evitadb.dataType.trie;
 	exports io.evitadb.dataType.exception;
 	exports io.evitadb.dataType.expression;
@@ -19,9 +21,9 @@ module evita.common {
 
 	requires org.slf4j;
 	requires jsr305;
-	requires static lombok;
 	requires com.fasterxml.jackson.databind;
 	requires zero.allocation.hashing;
-	requires okhttp3;
+	requires static lombok;
+	requires static okhttp3;
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public abstract class ClientPriceFilteringState extends ClientDataFullDatabaseSt
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.query = generateRandomPriceQuery(random, productSchema, priceStatistics);
+		this.query = generateRandomPriceQuery(this.random, this.productSchema, this.priceStatistics);
 	}
 
 	@Override
@@ -79,7 +79,7 @@ public abstract class ClientPriceFilteringState extends ClientDataFullDatabaseSt
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(PRODUCT_ENTITY_TYPE)) {
-			updatePriceStatistics(entity, random, priceStatistics);
+			updatePriceStatistics(entity, this.random, this.priceStatistics);
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -54,43 +54,43 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class UniqueIndexTest implements TimeBoundedTestSupport {
-	private final UniqueIndex tested = new UniqueIndex(Entities.PRODUCT, new AttributeKey("whatever"), String.class, new HashMap<>());
+	private final UniqueIndex tested = new UniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class, new HashMap<>());
 
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
-		tested.registerUniqueKey("A", 1);
-		assertEquals(1, tested.getRecordIdByUniqueValue("A"));
-		assertNull(tested.getRecordIdByUniqueValue("B"));
+		this.tested.registerUniqueKey("A", 1);
+		assertEquals(1, this.tested.getRecordIdByUniqueValue("A"));
+		assertNull(this.tested.getRecordIdByUniqueValue("B"));
 	}
 
 	@Test
 	void shouldFailToRegisterDuplicateValues() {
-		tested.registerUniqueKey("A", 1);
-		assertThrows(UniqueValueViolationException.class, () -> tested.registerUniqueKey("A", 2));
+		this.tested.registerUniqueKey("A", 1);
+		assertThrows(UniqueValueViolationException.class, () -> this.tested.registerUniqueKey("A", 2));
 	}
 
 	@Test
 	void shouldUnregisterPreviouslyRegisteredValue() {
-		tested.registerUniqueKey("A", 1);
-		assertEquals(1, tested.unregisterUniqueKey("A", 1));
-		assertNull(tested.getRecordIdByUniqueValue("A"));
+		this.tested.registerUniqueKey("A", 1);
+		assertEquals(1, this.tested.unregisterUniqueKey("A", 1));
+		assertNull(this.tested.getRecordIdByUniqueValue("A"));
 	}
 
 	@Test
 	void shouldFailToUnregisterUnknownValue() {
-		assertThrows(IllegalArgumentException.class, () -> tested.unregisterUniqueKey("B", 1));
+		assertThrows(IllegalArgumentException.class, () -> this.tested.unregisterUniqueKey("B", 1));
 	}
 
 	@Test
 	void shouldRegisterAndPartialUnregisterValues() {
-		tested.registerUniqueKey(new String[]{"A", "B", "C"}, 1);
-		assertEquals(1, tested.getRecordIdByUniqueValue("A"));
-		assertEquals(1, tested.getRecordIdByUniqueValue("B"));
-		assertEquals(1, tested.getRecordIdByUniqueValue("C"));
-		tested.unregisterUniqueKey(new String[]{"B", "C"}, 1);
-		assertEquals(1, tested.getRecordIdByUniqueValue("A"));
-		assertNull(tested.getRecordIdByUniqueValue("B"));
-		assertNull(tested.getRecordIdByUniqueValue("C"));
+		this.tested.registerUniqueKey(new String[]{"A", "B", "C"}, 1);
+		assertEquals(1, this.tested.getRecordIdByUniqueValue("A"));
+		assertEquals(1, this.tested.getRecordIdByUniqueValue("B"));
+		assertEquals(1, this.tested.getRecordIdByUniqueValue("C"));
+		this.tested.unregisterUniqueKey(new String[]{"B", "C"}, 1);
+		assertEquals(1, this.tested.getRecordIdByUniqueValue("A"));
+		assertNull(this.tested.getRecordIdByUniqueValue("B"));
+		assertNull(this.tested.getRecordIdByUniqueValue("C"));
 	}
 
 	@ParameterizedTest(name = "UniqueIndex should survive generational randomized test applying modifications on it")
@@ -107,7 +107,7 @@ class UniqueIndexTest implements TimeBoundedTestSupport {
 			new TestState(
 				new StringBuilder(),
 				1,
-				new UniqueIndex(Entities.PRODUCT, new AttributeKey("code"), String.class)
+				new UniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -167,7 +167,7 @@ class UniqueIndexTest implements TimeBoundedTestSupport {
 						committedResult.set(
 							new UniqueIndex(
 								committed.getEntityType(),
-								committed.getAttributeKey(),
+								committed.getAttributeIndexKey(),
 								committed.getType(),
 								new HashMap<>(committed.getUniqueValueToRecordId()),
 								committed.getRecordIds()

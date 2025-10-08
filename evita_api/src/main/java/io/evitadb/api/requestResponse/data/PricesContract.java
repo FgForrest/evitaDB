@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -106,7 +107,7 @@ public interface PricesContract extends Versioned, Serializable {
 			.stream()
 			.filter(PriceContract::exists)
 			.filter(it -> currency.equals(it.currency()))
-			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true));
+			.filter(it -> isValidAtTheMoment(atTheMoment, it));
 
 		switch (innerRecordHandling) {
 			case NONE -> {
@@ -185,11 +186,30 @@ public interface PricesContract extends Versioned, Serializable {
 	/**
 	 * Returns true if single price differs between first and second instance.
 	 */
-	static boolean anyPriceDifferBetween(@Nonnull PricesContract first, @Nonnull PricesContract second) {
-		final Collection<PriceContract> thisValues = first.pricesAvailable() ? first.getPrices() : Collections.emptyList();
-		final Collection<PriceContract> otherValues = second.pricesAvailable() ? second.getPrices() : Collections.emptyList();
+	static boolean anyPriceOrStrategyDifferBetween(@Nonnull PricesContract first, @Nonnull PricesContract second) {
+		final PriceInnerRecordHandling thisStrategy;
+		final Collection<PriceContract> thisValues;
+		final PriceInnerRecordHandling otherStrategy;
+		final Collection<PriceContract> otherValues;
 
-		if (thisValues.size() != otherValues.size()) {
+		if (first.pricesAvailable()) {
+			thisStrategy = first.getPriceInnerRecordHandling();
+			thisValues = first.getPrices();
+		} else {
+			thisStrategy = PriceInnerRecordHandling.NONE;
+			thisValues = Collections.emptyList();
+		}
+		if (second.pricesAvailable()) {
+			otherStrategy = second.getPriceInnerRecordHandling();
+			otherValues = second.getPrices();
+		} else {
+			otherStrategy = PriceInnerRecordHandling.NONE;
+			otherValues = Collections.emptyList();
+		}
+
+		if (thisStrategy != otherStrategy) {
+			return true;
+		} else if (thisValues.size() != otherValues.size()) {
 			return true;
 		} else {
 			return thisValues
@@ -259,7 +279,7 @@ public interface PricesContract extends Versioned, Serializable {
 				.stream()
 				.filter(PriceContract::exists)
 				.filter(it -> currency.equals(it.currency()))
-				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.filter(it -> isValidAtTheMoment(atTheMoment, it))
 				.toList();
 			return Arrays.stream(accompanyingPrices)
 				.collect(
@@ -338,7 +358,7 @@ public interface PricesContract extends Versioned, Serializable {
 				.stream()
 				.filter(PriceContract::exists)
 				.filter(it -> currency.equals(it.currency()))
-				.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+				.filter(it -> isValidAtTheMoment(atTheMoment, it))
 				.filter(it -> it.innerRecordId() == null || priceForSale.relatesTo(it))
 				.collect(
 					Collectors.groupingBy(
@@ -388,6 +408,22 @@ public interface PricesContract extends Versioned, Serializable {
 		} else {
 			return Collections.emptyMap();
 		}
+	}
+
+	/**
+	 * Checks if the given moment is valid based on the validity range of the provided price contract.
+	 *
+	 * @param atTheMoment the specific moment to evaluate, which can be null. If null, this method defaults to true.
+	 * @param price the price contract containing validity information, must not be null.
+	 * @return true if the moment is valid based on the price contract validity range, or if no moment is provided; false otherwise.
+	 */
+	private static boolean isValidAtTheMoment(@Nullable OffsetDateTime atTheMoment, @Nonnull PriceContract price) {
+		return ofNullable(atTheMoment)
+			.map(mmt -> {
+				final DateTimeRange validity = price.validity();
+				return validity == null || validity.isValidFor(mmt);
+			})
+			.orElse(true);
 	}
 
 	/**
@@ -977,9 +1013,9 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	default List<PriceForSaleWithAccompanyingPrices> getAllPricesForSaleWithAccompanyingPrices(
-		@Nullable Currency currency,
+		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
-		@Nullable String[] priceListPriority,
+		@Nonnull String[] priceListPriority,
 		@Nonnull AccompanyingPrice[] accompanyingPricesRequest
 	) {
 		final PriceInnerRecordHandling priceInnerRecordHandling = getPriceInnerRecordHandling();
@@ -1048,7 +1084,7 @@ public interface PricesContract extends Versioned, Serializable {
 					.filter(PriceContract::exists)
 					.filter(PriceContract::indexed)
 					.filter(it -> currency.equals(it.currency()))
-					.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
+					.filter(it -> isValidAtTheMoment(atTheMoment, it))
 					.filter(it -> pLists.containsKey(it.priceList()))
 					.collect(Collectors.groupingBy(it -> ofNullable(it.innerRecordId()).orElse(0)));
 				return pricesByInnerRecordId

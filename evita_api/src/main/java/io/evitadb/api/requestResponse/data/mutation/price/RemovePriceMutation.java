@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.price;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
@@ -49,6 +50,10 @@ public class RemovePriceMutation extends PriceMutation {
 
 	public RemovePriceMutation(@Nonnull PriceKey priceKey) {
 		super(priceKey);
+	}
+
+	private RemovePriceMutation(@Nonnull PriceKey priceKey, long decisiveTimestamp) {
+		super(priceKey, decisiveTimestamp);
 	}
 
 	public RemovePriceMutation(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
@@ -86,9 +91,15 @@ public class RemovePriceMutation extends PriceMutation {
 		return Operation.REMOVE;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemovePriceMutation(this.priceKey, newDecisiveTimestamp);
+	}
+
 	@Override
 	public String toString() {
-		return "remove price: `" + priceKey + "`";
+		return "remove price: `" + this.priceKey + "`";
 	}
 
 }

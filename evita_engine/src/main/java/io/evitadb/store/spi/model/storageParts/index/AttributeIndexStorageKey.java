@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 
@@ -37,15 +36,15 @@ import javax.annotation.Nonnull;
 public record AttributeIndexStorageKey(
 	@Nonnull EntityIndexKey entityIndexKey,
 	@Nonnull AttributeIndexType indexType,
-	@Nonnull AttributeKey attribute
+	@Nonnull AttributeIndexKey attribute
 ) implements Comparable<AttributeIndexStorageKey>, EntityIndexKeyAccessor {
 	@Override
 	public int compareTo(AttributeIndexStorageKey o) {
-		final int firstComparison = entityIndexKey.compareTo(o.entityIndexKey);
+		final int firstComparison = this.entityIndexKey.compareTo(o.entityIndexKey);
 		if (firstComparison == 0) {
-			final int secondComparison = Integer.compare(indexType.ordinal(), o.indexType.ordinal());
+			final int secondComparison = Integer.compare(this.indexType.ordinal(), o.indexType.ordinal());
 			if (secondComparison == 0) {
-				return attribute.compareTo(o.attribute);
+				return this.attribute.compareTo(o.attribute);
 			} else {
 				return secondComparison;
 			}

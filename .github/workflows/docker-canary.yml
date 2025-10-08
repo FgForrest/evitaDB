@@ -24,7 +24,7 @@ jobs:
           ref: dev  # Always checks out the dev branch
 
       - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@07ab29fd4a977ae4d2b275087cf67563dfdf0295 # v9
+        uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
@@ -34,20 +34,20 @@ jobs:
       - name: Set up QEMU
         # Add support for more platforms with QEMU (optional)
         # https://github.com/docker/setup-qemu-action
-        uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6
 
       - name: Configure QEMU
         # Configure QEMU for Docker Buildx, see https://github.com/docker/buildx/issues/1170#issuecomment-2424530330
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         with:
           buildkitd-flags: --debug
           platforms: linux/amd64,linux/arm64/v8
 
       - name: Login to DockerHub
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ vars.CI_REGISTRY_USER }}
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}

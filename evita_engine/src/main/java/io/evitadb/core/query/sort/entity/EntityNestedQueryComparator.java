@@ -246,7 +246,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 
 	@Override
 	public int getNonSortedReferenceCount() {
-		return ofNullable(nonSortedReferences)
+		return ofNullable(this.nonSortedReferences)
 			.map(IntContainer::size)
 			.orElse(0);
 	}
@@ -260,7 +260,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	@Nullable
 	@Override
 	public ReferenceComparator getNextComparator() {
-		return nextComparator;
+		return this.nextComparator;
 	}
 
 	@Override

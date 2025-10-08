@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,21 @@ public class ClientTask<S, T> implements Task<S, T> {
 	private final Function<UUID, Boolean> cancellationLambda;
 	private final Function<UUID, Optional<TaskStatus<?, ?>>> stateUpdater;
 
+	/**
+	 * Creates a TaskFailedException representing the failure of a task based on its status.
+	 *
+	 * @param status The status of the task, which may contain the reason for failure or additional context.
+	 * @return A new instance of TaskFailedException containing an appropriate failure message derived from the task status.
+	 */
+	@Nonnull
+	private static TaskFailedException createTaskFailedException(@Nonnull TaskStatus<?, ?> status) {
+		return new TaskFailedException(
+			status.publicExceptionMessage() == null ?
+				"Task " + status.taskName() + " failed without reason." :
+				status.publicExceptionMessage()
+		);
+	}
+
 	public ClientTask(
 		@Nonnull TaskStatus<S, T> status,
 		@Nonnull Supplier<Function<UUID, Boolean>> cancellationLambdaFactory,
@@ -62,7 +77,11 @@ public class ClientTask<S, T> implements Task<S, T> {
 			this.stateUpdater = null;
 		} else if (status.simplifiedState() == TaskSimplifiedState.FAILED) {
 			this.result.completeExceptionally(
-				new TaskFailedException(status.publicExceptionMessage())
+				new TaskFailedException(
+					status.publicExceptionMessage() == null ?
+						"Task " + status.taskName() + " failed without reason." :
+						status.publicExceptionMessage()
+				)
 			);
 			this.cancellationLambda = null;
 			this.stateUpdater = null;
@@ -121,6 +140,7 @@ public class ClientTask<S, T> implements Task<S, T> {
 
 	/**
 	 * Updates internal status of the task according to new external state.
+	 *
 	 * @param status The new status of the task.
 	 */
 	public void updateStatus(@Nonnull TaskStatus<?, ?> status) {
@@ -130,9 +150,7 @@ public class ClientTask<S, T> implements Task<S, T> {
 		if (theStatus.simplifiedState() == TaskSimplifiedState.FINISHED) {
 			this.result.complete(theStatus.result());
 		} else if (theStatus.simplifiedState() == TaskSimplifiedState.FAILED) {
-			this.result.completeExceptionally(
-				new TaskFailedException(theStatus.publicExceptionMessage())
-			);
+			this.result.completeExceptionally(createTaskFailedException(status));
 		}
 	}
 

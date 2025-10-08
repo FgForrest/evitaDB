@@ -7,7 +7,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,10 @@ import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssoc
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
@@ -42,7 +46,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutation.MutationCase;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutationConverter;
@@ -54,6 +58,10 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.associatedDat
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute.*;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.entity.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationConverter;
@@ -88,7 +96,10 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 	private static final Map<MutationCase, ToJava> TO_JAVA_CONVERTERS;
 
 	static {
-		TO_GRPC_CONVERTERS = createHashMap(50);
+		TO_GRPC_CONVERTERS = createHashMap(250);
+		TO_GRPC_CONVERTERS.put(CreateEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setCreateEntitySchemaMutation((GrpcCreateEntitySchemaMutation) m), CreateEntitySchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(RemoveEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveEntitySchemaMutation((GrpcRemoveEntitySchemaMutation) m), RemoveEntitySchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifyEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setModifyEntitySchemaMutation((GrpcModifyEntitySchemaMutation) m), ModifyEntitySchemaMutationConverter.INSTANCE));
 		// associated data schema mutations
 		TO_GRPC_CONVERTERS.put(CreateAssociatedDataSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateAssociatedDataSchemaMutation((GrpcCreateAssociatedDataSchemaMutation) m), CreateAssociatedDataSchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifyAssociatedDataSchemaDeprecationNoticeMutation.class, new ToGrpc((b, m) -> b.setModifyAssociatedDataSchemaDeprecationNoticeMutation((GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation) m), ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter.INSTANCE));
@@ -119,7 +130,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaDescriptionMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaDescriptionMutation((GrpcModifySortableAttributeCompoundSchemaDescriptionMutation) m), ModifySortableAttributeCompoundSchemaDescriptionMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifySortableAttributeCompoundSchemaNameMutation.class, new ToGrpc((b, m) -> b.setModifySortableAttributeCompoundSchemaNameMutation((GrpcModifySortableAttributeCompoundSchemaNameMutation) m), ModifySortableAttributeCompoundSchemaNameMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(RemoveSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setRemoveSortableAttributeCompoundSchemaMutation((GrpcRemoveSortableAttributeCompoundSchemaMutation) m), RemoveSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
-		TO_GRPC_CONVERTERS.put(SetSortableAttributeCompoundIndexedMutation.class, new ToGrpc((b, m) -> b.setSetSortableAttributeCompoundIndexedMutation((GrpcSetSortableAttributeCompoundIndexedMutation) m), SetSortableAttributeCompoundIndexedMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(SetSortableAttributeCompoundSchemaIndexedMutation.class, new ToGrpc((b, m) -> b.setSetSortableAttributeCompoundIndexedMutation((GrpcSetSortableAttributeCompoundIndexedMutation) m), SetSortableAttributeCompoundIndexedMutationConverter.INSTANCE));
 		// entity schema mutations
 		TO_GRPC_CONVERTERS.put(AllowCurrencyInEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setAllowCurrencyInEntitySchemaMutation((GrpcAllowCurrencyInEntitySchemaMutation) m), AllowCurrencyInEntitySchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(AllowEvolutionModeInEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setAllowEvolutionModeInEntitySchemaMutation((GrpcAllowEvolutionModeInEntitySchemaMutation) m), AllowEvolutionModeInEntitySchemaMutationConverter.INSTANCE));
@@ -127,6 +138,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(DisallowCurrencyInEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setDisallowCurrencyInEntitySchemaMutation((GrpcDisallowCurrencyInEntitySchemaMutation) m), DisallowCurrencyInEntitySchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(DisallowEvolutionModeInEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setDisallowEvolutionModeInEntitySchemaMutation((GrpcDisallowEvolutionModeInEntitySchemaMutation) m), DisallowEvolutionModeInEntitySchemaMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(DisallowLocaleInEntitySchemaMutation.class, new ToGrpc((b, m) -> b.setDisallowLocaleInEntitySchemaMutation((GrpcDisallowLocaleInEntitySchemaMutation) m), DisallowLocaleInEntitySchemaMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(ModifyEntitySchemaNameMutation.class, new ToGrpc((b, m) -> b.setModifyEntitySchemaNameMutation((GrpcModifyEntitySchemaNameMutation) m), ModifyEntitySchemaNameMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifyEntitySchemaDeprecationNoticeMutation.class, new ToGrpc((b, m) -> b.setModifyEntitySchemaDeprecationNoticeMutation((GrpcModifyEntitySchemaDeprecationNoticeMutation) m), ModifyEntitySchemaDeprecationNoticeMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifyEntitySchemaDescriptionMutation.class, new ToGrpc((b, m) -> b.setModifyEntitySchemaDescriptionMutation((GrpcModifyEntitySchemaDescriptionMutation) m), ModifyEntitySchemaDescriptionMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetEntitySchemaWithGeneratedPrimaryKeyMutation.class, new ToGrpc((b, m) -> b.setSetEntitySchemaWithGeneratedPrimaryKeyMutation((GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation) m), SetEntitySchemaWithGeneratedPrimaryKeyMutationConverter.INSTANCE));
@@ -148,7 +160,10 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(SetReferenceSchemaIndexedMutation.class, new ToGrpc((b, m) -> b.setSetReferenceSchemaIndexedMutation((GrpcSetReferenceSchemaIndexedMutation) m), SetReferenceSchemaIndexedMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(ModifyReferenceSortableAttributeCompoundSchemaMutation.class, new ToGrpc((b, m) -> b.setModifyReferenceSortableAttributeCompoundSchemaMutation((GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) m), ModifyReferenceSortableAttributeCompoundSchemaMutationConverter.INSTANCE));
 
-		TO_JAVA_CONVERTERS = createHashMap(50);
+		TO_JAVA_CONVERTERS = createHashMap(250);
+		TO_JAVA_CONVERTERS.put(CREATEENTITYSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getCreateEntitySchemaMutation, CreateEntitySchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(REMOVEENTITYSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getRemoveEntitySchemaMutation, RemoveEntitySchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MODIFYENTITYSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyEntitySchemaMutation, ModifyEntitySchemaMutationConverter.INSTANCE));
 		// associated data schema mutations
 		TO_JAVA_CONVERTERS.put(CREATEASSOCIATEDDATASCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getCreateAssociatedDataSchemaMutation, CreateAssociatedDataSchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYASSOCIATEDDATASCHEMADEPRECATIONNOTICEMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyAssociatedDataSchemaDeprecationNoticeMutation, ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter.INSTANCE));
@@ -187,6 +202,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_JAVA_CONVERTERS.put(DISALLOWCURRENCYINENTITYSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getDisallowCurrencyInEntitySchemaMutation, DisallowCurrencyInEntitySchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(DISALLOWEVOLUTIONMODEINENTITYSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getDisallowEvolutionModeInEntitySchemaMutation, DisallowEvolutionModeInEntitySchemaMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(DISALLOWLOCALEINENTITYSCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getDisallowLocaleInEntitySchemaMutation, DisallowLocaleInEntitySchemaMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MODIFYENTITYSCHEMANAMEMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyEntitySchemaNameMutation, ModifyEntitySchemaNameMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYENTITYSCHEMADEPRECATIONNOTICEMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyEntitySchemaDeprecationNoticeMutation, ModifyEntitySchemaDeprecationNoticeMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(MODIFYENTITYSCHEMADESCRIPTIONMUTATION, new ToJava(GrpcEntitySchemaMutation::getModifyEntitySchemaDescriptionMutation, ModifyEntitySchemaDescriptionMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETENTITYSCHEMAWITHGENERATEDPRIMARYKEYMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetEntitySchemaWithGeneratedPrimaryKeyMutation, SetEntitySchemaWithGeneratedPrimaryKeyMutationConverter.INSTANCE));

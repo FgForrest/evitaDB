@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,10 +35,10 @@ public enum ChangeCaptureContent {
 	 */
 	HEADER,
 	/**
-	 * Entire mutation triggering the event is sent. In case of mutations with the large content (associated data
+	 * The entire mutation triggering the event is sent. In case of mutations with the large content (associated data
 	 * update), the size of the event can be significant. Consider whether you need the entire mutation or just the
 	 * header.
 	 */
-	BODY;
+	BODY
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public class ObjectDescriptorToOpenApiEnumTransformer implements ObjectDescripto
 	@Nonnull private final Set<String> enumValues;
 
 	@Override
-	public OpenApiEnum.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public OpenApiEnum.Builder apply(ObjectDescriptor objectDescriptor) {
 		final OpenApiEnum.Builder enumBuilder = OpenApiEnum.newEnum();
 
 		if (objectDescriptor.isNameStatic()) {
@@ -53,7 +53,7 @@ public class ObjectDescriptorToOpenApiEnumTransformer implements ObjectDescripto
 		}
 		enumBuilder.description(objectDescriptor.description());
 
-		enumValues.forEach(enumBuilder::item);
+		this.enumValues.forEach(enumBuilder::item);
 
 		return enumBuilder;
 	}

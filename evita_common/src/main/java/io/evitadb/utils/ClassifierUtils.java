@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -206,13 +206,13 @@ public class ClassifierUtils {
 
 			Keyword keyword = (Keyword) o;
 
-			if (hash != keyword.hash) return false;
-			return Arrays.equals(words, keyword.words);
+			if (this.hash != keyword.hash) return false;
+			return Arrays.equals(this.words, keyword.words);
 		}
 
 		@Override
 		public int hashCode() {
-			return Long.hashCode(hash);
+			return Long.hashCode(this.hash);
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,71 +80,6 @@ public class DataLocatorResolverTest {
 	private CatalogSchemaContract catalogSchema;
 	private DataLocatorResolver dataLocatorResolver;
 
-	@BeforeEach
-	void setUp() {
-		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(
-			TestConstants.TEST_CATALOG,
-			Map.of(),
-			EnumSet.allOf(CatalogEvolutionMode.class),
-			new EntitySchemaProvider() {
-				@Nonnull
-				@Override
-				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return entitySchemaIndex.values();
-				}
-
-				@Nonnull
-				@Override
-				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return ofNullable(entitySchemaIndex.get(entityType));
-				}
-			}
-		);
-
-		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			EntitySchema._internalBuild(Entities.PRODUCT)
-		)
-			.withPrice()
-			.withAttribute(ATTRIBUTE_CODE, String.class)
-			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute(ATTRIBUTE_CODE, String.class))
-			.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
-			.withReferenceTo(EXTERNAL_ENTITY_TAG, EXTERNAL_ENTITY_TAG, Cardinality.EXACTLY_ONE)
-			.toInstance();
-
-		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
-
-		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			EntitySchema._internalBuild(Entities.CATEGORY)
-		)
-			.withPrice()
-			.withAttribute(ATTRIBUTE_NAME, String.class)
-			.toInstance();
-		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
-
-		final EntitySchemaContract parameterSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			EntitySchema._internalBuild(Entities.PARAMETER)
-		)
-			.toInstance();
-		entitySchemaIndex.put(Entities.PARAMETER, parameterSchema);
-
-		dataLocatorResolver = new DataLocatorResolver(catalogSchema);
-	}
-
-	@ParameterizedTest
-	@MethodSource("possibleParentDataLocatorsWithDesiredChildDomains")
-	void shouldResolveChildParameterDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                            @Nonnull ConstraintDomain desiredChildDomain,
-	                                            @Nonnull DataLocator expectedChildDataLocator) {
-		assertEquals(
-			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
-		);
-	}
-
 	protected static Stream<Arguments> possibleParentDataLocatorsWithDesiredChildDomains() {
 		return Stream.of(
 			// 1. parent data locator; 2. desired child domain; 3. expected child data locator
@@ -191,16 +126,6 @@ public class DataLocatorResolverTest {
 		);
 	}
 
-	@ParameterizedTest
-	@MethodSource("impossibleChildDomainsForParentDataLocators")
-	void shouldNotResolveChildParameterDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                               @Nonnull ConstraintDomain desiredChildDomain) {
-		assertThrows(
-			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
-		);
-	}
-
 	protected static Stream<Arguments> impossibleChildDomainsForParentDataLocators() {
 		return Stream.of(
 			// 1. parent data locator; 2. desired child domain
@@ -244,18 +169,6 @@ public class DataLocatorResolverTest {
 			Arguments.of(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY),
 			// we don't know if reference is hierarchy
 			Arguments.of(new InlineReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY), ConstraintDomain.HIERARCHY)
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("possibleParentDataLocatorsWithChildConstraints")
-	void shouldResolveConstraintChildDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                             @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                             @Nullable String classifier,
-	                                             @Nonnull DataLocator expectedChildDataLocator) {
-		assertEquals(
-			expectedChildDataLocator,
-			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 
@@ -401,17 +314,6 @@ public class DataLocatorResolverTest {
 		);
 	}
 
-	@ParameterizedTest
-	@MethodSource("impossibleChildConstraintsForParentDataLocators")
-	void shouldNotResolveConstraintDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                           @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                           @Nullable String classifier) {
-		assertThrows(
-			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
-		);
-	}
-
 	protected static Stream<Arguments> impossibleChildConstraintsForParentDataLocators() {
 		return Stream.of(
 			// 1. parent data locator; 2. child constraint descriptor; 3. classifier for child constraint
@@ -453,6 +355,112 @@ public class DataLocatorResolverTest {
 				ConstraintDescriptorProvider.getConstraint(FacetHaving.class),
 				null
 			)
+		);
+	}
+
+	@BeforeEach
+	void setUp() {
+		this.entitySchemaIndex = new HashMap<>();
+		this.catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			Map.of(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return DataLocatorResolverTest.this.entitySchemaIndex.values();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return ofNullable(DataLocatorResolverTest.this.entitySchemaIndex.get(entityType));
+				}
+			}
+		);
+
+		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild(Entities.PRODUCT)
+		)
+			.withPrice()
+			.withAttribute(ATTRIBUTE_CODE, String.class)
+			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute(ATTRIBUTE_CODE, String.class))
+			.withReferenceToEntity(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
+			.withReferenceTo(EXTERNAL_ENTITY_TAG, EXTERNAL_ENTITY_TAG, Cardinality.EXACTLY_ONE)
+			.toInstance();
+
+		this.entitySchemaIndex.put(Entities.PRODUCT, productSchema);
+
+		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild(Entities.CATEGORY)
+		)
+			.withPrice()
+			.withAttribute(ATTRIBUTE_NAME, String.class)
+			.toInstance();
+		this.entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
+
+		final EntitySchemaContract parameterSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild(Entities.PARAMETER)
+		)
+			.toInstance();
+		this.entitySchemaIndex.put(Entities.PARAMETER, parameterSchema);
+
+		this.dataLocatorResolver = new DataLocatorResolver(this.catalogSchema);
+	}
+
+	@ParameterizedTest
+	@MethodSource("possibleParentDataLocatorsWithDesiredChildDomains")
+	void shouldResolveChildParameterDataLocator(
+		@Nonnull DataLocator parentDataLocator,
+		@Nonnull ConstraintDomain desiredChildDomain,
+		@Nonnull DataLocator expectedChildDataLocator
+	) {
+		assertEquals(
+			expectedChildDataLocator,
+			this.dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("impossibleChildDomainsForParentDataLocators")
+	void shouldNotResolveChildParameterDataLocator(
+		@Nonnull DataLocator parentDataLocator,
+		@Nonnull ConstraintDomain desiredChildDomain
+	) {
+		assertThrows(
+			ExternalApiInternalError.class,
+			() -> this.dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("possibleParentDataLocatorsWithChildConstraints")
+	void shouldResolveConstraintChildDataLocator(
+		@Nonnull DataLocator parentDataLocator,
+		@Nonnull ConstraintDescriptor constraintDescriptor,
+		@Nullable String classifier,
+		@Nonnull DataLocator expectedChildDataLocator
+	) {
+		assertEquals(
+			expectedChildDataLocator,
+			this.dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, classifier)
+		);
+	}
+
+	@ParameterizedTest
+	@MethodSource("impossibleChildConstraintsForParentDataLocators")
+	void shouldNotResolveConstraintDataLocator(
+		@Nonnull DataLocator parentDataLocator,
+		@Nonnull ConstraintDescriptor constraintDescriptor,
+		@Nullable String classifier
+	) {
+		assertThrows(
+			ExternalApiInternalError.class,
+			() -> this.dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, classifier)
 		);
 	}
 }

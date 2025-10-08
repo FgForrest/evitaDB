@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -131,7 +131,7 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 
 		@Override
 		public int compare(EntityContract o1, EntityContract o2) {
-			return priceComparator.compare(
+			return this.priceComparator.compare(
 				getPriceForSaleOrElseZero(o1),
 				getPriceForSaleOrElseZero(o2)
 			);
@@ -146,12 +146,12 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 		 */
 		@Nonnull
 		private BigDecimal getPriceForSaleOrElseZero(@Nonnull EntityContract o1) {
-			final BigDecimal memoizedResult = memoizedPrices.get(o1.getPrimaryKey());
+			final BigDecimal memoizedResult = this.memoizedPrices.get(o1.getPrimaryKey());
 			if (memoizedResult != null) {
 				return memoizedResult;
 			}
-			final BigDecimal calculatedResult = o1.getPriceForSale().map(priceExtractor).orElse(BigDecimal.ZERO);
-			memoizedPrices.put(o1.getPrimaryKey(), calculatedResult);
+			final BigDecimal calculatedResult = o1.getPriceForSale().map(this.priceExtractor).orElse(BigDecimal.ZERO);
+			this.memoizedPrices.put(o1.getPrimaryKey(), calculatedResult);
 			return calculatedResult;
 		}
 	}

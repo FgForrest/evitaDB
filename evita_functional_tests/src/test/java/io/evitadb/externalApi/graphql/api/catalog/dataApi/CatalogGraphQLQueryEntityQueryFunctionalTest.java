@@ -54,13 +54,12 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -71,6 +70,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
@@ -78,10 +78,10 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.Leve
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -107,9 +107,9 @@ import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -164,7 +164,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of())
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
-					.e(EntityDescriptor.ATTRIBUTES.name(), map()
+					.e(
+						AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 						.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
 						.build())
@@ -231,7 +232,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.VERSION.name(), entity.version())
+					.e(VersionedDescriptor.VERSION.name(), entity.version())
 					.build())
 			.toList();
 
@@ -636,7 +637,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(List.of(
 					map()
 						.e(EntityDescriptor.PRIMARY_KEY.name(), primaryKey)
-						.e(EntityDescriptor.ATTRIBUTES.name(), null)
+						.e(AttributesProviderDescriptor.ATTRIBUTES.name(), null)
 						.e(EntityDescriptor.ASSOCIATED_DATA.name(), null)
 						.build()
 				))
@@ -663,7 +664,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
-					.e(EntityDescriptor.ATTRIBUTES.name(), map()
+					.e(
+						AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
 						.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))
 						.build())
@@ -829,7 +831,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.ATTRIBUTES.name(), map()
+					.e(
+						AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 						.e(ATTRIBUTE_QUANTITY, entity.getAttribute(ATTRIBUTE_QUANTITY).toString())
 						.e("formattedQuantity", NumberFormat.getNumberInstance(CZECH_LOCALE).format(entity.getAttribute(ATTRIBUTE_QUANTITY)))
 						.build())
@@ -895,7 +898,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
-					.e(EntityDescriptor.ATTRIBUTES.name(), map()
+					.e(
+						AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 						.e(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
 						.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))
 						.build())
@@ -1658,7 +1662,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + RecordPageDescriptor.DATA.name(), hasSize(0));
+			.body(PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name(), hasSize(0));
 	}
 
 	@Test
@@ -2255,15 +2259,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + RecordPageDescriptor.DATA.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name(),
 				hasSize(2)
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + RecordPageDescriptor.DATA.name() + "[0]." + EntityDescriptor.PRICES.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name() + "[0]." + EntityDescriptor.PRICES.name(),
 				hasSize(greaterThan(0))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + RecordPageDescriptor.DATA.name() + "[1]." + EntityDescriptor.PRICES.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name() + "[1]." + EntityDescriptor.PRICES.name(),
 				hasSize(greaterThan(0))
 			);
 	}
@@ -3268,7 +3272,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e("parameter", map()
 						.e(TYPENAME_FIELD, ReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
-						.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+						.e(
+							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 							.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString())
 							.build())
@@ -3276,7 +3281,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							.e(TYPENAME_FIELD, "Parameter")
 							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))
 								.build())
 							.build())
@@ -3284,7 +3290,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							.e(TYPENAME_FIELD, "ParameterGroup")
 							.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))
 								.build())
 							.build())
@@ -3604,17 +3611,18 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 				.e("storePage", map()
-					.e(ReferencePageDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
-					.e(ReferencePageDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						.stream()
-						.skip(2)
-						.limit(2)
-						.map(reference ->
+					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+					.e(
+						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+						                                       .stream()
+						                                       .skip(2)
+						                                       .limit(2)
+						                                       .map(reference ->
 							map()
 							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
 								.build())
-						.toList()))
+						                                       .toList()))
 				.build()
 		);
 
@@ -3671,17 +3679,18 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 				.e("storeStrip", map()
-					.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
-					.e(ReferenceStripDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						.stream()
-						.skip(2)
-						.limit(2)
-						.map(reference ->
+					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+					.e(
+						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+						                                       .stream()
+						                                       .skip(2)
+						                                       .limit(2)
+						                                       .map(reference ->
 							map()
 							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
 								.build())
-						.toList()))
+						                                       .toList()))
 				.build()
 		);
 
@@ -3738,7 +3747,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 				.e("storePage", map()
-					.e(ReferenceStripDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size()))
+					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size()))
 				.build()
 		);
 
@@ -3886,7 +3895,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -3947,7 +3956,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -4007,7 +4016,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -4061,7 +4070,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(
 					expectedEntities.stream()
 						.skip(3)
@@ -4120,7 +4129,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(
 					expectedEntities.stream()
 						.skip(2)
@@ -7110,7 +7119,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, RecordPageDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
+			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, DataChunkDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
 	}
 
 	@DisplayName("Should order by price")
@@ -7156,7 +7165,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				""")
 			.executeAndExpectOkAndThen()
 			.body(
-				resultPath(PRODUCT_QUERY_DATA_PATH, GraphQLEntityDescriptor.PRIMARY_KEY.name()),
+				resultPath(PRODUCT_QUERY_DATA_PATH, EntityDescriptor.PRIMARY_KEY.name()),
 				equalTo(expectedEntities.getRecordData().stream().map(EntityClassifier::getPrimaryKeyOrThrowException).toList())
 			);
 	}
@@ -7284,9 +7293,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(TYPENAME_FIELD, ResponseDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			.e(ResponseDescriptor.RECORD_PAGE.name(), map()
 				.e(TYPENAME_FIELD, RecordPageDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-				.e(RecordPageDescriptor.DATA.name(), entities.stream()
-					.map(entityMapper)
-					.toList())
+				.e(
+					DataChunkDescriptor.DATA.name(), entities.stream()
+					                                         .map(entityMapper)
+					                                         .toList())
 				.build())
 			.build();
 	}
@@ -7358,7 +7368,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
 				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParentEntity().isPresent() ? entity.getParentEntity().get().getPrimaryKey() : null)
-				.e(EntityDescriptor.ATTRIBUTES.name(), map()
+				.e(
+					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
 			.e(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
 
@@ -7456,7 +7467,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+									.e(
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
@@ -7494,7 +7506,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+									.e(
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())

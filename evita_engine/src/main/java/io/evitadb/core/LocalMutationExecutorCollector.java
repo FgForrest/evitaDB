@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMuta
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -189,7 +190,7 @@ class LocalMutationExecutorCollector {
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
 		// are automatically generated when top level mutation is applied (replayed)
 		final MutationApplicationRecord record;
-		if (level == 0) {
+		if (this.level == 0) {
 			this.entityMutations.add(entityMutation);
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
@@ -217,14 +218,21 @@ class LocalMutationExecutorCollector {
 			if (entityMutation instanceof EntityRemoveMutation) {
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
-			} else {
+			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
+				entityIndexUpdater.prepare(localMutations);
+			} else {
+				throw new GenericEvitaInternalError(
+					"Unsupported entity mutation type: " + entityMutation.getClass().getName()
+				);
 			}
 
 			for (LocalMutation<?, ?> localMutation : localMutations) {
 				entityIndexUpdater.applyMutation(localMutation);
 				changeCollector.applyMutation(localMutation);
 			}
+
+			changeCollector.finishLocalMutationExecutionPhase();
 
 			if (!generateImplicitMutations.isEmpty()) {
 				final ImplicitMutations implicitMutations = changeCollector.popImplicitMutations(

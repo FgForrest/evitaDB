@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -58,13 +59,17 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 		super(new AssociatedDataKey(associatedDataName, locale));
 	}
 
+	private RemoveAssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey, long decisiveTimestamp) {
+		super(associatedDataKey, decisiveTimestamp);
+	}
+
 	@Nonnull
 	@Override
 	public AssociatedDataValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AssociatedDataValue existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
 			() -> new InvalidMutationException(
-				"Cannot remove " + associatedDataKey.associatedDataName() +
+				"Cannot remove " + this.associatedDataKey.associatedDataName() +
 					" associated data - it doesn't exist!"
 			)
 		);
@@ -82,8 +87,14 @@ public class RemoveAssociatedDataMutation extends AssociatedDataMutation {
 		return Operation.REMOVE;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new RemoveAssociatedDataMutation(this.associatedDataKey, newDecisiveTimestamp);
+	}
+
 	@Override
 	public String toString() {
-		return "remove associated data: `" + associatedDataKey + "`";
+		return "remove associated data: `" + this.associatedDataKey + "`";
 	}
 }

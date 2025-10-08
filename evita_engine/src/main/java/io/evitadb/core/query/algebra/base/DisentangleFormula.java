@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,14 +99,19 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		this.controlBitmap = controlBitmap;
 		this.initFields();
 	}
-	DisentangleFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nullable Bitmap mainBitmap, @Nullable Bitmap controlBitmap, @Nullable Formula... formulas) {
+	DisentangleFormula(
+		@Nullable Consumer<CacheableFormula> computationCallback,
+		@Nullable Bitmap mainBitmap,
+		@Nullable Bitmap controlBitmap,
+		@Nullable Formula... formulas
+	) {
 		super(computationCallback);
 		this.mainBitmap = mainBitmap;
 		this.controlBitmap = controlBitmap;
-		this.initFields(formulas);
+		this.initFields(formulas == null ? EMPTY_FORMULA_ARRAY : formulas);
 		Assert.isTrue(
-			(ArrayUtils.isEmpty(innerFormulas) && (mainBitmap != null && controlBitmap != null)) ||
-			(innerFormulas.length == 2 && (mainBitmap == null && controlBitmap == null)),
+			(ArrayUtils.isEmpty(this.innerFormulas) && (mainBitmap != null && controlBitmap != null)) ||
+			(this.innerFormulas.length == 2 && (mainBitmap == null && controlBitmap == null)),
 			"Disentangle supports either two formulas or two bitmaps but not both!"
 		);
 	}
@@ -115,20 +120,20 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	public long[] gatherBitmapIdsInternal() {
 		return LongStream.concat(
-				Stream.of(mainBitmap, controlBitmap)
+				Stream.of(this.mainBitmap, this.controlBitmap)
 					.filter(TransactionalLayerProducer.class::isInstance)
 					.mapToLong(it -> ((TransactionalLayerProducer<?, ?>) it).getId()),
-				Arrays.stream(innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
+				Arrays.stream(this.innerFormulas).flatMapToLong(it -> LongStream.of(it.gatherTransactionalIds()))
 			)
 			.toArray();
 	}
 
 	@Override
 	public long getEstimatedCostInternal() {
-		if (mainBitmap != null && controlBitmap != null) {
+		if (this.mainBitmap != null && this.controlBitmap != null) {
 			try {
-				long costs = mainBitmap.size();
-				costs = Math.addExact(costs, controlBitmap.size());
+				long costs = this.mainBitmap.size();
+				costs = Math.addExact(costs, this.controlBitmap.size());
 				return Math.multiplyExact(costs, getOperationCost());
 			} catch (ArithmeticException ex) {
 				return Long.MAX_VALUE;
@@ -140,8 +145,8 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Override
 	protected long getEstimatedBaseCost() {
-		if (mainBitmap != null && controlBitmap != null) {
-			return Stream.of(mainBitmap, controlBitmap).mapToLong(Bitmap::size).sum();
+		if (this.mainBitmap != null && this.controlBitmap != null) {
+			return Stream.of(this.mainBitmap, this.controlBitmap).mapToLong(Bitmap::size).sum();
 		} else {
 			return super.getEstimatedBaseCost();
 		}
@@ -149,13 +154,13 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Override
 	public int getEstimatedCardinality() {
-		return mainBitmap == null ? innerFormulas[0].getEstimatedCardinality() : mainBitmap.size();
+		return this.mainBitmap == null ? this.innerFormulas[0].getEstimatedCardinality() : this.mainBitmap.size();
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			Stream.of(mainBitmap, controlBitmap)
+			Stream.of(this.mainBitmap, this.controlBitmap)
 				.filter(Objects::nonNull)
 				.mapToLong(it -> {
 					if (it instanceof TransactionalLayerProducer) {
@@ -182,8 +187,8 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Override
 	protected long getCostInternal() {
-		if (mainBitmap != null && controlBitmap != null) {
-			return Stream.of(mainBitmap, controlBitmap).mapToLong(Bitmap::size).sum();
+		if (this.mainBitmap != null && this.controlBitmap != null) {
+			return Stream.of(this.mainBitmap, this.controlBitmap).mapToLong(Bitmap::size).sum();
 		} else {
 			return super.getCostInternal();
 		}
@@ -200,7 +205,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
 		return new DisentangleFormula(
 			selfOperator,
-			mainBitmap, controlBitmap,
+			this.mainBitmap, this.controlBitmap,
 			innerFormulas
 		);
 	}
@@ -212,8 +217,8 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 
 	@Override
 	public String toString() {
-		if (mainBitmap != null && controlBitmap != null) {
-			return "DISENTANGLE: main " + mainBitmap.size() + ", control: " + controlBitmap.size() + " primary keys";
+		if (this.mainBitmap != null && this.controlBitmap != null) {
+			return "DISENTANGLE: main " + this.mainBitmap.size() + ", control: " + this.controlBitmap.size() + " primary keys";
 		} else {
 			return "DISENTANGLE";
 		}
@@ -222,8 +227,8 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		if (mainBitmap != null && controlBitmap != null) {
-			return "DISENTANGLE: " + Stream.of(mainBitmap, controlBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
+		if (this.mainBitmap != null && this.controlBitmap != null) {
+			return "DISENTANGLE: " + Stream.of(this.mainBitmap, this.controlBitmap).map(Bitmap::toString).collect(Collectors.joining(", "));
 		} else {
 			return "DISENTANGLE";
 		}
@@ -233,14 +238,14 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Override
 	protected Bitmap computeInternal() {
 		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		final OfInt controlIt = ofNullable(this.controlBitmap).map(Bitmap::iterator).orElseGet(() -> innerFormulas[1].compute().iterator());
+		final OfInt controlIt = ofNullable(this.controlBitmap).map(Bitmap::iterator).orElseGet(() -> this.innerFormulas[1].compute().iterator());
 		if (!controlIt.hasNext()) {
-			final OfInt mainIt = ofNullable(this.mainBitmap).map(Bitmap::iterator).orElseGet(() -> innerFormulas[0].compute().iterator());
+			final OfInt mainIt = ofNullable(this.mainBitmap).map(Bitmap::iterator).orElseGet(() -> this.innerFormulas[0].compute().iterator());
 			while (mainIt.hasNext()) {
 				writer.add(mainIt.next());
 			}
 		} else {
-			final OfInt mainIt = ofNullable(this.mainBitmap).map(Bitmap::iterator).orElseGet(() -> innerFormulas[0].compute().iterator());
+			final OfInt mainIt = ofNullable(this.mainBitmap).map(Bitmap::iterator).orElseGet(() -> this.innerFormulas[0].compute().iterator());
 			int number;
 			final AtomicInteger controlNumberRef = new AtomicInteger(END_OF_STREAM);
 			while ((number = computeNextInt(mainIt, controlIt, controlNumberRef)) != END_OF_STREAM) {

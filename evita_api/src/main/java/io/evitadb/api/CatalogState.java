@@ -23,11 +23,15 @@
 
 package io.evitadb.api;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * Indicates actual state in which Evita operates. See detailed information for each state.
  *
  * @author Stɇvɇn Kamenik (kamenik.stepan@gmail.cz) (c) 2021
  **/
+@RequiredArgsConstructor
 public enum CatalogState {
 
     /**
@@ -44,18 +48,66 @@ public enum CatalogState {
      *
      * This phase is meant to quickly fill initial state of the catalog from the external primary data store.
      */
-    WARMING_UP,
+    WARMING_UP(false, false),
 
     /**
      * Standard "serving" state of the Evita catalog.
      * All operations are executed transactionally and leave the date in consistent state even if any error occurs.
      * Multiple readers and writers can work with the catalog simultaneously.
      */
-    ALIVE,
+    ALIVE(false, false),
+
+    /**
+     * State signalizing that evitaDB engine didn't load this catalog from the file system. The catalog data are present
+     * on the file system, but they are not loaded into memory and the evitaDB engine is not able to serve any requests
+     * for this catalog.
+     */
+    INACTIVE(false, false),
 
     /**
      * State signalizing that evitaDB engine was not able to consistently open and load this catalog from the file system.
      */
-    CORRUPTED
+    CORRUPTED(false, false),
+
+    /**
+     * State signalizing that evitaDB engine is transitioning catalog from {@link #WARMING_UP} to {@link #ALIVE} state.
+     * Until the transition is fully completed, the catalog is not able to serve any requests.
+     */
+    GOING_ALIVE(true, true),
+
+    /**
+     * State signalizing that evitaDB engine is loading catalog from the file system to the memory and performing
+     * initialization of the catalog. The catalog is not able to serve any requests until the initialization is fully
+     * completed.
+     */
+    BEING_ACTIVATED(true, false),
+
+    /**
+     * State signalizing that evitaDB engine is deactivating the catalog. When the operation is completed, the catalog
+     * is moved to {@link #INACTIVE} state.
+     */
+    BEING_DEACTIVATED(true, true),
+
+    /**
+     * State signalizing that evitaDB engine is creating a new catalog. The catalog is not able to serve any requests
+     * until the creation is fully completed.
+     */
+    BEING_CREATED(true, false),
+
+    /**
+     * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
+     * is removed from the file system and is no longer available.
+     */
+    BEING_DELETED(true, true);
+
+    /**
+     * Contains true if the state is transitional and should never be stored in persistent storage.
+     */
+    @Getter private final boolean transitional;
+
+    /**
+     * Contains true if the state is transitional and original state of the catalog is "active" (i.e. either WARMING_UP or ALIVE).
+     */
+    @Getter private final boolean active;
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.index.bitmap;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
@@ -51,7 +52,7 @@ public class BitmapChanges {
 	 * Temporary intermediate result of the last {@link #getMergedBitmap()} operation. Nullified immediately with next
 	 * change.
 	 */
-	private RoaringBitmap memoizedMergedBitmap;
+	@Nullable private RoaringBitmap memoizedMergedBitmap;
 
 	BitmapChanges(RoaringBitmap original) {
 		this.originalBitmap = original;
@@ -61,7 +62,7 @@ public class BitmapChanges {
 	 * Returns true if bitmap with applied changes is empty.
 	 */
 	public boolean isEmpty() {
-		return (originalBitmap.isEmpty() || RoaringBitmap.andNot(originalBitmap, removals).isEmpty()) && insertions.isEmpty();
+		return (this.originalBitmap.isEmpty() || RoaringBitmap.andNot(this.originalBitmap, this.removals).isEmpty()) && this.insertions.isEmpty();
 	}
 
 	/**
@@ -69,11 +70,11 @@ public class BitmapChanges {
 	 * contained in original bitmap and not removed so far.
 	 */
 	boolean contains(int recordId) {
-		final boolean originalContainsRecord = originalBitmap.contains(recordId);
+		final boolean originalContainsRecord = this.originalBitmap.contains(recordId);
 		if (originalContainsRecord) {
-			return !removals.contains(recordId);
+			return !this.removals.contains(recordId);
 		} else {
-			return insertions.contains(recordId);
+			return this.insertions.contains(recordId);
 		}
 	}
 
@@ -83,9 +84,9 @@ public class BitmapChanges {
 	 */
 	boolean addRecordId(int recordId) {
 		// remove removal order for the record id if exists
-		final boolean removalRemoved = removals.checkedRemove(recordId);
+		final boolean removalRemoved = this.removals.checkedRemove(recordId);
 		// add insertion order for the record id
-		if (!originalBitmap.contains(recordId) && insertions.checkedAdd(recordId)) {
+		if (!this.originalBitmap.contains(recordId) && this.insertions.checkedAdd(recordId)) {
 			// nullify memoized result that becomes obsolete by this operation
 			this.memoizedMergedBitmap = null;
 			return true;
@@ -101,8 +102,8 @@ public class BitmapChanges {
 	 * This operation also nullifies previous record id insertion (if any).
 	 */
 	boolean removeRecordId(int recordId) {
-		final boolean addedRemovalOrder = originalBitmap.contains(recordId) && removals.checkedAdd(recordId);
-		final boolean removedInsertionOrder = insertions.checkedRemove(recordId);
+		final boolean addedRemovalOrder = this.originalBitmap.contains(recordId) && this.removals.checkedAdd(recordId);
+		final boolean removedInsertionOrder = this.insertions.checkedRemove(recordId);
 		if (addedRemovalOrder || removedInsertionOrder) {
 			// nullify memoized result that becomes obsolete by this operation
 			this.memoizedMergedBitmap = null;
@@ -118,22 +119,22 @@ public class BitmapChanges {
 	 */
 	@Nonnull
 	RoaringBitmap getMergedBitmap() {
-		if (insertions.isEmpty() && removals.isEmpty()) {
+		if (this.insertions.isEmpty() && this.removals.isEmpty()) {
 			// if there are no insertions / removals - return the original
-			return originalBitmap;
+			return this.originalBitmap;
 		} else {
 			// compute results only when we can't reuse previous computation
-			if (memoizedMergedBitmap == null) {
+			if (this.memoizedMergedBitmap == null) {
 				// memoize costly computation and return
 				final RoaringBitmap mergedBitmap = RoaringBitmap.andNot(
-					RoaringBitmap.or(originalBitmap, insertions),
-					removals
+					RoaringBitmap.or(this.originalBitmap, this.insertions),
+					this.removals
 				);
 				mergedBitmap.runOptimize();
 				this.memoizedMergedBitmap = mergedBitmap;
 			}
 
-			return memoizedMergedBitmap;
+			return this.memoizedMergedBitmap;
 		}
 	}
 
@@ -141,7 +142,7 @@ public class BitmapChanges {
 	 * Computes length of the bitmap with all requested changes applied.
 	 */
 	int getMergedLength() {
-		return originalBitmap.getCardinality() - removals.getCardinality() + insertions.getCardinality();
+		return this.originalBitmap.getCardinality() - this.removals.getCardinality() + this.insertions.getCardinality();
 	}
 
 }

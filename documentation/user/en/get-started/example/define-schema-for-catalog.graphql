@@ -145,7 +145,12 @@ mutation {
                 referencedEntityTypeManaged: true
                 cardinality: ZERO_OR_ONE
                 description: "Reference to the brand or manufacturer of the product."
-                indexedInScopes: [LIVE]
+                indexedInScopes: [
+                  {
+                    scope: LIVE,
+                    indexType: FOR_FILTERING
+                  }
+                ]
                 facetedInScopes: [LIVE]
               }
             },
@@ -156,7 +161,12 @@ mutation {
                 referencedEntityTypeManaged: true
                 cardinality: ZERO_OR_MORE
                 description: "Reference to one or more categories the product is listed in."
-                indexedInScopes: [LIVE]
+                indexedInScopes: [
+                  {
+                    scope: LIVE,
+                    indexType: FOR_FILTERING
+                  }
+                ]
               }
             }
           ]

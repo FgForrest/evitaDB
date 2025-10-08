@@ -38,6 +38,7 @@ java \
         "server.trafficRecording.enabled=true " \
         "server.trafficRecording.trafficFlushIntervalInMilliseconds=0 " \
         "server.trafficRecording.sourceQueryTracking=true " \
+        "server.closeSessionsAfterSecondsOfInactivity=0 " \
         "storage.storageDirectory=../data " \
         "storage.compress=true " \
         "api.exposedOn=localhost" \

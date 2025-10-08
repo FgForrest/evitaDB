@@ -31,9 +31,11 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -57,8 +59,8 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATT
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -171,7 +173,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 							.e(TYPENAME_FIELD, GlobalEntityDescriptor.THIS.name())
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_RELATIVE_URL, relativeUrl.value())
 								.build())
 							.build()
@@ -255,12 +258,12 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode1.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.VERSION.name(), entityWithCode1.version())
+							.e(VersionedDescriptor.VERSION.name(), entityWithCode1.version())
 							.build(),
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode2.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.VERSION.name(), entityWithCode2.version())
+							.e(VersionedDescriptor.VERSION.name(), entityWithCode2.version())
 							.build()
 					)
 				)
@@ -462,7 +465,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl1.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 								.e(ATTRIBUTE_URL, urlAttribute1)
 								.build())
@@ -470,7 +474,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithUrl2.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 								.e(ATTRIBUTE_URL, urlAttribute2)
 								.build())
@@ -525,7 +530,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCodeAndUrl1.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 								.e(ATTRIBUTE_CODE, codeAttribute1)
 								.e(ATTRIBUTE_URL, entityWithCodeAndUrl1.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
@@ -534,7 +540,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 						map()
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCodeAndUrl2.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(TYPENAME_FIELD, AttributesDescriptor.THIS_GLOBAL.name())
 								.e(ATTRIBUTE_CODE, codeAttribute2)
 								.e(ATTRIBUTE_URL, entityWithCodeAndUrl2.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
@@ -1144,20 +1151,23 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 					.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
 						.e("parameter", map()
 							.e(TYPENAME_FIELD, ReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
-							.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 								.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString()))
 							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
 								.e(TYPENAME_FIELD, "Parameter")
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
 								.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType())
-								.e(EntityDescriptor.ATTRIBUTES.name(), map()
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 									.e(ATTRIBUTE_CODE, referencedEntity.getAttribute(ATTRIBUTE_CODE))))
 							.e(ReferenceDescriptor.GROUP_ENTITY.name(), map()
 								.e(TYPENAME_FIELD, "ParameterGroup")
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
 								.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
-								.e(EntityDescriptor.ATTRIBUTES.name(), map()
+								.e(
+									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 									.e(ATTRIBUTE_CODE, groupEntity.getAttribute(ATTRIBUTE_CODE))))))
 					.build();
 			})

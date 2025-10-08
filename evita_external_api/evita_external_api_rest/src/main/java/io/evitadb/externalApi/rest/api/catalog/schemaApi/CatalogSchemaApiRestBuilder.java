@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,13 +49,13 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 		this.endpointBuilder = new SchemaApiEndpointBuilder();
 		this.entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(
 			buildingContext,
-			objectBuilderTransformer,
-			propertyBuilderTransformer
+			this.objectBuilderTransformer,
+			this.propertyBuilderTransformer
 		);
 		this.catalogSchemaObjectBuilder = new CatalogSchemaObjectBuilder(
 			buildingContext,
-			objectBuilderTransformer,
-			propertyBuilderTransformer
+			this.objectBuilderTransformer,
+			this.propertyBuilderTransformer
 		);
 	}
 
@@ -66,21 +66,21 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 	}
 
 	private void buildCommonTypes() {
-		buildingContext.registerType(NameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(NameVariantsDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
-		entitySchemaObjectBuilder.buildCommonTypes();
-		catalogSchemaObjectBuilder.buildCommonTypes();
+		this.entitySchemaObjectBuilder.buildCommonTypes();
+		this.catalogSchemaObjectBuilder.buildCommonTypes();
 	}
 
 	private void buildEndpoints() {
-		buildingContext.getEntitySchemas().forEach(entitySchema -> {
-			entitySchemaObjectBuilder.build(entitySchema);
-			buildingContext.registerEndpoint(endpointBuilder.buildGetEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
-			buildingContext.registerEndpoint(endpointBuilder.buildUpdateEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
+		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
+			this.entitySchemaObjectBuilder.build(entitySchema);
+			this.buildingContext.registerEndpoint(this.endpointBuilder.buildGetEntitySchemaEndpoint(this.buildingContext.getSchema(), entitySchema));
+			this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateEntitySchemaEndpoint(this.buildingContext.getSchema(), entitySchema));
 		});
 
-		catalogSchemaObjectBuilder.build();
-		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint(buildingContext.getSchema()));
-		buildingContext.registerEndpoint(endpointBuilder.buildUpdateCatalogSchemaEndpoint(buildingContext.getSchema()));
+		this.catalogSchemaObjectBuilder.build();
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildGetCatalogSchemaEndpoint(this.buildingContext.getSchema()));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildUpdateCatalogSchemaEndpoint(this.buildingContext.getSchema()));
 	}
 }

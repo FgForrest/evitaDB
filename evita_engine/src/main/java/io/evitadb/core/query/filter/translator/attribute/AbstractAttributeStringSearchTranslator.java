@@ -37,6 +37,7 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -166,7 +167,9 @@ class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslato
 	) {
 		final String attributeName = attributeConstraint.getAttributeName();
 		final String textToSearch = attributeConstraint.getTextToSearch();
-		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
+		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(
+			filterByVisitor, attributeName, AttributeTrait.FILTERABLE
+		);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
@@ -175,10 +178,12 @@ class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslato
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
 			assertStringType(attributeConstraint, attributeDefinition);
 
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeDefinition instanceof GlobalAttributeSchemaContract,
 				attributeKey,
 				filterByVisitor.applyOnFilterIndexes(
+					processingScope.getReferenceSchema(),
 					attributeDefinition,
 					index -> this.filterIndexResolver.apply(index, textToSearch)
 				)

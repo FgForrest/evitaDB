@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
@@ -47,10 +48,17 @@ import javax.annotation.Nullable;
  *                                              read-write session requests should timeout and abort their execution.
  * @param closeSessionsAfterSecondsOfInactivity Sets the timeout in seconds after which the session is automatically
  *                                              closed if no activity is observed on it.
- * @param trafficRecording 			    Defines settings for traffic recording.
+ * @param changeDataCapture                     Defines settings for change data capture (CDC) that allows clients to subscribe
+ *                                              to a stream of changes that occur in the database, enabling near real-time
+ *                                              data synchronization, event-driven architectures, and audit logging.
+ * @param trafficRecording                      Defines settings for traffic recording.
  * @param readOnly                              starts the database in full read-only mode, prohibiting write operations
  *                                              on {@link EntityContract} level and open read-write {@link EvitaSessionContract}.
  * @param quiet                                 If true, all output to the system console is suppressed.
+ * @param directExecutor                        Undocumented internal option that allows to use direct executor for
+ *                                              the request thread pool and scheduler. It avoids using asynchronous
+ *                                              execution and instead runs tasks directly in the calling thread, which
+ *                                              makes tests more predictable and easier to debug.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -60,15 +68,18 @@ public record ServerOptions(
 	long queryTimeoutInMilliseconds,
 	long transactionTimeoutInMilliseconds,
 	int closeSessionsAfterSecondsOfInactivity,
+	@Nonnull ChangeDataCaptureOptions changeDataCapture,
 	@Nonnull TrafficRecordingOptions trafficRecording,
 	boolean readOnly,
-	boolean quiet
+	boolean quiet,
+	boolean directExecutor
 ) {
 	public static final long DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS = 5000L;
 	public static final long DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS = 300 * 1000L;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
 	public static final boolean DEFAULT_READ_ONLY = false;
 	public static final boolean DEFAULT_QUIET = false;
+	public static final boolean DEFAULT_DIRECT_EXECUTOR = DevelopmentConstants.isTestRun();
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -91,9 +102,11 @@ public record ServerOptions(
 		long queryTimeoutInMilliseconds,
 		long transactionTimeoutInMilliseconds,
 		int closeSessionsAfterSecondsOfInactivity,
+		@Nullable ChangeDataCaptureOptions changeDataCapture,
 		@Nullable TrafficRecordingOptions trafficRecording,
 		boolean readOnly,
-		boolean quiet
+		boolean quiet,
+		boolean directExecutor
 	) {
 		this.requestThreadPool = requestThreadPool == null ? ThreadPoolOptions.requestThreadPoolBuilder().build() : requestThreadPool;
 		this.transactionThreadPool = transactionThreadPool == null ? ThreadPoolOptions.transactionThreadPoolBuilder().build() : transactionThreadPool;
@@ -101,9 +114,11 @@ public record ServerOptions(
 		this.queryTimeoutInMilliseconds = queryTimeoutInMilliseconds;
 		this.transactionTimeoutInMilliseconds = transactionTimeoutInMilliseconds;
 		this.closeSessionsAfterSecondsOfInactivity = closeSessionsAfterSecondsOfInactivity;
+		this.changeDataCapture = changeDataCapture == null ? ChangeDataCaptureOptions.builder().build() : changeDataCapture;
 		this.trafficRecording = trafficRecording == null ? TrafficRecordingOptions.builder().build() : trafficRecording;
 		this.readOnly = readOnly;
 		this.quiet = quiet;
+		this.directExecutor = directExecutor;
 	}
 
 	public ServerOptions() {
@@ -114,9 +129,11 @@ public record ServerOptions(
 			DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
+			ChangeDataCaptureOptions.builder().build(),
 			TrafficRecordingOptions.builder().build(),
 			DEFAULT_READ_ONLY,
-			DEFAULT_QUIET
+			DEFAULT_QUIET,
+			DEFAULT_DIRECT_EXECUTOR
 		);
 	}
 
@@ -131,6 +148,7 @@ public record ServerOptions(
 		private long queryTimeoutInMilliseconds = DEFAULT_QUERY_TIMEOUT_IN_MILLISECONDS;
 		private long transactionTimeoutInMilliseconds = DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
+		private ChangeDataCaptureOptions changeDataCapture = ChangeDataCaptureOptions.builder().build();
 		private TrafficRecordingOptions trafficRecording = TrafficRecordingOptions.builder().build();
 		private boolean readOnly = DEFAULT_READ_ONLY;
 		private boolean quiet = DEFAULT_QUIET;
@@ -145,6 +163,8 @@ public record ServerOptions(
 			this.queryTimeoutInMilliseconds = serverOptions.queryTimeoutInMilliseconds();
 			this.transactionTimeoutInMilliseconds = serverOptions.transactionTimeoutInMilliseconds();
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity();
+			this.trafficRecording = serverOptions.trafficRecording();
+			this.changeDataCapture = serverOptions.changeDataCapture();
 			this.readOnly = serverOptions.readOnly();
 			this.quiet = serverOptions.quiet();
 		}
@@ -186,6 +206,12 @@ public record ServerOptions(
 		}
 
 		@Nonnull
+		public ServerOptions.Builder changeDataCapture(@Nonnull ChangeDataCaptureOptions changeDataCapture) {
+			this.changeDataCapture = changeDataCapture;
+			return this;
+		}
+
+		@Nonnull
 		public ServerOptions.Builder trafficRecording(@Nonnull TrafficRecordingOptions trafficRecording) {
 			this.trafficRecording = trafficRecording;
 			return this;
@@ -206,15 +232,17 @@ public record ServerOptions(
 		@Nonnull
 		public ServerOptions build() {
 			return new ServerOptions(
-				requestThreadPool,
-				transactionThreadPool,
-				serviceThreadPool,
-				queryTimeoutInMilliseconds,
-				transactionTimeoutInMilliseconds,
-				closeSessionsAfterSecondsOfInactivity,
-				trafficRecording,
-				readOnly,
-				quiet
+				this.requestThreadPool,
+				this.transactionThreadPool,
+				this.serviceThreadPool,
+				this.queryTimeoutInMilliseconds,
+				this.transactionTimeoutInMilliseconds,
+				this.closeSessionsAfterSecondsOfInactivity,
+				this.changeDataCapture,
+				this.trafficRecording,
+				this.readOnly,
+				this.quiet,
+				DEFAULT_DIRECT_EXECUTOR
 			);
 		}
 

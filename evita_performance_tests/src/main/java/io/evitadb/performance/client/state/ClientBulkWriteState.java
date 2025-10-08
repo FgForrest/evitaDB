@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,7 +76,7 @@ public abstract class ClientBulkWriteState extends ClientDataState {
 		);
 		 */
 		// create bunch or entities for referencing in products
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			writeCatalogName,
 			session -> {
 				/*
@@ -105,7 +105,7 @@ public abstract class ClientBulkWriteState extends ClientDataState {
 			}
 		);
 		// create read/write bulk session
-		this.session = evita.createReadWriteSession(writeCatalogName);
+		this.session = this.evita.createReadWriteSession(writeCatalogName);
 		// create product iterator
 		initProductIterator(CopyExistingEntityBuilder::new);
 	}
@@ -117,7 +117,7 @@ public abstract class ClientBulkWriteState extends ClientDataState {
 	public void closeSession() {
 		this.session.close();
 		this.evita.close();
-		System.out.println("\nInserted " + counter + " records in iteration.");
+		System.out.println("\nInserted " + this.counter + " records in iteration.");
 	}
 
 	/**
@@ -125,19 +125,19 @@ public abstract class ClientBulkWriteState extends ClientDataState {
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		if (productIterator.hasNext()) {
-			this.product = productIterator.next();
+		if (this.productIterator.hasNext()) {
+			this.product = this.productIterator.next();
 			// keep track of already assigned primary keys (may have gaps, may be in random order)
-			if (this.product.getPrimaryKey() > this.pkPeek) {
-				this.pkPeek = this.product.getPrimaryKey();
+			if (this.product.getPrimaryKeyOrThrowException() > this.pkPeek) {
+				this.pkPeek = this.product.getPrimaryKeyOrThrowException();
 			}
 		} else {
 			// when products are exhausted - start again from scratch
-			initProductIterator(it -> new CopyExistingEntityBuilder(it, ++pkPeek));
+			initProductIterator(it -> new CopyExistingEntityBuilder(it, ++this.pkPeek));
 			// initialize first product from the new round
-			this.product = productIterator.next();
+			this.product = this.productIterator.next();
 		}
-		counter++;
+		this.counter++;
 	}
 
 	/**

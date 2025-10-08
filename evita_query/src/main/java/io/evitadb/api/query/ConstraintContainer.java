@@ -218,7 +218,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 			throw new EvitaInvalidUsageException("Type of additional child must be different from type of children of the main container.");
 		}
 		//noinspection unchecked
-		return Arrays.stream(additionalChildren)
+		return Arrays.stream(this.additionalChildren)
 			.filter(additionalChildType::isInstance)
 			.findFirst()
 			.map(it -> (C) it);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.reference;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -49,14 +50,14 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 			new ReferenceKey("brand", 5)
 		);
 
+		final GroupEntityReference group = new GroupEntityReference("europe", 2, 1, false);
 		final ReferenceContract reference = mutation.mutateLocal(
-			productSchema,
+			this.productSchema,
 			new Reference(
-				productSchema,
-				"brand",
-				5,
-				"brand", Cardinality.ZERO_OR_ONE,
-				new GroupEntityReference("europe", 2, 1, false)
+				this.productSchema,
+				ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
+				new ReferenceKey("brand", 5),
+				group
 			)
 		);
 		assertNotNull(reference);
@@ -76,7 +77,7 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 		final RemoveReferenceMutation mutation = new RemoveReferenceMutation(
 			new ReferenceKey("brand", 5)
 		);
-		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
+		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(this.productSchema, null));
 	}
 
 	@Test
@@ -86,18 +87,20 @@ class RemoveReferenceMutationTest extends AbstractMutationTest {
 		);
 		assertThrows(
 			InvalidMutationException.class,
-			() -> mutation.mutateLocal(
-				productSchema,
-				new Reference(
-					productSchema,
-					2,
-					"brand",
-					5,
-					"brand", Cardinality.ZERO_OR_ONE,
-					new GroupEntityReference("europe", 2, 1, false),
-					true
-				)
-			)
+			() -> {
+				final GroupEntityReference group = new GroupEntityReference("europe", 2, 1, false);
+				mutation.mutateLocal(
+					this.productSchema,
+					new Reference(
+						this.productSchema,
+						ReferencesBuilder.createImplicitSchema(productSchema, "brand", "brand", Cardinality.ZERO_OR_ONE, group),
+						2,
+						new ReferenceKey("brand", 5),
+						group,
+						true
+					)
+				);
+			}
 		);
 	}
 

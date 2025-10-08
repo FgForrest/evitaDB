@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,8 +35,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -59,22 +61,38 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation {
+public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5167037327442001715L;
-	@Nonnull @Getter private final String name;
+	@Nonnull @Getter private final String entityType;
 
-	public CreateEntitySchemaMutation(@Nonnull String name) {
-		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, name);
-		this.name = name;
+	public CreateEntitySchemaMutation(@Nonnull String entityType) {
+		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
+		this.entityType = entityType;
 	}
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
-			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(name));
+			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(this.entityType));
 		}
+		Assert.isPremiseValid(
+			catalogSchema != null,
+			"Catalog schema cannot be null when creating entity schema mutation!"
+		);
 		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaContract mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nullable EntitySchemaContract entitySchema
+	) {
+		return EntitySchema._internalBuild(this.entityType);
 	}
 
 	@Nonnull
@@ -89,26 +107,18 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
-		if (predicate.test(this)) {
-			final MutationPredicateContext context = predicate.getContext();
-			context.advance();
-			context.setEntityType(name);
+		final MutationPredicateContext context = predicate.getContext();
+		context.setEntityType(this.entityType);
 
-			return Stream.of(
-				ChangeCatalogCapture.schemaCapture(
-					context,
-					operation(),
-					content == ChangeCaptureContent.BODY ? this : null
-				)
-			);
-		} else {
-			return Stream.empty();
-		}
+		return LocalCatalogSchemaMutation.super.toChangeCatalogCapture(
+			predicate,
+			content
+		);
 	}
 
 	@Override
 	public String toString() {
 		return "Create entity schema: " +
-			"name='" + name + '\'';
+			"entity type='" + this.entityType + '\'';
 	}
 }

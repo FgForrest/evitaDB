@@ -196,12 +196,12 @@ public record TransactionOptions(
 		@Nonnull
 		public TransactionOptions build() {
 			return new TransactionOptions(
-				transactionWorkDirectory,
-				transactionMemoryBufferLimitSizeBytes,
-				transactionMemoryRegionCount,
-				walFileSizeBytes,
-				walFileCountKept,
-				flushFrequency
+				this.transactionWorkDirectory,
+				this.transactionMemoryBufferLimitSizeBytes,
+				this.transactionMemoryRegionCount,
+				this.walFileSizeBytes,
+				this.walFileCountKept,
+				this.flushFrequency
 			);
 		}
 

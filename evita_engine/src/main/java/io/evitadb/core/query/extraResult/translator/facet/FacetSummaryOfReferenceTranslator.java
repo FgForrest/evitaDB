@@ -100,18 +100,19 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean required
 	) {
+		final String referencedGroupType = referenceSchema.getReferencedGroupType();
 		if (required) {
 			Assert.isTrue(
-				referenceSchema.getReferencedGroupType() != null,
+				referencedGroupType != null,
 				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
 					"non-grouped entity type `" + referenceSchema.getReferencedEntityType() + "`."
 			);
 			Assert.isTrue(
 				referenceSchema.isReferencedGroupTypeManaged(),
 				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
-					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
+					"non-managed entity type `" + referencedGroupType + "`."
 			);
-		} else if (referenceSchema.getReferencedGroupType() == null || !referenceSchema.isReferencedGroupTypeManaged()) {
+		} else if (referencedGroupType == null || !referenceSchema.isReferencedGroupTypeManaged()) {
 			return null;
 		}
 		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
@@ -119,7 +120,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			queryContext,
 			extraResultPlanningVisitor.getProcessingScope().getScopes(),
 			new FilterBy(filterGroupBy.getChildren()),
-			referenceSchema.getReferencedGroupType(),
+			referencedGroupType,
 			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
 		);
 	}
@@ -249,8 +250,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			ofNullable(
 				FinderVisitor.findConstraint(
 					filterBy,
-					it -> it instanceof EntityLocaleEquals,
-					it -> it instanceof SeparateEntityScopeContainer
+					EntityLocaleEquals.class::isInstance,
+					SeparateEntityScopeContainer.class::isInstance
 				)
 			)
 				.map(it -> ((EntityLocaleEquals) it).getLocale())

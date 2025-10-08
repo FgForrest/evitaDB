@@ -38,11 +38,11 @@ public class PathTemplateMatch {
 	}
 
 	public String getMatchedTemplate() {
-		return matchedTemplate;
+		return this.matchedTemplate;
 	}
 
 	public Map<String, String> getParameters() {
-		return parameters;
+		return this.parameters;
 	}
 
 }

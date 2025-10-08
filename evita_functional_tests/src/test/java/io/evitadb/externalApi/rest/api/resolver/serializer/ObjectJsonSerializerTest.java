@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,101 +55,101 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class ObjectJsonSerializerTest {
 	private final ObjectMapper mapper = new ObjectMapper();
-	private final ObjectJsonSerializer tested = new ObjectJsonSerializer(mapper);
+	private final ObjectJsonSerializer tested = new ObjectJsonSerializer(this.mapper);
 
 	@Test
 	void shouldSerializeString() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject("Text"));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject("Text"));
 		assertEquals("\"Text\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeBoolean() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(Boolean.FALSE));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(Boolean.FALSE));
 		assertEquals("false", serialized);
 	}
 
 	@Test
 	void shouldSerializeByte() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(Integer.valueOf(8).byteValue()));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(Integer.valueOf(8).byteValue()));
 		assertEquals("8", serialized);
 	}
 
 	@Test
 	void shouldSerializeBigDecimal() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(new BigDecimal("154.2640")));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(new BigDecimal("154.2640")));
 		assertEquals("\"154.2640\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeLong() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(4587665216654L));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(4587665216654L));
 		assertEquals("\"4587665216654\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeZonedDateTime() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(OffsetDateTime.of(2022, 10, 21, 10, 9, 1, 0, ZoneOffset.ofHours(2))));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(OffsetDateTime.of(2022, 10, 21, 10, 9, 1, 0, ZoneOffset.ofHours(2))));
 		assertEquals("\"2022-10-21T10:09:01+02:00\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeLocalDateTime() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(LocalDateTime.of(2022, 10, 21, 10, 9, 1)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(LocalDateTime.of(2022, 10, 21, 10, 9, 1)));
 		assertEquals("\"2022-10-21T10:09:01\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeLocalDate() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(LocalDate.of(2022, 10, 21)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(LocalDate.of(2022, 10, 21)));
 		assertEquals("\"2022-10-21\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeLocalTime() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(LocalTime.of(10,11, 21)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(LocalTime.of(10,11, 21)));
 		assertEquals("\"10:11:21\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeLocale() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(new Locale("cs", "CZ")));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(new Locale("cs", "CZ")));
 		assertEquals("\"cs-CZ\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeCurrency() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(Currency.getInstance("CZK")));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(Currency.getInstance("CZK")));
 		assertEquals("\"CZK\"", serialized);
 	}
 
 	@Test
 	void shouldSerializeListOfIntegers() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(Arrays.asList(5, 2, 6)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(Arrays.asList(5, 2, 6)));
 		assertEquals("[5,2,6]", serialized);
 	}
 
 	@Test
 	void shouldSerializeRangeOfIntegersBetween() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(IntegerNumberRange.between(50, 100)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(IntegerNumberRange.between(50, 100)));
 		assertEquals("[50,100]", serialized);
 	}
 
 	@Test
 	void shouldSerializeRangeOfBigDecimalsFrom() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(BigDecimalNumberRange.from(new BigDecimal("50.23"), 2)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(BigDecimalNumberRange.from(new BigDecimal("50.23"), 2)));
 		assertEquals("[\"50.23\",null]", serialized);
 	}
 
 	@Test
 	void shouldSerializeRangeOfShortsTo() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(ShortNumberRange.to((short) 22)));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(ShortNumberRange.to((short) 22)));
 		assertEquals("[null,22]", serialized);
 	}
 
 	@Test
 	void shouldSerializeComplexDataObject() throws Exception {
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(new ComplexDataObject(new DataItemMap(Map.of("value", new DataItemValue("test"))))));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(new ComplexDataObject(new DataItemMap(Map.of("value", new DataItemValue("test"))))));
 		assertEquals("{\"value\":\"test\"}", serialized);
 	}
 
@@ -157,7 +157,7 @@ class ObjectJsonSerializerTest {
 	void shouldSerializePrice() throws Exception {
 		final Price price = new Price(new PriceKey(1, "my", Currency.getInstance("CZK")), 2, new BigDecimal("10.5"),
 			new BigDecimal("5.4"), new BigDecimal("15.9"), DateTimeRange.until(OffsetDateTime.of(2022, 10, 24, 14, 2, 10,5, ZoneOffset.ofHours(2))), true);
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(price));
+		final String serialized = this.mapper.writeValueAsString(this.tested.serializeObject(price));
 		assertEquals("{\"priceId\":1,\"priceList\":\"my\",\"currency\":\"CZK\",\"innerRecordId\":2,\"indexed\":true,\"priceWithoutTax\":\"10.5\",\"priceWithTax\":\"15.9\",\"taxRate\":\"5.4\",\"validity\":[null,\"2022-10-24T14:02:10+02:00\"]}", serialized);
 	}
 

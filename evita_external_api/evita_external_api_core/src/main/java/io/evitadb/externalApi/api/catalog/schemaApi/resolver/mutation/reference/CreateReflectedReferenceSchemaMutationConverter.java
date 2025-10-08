@@ -25,12 +25,12 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectListMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectListMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.CreateReflectedReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -42,47 +42,50 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateReflectedReferenceSchemaMutationConverter extends ReferenceSchemaMutationConverter<CreateReflectedReferenceSchemaMutation> {
+public class CreateReflectedReferenceSchemaMutationConverter
+	extends ReferenceSchemaMutationConverter<CreateReflectedReferenceSchemaMutation> {
 
-	public CreateReflectedReferenceSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateReflectedReferenceSchemaMutationConverter(
+		@Nonnull MutationObjectMapper objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateReflectedReferenceSchemaMutationDescriptor.THIS.name();
+	protected Class<CreateReflectedReferenceSchemaMutation> getMutationClass() {
+		return CreateReflectedReferenceSchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected CreateReflectedReferenceSchemaMutation convert(@Nonnull Input input) {
-		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalField(
-			CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
-			new FieldObjectListMapper<>(
+	protected CreateReflectedReferenceSchemaMutation convertFromInput(@Nonnull Input input) {
+		final ScopedReferenceIndexType[] indexedInScopes = input.getOptionalProperty(
+			CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES.name(),
+			new PropertyObjectListMapper<>(
 				getMutationName(),
 				getExceptionFactory(),
-				CreateReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES,
+				CreateReflectedReferenceSchemaMutationDescriptor.INDEXED_IN_SCOPES,
 				ScopedReferenceIndexType.class,
 				nestedInput -> new ScopedReferenceIndexType(
-					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.SCOPE),
-					nestedInput.getRequiredField(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
+					nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
+					nestedInput.getProperty(ScopedReferenceIndexTypeDescriptor.INDEX_TYPE)
 				)
 			)
 		);
 
 		return new CreateReflectedReferenceSchemaMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION),
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY),
-			input.getRequiredField(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			input.getRequiredField(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME),
+			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.CARDINALITY),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.REFLECTED_REFERENCE_NAME),
 			indexedInScopes,
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
-			input.getRequiredField(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR),
-			input.getOptionalField(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR),
+			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
 		);
 	}
 }

@@ -34,7 +34,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
@@ -364,7 +364,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 */
 	public final <T> T executeInContext(
 		@Nonnull EntityIndex[] entityIndex,
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable MergeModeDefinition mergeMode,
@@ -508,7 +508,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull Deque<Set<Scope>> requiredScopes,
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable String entityType,
-		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nullable ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull Deque<Sorter> sorters,

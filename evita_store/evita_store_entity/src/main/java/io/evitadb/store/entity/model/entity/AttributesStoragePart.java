@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter private Long storagePartPK;
+	@Nullable @Getter private Long storagePartPK;
 	/**
 	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
 	 */
@@ -149,7 +149,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 	@Override
 	public EntityAttributesSetKey getStoragePartSourceKey() {
-		return attributeSetKey;
+		return this.attributeSetKey;
 	}
 
 	@Override
@@ -172,7 +172,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	 */
 	@Nullable
 	public Locale getLocale() {
-		return attributeSetKey.locale();
+		return this.attributeSetKey.locale();
 	}
 
 	/**
@@ -215,13 +215,13 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 	@Override
 	public boolean isEmpty() {
-		return attributes.length == 0 || Arrays.stream(attributes).noneMatch(Droppable::exists);
+		return this.attributes.length == 0 || Arrays.stream(this.attributes).noneMatch(Droppable::exists);
 	}
 
 	@Nonnull
 	@Override
 	public OptionalInt sizeInBytes() {
-		return sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(sizeInBytes);
+		return this.sizeInBytes == -1 ? OptionalInt.empty() : OptionalInt.of(this.sizeInBytes);
 	}
 
 	/**
@@ -241,7 +241,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 		@Override
 		public int compareTo(@Nonnull EntityAttributesSetKey o) {
-			return ComparatorUtils.compareLocale(locale, o.locale, () -> Integer.compare(entityPrimaryKey, o.entityPrimaryKey));
+			return ComparatorUtils.compareLocale(this.locale, o.locale, () -> Integer.compare(this.entityPrimaryKey, o.entityPrimaryKey));
 		}
 
 	}
@@ -261,7 +261,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 		@Override
 		public int compareTo(@Nonnull AttributesSetKey o) {
-			return ComparatorUtils.compareLocale(locale, o.locale, () -> 0);
+			return ComparatorUtils.compareLocale(this.locale, o.locale, () -> 0);
 		}
 
 	}

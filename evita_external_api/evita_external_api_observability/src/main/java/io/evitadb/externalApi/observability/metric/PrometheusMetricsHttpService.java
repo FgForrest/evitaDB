@@ -53,7 +53,7 @@ public class PrometheusMetricsHttpService implements HttpService {
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) {
 		return HttpResponse.of(
-			evita.executeAsyncInRequestThreadPool(
+			this.evita.executeAsyncInRequestThreadPool(
 				() -> {
 					try (final ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
 						final ArmeriaPrometheusHttpExchangeAdapter exchange = new ArmeriaPrometheusHttpExchangeAdapter(ctx, req, outputStream);

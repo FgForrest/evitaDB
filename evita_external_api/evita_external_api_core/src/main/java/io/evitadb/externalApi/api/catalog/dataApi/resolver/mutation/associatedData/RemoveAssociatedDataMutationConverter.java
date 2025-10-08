@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,9 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
@@ -39,20 +38,20 @@ import javax.annotation.Nonnull;
  */
 public class RemoveAssociatedDataMutationConverter extends AssociatedDataMutationConverter<RemoveAssociatedDataMutation> {
 
-	public RemoveAssociatedDataMutationConverter(@Nonnull MutationObjectParser objectParser,
+	public RemoveAssociatedDataMutationConverter(@Nonnull MutationObjectMapper objectParser,
 	                                             @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return RemoveAssociatedDataMutationDescriptor.THIS.name();
+	protected Class<RemoveAssociatedDataMutation> getMutationClass() {
+		return RemoveAssociatedDataMutation.class;
 	}
 
 	@Nonnull
 	@Override
-	protected RemoveAssociatedDataMutation convert(@Nonnull Input input) {
+	protected RemoveAssociatedDataMutation convertFromInput(@Nonnull Input input) {
 		return new RemoveAssociatedDataMutation(resolveAssociatedDataKey(input));
 	}
 }

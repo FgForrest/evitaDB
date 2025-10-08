@@ -48,9 +48,9 @@ public class CompressiblePriceKey extends AbstractPriceKey implements Comparable
 
 	@Override
 	public int compareTo(CompressiblePriceKey o) {
-		int result = currency.getCurrencyCode().compareTo(o.currency.getCurrencyCode());
+		int result = this.currency.getCurrencyCode().compareTo(o.currency.getCurrencyCode());
 		if (result == 0) {
-			return priceList.compareTo(o.priceList);
+			return this.priceList.compareTo(o.priceList);
 		} else {
 			return result;
 		}

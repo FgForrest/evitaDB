@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
@@ -41,6 +42,7 @@ import io.evitadb.externalApi.rest.api.system.resolver.endpoint.GetCatalogHandle
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.ListCatalogsHandler;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.LivenessHandler;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.UpdateCatalogHandler;
+import io.evitadb.externalApi.rest.api.system.resolver.endpoint.ChangeSystemCaptureStreamHandler;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
@@ -93,7 +95,7 @@ public class SystemEndpointBuilder {
 		return newSystemEndpoint()
 			.path(p -> p
 				.staticItem(SystemRootDescriptor.GET_CATALOG.urlPathItem())
-				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(this.operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.GET)
 			.operationId(SystemRootDescriptor.GET_CATALOG.operation())
 			.description(SystemRootDescriptor.GET_CATALOG.description())
@@ -134,7 +136,7 @@ public class SystemEndpointBuilder {
 		return newSystemEndpoint()
 			.path(p -> p
 				.staticItem(SystemRootDescriptor.UPDATE_CATALOG.urlPathItem())
-				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(this.operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.PATCH)
 			.operationId(SystemRootDescriptor.UPDATE_CATALOG.operation())
 			.description(SystemRootDescriptor.UPDATE_CATALOG.description())
@@ -149,11 +151,24 @@ public class SystemEndpointBuilder {
 		return newSystemEndpoint()
 			.path(p -> p
 				.staticItem(SystemRootDescriptor.DELETE_CATALOG.urlPathItem())
-				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
+				.paramItem(CatalogsHeaderDescriptor.NAME.to(this.operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.DELETE)
 			.operationId(SystemRootDescriptor.DELETE_CATALOG.operation())
 			.description(SystemRootDescriptor.DELETE_CATALOG.description())
 			.handler(DeleteCatalogHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiSystemEndpoint buildChangeSystemCaptureEndpoint() {
+		return newSystemEndpoint()
+			.path(p -> p
+				.staticItem(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.urlPathItem()))
+			.method(HttpMethod.GET)
+			.operationId(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.operation())
+			.description(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.description())
+			.successResponse(nonNull(OpenApiScalar.scalarFrom(Boolean.class))) // todo lho not needed
+			.handler(ChangeSystemCaptureStreamHandler::new)
 			.build();
 	}
 }

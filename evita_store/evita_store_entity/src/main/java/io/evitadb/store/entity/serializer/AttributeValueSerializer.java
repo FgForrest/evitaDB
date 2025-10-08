@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ public class AttributeValueSerializer extends Serializer<AttributeValue> {
 	@Override
 	public void write(Kryo kryo, Output output, AttributeValue attributeValue) {
 		output.writeVarInt(attributeValue.version(), true);
-		output.writeVarInt(keyCompressor.getId(attributeValue.key()), true);
+		output.writeVarInt(this.keyCompressor.getId(attributeValue.key()), true);
 		kryo.writeClassAndObject(output, attributeValue.value());
 		output.writeBoolean(attributeValue.dropped());
 	}
@@ -56,7 +56,7 @@ public class AttributeValueSerializer extends Serializer<AttributeValue> {
 	public AttributeValue read(Kryo kryo, Input input, Class<? extends AttributeValue> type) {
 		final int version = input.readVarInt(true);
 		final int keyId = input.readVarInt(true);
-		final AttributeKey key = keyCompressor.getKeyForId(keyId);
+		final AttributeKey key = this.keyCompressor.getKeyForId(keyId);
 		final Serializable value = (Serializable) kryo.readClassAndObject(input);
 		final boolean dropped = input.readBoolean();
 		return new AttributeValue(version, key, value, dropped);

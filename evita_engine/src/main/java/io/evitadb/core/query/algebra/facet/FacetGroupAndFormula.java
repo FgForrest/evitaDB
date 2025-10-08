@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -99,18 +99,18 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 		return FacetGroupFormula.mergeWith(
 			this, anotherFormula,
 			(collectedFacetIds, collectedBitmaps) -> new FacetGroupAndFormula(
-				referenceName, facetGroupId, collectedFacetIds, collectedBitmaps
+				this.referenceName, this.facetGroupId, collectedFacetIds, collectedBitmaps
 			)
 		);
 	}
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " AND (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
-		for (int i = 0; i < bitmaps.length; i++) {
-			final Bitmap bitmap = bitmaps[i];
+		final StringBuilder sb = new StringBuilder("FACET " + this.referenceName + " AND (" + ofNullable(this.facetGroupId).map(Object::toString).orElse("-") + " - " + this.facetIds.toString() + "): ");
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			final Bitmap bitmap = this.bitmaps[i];
 			sb.append(" ↦ ").append(bitmap.size());
-			if (i + 1 < facetIds.size()) {
+			if (i + 1 < this.facetIds.size()) {
 				sb.append(", ");
 			}
 		}
@@ -120,11 +120,11 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " AND (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
-		for (int i = 0; i < bitmaps.length; i++) {
-			final Bitmap bitmap = bitmaps[i];
+		final StringBuilder sb = new StringBuilder("FACET " + this.referenceName + " AND (" + ofNullable(this.facetGroupId).map(Object::toString).orElse("-") + " - " + this.facetIds.toString() + "): ");
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			final Bitmap bitmap = this.bitmaps[i];
 			sb.append(" ↦ ").append(bitmap.toString());
-			if (i + 1 < facetIds.size()) {
+			if (i + 1 < this.facetIds.size()) {
 				sb.append(", ");
 			}
 		}
@@ -135,7 +135,7 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Override
 	protected Bitmap computeInternal() {
 		return RoaringBitmapBackedBitmap.and(
-			Arrays.stream(bitmaps)
+			Arrays.stream(this.bitmaps)
 				.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 				.toArray(RoaringBitmap[]::new)
 		);
@@ -150,7 +150,7 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	public int getEstimatedCardinality() {
-		if (bitmaps == null) {
+		if (this.bitmaps == null) {
 			return Arrays.stream(this.innerFormulas).mapToInt(Formula::getEstimatedCardinality).min().orElse(0);
 		} else {
 			return Arrays.stream(this.bitmaps).mapToInt(Bitmap::size).min().orElse(0);
@@ -161,11 +161,11 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			Stream.of(
-					LongStream.of(hashFunction.hashChars(referenceName)),
-					facetGroupId == null ? LongStream.empty() : LongStream.of(facetGroupId),
-					StreamSupport.stream(facetIds.spliterator(), false).mapToLong(it -> it),
-					Arrays.stream(bitmaps)
-						.filter(it -> it instanceof TransactionalBitmap)
+					LongStream.of(hashFunction.hashChars(this.referenceName)),
+					this.facetGroupId == null ? LongStream.empty() : LongStream.of(this.facetGroupId),
+					StreamSupport.stream(this.facetIds.spliterator(), false).mapToLong(it -> it),
+					Arrays.stream(this.bitmaps)
+						.filter(TransactionalBitmap.class::isInstance)
 						.mapToLong(it -> ((TransactionalBitmap) it).getId())
 						.sorted()
 				)

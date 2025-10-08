@@ -25,7 +25,7 @@
       "code" : "wireless-headphones",
       "level" : 3,
       "order" : -1,
-      "published" : "2025-07-05T11:53:00.143+02:00",
+      "published" : "2025-10-08T20:05:20.439+02:00",
       "status" : "ACTIVE",
       "visibility" : "VISIBLE"
     },

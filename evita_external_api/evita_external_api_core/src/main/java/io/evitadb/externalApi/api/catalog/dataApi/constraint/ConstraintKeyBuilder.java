@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -79,7 +80,7 @@ public class ConstraintKeyBuilder {
 		// one that is expected when derived from child domain. These constraints are usually valid only in specific context
 		// and not globally available
 		if (!traverseContext.isAtRoot() &&
-			traverseContext.dataLocator().targetDomain().equals(traverseContext.parentDataLocator().targetDomain()) &&
+			Objects.equals(traverseContext.dataLocator().targetDomain(), Objects.requireNonNull(traverseContext.parentDataLocator()).targetDomain()) &&
 			!creator.hasClassifier() &&
 			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(traverseContext.dataLocator().targetDomain()))) {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);

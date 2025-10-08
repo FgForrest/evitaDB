@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -236,7 +236,7 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 		 * Returns true if associatedData is localized.
 		 */
 		public boolean localized() {
-			return locale != null;
+			return this.locale != null;
 		}
 
 		/**
@@ -257,7 +257,7 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 
 		@Override
 		public int compareTo(@Nonnull AssociatedDataKey o) {
-			return compareLocale(locale, o.locale, () -> associatedDataName.compareTo(o.associatedDataName));
+			return compareLocale(this.locale, o.locale, () -> this.associatedDataName.compareTo(o.associatedDataName));
 		}
 
 		/**
@@ -267,14 +267,15 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 		public int estimateSize() {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 				// data name
-				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeStringSize(associatedDataName) +
+				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeStringSize(this.associatedDataName) +
 				// locale
 				MemoryMeasuringConstants.REFERENCE_SIZE;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return associatedDataName + (locale == null ? "" : ":" + locale);
+			return this.associatedDataName + (this.locale == null ? "" : ":" + this.locale);
 		}
 	}
 
@@ -331,14 +332,14 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 
 			AssociatedDataValue that = (AssociatedDataValue) o;
 
-			if (version != that.version) return false;
-			return key.equals(that.key);
+			if (this.version != that.version) return false;
+			return this.key.equals(that.key);
 		}
 
 		@Override
 		public int hashCode() {
-			int result = version;
-			result = 31 * result + key.hashCode();
+			int result = this.version;
+			result = 31 * result + this.key.hashCode();
 			return result;
 		}
 
@@ -357,9 +358,9 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 				// dropped
 				+MemoryMeasuringConstants.BYTE_SIZE +
 				// key
-				+key.estimateSize()
+				+this.key.estimateSize()
 				// value size estimate
-				+ MemoryMeasuringConstants.REFERENCE_SIZE + EvitaDataTypes.estimateSize(value);
+				+ MemoryMeasuringConstants.REFERENCE_SIZE + EvitaDataTypes.estimateSize(this.value);
 		}
 
 		/**
@@ -368,21 +369,22 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 		@Override
 		public boolean differsFrom(@Nullable AssociatedDataValue otherAssociatedDataValue) {
 			if (otherAssociatedDataValue == null) return true;
-			if (!Objects.equals(key, otherAssociatedDataValue.key)) return true;
-			if (QueryUtils.valueDiffers(value, otherAssociatedDataValue.value)) return true;
-			return dropped != otherAssociatedDataValue.dropped;
+			if (!Objects.equals(this.key, otherAssociatedDataValue.key)) return true;
+			if (QueryUtils.valueDiffers(this.value, otherAssociatedDataValue.value)) return true;
+			return this.dropped != otherAssociatedDataValue.dropped;
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return (dropped ? "❌ " : "") +
-				"\uD83D\uDD11 " + key.associatedDataName() + " " +
-				(key.locale() == null ? "" : "(" + key.locale() + ")") +
+			return (this.dropped ? "❌ " : "") +
+				"\uD83D\uDD11 " + this.key.associatedDataName() + " " +
+				(this.key.locale() == null ? "" : "(" + this.key.locale() + ")") +
 				": " +
 				(
-					value instanceof Object[] ?
-						"[" + Arrays.stream((Object[]) value).filter(Objects::nonNull).map(Object::toString).collect(Collectors.joining(",")) + "]" :
-						value
+					this.value instanceof Object[] ?
+						"[" + Arrays.stream((Object[]) this.value).filter(Objects::nonNull).map(Object::toString).collect(Collectors.joining(",")) + "]" :
+						this.value
 				);
 		}
 	}

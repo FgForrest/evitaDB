@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -116,27 +116,27 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		tested.addRecord(5, 1);
-		tested.addRecord(5, 20);
-		tested.addRecord(10, 3);
-		tested.addRecord(15, 2);
-		tested.addRecord(15, 4);
-		tested.addRecord(20, 5);
+		this.tested.addRecord(5, 1);
+		this.tested.addRecord(5, 20);
+		this.tested.addRecord(10, 3);
+		this.tested.addRecord(15, 2);
+		this.tested.addRecord(15, 4);
+		this.tested.addRecord(20, 5);
 	}
 
 	@Test
 	void shouldReturnValuesForRecord() {
-		tested.addRecord(50, 1);
-		tested.addRecord(100, 3);
+		this.tested.addRecord(50, 1);
+		this.tested.addRecord(100, 3);
 
-		assertArrayEquals(tested.getValuesForRecord(1, Integer.class), new Integer[]{5, 50});
-		assertArrayEquals(tested.getValuesForRecord(3, Integer.class), new Integer[]{10, 100});
+		assertArrayEquals(this.tested.getValuesForRecord(1, Integer.class), new Integer[]{5, 50});
+		assertArrayEquals(this.tested.getValuesForRecord(3, Integer.class), new Integer[]{10, 100});
 	}
 
 	@Test
 	void shouldAddTransactionalItemsAndRollback() {
 		assertStateAfterRollback(
-			tested,
+			this.tested,
 			original -> {
 				original.addRecord(5, 7);
 				original.addRecord(12, 18);
@@ -173,7 +173,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddSingleNewTransactionalItemAndCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.addRecord(55, 78);
 
@@ -215,7 +215,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRemoveSingleTransactionalItemAndCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.removeRecord(10, 3);
 
@@ -253,7 +253,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddTransactionalItemsAndCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.addRecord(5, 7);
 				original.addRecord(12, 18);
@@ -328,7 +328,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldShrinkHistogramOnRemovingItems() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.removeRecord(5, 1);
 				original.removeRecord(10, 3);
@@ -366,7 +366,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReportEmptyStateEveInTransaction() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				assertFalse(original.isEmpty());
 
@@ -398,106 +398,106 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		kryo.register(TransactionalBitmap.class, new TransactionalIntegerBitmapSerializer());
 
 		final Output output = new Output(1024, -1);
-		kryo.writeObject(output, tested);
+		kryo.writeObject(output, this.tested);
 		output.flush();
 
 		byte[] bytes = output.getBuffer();
 
 		final InvertedIndex deserializedTested = kryo.readObject(new Input(bytes), InvertedIndex.class);
-		assertEquals(tested, deserializedTested);
+		assertEquals(this.tested, deserializedTested);
 	}
 
 	@Test
 	void shouldReportEmptyState() {
-		assertFalse(tested.isEmpty());
+		assertFalse(this.tested.isEmpty());
 
-		tested.removeRecord(5, 1);
-		tested.removeRecord(5, 20);
-		tested.removeRecord(10, 3);
-		tested.removeRecord(15, 2);
-		tested.removeRecord(15, 4);
+		this.tested.removeRecord(5, 1);
+		this.tested.removeRecord(5, 20);
+		this.tested.removeRecord(10, 3);
+		this.tested.removeRecord(15, 2);
+		this.tested.removeRecord(15, 4);
 
-		assertFalse(tested.isEmpty());
+		assertFalse(this.tested.isEmpty());
 
-		tested.removeRecord(20, 5);
+		this.tested.removeRecord(20, 5);
 
-		assertTrue(tested.isEmpty());
+		assertTrue(this.tested.isEmpty());
 	}
 
 	@Test
 	void shouldReturnSortedAllValues() {
-		assertIteratorContains(tested.getSortedRecords().getRecordIds().iterator(), new int[]{1, 2, 3, 4, 5, 20});
+		assertIteratorContains(this.tested.getSortedRecords().getRecordIds().iterator(), new int[]{1, 2, 3, 4, 5, 20});
 	}
 
 	@Test
 	void shouldReturnSortedValuesFromLowerBoundUp() {
-		assertIteratorContains(tested.getSortedRecords(10, null).getRecordIds().iterator(), new int[]{2, 3, 4, 5});
+		assertIteratorContains(this.tested.getSortedRecords(10, null).getRecordIds().iterator(), new int[]{2, 3, 4, 5});
 	}
 
 	@Test
 	void shouldReturnSortedValuesFromLowerBoundUpNotExact() {
-		assertIteratorContains(tested.getSortedRecords(11, null).getRecordIds().iterator(), new int[]{2, 4, 5});
+		assertIteratorContains(this.tested.getSortedRecords(11, null).getRecordIds().iterator(), new int[]{2, 4, 5});
 	}
 
 	@Test
 	void shouldReturnSortedValuesFromUpperBoundDown() {
-		assertIteratorContains(tested.getSortedRecords(null, 15).getRecordIds().iterator(), new int[]{1, 2, 3, 4, 20});
+		assertIteratorContains(this.tested.getSortedRecords(null, 15).getRecordIds().iterator(), new int[]{1, 2, 3, 4, 20});
 	}
 
 	@Test
 	void shouldReturnSortedValuesFromUpperBoundDownNotExact() {
-		assertIteratorContains(tested.getSortedRecords(null, 14).getRecordIds().iterator(), new int[]{1, 3, 20});
+		assertIteratorContains(this.tested.getSortedRecords(null, 14).getRecordIds().iterator(), new int[]{1, 3, 20});
 	}
 
 	@Test
 	void shouldReturnSortedValuesBetweenBounds() {
-		assertIteratorContains(tested.getSortedRecords(10, 15).getRecordIds().iterator(), new int[]{2, 3, 4});
+		assertIteratorContains(this.tested.getSortedRecords(10, 15).getRecordIds().iterator(), new int[]{2, 3, 4});
 	}
 
 	@Test
 	void shouldReturnSortedValuesBetweenBoundsNotExact() {
-		assertIteratorContains(tested.getSortedRecords(11, 14).getRecordIds().iterator(), new int[0]);
-		assertIteratorContains(tested.getSortedRecords(14, 16).getRecordIds().iterator(), new int[]{2, 4});
-		assertIteratorContains(tested.getSortedRecords(15, 15).getRecordIds().iterator(), new int[]{2, 4});
+		assertIteratorContains(this.tested.getSortedRecords(11, 14).getRecordIds().iterator(), new int[0]);
+		assertIteratorContains(this.tested.getSortedRecords(14, 16).getRecordIds().iterator(), new int[]{2, 4});
+		assertIteratorContains(this.tested.getSortedRecords(15, 15).getRecordIds().iterator(), new int[]{2, 4});
 	}
 
 	/* NOT SORTED */
 
 	@Test
 	void shouldReturnAllValues() {
-		assertIteratorContains(tested.getRecords().getRecordIds().iterator(), new int[]{1, 20, 3, 2, 4, 5});
+		assertIteratorContains(this.tested.getRecords().getRecordIds().iterator(), new int[]{1, 20, 3, 2, 4, 5});
 	}
 
 	@Test
 	void shouldReturnValuesFromLowerBoundUp() {
-		assertIteratorContains(tested.getRecords(10, null).getRecordIds().iterator(), new int[]{3, 2, 4, 5});
+		assertIteratorContains(this.tested.getRecords(10, null).getRecordIds().iterator(), new int[]{3, 2, 4, 5});
 	}
 
 	@Test
 	void shouldReturnValuesFromLowerBoundUpNotExact() {
-		assertIteratorContains(tested.getRecords(11, null).getRecordIds().iterator(), new int[]{2, 4, 5});
+		assertIteratorContains(this.tested.getRecords(11, null).getRecordIds().iterator(), new int[]{2, 4, 5});
 	}
 
 	@Test
 	void shouldReturnValuesFromUpperBoundDown() {
-		assertIteratorContains(tested.getRecords(null, 15).getRecordIds().iterator(), new int[]{1, 20, 3, 2, 4});
+		assertIteratorContains(this.tested.getRecords(null, 15).getRecordIds().iterator(), new int[]{1, 20, 3, 2, 4});
 	}
 
 	@Test
 	void shouldReturnValuesFromUpperBoundDownNotExact() {
-		assertIteratorContains(tested.getRecords(null, 14).getRecordIds().iterator(), new int[]{1, 20, 3});
+		assertIteratorContains(this.tested.getRecords(null, 14).getRecordIds().iterator(), new int[]{1, 20, 3});
 	}
 
 	@Test
 	void shouldReturnValuesBetweenBounds() {
-		assertIteratorContains(tested.getRecords(10, 15).getRecordIds().iterator(), new int[]{3, 2, 4});
+		assertIteratorContains(this.tested.getRecords(10, 15).getRecordIds().iterator(), new int[]{3, 2, 4});
 	}
 
 	@Test
 	void shouldReturnValuesBetweenBoundsNotExact() {
-		assertIteratorContains(tested.getRecords(11, 14).getRecordIds().iterator(), new int[0]);
-		assertIteratorContains(tested.getRecords(14, 16).getRecordIds().iterator(), new int[]{2, 4});
-		assertIteratorContains(tested.getRecords(15, 15).getRecordIds().iterator(), new int[]{2, 4});
+		assertIteratorContains(this.tested.getRecords(11, 14).getRecordIds().iterator(), new int[0]);
+		assertIteratorContains(this.tested.getRecords(14, 16).getRecordIds().iterator(), new int[]{2, 4});
+		assertIteratorContains(this.tested.getRecords(15, 15).getRecordIds().iterator(), new int[]{2, 4});
 	}
 
 	/* NOT SORTED - REVERSED */

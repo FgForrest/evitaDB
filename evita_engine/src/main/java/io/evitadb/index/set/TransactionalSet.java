@@ -80,7 +80,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public SetChanges<K> createLayer() {
-		return new SetChanges<>(setDelegate);
+		return new SetChanges<>(this.setDelegate);
 	}
 
 	@Nonnull
@@ -92,7 +92,7 @@ public class TransactionalSet<K> implements Set<K>,
 		} else {
 			// iterate original map and copy all values from it
 			List<K> modifiedEntries = null;
-			for (K entry : setDelegate) {
+			for (K entry : this.setDelegate) {
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
 				final K transformedEntry;
@@ -111,9 +111,9 @@ public class TransactionalSet<K> implements Set<K>,
 				}
 			}
 			if (modifiedEntries == null) {
-				return setDelegate;
+				return this.setDelegate;
 			} else {
-				final Set<K> copy = new HashSet<>(setDelegate);
+				final Set<K> copy = new HashSet<>(this.setDelegate);
 				copy.addAll(modifiedEntries);
 				return copy;
 			}
@@ -164,9 +164,9 @@ public class TransactionalSet<K> implements Set<K>,
 	public Iterator<K> iterator() {
 		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return setDelegate.iterator();
+			return this.setDelegate.iterator();
 		} else {
-			return new TransactionalMemorySetIterator<>(setDelegate, layer);
+			return new TransactionalMemorySetIterator<>(this.setDelegate, layer);
 		}
 	}
 
@@ -368,42 +368,42 @@ public class TransactionalSet<K> implements Set<K>,
 
 		@Override
 		public boolean hasNext() {
-			if (fetched) {
-				currentValue = computeNext();
-				fetched = false;
+			if (this.fetched) {
+				this.currentValue = computeNext();
+				this.fetched = false;
 			}
-			return !endOfData;
+			return !this.endOfData;
 		}
 
 		@Override
 		public K next() {
-			if (endOfData) {
+			if (this.endOfData) {
 				throw new NoSuchElementException();
 			}
-			if (fetched) {
-				currentValue = computeNext();
+			if (this.fetched) {
+				this.currentValue = computeNext();
 			}
-			fetched = true;
-			return currentValue;
+			this.fetched = true;
+			return this.currentValue;
 		}
 
 		@Override
 		public void remove() {
-			if (currentValue == null) {
+			if (this.currentValue == null) {
 				throw new GenericEvitaInternalError("Value unexpectedly not found!");
 			}
 
-			final K key = currentValue;
-			final boolean existing = layer.getSetDelegate().contains(key);
+			final K key = this.currentValue;
+			final boolean existing = this.layer.getSetDelegate().contains(key);
 			final boolean removedFromTransactionalMemory = this.layer.getCreatedKeys().contains(key);
 			if (removedFromTransactionalMemory) {
-				layerIt.remove();
+				this.layerIt.remove();
 				if (!existing) {
-					layer.removeCreatedKey(key);
+					this.layer.removeCreatedKey(key);
 				}
 			}
 			if (existing) {
-				layer.registerRemovedKey(key);
+				this.layer.registerRemovedKey(key);
 			}
 		}
 
@@ -413,20 +413,20 @@ public class TransactionalSet<K> implements Set<K>,
 		}
 
 		K computeNext() {
-			if (endOfData) {
+			if (this.endOfData) {
 				return null;
 			}
-			if (layerIt.hasNext()) {
-				return layerIt.next();
-			} else if (stateIt.hasNext()) {
+			if (this.layerIt.hasNext()) {
+				return this.layerIt.next();
+			} else if (this.stateIt.hasNext()) {
 				K adept;
 				do {
-					if (stateIt.hasNext()) {
-						adept = stateIt.next();
+					if (this.stateIt.hasNext()) {
+						adept = this.stateIt.next();
 					} else {
 						return endOfData();
 					}
-				} while (layer.containsRemoved(adept) || layer.containsCreated(adept));
+				} while (this.layer.containsRemoved(adept) || this.layer.containsCreated(adept));
 				return adept;
 			} else {
 				return endOfData();

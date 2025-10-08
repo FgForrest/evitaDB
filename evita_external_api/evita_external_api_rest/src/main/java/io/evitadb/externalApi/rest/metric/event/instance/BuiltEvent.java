@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import jdk.jfr.Name;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Event fired when REST API instance was successfully built.
@@ -72,7 +73,7 @@ public class BuiltEvent extends AbstractRestInstanceEvent {
 	@Label("Catalog")
 	@Description("The name of the catalog to which this event/metric is associated.")
 	@ExportMetricLabel
-	@Nonnull
+	@Nullable
 	private final String catalogName;
 
 	@Label("API build duration")
@@ -97,12 +98,14 @@ public class BuiltEvent extends AbstractRestInstanceEvent {
 	@ExportMetric(metricType = MetricType.GAUGE)
 	private final long registeredRestEndpoints;
 
-	public BuiltEvent(@Nonnull RestInstanceType restInstanceType,
-	                  @Nonnull BuildType buildType,
-					  long restInstanceBuildDurationMilliseconds,
-	                  long restSchemaBuildDurationMilliseconds,
-	                  long restSchemaDslLines,
-	                  long registeredRestEndpoints) {
+	public BuiltEvent(
+		@Nonnull RestInstanceType restInstanceType,
+		@Nonnull BuildType buildType,
+		long restInstanceBuildDurationMilliseconds,
+		long restSchemaBuildDurationMilliseconds,
+		long restSchemaDslLines,
+		long registeredRestEndpoints
+	) {
 		this(
 			null,
 			restInstanceType,
@@ -114,13 +117,15 @@ public class BuiltEvent extends AbstractRestInstanceEvent {
 		);
 	}
 
-	public BuiltEvent(@Nonnull String catalogName,
-	                  @Nonnull RestInstanceType restInstanceType,
-	                  @Nonnull BuildType  buildType,
-					  long restInstanceBuildDurationMilliseconds,
-	                  long restSchemaBuildDurationMilliseconds,
-	                  long restSchemaDslLines,
-	                  long registeredRestEndpoints) {
+	public BuiltEvent(
+		@Nullable String catalogName,
+		@Nonnull RestInstanceType restInstanceType,
+		@Nonnull BuildType buildType,
+		long restInstanceBuildDurationMilliseconds,
+		long restSchemaBuildDurationMilliseconds,
+		long restSchemaDslLines,
+		long registeredRestEndpoints
+	) {
 		this.catalogName = catalogName;
 		this.restInstanceType = restInstanceType.name();
 		this.buildType = buildType.name();

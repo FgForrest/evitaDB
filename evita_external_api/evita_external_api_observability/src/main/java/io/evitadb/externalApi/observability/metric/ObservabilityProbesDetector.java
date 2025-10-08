@@ -27,7 +27,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.observability.HealthProblem;
 import io.evitadb.api.observability.ReadinessState;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.ObservableExecutorService;
+import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.externalApi.api.system.ProbesProvider;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
@@ -268,8 +268,8 @@ public class ObservabilityProbesDetector implements ProbesProvider, Closeable {
 		// if the number of errors has increased since the last check, we could consider the system as unhealthy
 		final long javaOOMErrorCount = theObservabilityManager.getJavaOutOfMemoryErrorCount();
 		// get used memory of the JVM
-		final float usedMemory = (float) (runtime.totalMemory() - runtime.freeMemory()) / (float) runtime.maxMemory();
-		final long oldGenerationCollectionCount = garbageCollectorMXBeans.stream().mapToLong(GarbageCollectorMXBean::getCollectionCount).sum();
+		final float usedMemory = (float) (this.runtime.totalMemory() - this.runtime.freeMemory()) / (float) this.runtime.maxMemory();
+		final long oldGenerationCollectionCount = this.garbageCollectorMXBeans.stream().mapToLong(GarbageCollectorMXBean::getCollectionCount).sum();
 		final HealthProblemCheckResult result = new HealthProblemCheckResult(
 			HealthProblem.MEMORY_SHORTAGE,
 			usedMemory > 0.9f &&

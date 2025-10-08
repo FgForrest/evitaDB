@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,17 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.At
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,7 +52,7 @@ class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -61,7 +63,7 @@ class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverterTest {
 			"code"
 		);
 
-		final ModifyReflectedReferenceAttributeInheritanceSchemaMutation convertedMutation = converter.convert(
+		final ModifyReflectedReferenceAttributeInheritanceSchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED)
@@ -75,14 +77,35 @@ class ModifyReflectedReferenceAttributeInheritanceSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> this.converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
 	}
 
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyReflectedReferenceAttributeInheritanceSchemaMutation inputMutation = new ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
+			"tags",
+			AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+			"code"
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class.getSimpleName())
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_BEHAVIOR.name(), AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED.name())
+					.e(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER.name(), new String[] {"code"})
+					.build()
+			);
+	}
 }

@@ -28,8 +28,6 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,8 +37,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.builder.ListBuilder.list;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -56,11 +54,11 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		final AtomicReference<FilterConstraintResolver> filterConstraintResolver = new AtomicReference<>(new FilterConstraintResolver(catalogSchema));
-		resolver = new RequireConstraintResolver(
-			catalogSchema,
+		final AtomicReference<FilterConstraintResolver> filterConstraintResolver = new AtomicReference<>(new FilterConstraintResolver(this.catalogSchema));
+		this.resolver = new RequireConstraintResolver(
+			this.catalogSchema,
 			filterConstraintResolver,
-			new AtomicReference<>(new OrderConstraintResolver(catalogSchema, filterConstraintResolver))
+			new AtomicReference<>(new OrderConstraintResolver(this.catalogSchema, filterConstraintResolver))
 		);
 	}
 
@@ -68,7 +66,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	void shouldResolveValueRequireConstraint() {
 		assertEquals(
 			facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1, 2))),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",
 				map()
@@ -79,7 +77,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 		);
 		assertEquals(
 			facetGroupsConjunction(Entities.BRAND),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",
 				map().build()
@@ -97,7 +95,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"stopAt",
@@ -120,7 +118,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
@@ -140,7 +138,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				"require",
 				map()
@@ -165,7 +163,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 			),
 			QueryPurifierVisitor.purify(
 				Objects.requireNonNull(
-					resolver.resolve(
+					this.resolver.resolve(
 						new GenericDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 						"require",
 						map()
@@ -183,6 +181,6 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueRequireConstraint() {
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
 	}
 }

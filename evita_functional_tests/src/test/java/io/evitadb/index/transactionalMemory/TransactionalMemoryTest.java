@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,46 +55,46 @@ class TransactionalMemoryTest {
 
 	@BeforeEach
 	void setUp() {
-		underlyingData1 = new LinkedHashMap<>();
-		underlyingData1.put("a", 1);
-		underlyingData1.put("b", 2);
-		tested1 = new TransactionalMap<>(underlyingData1);
+		this.underlyingData1 = new LinkedHashMap<>();
+		this.underlyingData1.put("a", 1);
+		this.underlyingData1.put("b", 2);
+		this.tested1 = new TransactionalMap<>(this.underlyingData1);
 
-		underlyingData2 = new LinkedHashMap<>();
-		underlyingData2.put("a", 1);
-		underlyingData2.put("b", 2);
-		tested2 = new TransactionalMap<>(underlyingData2);
+		this.underlyingData2 = new LinkedHashMap<>();
+		this.underlyingData2.put("a", 1);
+		this.underlyingData2.put("b", 2);
+		this.tested2 = new TransactionalMap<>(this.underlyingData2);
 
-		underlyingData3 = new LinkedHashMap<>();
-		underlyingData3A = new LinkedHashMap<>();
-		underlyingData3.put("a", underlyingData3A);
-		underlyingData3B = new LinkedHashMap<>();
-		underlyingData3.put("b", underlyingData3B);
-		underlyingData3A.put("c", 3);
-		underlyingData3B.put("d", 4);
+		this.underlyingData3 = new LinkedHashMap<>();
+		this.underlyingData3A = new LinkedHashMap<>();
+		this.underlyingData3.put("a", this.underlyingData3A);
+		this.underlyingData3B = new LinkedHashMap<>();
+		this.underlyingData3.put("b", this.underlyingData3B);
+		this.underlyingData3A.put("c", 3);
+		this.underlyingData3B.put("d", 4);
 
 		//noinspection unchecked
-		tested3 = new TransactionalMap<>(new LinkedHashMap<>(), it -> new TransactionalMap<>((Map<String, Integer>) it));
-		for (Entry<String, Map<String, Integer>> entry : underlyingData3.entrySet()) {
-			tested3.put(entry.getKey(), new TransactionalMap<>(entry.getValue()));
+		this.tested3 = new TransactionalMap<>(new LinkedHashMap<>(), it -> new TransactionalMap<>((Map<String, Integer>) it));
+		for (Entry<String, Map<String, Integer>> entry : this.underlyingData3.entrySet()) {
+			this.tested3.put(entry.getKey(), new TransactionalMap<>(entry.getValue()));
 		}
 	}
 
 	@Test
 	void shouldControlCommitAtomicity() {
 		assertStateAfterCommit(
-			List.of(tested1, tested2),
+			List.of(this.tested1, this.tested2),
 			(original) -> {
 				original.get(0).put("c", 3);
 				original.get(1).put("c", 4);
 			},
 			(original, committed) -> {
-				assertNull(tested1.get("c"));
-				assertNull(underlyingData1.get("c"));
+				assertNull(this.tested1.get("c"));
+				assertNull(this.underlyingData1.get("c"));
 				assertEquals(3, committed.get(0).get("c"));
 
-				assertNull(tested2.get("c"));
-				assertNull(underlyingData2.get("c"));
+				assertNull(this.tested2.get("c"));
+				assertNull(this.underlyingData2.get("c"));
 				assertEquals(4, committed.get(1).get("c"));
 			}
 		);
@@ -103,21 +103,21 @@ class TransactionalMemoryTest {
 	@Test
 	void shouldControlCommitAtomicityDeepWise() {
 		assertStateAfterCommit(
-			tested3,
+			this.tested3,
 			original -> {
 				original.get("a").put("a", 1);
 				original.get("b").put("b", 2);
 			},
 			(original, committed) -> {
-				assertNull(tested3.get("a").get("a"));
-				assertNull(underlyingData3A.get("a"));
+				assertNull(this.tested3.get("a").get("a"));
+				assertNull(this.underlyingData3A.get("a"));
 				final Map<String, Integer> committed3A = committed.get("a");
 				assertInstanceOf(TransactionalMap.class, committed3A);
 				assertEquals(Integer.valueOf(1), committed3A.get("a"));
 				assertEquals(Integer.valueOf(3), committed3A.get("c"));
 
-				assertNull(tested3.get("b").get("b"));
-				assertNull(underlyingData3B.get("b"));
+				assertNull(this.tested3.get("b").get("b"));
+				assertNull(this.underlyingData3B.get("b"));
 				final Map<String, Integer> committed3B = committed.get("b");
 				assertInstanceOf(TransactionalMap.class, committed3B);
 				assertEquals(Integer.valueOf(2), committed3B.get("b"));
@@ -129,7 +129,7 @@ class TransactionalMemoryTest {
 	@Test
 	void shouldControlCommitAtomicityDeepWiseWithChangesToPrimaryMap() {
 		assertStateAfterCommit(
-			tested3,
+			this.tested3,
 			original -> {
 				final TransactionalMap<String, Integer> newMap = new TransactionalMap<>(new HashMap<>());
 				original.put("a", newMap);
@@ -137,14 +137,14 @@ class TransactionalMemoryTest {
 				original.remove("b");
 			},
 			(original, committed) -> {
-				assertNull(tested3.get("a").get("a"));
-				assertNull(underlyingData3A.get("a"));
+				assertNull(this.tested3.get("a").get("a"));
+				assertNull(this.underlyingData3A.get("a"));
 				final Map<String, Integer> committed3A = committed.get("a");
 				assertInstanceOf(TransactionalMap.class, committed3A);
 				assertEquals(Integer.valueOf(99), committed3A.get("a"));
 
-				assertNull(tested3.get("b").get("b"));
-				assertNull(underlyingData3B.get("b"));
+				assertNull(this.tested3.get("b").get("b"));
+				assertNull(this.underlyingData3B.get("b"));
 				final Map<String, Integer> committed3B = committed.get("b");
 				assertNull(committed3B);
 			}
@@ -155,12 +155,12 @@ class TransactionalMemoryTest {
 	void shouldCheckStaleItems() {
 		assertThrows(StaleTransactionMemoryException.class, () -> {
 			assertStateAfterCommit(
-				tested1,
+				this.tested1,
 				original -> {
 					original.put("c", 3);
 					// this should make stale transaction memory exception since it made transactional changes
 					// which are not tracked (tested2 was not passed in the first argument of assertStateAfterCommit)
-					tested2.put("c", 4);
+					this.tested2.put("c", 4);
 				},
 				(original, committed) -> {
 					fail("Should not be committed");

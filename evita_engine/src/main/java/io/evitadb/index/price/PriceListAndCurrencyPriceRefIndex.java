@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -131,7 +131,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	/**
 	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
 	 */
-	private int[] memoizedIndexedPriceIds;
+	@Nullable private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceRefIndex(
 		@Nonnull Scope scope,
@@ -197,6 +197,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	@Override
 	public void attachToCatalog(@Nullable String entityType, @Nonnull Catalog catalog) {
 		assertNotTerminated();
+		Assert.isPremiseValid(entityType != null, "Entity type must be provided!");
 		Assert.isPremiseValid(this.superIndex == null, "Catalog was already attached to this index!");
 		final PriceListAndCurrencyPriceIndex<?, ?> superIndex = catalog.getEntityIndexIfExists(
 			entityType,
@@ -214,7 +215,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 			)
 		);
 		this.superIndex = (PriceListAndCurrencyPriceSuperIndex) superIndex;
-		final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(indexedPriceIds);
+		final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(this.indexedPriceIds);
 		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
 
 		final int[] entityIds = new int[priceRecords.length];
@@ -312,7 +313,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	@Override
 	public Bitmap getIndexedPriceEntityIds() {
 		assertNotTerminated();
-		return indexedPriceEntityIds;
+		return this.indexedPriceEntityIds;
 	}
 
 	/**
@@ -326,10 +327,10 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return this.indexedPriceIds.getArray();
 		} else {
-			if (memoizedIndexedPriceIds == null) {
-				memoizedIndexedPriceIds = this.indexedPriceIds.getArray();
+			if (this.memoizedIndexedPriceIds == null) {
+				this.memoizedIndexedPriceIds = this.indexedPriceIds.getArray();
 			}
-			return memoizedIndexedPriceIds;
+			return this.memoizedIndexedPriceIds;
 		}
 	}
 
@@ -337,10 +338,10 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	@Override
 	public Formula getIndexedPriceEntityIdsFormula() {
 		assertNotTerminated();
-		if (indexedPriceEntityIds.isEmpty()) {
+		if (this.indexedPriceEntityIds.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else {
-			return new ConstantFormula(indexedPriceEntityIds);
+			return new ConstantFormula(this.indexedPriceEntityIds);
 		}
 	}
 
@@ -402,15 +403,15 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	@Override
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
-			final int[] priceIds = new int[priceRecords.getLength()];
-			final Iterator<PriceRecordContract> it = priceRecords.iterator();
+			final int[] priceIds = new int[this.priceRecords.getLength()];
+			final Iterator<PriceRecordContract> it = this.priceRecords.iterator();
 			int index = 0;
 			while (it.hasNext()) {
 				final PriceRecordContract priceRecord = it.next();
 				priceIds[index++] = priceRecord.internalPriceId();
 			}
 			return new PriceListAndCurrencyRefIndexStoragePart(
-				entityIndexPrimaryKey, priceIndexKey, validityIndex, priceIds
+				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, priceIds
 			);
 		} else {
 			return null;
@@ -419,7 +420,7 @@ public class PriceListAndCurrencyPriceRefIndex implements
 
 	@Override
 	public String toString() {
-		return StringUtils.capitalize(scope.name().toLowerCase()) + " " + priceIndexKey.toString() + (terminated.isTrue() ? " (TERMINATED)" : "");
+		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " " + this.priceIndexKey.toString() + (this.terminated.isTrue() ? " (TERMINATED)" : "");
 	}
 
 	@Override
@@ -467,9 +468,9 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	 * Verifies that the index is not terminated.
 	 */
 	private void assertNotTerminated() {
-		if (terminated.isTrue()) {
+		if (this.terminated.isTrue()) {
 			throw new PriceListAndCurrencyPriceIndexTerminated(
-				"Price list and currency index " + priceIndexKey + " is terminated!"
+				"Price list and currency index " + this.priceIndexKey + " is terminated!"
 			);
 		}
 	}

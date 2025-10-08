@@ -25,11 +25,6 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.StripList;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
  * Represents {@link StripList} for entities.

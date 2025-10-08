@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -249,10 +249,10 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {
-		final int index = ranges.indexOf(new TransactionalRangePoint(threshold));
+		final int index = this.ranges.indexOf(new TransactionalRangePoint(threshold));
 		final int startIndex = index >= 0 ? index : -1 * (index) - 1;
 
-		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(startIndex, ranges.getLength() - 1, ranges);
+		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(startIndex, this.ranges.getLength() - 1, this.ranges);
 		return createDisentangleFormulaIfNecessary(
 			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
 			startsEndsDTO.getRangeStartsAsBitmapArray()
@@ -272,10 +272,10 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsTo(long threshold) {
-		final int index = ranges.indexOf(new TransactionalRangePoint(threshold));
+		final int index = this.ranges.indexOf(new TransactionalRangePoint(threshold));
 		final int startIndex = index >= 0 ? index : -1 * (index) - 2;
 
-		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(0, startIndex, ranges);
+		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(0, startIndex, this.ranges);
 		return createDisentangleFormulaIfNecessary(getId(), startsEndsDTO.getRangeStartsAsBitmapArray(), startsEndsDTO.getRangeEndsAsBitmapArray());
 	}
 
@@ -289,15 +289,15 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsEnvelopingInclusive(long threshold) {
-		final RangeLookup rangeLookup = new RangeLookup(ranges, threshold, threshold);
+		final RangeLookup rangeLookup = new RangeLookup(this.ranges, threshold, threshold);
 
 		final int startIndex = rangeLookup.isStartThresholdFound() ? rangeLookup.getStartIndex() : rangeLookup.getStartIndex() - 1;
 		final int endIndex = rangeLookup.isEndThresholdFound() ? rangeLookup.getEndIndex() + 1 : rangeLookup.getEndIndex();
 
 		final StartsEndsDTO before = startIndex >= 0 ?
-			collectsStartsAndEnds(0, startIndex, ranges) : new StartsEndsDTO();
-		final StartsEndsDTO after = endIndex < ranges.getLength() ?
-			collectsStartsAndEnds(endIndex, ranges.getLength() - 1, ranges) : new StartsEndsDTO();
+			collectsStartsAndEnds(0, startIndex, this.ranges) : new StartsEndsDTO();
+		final StartsEndsDTO after = endIndex < this.ranges.getLength() ?
+			collectsStartsAndEnds(endIndex, this.ranges.getLength() - 1, this.ranges) : new StartsEndsDTO();
 
 		final AndFormula envelopeFormula = new AndFormula(
 			createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
@@ -389,10 +389,10 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsWithRangesOverlapping(long from, long to) {
-		final RangeLookup rangeLookup = new RangeLookup(ranges, from, to);
-		final StartsEndsDTO between = collectsStartsAndEnds(rangeLookup.getStartIndex(), rangeLookup.getEndIndex(), ranges);
-		final StartsEndsDTO before = collectsStartsAndEnds(0, Math.min(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), ranges);
-		final StartsEndsDTO after = collectsStartsAndEnds(Math.max(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), ranges.getLength() - 1, ranges);
+		final RangeLookup rangeLookup = new RangeLookup(this.ranges, from, to);
+		final StartsEndsDTO between = collectsStartsAndEnds(rangeLookup.getStartIndex(), rangeLookup.getEndIndex(), this.ranges);
+		final StartsEndsDTO before = collectsStartsAndEnds(0, Math.min(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), this.ranges);
+		final StartsEndsDTO after = collectsStartsAndEnds(Math.max(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), this.ranges.getLength() - 1, this.ranges);
 
 		return new OrFormula(
 			between.getRangeStarts(),
@@ -413,7 +413,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Bitmap getAllRecords() {
-		final StartsEndsDTO all = collectsStartsAndEnds(0, ranges.getLength() - 1, ranges);
+		final StartsEndsDTO all = collectsStartsAndEnds(0, this.ranges.getLength() - 1, this.ranges);
 		return new AndFormula(all.getRangeStarts(), all.getRangeEnds()).compute();
 	}
 
@@ -445,7 +445,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@NoArgsConstructor
 	static class StartsEndsDTO {
-		private static final Formula[] EMPTY_ARRAY = new Formula[0];
+		private static final Formula[] EMPTY_ARRAY = Formula.EMPTY_FORMULA_ARRAY;
 		private final List<Formula> rangeStarts = new LinkedList<>();
 		private final List<Formula> rangeEnds = new LinkedList<>();
 
@@ -463,13 +463,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		 */
 		@Nonnull
 		public Formula getRangeStarts() {
-			if (rangeStarts.isEmpty()) {
+			if (this.rangeStarts.isEmpty()) {
 				return EmptyFormula.INSTANCE;
-			} else if (rangeStarts.size() == 1) {
-				return rangeStarts.get(0);
+			} else if (this.rangeStarts.size() == 1) {
+				return this.rangeStarts.get(0);
 			} else {
 				return new OrFormula(
-					rangeStarts.toArray(EMPTY_ARRAY)
+					this.rangeStarts.toArray(EMPTY_ARRAY)
 				);
 			}
 		}
@@ -479,13 +479,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		 */
 		@Nonnull
 		public Formula getRangeEnds() {
-			if (rangeEnds.isEmpty()) {
+			if (this.rangeEnds.isEmpty()) {
 				return EmptyFormula.INSTANCE;
-			} else if (rangeEnds.size() == 1) {
-				return rangeEnds.get(0);
+			} else if (this.rangeEnds.size() == 1) {
+				return this.rangeEnds.get(0);
 			} else {
 				return new OrFormula(
-					rangeEnds.toArray(EMPTY_ARRAY)
+					this.rangeEnds.toArray(EMPTY_ARRAY)
 				);
 			}
 		}
@@ -539,7 +539,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			StartsEndsDTO that = (StartsEndsDTO) o;
-			final int[][] thisStarts = rangeStarts.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
+			final int[][] thisStarts = this.rangeStarts.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
 			final int[][] thatStarts = that.rangeStarts.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
 			if (thisStarts.length != thatStarts.length) {
 				return false;
@@ -551,7 +551,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 					return false;
 				}
 			}
-			final int[][] thisEnds = rangeEnds.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
+			final int[][] thisEnds = this.rangeEnds.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
 			final int[][] thatEnds = that.rangeEnds.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
 			if (thisEnds.length != thatEnds.length) {
 				return false;
@@ -568,7 +568,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(rangeStarts, rangeEnds);
+			return Objects.hash(this.rangeStarts, this.rangeEnds);
 		}
 
 		@Override
@@ -576,7 +576,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			StartsEndsDTO that = (StartsEndsDTO) o;
-			return rangeStarts.equals(that.rangeStarts) && rangeEnds.equals(that.rangeEnds);
+			return this.rangeStarts.equals(that.rangeStarts) && this.rangeEnds.equals(that.rangeEnds);
 		}
 
 		@Override
@@ -585,8 +585,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 				.map(it -> "[" + it.toString() + "]")
 				.collect(Collectors.joining(","));
 			return "StartsEndsDTO{" +
-				"rangeStarts=" + cnv.apply(rangeStarts) +
-				", rangeEnds=" + cnv.apply(rangeEnds) +
+				"rangeStarts=" + cnv.apply(this.rangeStarts) +
+				", rangeEnds=" + cnv.apply(this.rangeEnds) +
 				'}';
 		}
 
@@ -628,24 +628,24 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		RangeLookup(@Nonnull TransactionalComplexObjArray<TransactionalRangePoint> ranges, long from, long to) {
 			final int indexFrom = ranges.indexOf(new TransactionalRangePoint(from));
 			if (indexFrom >= 0) {
-				startIndex = indexFrom;
-				startPoint = ranges.get(indexFrom);
+				this.startIndex = indexFrom;
+				this.startPoint = ranges.get(indexFrom);
 			} else {
-				startIndex = -1 * (indexFrom) - 1;
-				startPoint = null;
+				this.startIndex = -1 * (indexFrom) - 1;
+				this.startPoint = null;
 			}
 
 			if (from == to) {
-				endIndex = startIndex;
-				endPoint = startPoint;
+				this.endIndex = this.startIndex;
+				this.endPoint = this.startPoint;
 			} else {
 				final int indexTo = ranges.indexOf(new TransactionalRangePoint(to));
 				if (indexTo >= 0) {
-					endIndex = indexTo;
-					endPoint = ranges.get(indexTo);
+					this.endIndex = indexTo;
+					this.endPoint = ranges.get(indexTo);
 				} else {
-					endIndex = -1 * (indexTo) - 2;
-					endPoint = null;
+					this.endIndex = -1 * (indexTo) - 2;
+					this.endPoint = null;
 				}
 			}
 		}
@@ -654,14 +654,14 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		 * Returns true if start point was found in the index.
 		 */
 		boolean isStartThresholdFound() {
-			return startPoint != null;
+			return this.startPoint != null;
 		}
 
 		/**
 		 * Returns true if end point was found in the index.
 		 */
 		boolean isEndThresholdFound() {
-			return endPoint != null;
+			return this.endPoint != null;
 		}
 
 	}

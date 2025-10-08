@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,13 +60,13 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 		final Set<String> underlyingData = new LinkedHashSet<>();
 		underlyingData.add("a");
 		underlyingData.add("b");
-		tested = new TransactionalSet<>(underlyingData);
+		this.tested = new TransactionalSet<>(underlyingData);
 	}
 
 	@Test
 	void shouldNotModifyOriginalStateButCreateModifiedCopy() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add("a");
 				original.add("c");
@@ -82,7 +82,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void removalsShouldNotModifyOriginalState() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove("a");
 				original.add("c");
@@ -98,7 +98,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRetainAllTransactionally() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.retainAll(Arrays.asList("a", "c", "d"));
 				assertSetContains(original, "a");
@@ -113,7 +113,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRemoveAllTransactionally() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				//noinspection SlowAbstractSetRemoveAll
 				original.removeAll(Arrays.asList("a", "c", "d"));
@@ -129,7 +129,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCreateToArrayTransactionally() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add("c");
 				original.remove("b");
@@ -149,21 +149,21 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 		 * START: Q,b,S,3,c,T,e,6,J
 		 * */
 
-		tested.clear();
-		tested.add("Q");
-		tested.add("b");
-		tested.add("S");
-		tested.add("3");
-		tested.add("c");
-		tested.add("T");
-		tested.add("e");
-		tested.add("6");
-		tested.add("J");
+		this.tested.clear();
+		this.tested.add("Q");
+		this.tested.add("b");
+		this.tested.add("S");
+		this.tested.add("3");
+		this.tested.add("c");
+		this.tested.add("T");
+		this.tested.add("e");
+		this.tested.add("6");
+		this.tested.add("J");
 
-		final HashSet<String> referenceMap = new HashSet<>(tested);
+		final HashSet<String> referenceMap = new HashSet<>(this.tested);
 
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 
 				/* +D#0+D */
@@ -188,7 +188,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldMergeRemovalsAndUpdatesAndInsertionsOnTransactionCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove("a");
 				original.add("b");
@@ -206,7 +206,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldInterpretIsEmptyCorrectly() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				assertFalse(original.isEmpty());
 
@@ -240,7 +240,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldNotModifyOriginalStateOnKeySetIteratorRemoval() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add("c");
 
@@ -265,7 +265,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldRemoveValuesWhileIteratingOverThem() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.clear();
 				original.add("ac");
@@ -287,7 +287,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepIteratorContract() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add("c");
 
@@ -331,7 +331,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepIteratorContractWhenItemsRemoved() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add("c");
 				original.remove("b");

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,9 +64,10 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class AttributeMutation implements NamedLocalMutation<AttributeValue, AttributeKey> {
 	@Serial private static final long serialVersionUID = 8615227519108169551L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Identification of the attribute that the mutation affects.
 	 */
@@ -75,12 +76,18 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 
 	protected AttributeMutation(@Nonnull AttributeKey attributeKey) {
 		this.attributeKey = attributeKey;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	public AttributeMutation(@Nonnull AttributeKey attributeKey, long decisiveTimestamp) {
+		this.attributeKey = attributeKey;
+		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
 	@Nonnull
 	@Override
 	public String containerName() {
-		return attributeKey.attributeName();
+		return this.attributeKey.attributeName();
 	}
 
 	@Nonnull
@@ -89,9 +96,10 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 		return ContainerType.ATTRIBUTE;
 	}
 
+	@Nonnull
 	@Override
 	public AttributeKey getComparableKey() {
-		return attributeKey;
+		return this.attributeKey;
 	}
 
 	public void verifyOrEvolveSchema(
@@ -109,27 +117,27 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 					.isInstance(attributeValue),
 				() -> new InvalidMutationException(
 					"Invalid type: `" + attributeValue.getClass() + "`! " +
-						"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as type " + attributeSchema.getType() + ". " +
-						"All values of attribute `" + attributeKey.attributeName() + "` must respect this data type!"
+						"Attribute `" + this.attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as type " + attributeSchema.getType() + ". " +
+						"All values of attribute `" + this.attributeKey.attributeName() + "` must respect this data type!"
 				)
 			);
 			if (attributeSchema.isLocalized()) {
 				Assert.isTrue(
-					attributeKey.localized(),
+					this.attributeKey.localized(),
 					() -> new InvalidMutationException(
-						"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as localized value. " +
-							"All values of attribute `" + attributeKey.attributeName() + "` must be localized now " +
+						"Attribute `" + this.attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` was already stored as localized value. " +
+							"All values of attribute `" + this.attributeKey.attributeName() + "` must be localized now " +
 							"- use different attribute name for locale independent variant of attribute!"
 					)
 				);
-				final Locale locale = attributeKey.locale();
+				final Locale locale = this.attributeKey.locale();
 				if (!entitySchemaBuilder.getLocales().contains(locale)) {
 					if (entitySchemaBuilder.allows(EvolutionMode.ADDING_LOCALES)) {
 						// evolve schema automatically
 						schemaEvolutionApplicator.accept(catalogSchema, entitySchemaBuilder);
 					} else {
 						throw new InvalidMutationException(
-							"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` is localized to `" + locale + "` which is not allowed by the schema" +
+							"Attribute `" + this.attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` is localized to `" + locale + "` which is not allowed by the schema" +
 								" (allowed are only: " + entitySchemaBuilder.getLocales().stream().map(Locale::toString).collect(Collectors.joining(", ")) + "). " +
 								"You must first alter entity schema to be able to add this localized attribute to the entity!"
 						);
@@ -137,10 +145,10 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 				}
 			} else {
 				Assert.isTrue(
-					!attributeKey.localized(),
+					!this.attributeKey.localized(),
 					() -> new InvalidMutationException(
-						"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` was not stored as localized value. " +
-							"No values of attribute `" + attributeKey.attributeName() + "` can be localized now " +
+						"Attribute `" + this.attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` was not stored as localized value. " +
+							"No values of attribute `" + this.attributeKey.attributeName() + "` can be localized now " +
 							"- use different attribute name for localized variant of attribute!"
 					)
 				);
@@ -151,7 +159,7 @@ public abstract class AttributeMutation implements NamedLocalMutation<AttributeV
 			schemaEvolutionApplicator.accept(catalogSchema, entitySchemaBuilder);
 		} else {
 			throw new InvalidMutationException(
-				"Unknown attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "``! " +
+				"Unknown attribute `" + this.attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "``! " +
 					"You must first alter entity schema to be able to add this attribute to the entity!"
 			);
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatal
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
-import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
+import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
@@ -59,8 +59,8 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 	public UpdateCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
-			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
-			new RestMutationResolvingExceptionFactory()
+			new RestMutationObjectMapper(restApiHandlingContext.getObjectMapper()),
+			RestMutationResolvingExceptionFactory.INSTANCE
 		);
 	}
 
@@ -82,7 +82,7 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 					final JsonNode inputMutations = requestData.getMutations()
 						.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
 					for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-						convertedSchemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+						convertedSchemaMutations.addAll(this.mutationAggregateResolver.convertFromInput(schemaMutationsIterator.next()));
 					}
 					return convertedSchemaMutations;
 				});

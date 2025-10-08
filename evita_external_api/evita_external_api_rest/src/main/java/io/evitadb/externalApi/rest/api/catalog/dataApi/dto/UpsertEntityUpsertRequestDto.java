@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,27 +53,27 @@ public class UpsertEntityUpsertRequestDto {
 
 	@Nonnull
 	public Optional<Integer> getPrimaryKey() {
-		return Optional.ofNullable(primaryKey);
+		return Optional.ofNullable(this.primaryKey);
 	}
 
 	@Nonnull
 	public Optional<EntityExistence> getEntityExistence() {
-		return Optional.ofNullable(entityExistence);
+		return Optional.ofNullable(this.entityExistence);
 	}
 
 	@Nonnull
 	public Optional<JsonNode> getMutations() {
-		if (mutations == null || mutations instanceof NullNode) {
+		if (this.mutations == null || this.mutations instanceof NullNode) {
 			return Optional.empty();
 		}
-		return Optional.of(mutations);
+		return Optional.of(this.mutations);
 	}
 
 	@Nonnull
 	public Optional<JsonNode> getRequire() {
-		if (require == null || require instanceof NullNode) {
+		if (this.require == null || this.require instanceof NullNode) {
 			return Optional.empty();
 		}
-		return Optional.of(require);
+		return Optional.of(this.require);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,27 +55,27 @@ public class ObservabilityTracingBlockReference implements TracingBlockReference
 
 	@Override
 	public void close() {
-		if (error != null) {
-			span.setStatus(StatusCode.ERROR);
-			span.recordException(error);
+		if (this.error != null) {
+			this.span.setStatus(StatusCode.ERROR);
+			this.span.recordException(this.error);
 		} else {
-			span.setStatus(StatusCode.OK);
+			this.span.setStatus(StatusCode.OK);
 		}
 
-		scope.close();
+		this.scope.close();
 
-		if (attributeSupplier != null) {
-			final SpanAttribute[] finalAttributes = attributeSupplier.get();
+		if (this.attributeSupplier != null) {
+			final SpanAttribute[] finalAttributes = this.attributeSupplier.get();
 			if (finalAttributes != null) {
-				setAttributes(span, finalAttributes);
+				setAttributes(this.span, finalAttributes);
 			}
 		}
 
-		span.end();
+		this.span.end();
 		clearMdc();
 
-		if (closeCallback != null) {
-			closeCallback.run();
+		if (this.closeCallback != null) {
+			this.closeCallback.run();
 		}
 	}
 }

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
@@ -45,10 +46,10 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
-import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -70,8 +71,8 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -282,12 +283,13 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
 				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-				.e(PriceForSaleDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-				.e(PriceForSaleDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
-					.orElseThrow()
-					.priceWithTax()
-					.toString())
+				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+				.e(
+					PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+					                                             .orElseThrow()
+					                                             .priceWithTax()
+					                                             .toString())
 				.build())
 			.build();
 	}
@@ -299,14 +301,15 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
 				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-				.e(PriceForSaleDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-				.e(PriceForSaleDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
-					.orElseThrow()
-					.priceWithTax()
-					.toString())
+				.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+				.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+				.e(
+					PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPriceForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+					                                             .orElseThrow()
+					                                             .priceWithTax()
+					                                             .toString())
 				.build())
-			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), false)
+			.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), false)
 			.build();
 	}
 
@@ -315,15 +318,15 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), true)
+			.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), true)
 			.e(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name(), entity.getAllPricesForSale(CURRENCY_CZK, null, priceLists)
 				.stream()
 				.map(price -> map()
 					.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-					.e(PriceForSaleDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-					.e(PriceForSaleDescriptor.PRICE_LIST.name(), price.priceList())
-					.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
-					.e(PriceForSaleDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+					.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+					.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+					.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
 					.build())
 				.toList())
 			.build();
@@ -334,7 +337,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(GraphQLEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), multiplePricesForSaleAvailable)
+			.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), multiplePricesForSaleAvailable)
 			.build();
 	}
 
@@ -400,7 +403,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
 				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
 				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE)
 					.map(price -> map()
 						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
@@ -425,7 +428,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
 				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
 				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE)
 					.map(price -> map()
 						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
@@ -463,7 +466,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), map()
 				.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-				.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
+				.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.get().priceForSale().priceWithTax().toString())
 				.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
 					.map(price -> map()
 						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
@@ -500,7 +503,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name(), allPrices.stream()
 				.map(prices -> map()
 					.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
-					.e(PriceForSaleDescriptor.PRICE_WITH_TAX.name(), prices.priceForSale().priceWithTax().toString())
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), prices.priceForSale().priceWithTax().toString())
 					.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), prices.accompanyingPrices().get(AccompanyingPriceContent.DEFAULT_ACCOMPANYING_PRICE)
 						.map(price -> map()
 							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
@@ -531,16 +534,18 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(GraphQLEntityDescriptor.PARENTS.name(), parents.stream()
 				.map(entityClassifier -> {
 					final MapBuilder parentBuilder = map()
-						.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey());
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey());
 
 					if (withBody) {
 						final SealedEntity parent = (SealedEntity) entityClassifier;
 						parentBuilder
-							.e(GraphQLEntityDescriptor.ALL_LOCALES.name(), parent.getAllLocales()
-								.stream()
-								.map(Locale::toString)
-								.toList())
-							.e(GraphQLEntityDescriptor.ATTRIBUTES.name(), map()
+							.e(
+								EntityDescriptor.ALL_LOCALES.name(), parent.getAllLocales()
+								                                           .stream()
+								                                           .map(Locale::toString)
+								                                           .toList())
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 								.e(ATTRIBUTE_CODE, parent.getAttribute(ATTRIBUTE_CODE)));
 					}
 

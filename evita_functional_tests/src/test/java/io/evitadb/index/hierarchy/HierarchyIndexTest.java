@@ -87,25 +87,25 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	 */
 	@BeforeEach
 	void setUp() {
-		hierarchyIndex = new HierarchyIndex();
-		hierarchyIndex.addNode(0, 5);
-		hierarchyIndex.addNode(1, 3);
-		hierarchyIndex.addNode(2, 3);
-		hierarchyIndex.addNode(3, 6);
-		hierarchyIndex.addNode(4, 7);
-		hierarchyIndex.addNode(5, 7);
-		hierarchyIndex.addNode(6, null);
-		hierarchyIndex.addNode(7, null);
-		hierarchyIndex.addNode(8, 6);
-		hierarchyIndex.addNode(9, 8);
-		hierarchyIndex.addNode(10, 9);
-		hierarchyIndex.addNode(11, 9);
-		hierarchyIndex.addNode(12, 9);
+		this.hierarchyIndex = new HierarchyIndex();
+		this.hierarchyIndex.addNode(0, 5);
+		this.hierarchyIndex.addNode(1, 3);
+		this.hierarchyIndex.addNode(2, 3);
+		this.hierarchyIndex.addNode(3, 6);
+		this.hierarchyIndex.addNode(4, 7);
+		this.hierarchyIndex.addNode(5, 7);
+		this.hierarchyIndex.addNode(6, null);
+		this.hierarchyIndex.addNode(7, null);
+		this.hierarchyIndex.addNode(8, 6);
+		this.hierarchyIndex.addNode(9, 8);
+		this.hierarchyIndex.addNode(10, 9);
+		this.hierarchyIndex.addNode(11, 9);
+		this.hierarchyIndex.addNode(12, 9);
 	}
 
 	@Test
 	void shouldListEntireTree() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot();
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromRoot();
 		assertArrayEquals(
 			new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
 			nodeIds.getArray()
@@ -116,7 +116,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnBreadthFirstArray() {
 		assertArrayEquals(
 			new int[] {6, 7, 3, 8, 4, 5, 1, 2, 9, 0, 10, 11, 12},
-			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, UnaryOperator.identity()).getArray()
+			this.hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, UnaryOperator.identity()).getArray()
 		);
 	}
 
@@ -124,7 +124,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnDepthFirstArray() {
 		assertArrayEquals(
 			new int[] {6, 3, 1, 2, 8, 9, 10, 11, 12, 7, 4, 5, 0},
-			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.DEPTH_FIRST, UnaryOperator.identity()).getArray()
+			this.hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.DEPTH_FIRST, UnaryOperator.identity()).getArray()
 		);
 	}
 
@@ -132,7 +132,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnBreadthFirstArrayReversed() {
 		assertArrayEquals(
 			new int[] {7, 6, 5, 4, 8, 3, 0, 9, 2, 1, 12, 11, 10},
-			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, ArrayUtils::reverse).getArray()
+			this.hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.BREADTH_FIRST, ArrayUtils::reverse).getArray()
 		);
 	}
 
@@ -140,17 +140,17 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnDepthFirstArrayReversed() {
 		assertArrayEquals(
 			new int[] {7, 5, 0, 4, 6, 8, 9, 12, 11, 10, 3, 2, 1},
-			hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.DEPTH_FIRST, ArrayUtils::reverse).getArray()
+			this.hierarchyIndex.listHierarchyNodesFromRoot(TraversalMode.DEPTH_FIRST, ArrayUtils::reverse).getArray()
 		);
 	}
 
 	@Test
 	void shouldComputeAllHierarchyNodesExceptOrphans() {
-		hierarchyIndex.addNode(100, 1000);
-		hierarchyIndex.addNode(101, 1000);
-		hierarchyIndex.addNode(103, 999);
+		this.hierarchyIndex.addNode(100, 1000);
+		this.hierarchyIndex.addNode(101, 1000);
+		this.hierarchyIndex.addNode(103, 999);
 
-		final Formula allNodesFormula = hierarchyIndex.getAllHierarchyNodesFormula();
+		final Formula allNodesFormula = this.hierarchyIndex.getAllHierarchyNodesFormula();
 		assertArrayEquals(
 			new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
 			allNodesFormula.compute().getArray()
@@ -159,9 +159,9 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldFindParentNode() {
-		assertEquals(6, hierarchyIndex.getParentNode(3).getAsInt());
-		assertTrue(hierarchyIndex.getParentNode(6).isEmpty());
-		assertThrows(EvitaInvalidUsageException.class, () -> hierarchyIndex.getParentNode(99));
+		assertEquals(6, this.hierarchyIndex.getParentNode(3).getAsInt());
+		assertTrue(this.hierarchyIndex.getParentNode(6).isEmpty());
+		assertThrows(EvitaInvalidUsageException.class, () -> this.hierarchyIndex.getParentNode(99));
 	}
 
 	@Test
@@ -169,7 +169,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchy(
+		this.hierarchyIndex.traverseHierarchy(
 			(node, level, distance, childrenTraverser) -> {
 				nodeIds.append(node.entityPrimaryKey()).append("|");
 				levels.append(level).append("|");
@@ -186,7 +186,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchy(
+		this.hierarchyIndex.traverseHierarchy(
 			(node, level, distance, childrenTraverser) -> {
 				nodeIds.append(node.entityPrimaryKey()).append("|");
 				levels.append(level).append("|");
@@ -204,7 +204,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchy(
+		this.hierarchyIndex.traverseHierarchy(
 			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
 				nodeIds.append(node.entityPrimaryKey()).append("|");
@@ -222,7 +222,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchyFromNode(
+		this.hierarchyIndex.traverseHierarchyFromNode(
 			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
 				nodeIds.append(node.entityPrimaryKey()).append("|");
@@ -241,7 +241,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchyFromNode(
+		this.hierarchyIndex.traverseHierarchyFromNode(
 			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
 				nodeIds.append(node.entityPrimaryKey()).append("|");
@@ -260,7 +260,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchyToRoot(
+		this.hierarchyIndex.traverseHierarchyToRoot(
 			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
 				nodeIds.append(node.entityPrimaryKey()).append("|");
@@ -279,7 +279,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");
 		final StringBuilder distances = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchyFromNode(
+		this.hierarchyIndex.traverseHierarchyFromNode(
 			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
 				nodeIds.append(node.entityPrimaryKey()).append("|");
@@ -310,13 +310,13 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			   5
 			      0
 			Orphans: []""",
-			hierarchyIndex.toString()
+			this.hierarchyIndex.toString()
 		);
 	}
 
 	@Test
 	void shouldListEntireTreeExcludingParts() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot(
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromRoot(
 			new MatchNodeIdHierarchyFilteringPredicate(9)
 				.or(new MatchNodeIdHierarchyFilteringPredicate(5))
 				.negate()
@@ -333,7 +333,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final Bitmap inputNodes = new BaseBitmap(1, 10, 0);
 
 		// Call the method being tested
-		final Bitmap resultNodes = hierarchyIndex.listNodesIncludingParents(inputNodes);
+		final Bitmap resultNodes = this.hierarchyIndex.listNodesIncludingParents(inputNodes);
 
 		// Verify the result contains all the expected nodes
 		// Node 1 and its parent 3 and grandparent 6
@@ -347,7 +347,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeIncludingItself() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
 		assertArrayEquals(
 			new int[]{8, 9, 10, 11, 12},
 			nodeIds.getArray()
@@ -356,7 +356,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeIncludingItselfExcludingSubTrees() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(
 			6,
 			new MatchNodeIdHierarchyFilteringPredicate(3)
 				.or(new MatchNodeIdHierarchyFilteringPredicate(9))
@@ -370,7 +370,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTree() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(8);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParent(8);
 		assertArrayEquals(
 			new int[]{9, 10, 11, 12},
 			nodeIds.getArray()
@@ -379,7 +379,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeExcludingSubTrees() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParent(
 			6,
 			new MatchNodeIdHierarchyFilteringPredicate(3)
 				.or(new MatchNodeIdHierarchyFilteringPredicate(9))
@@ -393,8 +393,8 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldInsertNewNode() {
-		hierarchyIndex.addNode(20, 9);
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentDownTo(9, 1);
+		this.hierarchyIndex.addNode(20, 9);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentDownTo(9, 1);
 		assertArrayEquals(
 			new int[]{10, 11, 12, 20},
 			nodeIds.getArray()
@@ -403,14 +403,14 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldInsertNewOrphanNodeAndThenInterleavingParentNode() {
-		hierarchyIndex.addNode(30, 20);
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(9);
+		this.hierarchyIndex.addNode(30, 20);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParent(9);
 		assertArrayEquals(
 			new int[]{10, 11, 12},
 			nodeIds.getArray()
 		);
-		hierarchyIndex.addNode(20, 9);
-		final Bitmap nodeIdsAgain = hierarchyIndex.listHierarchyNodesFromParent(9);
+		this.hierarchyIndex.addNode(20, 9);
+		final Bitmap nodeIdsAgain = this.hierarchyIndex.listHierarchyNodesFromParent(9);
 		assertArrayEquals(
 			new int[]{10, 11, 12, 20, 30},
 			nodeIdsAgain.getArray()
@@ -419,13 +419,13 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldMoveExistingNodeWithSubTree() {
-		hierarchyIndex.addNode(9, 5);
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
+		this.hierarchyIndex.addNode(9, 5);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
 		assertArrayEquals(
 			new int[]{8},
 			nodeIds.getArray()
 		);
-		final Bitmap nodeIdsFromDifferentTreePart = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(5);
+		final Bitmap nodeIdsFromDifferentTreePart = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(5);
 		assertArrayEquals(
 			new int[]{0, 5, 9, 10, 11, 12},
 			nodeIdsFromDifferentTreePart.getArray()
@@ -434,13 +434,13 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldRemoveNodeAndLeaveOrphans() {
-		hierarchyIndex.removeNode(9);
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
+		this.hierarchyIndex.removeNode(9);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
 		assertArrayEquals(
 			new int[]{8},
 			nodeIds.getArray()
 		);
-		final Bitmap orphanNodes = hierarchyIndex.getOrphanHierarchyNodes();
+		final Bitmap orphanNodes = this.hierarchyIndex.getOrphanHierarchyNodes();
 		assertArrayEquals(
 			new int[]{10, 11, 12},
 			orphanNodes.getArray()
@@ -449,19 +449,19 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldRelocateOrphan() {
-		hierarchyIndex.removeNode(9);
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
+		this.hierarchyIndex.removeNode(9);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(8);
 		assertArrayEquals(
 			new int[]{8},
 			nodeIds.getArray()
 		);
-		hierarchyIndex.addNode(10, 3);
-		final Bitmap nodeIdsFromDifferentTreePart = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(3);
+		this.hierarchyIndex.addNode(10, 3);
+		final Bitmap nodeIdsFromDifferentTreePart = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(3);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 10},
 			nodeIdsFromDifferentTreePart.getArray()
 		);
-		final Bitmap orphanNodes = hierarchyIndex.getOrphanHierarchyNodes();
+		final Bitmap orphanNodes = this.hierarchyIndex.getOrphanHierarchyNodes();
 		assertArrayEquals(
 			new int[]{11, 12},
 			orphanNodes.getArray()
@@ -471,16 +471,16 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldDetectAndAvoidCircularReferences() {
 		// original dependency chain was 6 <- 8 <- 9 <- 10
-		hierarchyIndex.addNode(8, 10);
+		this.hierarchyIndex.addNode(8, 10);
 		// now we should be able to safely list node 6 without node 8 which becomes orphan
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(6);
+		final Bitmap nodeIds = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(6);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 6},
 			nodeIds.getArray()
 		);
 		// now let's attach 9 to 6 again
-		hierarchyIndex.addNode(9, 6);
-		final Bitmap nodeIdsAgain = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(6);
+		this.hierarchyIndex.addNode(9, 6);
+		final Bitmap nodeIdsAgain = this.hierarchyIndex.listHierarchyNodesFromParentIncludingItself(6);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 6, 8, 9, 10, 11, 12},
 			nodeIdsAgain.getArray()
@@ -489,7 +489,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnRootNodes() {
-		final Bitmap rootNodes = hierarchyIndex.getRootHierarchyNodes();
+		final Bitmap rootNodes = this.hierarchyIndex.getRootHierarchyNodes();
 		assertArrayEquals(
 			new int[]{6, 7},
 			rootNodes.getArray()
@@ -498,7 +498,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnDirectChildrenOfParent() {
-		final Bitmap children = hierarchyIndex.getHierarchyNodesForParent(9);
+		final Bitmap children = this.hierarchyIndex.getHierarchyNodesForParent(9);
 		assertArrayEquals(
 			new int[]{9, 10, 11, 12},
 			children.getArray()
@@ -692,8 +692,8 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		public void addChild(int nodeId, TestHierarchyNode rootNode) {
-			final TestHierarchyNode newNode = new TestHierarchyNode(nodeId, id);
-			children.add(newNode);
+			final TestHierarchyNode newNode = new TestHierarchyNode(nodeId, this.id);
+			this.children.add(newNode);
 			rootNode.orphans.remove(nodeId);
 			placeOrphansRecursively(newNode, rootNode);
 		}
@@ -718,10 +718,10 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		public boolean contains(int lookedUpId) {
-			if (id == lookedUpId) {
+			if (this.id == lookedUpId) {
 				return true;
 			}
-			for (TestHierarchyNode child : children) {
+			for (TestHierarchyNode child : this.children) {
 				if (child.contains(lookedUpId)) {
 					return true;
 				}
@@ -730,10 +730,10 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		public TestHierarchyNode find(int nodeId, TestHierarchyNode rootNode) {
-			if (id == nodeId) {
+			if (this.id == nodeId) {
 				return this;
 			} else {
-				for (TestHierarchyNode child : children) {
+				for (TestHierarchyNode child : this.children) {
 					final TestHierarchyNode foundNode = child.find(nodeId, rootNode);
 					if (foundNode != null) {
 						return foundNode;
@@ -751,7 +751,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		}
 
 		public void assertIdentical(HierarchyIndex theIndex, String errorMessage) {
-			for (TestHierarchyNode child : children) {
+			for (TestHierarchyNode child : this.children) {
 				assertIdenticalChildrenRecursively(child, theIndex, errorMessage);
 			}
 			final int[] thisOrphans = this.orphans.keySet().stream().sorted().mapToInt(it -> it).toArray();
@@ -766,8 +766,8 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		@Override
 		public String toString() {
 			final StringBuilder sb = new StringBuilder();
-			toStringChildrenRecursively(children, 0, sb);
-			sb.append("Orphans: ").append(Arrays.toString(orphans.keySet().stream().mapToInt(it -> it).sorted().toArray()));
+			toStringChildrenRecursively(this.children, 0, sb);
+			sb.append("Orphans: ").append(Arrays.toString(this.orphans.keySet().stream().mapToInt(it -> it).sorted().toArray()));
 			return sb.toString();
 		}
 

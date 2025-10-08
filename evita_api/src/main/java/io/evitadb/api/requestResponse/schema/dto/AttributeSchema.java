@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,19 +61,85 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @EqualsAndHashCode
 public sealed class AttributeSchema implements AttributeSchemaContract permits EntityAttributeSchema, GlobalAttributeSchema {
-	@Serial private static final long serialVersionUID = -4646684142378649904L;
+	@Serial private static final long serialVersionUID = -4825670975814791474L;
+	/**
+	 * Human readable name of the attribute as defined by the schema author. See
+	 * {@link io.evitadb.api.requestResponse.schema.NamedSchemaContract#getName()}.
+	 */
 	@Getter @Nonnull protected final String name;
+	/**
+	 * Precomputed name variants for multiple {@link NamingConvention naming conventions}. These are generated
+	 * from {@link #name} and used wherever a specific convention (e.g. camelCase, snake_case) is required.
+	 */
 	@Getter @Nonnull protected final Map<NamingConvention, String> nameVariants;
+	/**
+	 * Default value used when the entity is created without explicitly providing this attribute. See
+	 * {@link AttributeSchemaContract#getDefaultValue()} for behavior details and its relation to
+	 * {@link AttributeSchemaContract#isNullable()}.
+	 */
 	@Getter @Nullable protected final Serializable defaultValue;
+	/**
+	 * Optional deprecation notice explaining why the attribute should no longer be used. When present, developer
+	 * tooling can surface this information while still keeping the attribute operational. See
+	 * {@link io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract#getDeprecationNotice()}.
+	 */
 	@Getter @Nullable protected final String deprecationNotice;
+	/**
+	 * Optional human readable description of the attribute purpose. Intended for developer tooling and schema
+	 * documentation, has no effect on runtime behavior.
+	 */
 	@Getter @Nullable protected final String description;
+	/**
+	 * Flag specifying that the attribute is tied to a particular {@link java.util.Locale}. Localized attributes must
+	 * always be used together with a locale. See {@link AttributeSchemaContract#isLocalized()}.
+	 */
 	@Getter protected final boolean localized;
+	/**
+	 * Flag specifying that the attribute value may be missing on entities. If false, upserts must provide a value.
+	 * For localized attributes, presence is enforced only for locales the entity is localized to. See
+	 * {@link AttributeSchemaContract#isNullable()}.
+	 */
 	@Getter protected final boolean nullable;
+	/**
+	 * Flag marking this attribute as representative. Representative attributes help identify entities or
+	 * disambiguate duplicated references and may be used by developer tools. See
+	 * {@link AttributeSchemaContract#isRepresentative()}.
+	 */
+	@Getter protected final boolean representative;
+	/**
+	 * Mapping of {@link Scope} to the attribute uniqueness semantics in that scope. See
+	 * {@link AttributeSchemaContract#getUniquenessTypeInScopes()} and uniqueness helpers
+	 * such as {@link AttributeSchemaContract#isUniqueInScope(Scope)} and
+	 * {@link AttributeSchemaContract#isUniqueWithinLocaleInScope(Scope)}.
+	 */
 	@Getter protected final Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes;
+	/**
+	 * Set of scopes where the attribute is filterable. Filterable attributes consume index space and their type must
+	 * implement {@link Comparable}. See {@link AttributeSchemaContract#getFilterableInScopes()} and
+	 * {@link AttributeSchemaContract#isFilterableInScope(Scope)}.
+	 */
 	@Getter protected final Set<Scope> filterableInScopes;
+	/**
+	 * Set of scopes where the attribute is sortable. Sortable attributes consume index space and their type must
+	 * implement {@link Comparable}. See {@link AttributeSchemaContract#getSortableInScopes()} and
+	 * {@link AttributeSchemaContract#isSortableInScope(Scope)}.
+	 */
 	@Getter protected final Set<Scope> sortableInScopes;
+	/**
+	 * Declared attribute type. Must be one of {@link EvitaDataTypes#getSupportedDataTypes()} or their arrays. The type
+	 * is always a reference type (never a primitive) due to API contracts. See {@link AttributeSchemaContract#getType()}.
+	 */
 	@Getter @Nonnull protected final Class<? extends Serializable> type;
+	/**
+	 * Non-array variant of {@link #type}. If {@link #type} is an array, this holds its component type; otherwise it
+	 * equals {@link #type}. See {@link AttributeSchemaContract#getPlainType()}.
+	 */
 	@Getter @Nonnull protected final Class<? extends Serializable> plainType;
+	/**
+	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
+	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
+	 * {@link Integer} range. See {@link AttributeSchemaContract#getIndexedDecimalPlaces()}.
+	 */
 	@Getter protected final int indexedDecimalPlaces;
 
 	/**
@@ -114,7 +180,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			toUniquenessEnumMap(null),
 			EnumSet.noneOf(Scope.class),
 			EnumSet.noneOf(Scope.class),
-			localized, false,
+			localized, false, false,
 			type, null,
 			0
 		);
@@ -134,6 +200,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue
 	) {
@@ -153,7 +220,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			theUniquenessType,
 			theFilterableInScopes,
 			theSortableInScopes,
-			localized, nullable,
+			localized, nullable, representative,
 			type, defaultValue,
 			0
 		);
@@ -175,6 +242,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -189,7 +257,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			theUniquenessType,
 			theFilterableInScopes,
 			theSortableInScopes,
-			localized, nullable,
+			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -211,6 +279,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -221,7 +290,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			uniquenessTypeInScopes,
 			filterableInScopes,
 			sortableInScopes,
-			localized, nullable,
+			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -244,6 +313,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -254,7 +324,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			uniquenessTypeInScopes,
 			filterableInScopes,
 			sortableInScopes,
-			localized, nullable,
+			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -277,6 +347,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -291,7 +362,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			theUniquenessType,
 			theFilterableInScopes,
 			theSortableInScopes,
-			localized, nullable,
+			localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -307,6 +378,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -326,6 +398,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 		this.sortableInScopes = CollectionUtils.toUnmodifiableSet(sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes);
 		this.localized = localized;
 		this.nullable = nullable;
+		this.representative = representative;
 		this.type = EvitaDataTypes.toWrappedForm(type);
 		//noinspection unchecked
 		this.plainType = (Class<? extends Serializable>) (this.type.isArray() ? this.type.getComponentType() : this.type);
@@ -397,6 +470,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 				this.sortableInScopes,
 				this.localized,
 				this.nullable,
+				this.representative,
 				ReferencedEntityPredecessor.class,
 				null,
 				this.indexedDecimalPlaces
@@ -412,6 +486,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 				this.sortableInScopes,
 				this.localized,
 				this.nullable,
+				this.representative,
 				Predecessor.class,
 				null,
 				this.indexedDecimalPlaces
@@ -432,6 +507,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits E
 			", sortable=" + (this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + this.sortableInScopes.stream().map(Enum::name).collect(Collectors.joining(", ")) + ")") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
+			", representative=" + this.representative +
 			", type=" + this.type +
 			", indexedDecimalPlaces=" + this.indexedDecimalPlaces +
 			", defaultValue=" + this.defaultValue +

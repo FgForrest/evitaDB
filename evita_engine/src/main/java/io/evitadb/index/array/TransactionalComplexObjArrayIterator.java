@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,12 +97,12 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 
 	@Override
 	public boolean hasNext() {
-		return nextRecord != null;
+		return this.nextRecord != null;
 	}
 
 	@Override
 	public T next() {
-		if (nextRecord == null) {
+		if (this.nextRecord == null) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
 		T recordToReturn = this.nextRecord;
@@ -116,12 +116,12 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 	private T computeNextRecord() {
 		// if we have insertion set already resolved, advance through it
 		if (this.insertion != null) {
-			insertionPosition++;
+			this.insertionPosition++;
 			// return all inserted records except last
-			if (this.insertion.length > insertionPosition + 1) {
-				return this.insertion[insertionPosition];
+			if (this.insertion.length > this.insertionPosition + 1) {
+				return this.insertion[this.insertionPosition];
 			} else {
-				final T lastInsertedRecord = this.insertion[insertionPosition];
+				final T lastInsertedRecord = this.insertion[this.insertionPosition];
 				// if inserted set was exhausted - reset current insertion set to leave this section on next computation
 				this.insertion = null;
 				// get original record at current position
@@ -131,25 +131,25 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 
 				final T recordToReturn;
 				if (insertedRecordMatchesOriginal) {
-					if (combiner != null) {
+					if (this.combiner != null) {
 						// combine both records
 						recordToReturn = originalRecord.makeClone();
-						suppressTransactionalMemoryLayerFor(recordToReturn, it -> combiner.accept(it, lastInsertedRecord));
+						suppressTransactionalMemoryLayerFor(recordToReturn, it -> this.combiner.accept(it, lastInsertedRecord));
 					} else {
 						// return original record - skipping added one
 						recordToReturn = lastInsertedRecord.makeClone();
 					}
 					// look at the removal positions
-					final T removedValue = changes.getRemovalOnPosition(this.position);
+					final T removedValue = this.changes.getRemovalOnPosition(this.position);
 					// if there is none
 					if (removedValue == null) {
 						// return record on specified position in the original array
 						return recordToReturn;
-					} else if (reducer != null && obsoleteChecker != null) {
+					} else if (this.reducer != null && this.obsoleteChecker != null) {
 						// if there are reducers - just reduce scope of the record
-						suppressTransactionalMemoryLayerFor(recordToReturn, it -> reducer.accept(it, removedValue));
+						suppressTransactionalMemoryLayerFor(recordToReturn, it -> this.reducer.accept(it, removedValue));
 						// and if still not obsolete return it
-						if (!obsoleteChecker.test(recordToReturn)) {
+						if (!this.obsoleteChecker.test(recordToReturn)) {
 							return recordToReturn;
 						}
 					} else {
@@ -169,12 +169,12 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 		// advance position of the iterator
 		this.position++;
 
-		if (skipInsertion) {
+		if (this.skipInsertion) {
 			// reset the one-time flag
-			skipInsertion = false;
+			this.skipInsertion = false;
 		} else {
 			// check if there is insertion at this position
-			this.insertion = changes.getInsertionOnPosition(this.position);
+			this.insertion = this.changes.getInsertionOnPosition(this.position);
 			if (this.insertion != null) {
 				// if so - reset index for iteration through inserts and retry
 				this.insertionPosition = -1;
@@ -185,18 +185,18 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 		/* if original array was not completely exhausted */
 		if (this.position < this.original.length) {
 			// check whether there is some removal recorded for this position
-			final T removedValue = changes.getRemovalOnPosition(this.position);
+			final T removedValue = this.changes.getRemovalOnPosition(this.position);
 
 			if (removedValue == null) {
 				// if not return original record at this position
 				return this.original[this.position];
-			} else if (reducer != null) {
+			} else if (this.reducer != null) {
 				// if there is and reducer is present - clone original record at this position
 				final T originalRecordClone = this.original[this.position].makeClone();
 				// reduce the scope
-				suppressTransactionalMemoryLayerFor(originalRecordClone, it -> reducer.accept(it, removedValue));
+				suppressTransactionalMemoryLayerFor(originalRecordClone, it -> this.reducer.accept(it, removedValue));
 				// and if the record is not yet obsolete - return it
-				if (obsoleteChecker != null && !obsoleteChecker.test(originalRecordClone)) {
+				if (this.obsoleteChecker != null && !this.obsoleteChecker.test(originalRecordClone)) {
 					return originalRecordClone;
 				} else {
 					// compute additional record

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ImmutableSerializer;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 
+import javax.annotation.Nullable;
+
 /**
  * This {@link Serializer} implementation reads/writes ReferencedEntityPredecessor type.
  *
@@ -50,6 +52,7 @@ public class ReferencedEntityPredecessorSerializer extends ImmutableSerializer<R
 		}
 	}
 
+	@Nullable
 	@Override
 	public ReferencedEntityPredecessor read (Kryo kryo, Input input, Class<? extends ReferencedEntityPredecessor> type) {
 		if (input.readBoolean()) {

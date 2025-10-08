@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public EntitySchemaBuilder cooperatingWith(@Nonnull Supplier<CatalogSchemaContract> catalogSupplier) {
-		catalogSchemaAccessor = catalogSupplier;
+		this.catalogSchemaAccessor = catalogSupplier;
 		return this;
 	}
 
@@ -381,7 +381,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		@Nullable Consumer<AssociatedDataSchemaEditor> whichIs
 	) {
 		final Optional<AssociatedDataSchemaContract> existingAssociatedData = getAssociatedData(dataName);
-		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
+		final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
 		final Class<? extends Serializable> toBeAssignedType = EvitaDataTypes.isSupportedTypeOrItsArray(ofType) ?
 			EvitaDataTypes.toWrappedForm(ofType) :
 			ComplexDataObject.class;
@@ -394,9 +394,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 							", cannot change this type to: " + ofType + "!"
 					)
 				);
-				return new AssociatedDataSchemaBuilder(catalogSchema, baseSchema, it);
+				return new AssociatedDataSchemaBuilder(catalogSchema, this.baseSchema, it);
 			})
-			.orElseGet(() -> new AssociatedDataSchemaBuilder(catalogSchema, baseSchema, dataName, ofType));
+			.orElseGet(() -> new AssociatedDataSchemaBuilder(catalogSchema, this.baseSchema, dataName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(associatedDataSchemaBuilder));
 		final AssociatedDataSchemaContract associatedDataSchema = associatedDataSchemaBuilder.toInstance();
@@ -461,8 +461,8 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final EntitySchemaContract currentSchema = toInstance();
 		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
 		final ReferenceSchemaBuilder referenceBuilder = new ReferenceSchemaBuilder(
-			catalogSchemaAccessor.get(),
-			baseSchema,
+			this.catalogSchemaAccessor.get(),
+			this.baseSchema,
 			existingReference,
 			name,
 			externalEntityType,
@@ -499,8 +499,8 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final EntitySchemaContract currentSchema = toInstance();
 		final ReferenceSchemaContract existingReference = currentSchema.getReference(name).orElse(null);
 		final ReferenceSchemaBuilder referenceSchemaBuilder = new ReferenceSchemaBuilder(
-			catalogSchemaAccessor.get(),
-			baseSchema,
+			this.catalogSchemaAccessor.get(),
+			this.baseSchema,
 			existingReference,
 			name,
 			entityType,
@@ -508,7 +508,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 			cardinality,
 			this.mutations,
 			this.baseSchema.getReference(name)
-				.map(it -> it instanceof ReflectedReferenceSchemaContract)
+				.map(ReflectedReferenceSchemaContract.class::isInstance)
 				.orElse(true)
 		);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceSchemaBuilder));
@@ -633,7 +633,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		@Nonnull Class<? extends Serializable> ofType,
 		@Nullable Consumer<EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder> whichIs
 	) {
-		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
+		final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
 		catalogSchema.getAttribute(attributeName)
 			.ifPresent(it -> {
 				throw new AttributeAlreadyPresentInCatalogSchemaException(
@@ -644,7 +644,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder attributeSchemaBuilder =
 			existingAttribute
 				.map(it -> {
-					final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder builder = new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(baseSchema, it);
+					final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder builder = new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(this.baseSchema, it);
 					isTrue(
 						ofType.equals(it.getType()),
 						() -> new AttributeAlreadyPresentInEntitySchemaException(
@@ -653,7 +653,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					);
 					return builder;
 				})
-				.orElseGet(() -> new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(baseSchema, attributeName, ofType));
+				.orElseGet(() -> new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(this.baseSchema, attributeName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final EntityAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
@@ -803,7 +803,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public String getName() {
-		return baseSchema.getName();
+		return this.baseSchema.getName();
 	}
 
 	@Nullable
@@ -815,13 +815,13 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Nonnull
 	@Override
 	public Map<NamingConvention, String> getNameVariants() {
-		return baseSchema.getNameVariants();
+		return this.baseSchema.getNameVariants();
 	}
 
 	@Nonnull
 	@Override
 	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
-		return baseSchema.getNameVariant(namingConvention);
+		return this.baseSchema.getNameVariant(namingConvention);
 	}
 
 	@Nonnull
@@ -848,9 +848,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+			for (int i = this.lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
 				final EntitySchemaMutation mutation = this.mutations.get(i);
-				currentSchema = mutation.mutate(catalogSchemaAccessor.get(), currentSchema);
+				currentSchema = mutation.mutate(this.catalogSchemaAccessor.get(), currentSchema);
 				if (currentSchema == null) {
 					throw new GenericEvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}

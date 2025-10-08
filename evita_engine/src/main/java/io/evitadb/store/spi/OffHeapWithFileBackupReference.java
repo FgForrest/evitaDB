@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ public final class OffHeapWithFileBackupReference implements Closeable {
 	 */
 	@Nonnull
 	public Optional<Path> getFilePath() {
-		return Optional.ofNullable(filePath);
+		return Optional.ofNullable(this.filePath);
 	}
 
 	/**
@@ -106,12 +106,12 @@ public final class OffHeapWithFileBackupReference implements Closeable {
 	 */
 	@Nonnull
 	public Optional<ByteBuffer> getBuffer() {
-		return Optional.ofNullable(buffer);
+		return Optional.ofNullable(this.buffer);
 	}
 
 	@Override
 	public void close() {
 		// finalize resources
-		onClose.run();
+		this.onClose.run();
 	}
 }

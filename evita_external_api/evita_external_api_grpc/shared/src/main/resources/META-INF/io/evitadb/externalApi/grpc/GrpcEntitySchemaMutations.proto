@@ -8,6 +8,28 @@ import "GrpcEvitaDataTypes.proto";
 import "GrpcEnums.proto";
 import "google/protobuf/wrappers.proto";
 
+// Mutation is responsible for setting up a new `EntitySchema` - or more precisely the collection within catalog.
+message GrpcCreateEntitySchemaMutation {
+  // Name of newly created entity schema.
+  string entityType = 1;
+}
+
+// Mutation is responsible for renaming an existing `EntitySchema`.
+message GrpcModifyEntitySchemaNameMutation {
+  // Name of the entity schema the mutation is targeting.
+  string name = 1;
+  // New name of the entity schema the mutation is targeting.
+  string newName = 2;
+  // Whether to overwrite entity collection with same name as the `newName` if found.
+  bool overwriteTarget = 3;
+}
+
+// Mutation is responsible for removing an existing `EntitySchema`.
+message GrpcRemoveEntitySchemaMutation {
+  // Name of entity schema to remove.
+  string name = 1;
+}
+
 // Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
 message GrpcAllowCurrencyInEntitySchemaMutation {
   // Set of all currencies that could be used for prices in entities of this type.

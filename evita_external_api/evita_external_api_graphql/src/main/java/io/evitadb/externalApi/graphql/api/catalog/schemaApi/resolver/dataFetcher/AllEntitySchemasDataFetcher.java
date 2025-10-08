@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ public class AllEntitySchemasDataFetcher implements DataFetcher<List<EntitySchem
 
 	@Nonnull
 	@Override
-	public List<EntitySchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public List<EntitySchemaContract> get(DataFetchingEnvironment environment) throws Exception {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
@@ -69,7 +69,7 @@ public class AllEntitySchemasDataFetcher implements DataFetcher<List<EntitySchem
 			.stream()
 			.map(entityType -> requestExecutedEvent.measureInternalEvitaDBExecution(() -> evitaSession.getEntitySchema(entityType))
 				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity schema for type `" + entityType + "`.")))
-			.map(it -> (EntitySchemaContract)it)
+			.map(EntitySchemaContract.class::cast)
 			.toList();
 	}
 }

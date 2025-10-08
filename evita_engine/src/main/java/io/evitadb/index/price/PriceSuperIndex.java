@@ -153,7 +153,7 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 	@Nonnull
 	@Override
 	protected Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> getPriceIndexes() {
-		return priceIndexes;
+		return this.priceIndexes;
 	}
 
 	/**
@@ -163,19 +163,19 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 		private final TransactionalContainerChanges<Void, PriceListAndCurrencyPriceSuperIndex, PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(PriceListAndCurrencyPriceSuperIndex priceIndex) {
-			collectedPriceIndexChanges.addCreatedItem(priceIndex);
+			this.collectedPriceIndexChanges.addCreatedItem(priceIndex);
 		}
 
 		public void addRemovedItem(PriceListAndCurrencyPriceSuperIndex priceIndex) {
-			collectedPriceIndexChanges.addRemovedItem(priceIndex);
+			this.collectedPriceIndexChanges.addRemovedItem(priceIndex);
 		}
 
 		public void clean(TransactionalLayerMaintainer transactionalLayer) {
-			collectedPriceIndexChanges.clean(transactionalLayer);
+			this.collectedPriceIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(TransactionalLayerMaintainer transactionalLayer) {
-			collectedPriceIndexChanges.cleanAll(transactionalLayer);
+			this.collectedPriceIndexChanges.cleanAll(transactionalLayer);
 		}
 	}
 

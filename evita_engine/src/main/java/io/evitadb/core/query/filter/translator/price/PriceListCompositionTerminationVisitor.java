@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
-	private static final Formula[] EMPTY_FORMULA = new Formula[0];
 	/**
 	 * Contains query price mode of the current query.
 	 */
@@ -132,16 +131,16 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 
 	@Override
 	public void visit(@Nonnull Formula formula) {
-		final boolean notProcessedYet = !alreadyProcessedFormulas.contains(formula);
+		final boolean notProcessedYet = !this.alreadyProcessedFormulas.contains(formula);
 		final Formula processedFormula;
 
 		// if formula is not processed - process it
 		if (notProcessedYet) {
 			// mark the formula as visited
-			alreadyProcessedFormulas.add(formula);
+			this.alreadyProcessedFormulas.add(formula);
 			try {
 				// push new level to the stack
-				stack.push(new LinkedList<>());
+				this.stack.push(new LinkedList<>());
 
 				// walk through all inner formulas
 				for (Formula innerFormula : formula.getInnerFormulas()) {
@@ -151,7 +150,7 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 			} finally {
 
 				// extract the level from the stack
-				final Formula[] newInnerFormulas = stack.pop().toArray(EMPTY_FORMULA);
+				final Formula[] newInnerFormulas = this.stack.pop().toArray(Formula.EMPTY_FORMULA_ARRAY);
 				// if there are exactly the same formulas as before
 				if (Arrays.equals(formula.getInnerFormulas(), newInnerFormulas)) {
 					// just produce the input formula
@@ -189,16 +188,16 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 
 			// wrap it into the terminating formula
 			convertedFormula = switch (innerRecordHandling) {
-				case NONE -> priceFilter == null ?
+				case NONE -> this.priceFilter == null ?
 					new PlainPriceTerminationFormula(containerFormula, priceEvaluationContext) :
-					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, priceFilter);
+					new PlainPriceTerminationFormulaWithPriceFilter(containerFormula, priceEvaluationContext, this.priceFilter);
 				case LOWEST_PRICE -> new LowestPriceTerminationFormula(
-					containerFormula, priceEvaluationContext, queryPriceMode,
-					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
+					containerFormula, priceEvaluationContext, this.queryPriceMode,
+					ofNullable(this.priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
 				case SUM -> new SumPriceTerminationFormula(
-					containerFormula, priceEvaluationContext, queryPriceMode,
-					ofNullable(priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
+					containerFormula, priceEvaluationContext, this.queryPriceMode,
+					ofNullable(this.priceFilter).orElse(PricePredicate.ALL_RECORD_FILTER)
 				);
 				case UNKNOWN -> throw new GenericEvitaInternalError("Can't handle unknown price inner record handling!");
 			};
@@ -207,12 +206,12 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 			convertedFormula = processedFormula;
 		}
 
-		if (stack.isEmpty()) {
+		if (this.stack.isEmpty()) {
 			// if stack is empty we have our result
 			this.resultFormula = convertedFormula;
 		} else {
 			// otherwise, add the converted formula to the current level of inner formulas
-			stack.peek().add(convertedFormula);
+			this.stack.peek().add(convertedFormula);
 		}
 
 	}
@@ -221,8 +220,8 @@ public class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	 * Returns altered formula with added price termination formulas in it.
 	 */
 	public Formula getResultFormula() {
-		Assert.notNull(resultFormula, "Result formula was not computed!");
-		return resultFormula;
+		Assert.notNull(this.resultFormula, "Result formula was not computed!");
+		return this.resultFormula;
 	}
 
 }

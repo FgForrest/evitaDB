@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,24 +47,15 @@ class ConstraintDescriptorResolver {
 	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 
 	/**
-	 * Extracts information from constraint and tries to find corresponding descriptor for it.
+	 * Resolves and returns the {@link ConstraintDescriptor} for the given constraint. This method determines
+	 * whether the specified constraint has an associated suffix and retrieves the appropriate descriptor
+	 * accordingly.
+	 *
+	 * @param constraint the constraint object for which the descriptor needs to be resolved; must not be null
+	 * @return the corresponding {@link ConstraintDescriptor} for the provided constraint
 	 */
 	@Nonnull
-	public ParsedConstraintDescriptor resolve(@Nonnull ConstraintToJsonConvertContext convertContext,
-	                                          @Nonnull Constraint<?> constraint) {
-		final ConstraintDescriptor constraintDescriptor = resolveDescriptor(constraint);
-		final Optional<String> classifier = resolveClassifier(constraintDescriptor, constraint);
-		final DataLocator innerDataLocator = resolveInnerDataLocator(convertContext, constraintDescriptor, classifier);
-
-		return new ParsedConstraintDescriptor(
-			classifier.orElse(null),
-			constraintDescriptor,
-			innerDataLocator
-		);
-	}
-
-	@Nonnull
-	private ConstraintDescriptor resolveDescriptor(@Nonnull Constraint<?> constraint) {
+	private static ConstraintDescriptor resolveDescriptor(@Nonnull Constraint<?> constraint) {
 		if (constraint instanceof ConstraintWithSuffix constraintWithSuffix) {
 			//noinspection unchecked
 			return ConstraintDescriptorProvider.getConstraint(
@@ -78,6 +69,23 @@ class ConstraintDescriptorResolver {
 	}
 
 	/**
+	 * Extracts information from constraint and tries to find corresponding descriptor for it.
+	 */
+	@Nonnull
+	public ParsedConstraintDescriptor resolve(@Nonnull ConstraintToJsonConvertContext convertContext,
+	                                          @Nonnull Constraint<?> constraint) {
+		final ConstraintDescriptor constraintDescriptor = resolveDescriptor(constraint);
+		final Optional<String> classifier = resolveClassifier(constraintDescriptor, constraint);
+		final DataLocator innerDataLocator = resolveInnerDataLocator(convertContext, constraintDescriptor, classifier.orElse(null));
+
+		return new ParsedConstraintDescriptor(
+			classifier.orElse(null),
+			constraintDescriptor,
+			innerDataLocator
+		);
+	}
+
+	/**
 	 * Tries to find value of classifier parameter from original constraint.
 	 */
 	@Nonnull
@@ -85,7 +93,7 @@ class ConstraintDescriptorResolver {
 	                                           @Nonnull Constraint<?> constraint) {
 		//noinspection unchecked
 		return constraintDescriptor.creator().classifierParameter()
-			.flatMap(it -> (Optional<String>) parameterValueResolver.resolveParameterValue(constraint, it));
+			.flatMap(it -> (Optional<String>) this.parameterValueResolver.resolveParameterValue(constraint, it));
 	}
 
 	/**
@@ -96,8 +104,8 @@ class ConstraintDescriptorResolver {
 	@Nonnull
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintToJsonConvertContext resolveContext,
 	                                            @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                            @Nonnull Optional<String> classifier) {
-		return dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
+	                                            @Nullable String classifier) {
+		return this.dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
 	}
 
 
@@ -106,5 +114,6 @@ class ConstraintDescriptorResolver {
 	 */
 	public record ParsedConstraintDescriptor(@Nullable String classifier,
 	                                         @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                         @Nonnull DataLocator innerDataLocator) {}
+	                                         @Nonnull DataLocator innerDataLocator) {
+	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -37,6 +38,7 @@ import java.util.function.Predicate;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@NotThreadSafe
 @RequiredArgsConstructor
 public abstract class MutationPredicate implements Predicate<Mutation> {
 	protected final MutationPredicateContext context;
@@ -110,7 +112,7 @@ public abstract class MutationPredicate implements Predicate<Mutation> {
 
 		@Override
 		public boolean test(Mutation mutation) {
-			return former.test(mutation) && other.test(mutation);
+			return this.former.test(mutation) && this.other.test(mutation);
 		}
 	}
 

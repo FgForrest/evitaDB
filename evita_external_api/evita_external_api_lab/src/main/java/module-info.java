@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
  */
 
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.lab.LabProviderRegistrar;
 
 module evita.external.api.lab {
 
@@ -31,7 +30,7 @@ module evita.external.api.lab {
 	opens io.evitadb.externalApi.lab.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.lab.gui.dto to com.fasterxml.jackson.databind;
 
-	provides ExternalApiProviderRegistrar with LabProviderRegistrar;
+	provides ExternalApiProviderRegistrar with io.evitadb.externalApi.lab.LabProviderRegistrar;
 
 	exports io.evitadb.externalApi.lab.configuration;
 	exports io.evitadb.externalApi.lab;

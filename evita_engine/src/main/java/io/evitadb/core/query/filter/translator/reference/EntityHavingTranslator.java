@@ -24,8 +24,11 @@
 package io.evitadb.core.query.filter.translator.reference;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -38,6 +41,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
+import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -45,6 +49,7 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator.EntityPropertyWithScopes;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -60,11 +65,13 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -121,9 +128,22 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 							Collections.singletonList(globalIndex),
 							combinedFilterBy,
 							() -> {
+								final Set<Scope> targetedScopes = EnumSet.noneOf(Scope.class);
+								targetedScopes.addAll(
+									Arrays.asList(
+										ofNullable(
+											QueryUtils.findConstraint(
+												combinedFilterBy, EntityScope.class,
+												SeparateEntityScopeContainer.class
+											)
+										).map(it -> it.getScope().toArray(Scope[]::new))
+											.orElseGet(() -> new Scope[]{globalIndex.getIndexKey().scope()})
+									)
+								);
 								final QueryPlanningContext nestedQueryContext = entityNestedQueryComparator
 									.map(it -> {
 										final Optional<EntityPropertyWithScopes> orderBy = ofNullable(it.getOrderBy());
+										orderBy.ifPresent(ob -> targetedScopes.addAll(ob.scopes()));
 										return targetEntityCollection.createQueryContext(
 											filterByVisitor.getQueryContext(),
 											filterByVisitor.getEvitaRequest().deriveCopyWith(
@@ -131,7 +151,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 												combinedFilterBy,
 												orderBy.map(EntityPropertyWithScopes::createStandaloneOrderBy).orElse(null),
 												it.getLocale(),
-												orderBy.map(EntityPropertyWithScopes::scopes).orElseGet(() -> EnumSet.of(globalIndex.getIndexKey().scope()))
+												targetedScopes
 											),
 											filterByVisitor.getEvitaSession()
 										);
@@ -144,7 +164,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 												combinedFilterBy,
 												null,
 												null,
-												EnumSet.of(globalIndex.getIndexKey().scope())
+												targetedScopes
 											),
 											filterByVisitor.getEvitaSession()
 										)
@@ -163,12 +183,13 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 	@Override
 	public Formula translate(@Nonnull EntityHaving entityHaving, @Nonnull FilterByVisitor filterByVisitor) {
 		final EntitySchemaContract entitySchema = Objects.requireNonNull(filterByVisitor.getProcessingScope().getEntitySchema());
-		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
+		final ReferenceSchemaContract referenceSchema = filterByVisitor
+			.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
-					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
-						"parent constraint that allows to resolve the entity `" +
-						entitySchema.getName() + "` referenced entity type."
-				)
+				             "Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
+					             "parent constraint that allows to resolve the entity `" +
+					             entitySchema.getName() + "` referenced entity type."
+			             )
 			);
 		Assert.isTrue(
 			referenceSchema.isReferencedEntityTypeManaged(),
@@ -192,7 +213,22 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					.stream()
 					.map(nestedResult -> {
 						if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-							return nestedResult.filter();
+							return FormulaFactory.or(
+								processingScope
+									.getIndexStream()
+									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+									.map(ReferencedTypeEntityIndex.class::cast)
+									.map(
+										it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
+										     referenceSchema,
+										     filterByVisitor::getGlobalEntityIndexIfExists,
+										     it,
+										     nestedResult.filter(),
+										     processingScope.getScopes()
+									     )
+									)
+									.toArray(Formula[]::new)
+							);
 						} else {
 							return filterByVisitor.computeOnlyOnce(
 								processingScope.getIndexes(),
@@ -207,7 +243,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 										it -> {
 											// leave the return here, so that we can easily debug it
 											final RoaringBitmap combinedResult = RoaringBitmap.or(
-												filterByVisitor.getReferencedEntityIndex(entitySchema, referenceSchema, it)
+												filterByVisitor.getReferencedEntityIndexes(entitySchema, referenceSchema, it)
 													.map(EntityIndex::getAllPrimaryKeys)
 													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 													.toArray(RoaringBitmap[]::new)

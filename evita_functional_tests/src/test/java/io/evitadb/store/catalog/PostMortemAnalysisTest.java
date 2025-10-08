@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.store.kryo.ObservableInput;
@@ -47,8 +47,9 @@ import io.evitadb.store.offsetIndex.OffsetIndexSerializationService;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.service.KryoFactory;
+import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -124,7 +125,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 
 		try (
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
-				1, catalogName, catalogFilePath, catalogKryoPool,
+				1,
+				catalogName, index -> CatalogPersistenceService.getWalFileName(catalogName, index),
+				catalogFilePath, catalogKryoPool,
 				storageOptions, transactionOptions,
 				new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
 				0
@@ -178,7 +181,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 						catalogName,
 						storageOptions,
 						catalogFilePath,
-						observableOutputKeeper
+						this.observableOutputKeeper
 					),
 					null,
 					null,
@@ -188,7 +191,7 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 						indexBuilder, theInput, it.fileLocation()
 					)
 				);
-				final WalFileReference walRef = catalogHeaderRef.get().walFileReference();
+				final LogFileRecordReference walRef = catalogHeaderRef.get().walFileReference();
 				if (walRef == null) {
 					System.out.println(" -> OK, size " + indexRead.getEntries().size());
 				} else {
@@ -202,7 +205,9 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 		final CatalogHeader catalogHeader = catalogHeaderRef.get();
 		try (
 			final CatalogWriteAheadLog wal = createWalIfAnyWalFilePresent(
-				catalogHeader.version(), catalogName, storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
+				catalogHeader.version(), catalogName,
+				index -> CatalogPersistenceService.getWalFileName(catalogName, index),
+				storageOptions, transactionOptions, new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
 				position -> System.out.println("Trim attempted: " + position),
 				() -> firstActiveCatalogVersion -> System.out.println("Purge attempted: " + firstActiveCatalogVersion),
 				catalogFilePath, catalogKryoPool

@@ -79,11 +79,11 @@ public class DataChunkJsonSerializer {
 	                                                                   @Nonnull Function<I, JsonNode> itemSerializer) {
 		final ObjectNode paginatedListNode = serializeBaseDataChunk(paginatedList, DataChunkType.PAGE, itemSerializer);
 
-		paginatedListNode.put(PaginatedListDescriptor.PAGE_SIZE.name(), paginatedList.getPageSize());
-		paginatedListNode.put(PaginatedListDescriptor.PAGE_NUMBER.name(), paginatedList.getPageNumber());
-		paginatedListNode.put(PaginatedListDescriptor.LAST_PAGE_NUMBER.name(), paginatedList.getLastPageNumber());
-		paginatedListNode.put(PaginatedListDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), paginatedList.getFirstPageItemNumber());
-		paginatedListNode.put(PaginatedListDescriptor.LAST_PAGE_ITEM_NUMBER.name(), paginatedList.getLastPageItemNumber());
+		paginatedListNode.putIfAbsent(PaginatedListDescriptor.PAGE_SIZE.name(), this.objectJsonSerializer.serializeObject(paginatedList.getPageSize()));
+		paginatedListNode.putIfAbsent(PaginatedListDescriptor.PAGE_NUMBER.name(), this.objectJsonSerializer.serializeObject(paginatedList.getPageNumber()));
+		paginatedListNode.putIfAbsent(PaginatedListDescriptor.LAST_PAGE_NUMBER.name(), this.objectJsonSerializer.serializeObject(paginatedList.getLastPageNumber()));
+		paginatedListNode.putIfAbsent(PaginatedListDescriptor.FIRST_PAGE_ITEM_NUMBER.name(), this.objectJsonSerializer.serializeObject(paginatedList.getFirstPageItemNumber()));
+		paginatedListNode.putIfAbsent(PaginatedListDescriptor.LAST_PAGE_ITEM_NUMBER.name(), this.objectJsonSerializer.serializeObject(paginatedList.getLastPageItemNumber()));
 
 		return paginatedListNode;
 	}
@@ -93,8 +93,8 @@ public class DataChunkJsonSerializer {
 	                                                               @Nonnull Function<I, JsonNode> itemSerializer) {
 		final ObjectNode stripListNode = serializeBaseDataChunk(stripList, DataChunkType.STRIP, itemSerializer);
 
-		stripListNode.put(StripListDescriptor.OFFSET.name(), stripList.getOffset());
-		stripListNode.put(StripListDescriptor.LIMIT.name(), stripList.getLimit());
+		stripListNode.putIfAbsent(StripListDescriptor.OFFSET.name(), this.objectJsonSerializer.serializeObject(stripList.getOffset()));
+		stripListNode.putIfAbsent(StripListDescriptor.LIMIT.name(), this.objectJsonSerializer.serializeObject(stripList.getLimit()));
 
 		return stripListNode;
 	}
@@ -103,26 +103,26 @@ public class DataChunkJsonSerializer {
 	private <I extends Serializable> ObjectNode serializeBaseDataChunk(@Nonnull DataChunk<I> dataChunk,
 																	   @Nonnull DataChunkType dataChunkType,
 	                                                                   @Nonnull Function<I, JsonNode> itemSerializer) {
-		final ObjectNode dataChunkNode = objectJsonSerializer.objectNode();
+		final ObjectNode dataChunkNode = this.objectJsonSerializer.objectNode();
 
 		final ArrayNode dataNode = serializeData(dataChunk, itemSerializer);
 
 		dataChunkNode.putIfAbsent(DataChunkDescriptor.DATA.name(), dataNode);
-		dataChunkNode.put("type", dataChunkType.name());
-		dataChunkNode.put(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), dataChunk.getTotalRecordCount());
-		dataChunkNode.put(DataChunkDescriptor.FIRST.name(), dataChunk.isFirst());
-		dataChunkNode.put(DataChunkDescriptor.LAST.name(), dataChunk.isLast());
-		dataChunkNode.put(DataChunkDescriptor.HAS_PREVIOUS.name(), dataChunk.hasPrevious());
-		dataChunkNode.put(DataChunkDescriptor.HAS_NEXT.name(), dataChunk.hasNext());
-		dataChunkNode.put(DataChunkDescriptor.SINGLE_PAGE.name(), dataChunk.isSinglePage());
-		dataChunkNode.put(DataChunkDescriptor.EMPTY.name(), dataChunk.isEmpty());
+		dataChunkNode.putIfAbsent("type", this.objectJsonSerializer.serializeObject(dataChunkType.name()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), this.objectJsonSerializer.serializeObject(dataChunk.getTotalRecordCount()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.FIRST.name(), this.objectJsonSerializer.serializeObject(dataChunk.isFirst()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.LAST.name(), this.objectJsonSerializer.serializeObject(dataChunk.isLast()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.HAS_PREVIOUS.name(), this.objectJsonSerializer.serializeObject(dataChunk.hasPrevious()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.HAS_NEXT.name(), this.objectJsonSerializer.serializeObject(dataChunk.hasNext()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.SINGLE_PAGE.name(), this.objectJsonSerializer.serializeObject(dataChunk.isSinglePage()));
+		dataChunkNode.putIfAbsent(DataChunkDescriptor.EMPTY.name(), this.objectJsonSerializer.serializeObject(dataChunk.isEmpty()));
 
 		return dataChunkNode;
 	}
 
 	@Nonnull
 	private <I extends Serializable> ArrayNode serializeData(@Nonnull DataChunk<I> dataChunk, @Nonnull Function<I, JsonNode> itemSerializer) {
-		final ArrayNode dataNode = objectJsonSerializer.arrayNode();
+		final ArrayNode dataNode = this.objectJsonSerializer.arrayNode();
 		for (I item : dataChunk.getData()) {
 			dataNode.add(itemSerializer.apply(item));
 		}

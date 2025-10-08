@@ -36,7 +36,8 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssocia
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.trafficRecording.*;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -45,9 +46,6 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.Delegate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -64,13 +62,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Delayed;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -99,7 +91,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			.outputBufferSize(2_048)
 			.exportDirectory(this.exportDirectory)
 			.build();
-		final Scheduler scheduler = new Scheduler(new ImmediateExecutorService(1));
+		final Scheduler scheduler = new Scheduler(new ImmediateScheduledThreadPoolExecutor());
 		this.trafficRecorder.init(
 			TEST_CATALOG,
 			new ExportFileService(storageOptions, scheduler),
@@ -890,88 +882,6 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			theThread.start();
 		}
 		return latch;
-	}
-
-	private static class ImmediateExecutorService extends ScheduledThreadPoolExecutor {
-
-		public ImmediateExecutorService(int corePoolSize) {
-			super(corePoolSize);
-		}
-
-		@Nonnull
-		@Override
-		public ScheduledFuture<?> schedule(@Nonnull Runnable command, long delay, @Nonnull TimeUnit unit) {
-			if (delay > 0) {
-				return super.schedule(command, delay, unit);
-			} else {
-				command.run();
-				return new TestScheduledFuture<>(CompletableFuture.completedFuture(null));
-			}
-		}
-
-		@Nonnull
-		@Override
-		public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
-			if (delay > 0) {
-				return super.schedule(callable, delay, unit);
-			} else {
-				try {
-					final V result = callable.call();
-					return new TestScheduledFuture<>(CompletableFuture.completedFuture(result));
-				} catch (Exception e) {
-					throw new RuntimeException(e);
-				}
-			}
-		}
-
-		@Override
-		public void execute(@Nonnull Runnable command) {
-			command.run();
-		}
-
-		@Nonnull
-		@Override
-		public Future<?> submit(@Nonnull Runnable task) {
-			task.run();
-			return CompletableFuture.completedFuture(null);
-		}
-
-		@Nonnull
-		@Override
-		public <T> Future<T> submit(@Nonnull Runnable task, T result) {
-			task.run();
-			return CompletableFuture.completedFuture(result);
-		}
-
-		@Nonnull
-		@Override
-		public <T> Future<T> submit(@Nonnull Callable<T> task) {
-			final T result;
-			try {
-				result = task.call();
-				return CompletableFuture.completedFuture(result);
-			} catch (Exception e) {
-				return CompletableFuture.failedFuture(e);
-			}
-		}
-
-		@RequiredArgsConstructor
-		@EqualsAndHashCode
-		private static class TestScheduledFuture<T> implements ScheduledFuture<T> {
-			@Delegate
-			private final CompletableFuture<T> future;
-
-			@Override
-			public long getDelay(@Nonnull TimeUnit delay) {
-				return Long.MIN_VALUE;
-			}
-
-			@Override
-			public int compareTo(@Nonnull Delayed o) {
-				throw new UnsupportedOperationException();
-			}
-
-		}
 	}
 
 	private record TrafficRecordId(

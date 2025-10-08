@@ -51,22 +51,21 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.AssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationFactory;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import lombok.Data;
@@ -100,7 +99,7 @@ class RestEntityMutationConverterTest {
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String REFERENCE_TAGS = "tags";
 
-	private RestEntityUpsertMutationConverter converter;
+	private RestEntityUpsertMutationFactory converter;
 
 	@BeforeEach
 	void init() {
@@ -115,7 +114,7 @@ class RestEntityMutationConverterTest {
 			.withPrice()
 			.withReferenceTo(REFERENCE_TAGS, "tag", Cardinality.ZERO_OR_MORE)
 			.toInstance();
-		converter = new RestEntityUpsertMutationConverter(new ObjectMapper(), entitySchema);
+		this.converter = new RestEntityUpsertMutationFactory(new ObjectMapper(), entitySchema);
 	}
 
 	@Test
@@ -123,26 +122,26 @@ class RestEntityMutationConverterTest {
 		final ArrayNode inputLocalMutations = jsonArray(
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), jsonObject()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.name(), jsonObject()
-					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), jsonObject()
 						.e("s", "String")))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "0.5"))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone"))
 				.build(),
 			jsonObject()
@@ -158,15 +157,15 @@ class RestEntityMutationConverterTest {
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.name(), jsonObject()
-					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-					.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceMutationDescriptor.CURRENCY.name(), "CZK"))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.name(), jsonObject()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), "CZK")
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
@@ -174,39 +173,39 @@ class RestEntityMutationConverterTest {
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), jsonObject()
-					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
 					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag"))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.name(), jsonObject()
-					.e(RemoveReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.name(), jsonObject()
-					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.name(), jsonObject()
-					.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1))
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), jsonObject()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), jsonObject()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
 				.build()
 		);
 
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.createFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -236,18 +235,18 @@ class RestEntityMutationConverterTest {
 		final ArrayNode inputLocalMutations = jsonArray(
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), jsonObject()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
 				.e(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.name(), jsonObject()
-					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), jsonObject()
 						.e("s", "String")))
 				.e(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "0.5"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))
 				.e(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
+					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.name(), true)
 				.e(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.name(), jsonObject()
@@ -255,42 +254,42 @@ class RestEntityMutationConverterTest {
 				.e(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), jsonObject()
 					.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.name(), jsonObject()
-					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-					.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK"))
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceMutationDescriptor.CURRENCY.name(), "CZK"))
 				.e(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.name(), jsonObject()
-					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
-					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), "CZK")
+					.e(PriceMutationDescriptor.PRICE_ID.name(), 1)
+					.e(PriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceMutationDescriptor.CURRENCY.name(), "CZK")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
 					.e(UpsertPriceMutationDescriptor.INDEXED.name(), false))
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), jsonObject()
-					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
 					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.name(), jsonObject()
-					.e(RemoveReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.e(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.name(), jsonObject()
-					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2))
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.name(), jsonObject()
-					.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1))
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.e(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.name(), jsonObject()
-					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
+					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
+					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), jsonObject()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), jsonObject()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
+							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.createFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -320,15 +319,15 @@ class RestEntityMutationConverterTest {
 		final ArrayNode inputLocalMutations = jsonArray(
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), jsonObject()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
 				.build(),
 			jsonObject()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), jsonObject()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_FILES))
+					.e(AssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_FILES))
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = this.converter.createFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();

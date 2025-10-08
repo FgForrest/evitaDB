@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
@@ -67,7 +68,6 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();
-
     EndpointDescriptor UPDATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("update*schema")
         .urlPathItem("schema")
@@ -76,4 +76,5 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();
+
 }

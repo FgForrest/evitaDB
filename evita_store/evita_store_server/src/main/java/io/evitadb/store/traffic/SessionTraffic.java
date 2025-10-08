@@ -546,7 +546,7 @@ public class SessionTraffic implements Closeable {
 		 */
 		@Nonnull
 		public Label[] getLabels() {
-			return labels.toArray(Label[]::new);
+			return this.labels.toArray(Label[]::new);
 		}
 	}
 

@@ -1,0 +1,44 @@
+###
+WEBSOCKET ws://localhost:5555/gql/system
+Origin: http://localhost:5555
+Sec-WebSocket-Protocol: graphql-transport-ws
+
+{
+  "type": "connection_init"
+}
+
+###
+WEBSOCKET ws://localhost:5555/gql/testCatalog/schema
+Origin: http://localhost:5555
+Sec-WebSocket-Protocol: graphql-transport-ws
+
+{
+  "type": "connection_init"
+}
+
+###
+GRAPHQL http://localhost:5555/gql/evita
+
+{
+  listProduct{ primaryKey }
+}
+
+###
+GET http://localhost:5555/gql/system
+
+###
+WEBSOCKET ws://localhost:5555/gql/evita
+Origin: http://localhost:5555
+
+{
+  listProduct{ primaryKey }
+}
+
+###
+WEBSOCKET ws://localhost:5555/rest/system/change-captures
+Origin: http://localhost:5555
+Sec-WebSocket-Protocol: rest-transport-ws
+
+{
+    "type": "connection_init"
+}

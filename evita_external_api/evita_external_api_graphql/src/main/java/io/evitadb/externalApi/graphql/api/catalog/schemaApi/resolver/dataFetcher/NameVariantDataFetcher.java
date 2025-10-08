@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Returns single specified name variant.
@@ -44,8 +45,8 @@ public class NameVariantDataFetcher implements DataFetcher<String> {
 
 	@Nonnull
 	@Override
-	public String get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final Map<NamingConvention, String> variants = environment.getSource();
-		return variants.get(variantName);
+	public String get(DataFetchingEnvironment environment) throws Exception {
+		final Map<NamingConvention, String> variants = Objects.requireNonNull(environment.getSource());
+		return variants.get(this.variantName);
 	}
 }

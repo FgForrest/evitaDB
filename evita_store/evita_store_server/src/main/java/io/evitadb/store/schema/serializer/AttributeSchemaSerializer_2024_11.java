@@ -81,7 +81,7 @@ public class AttributeSchemaSerializer_2024_11 extends Serializer<AttributeSchem
 			},
 			(filterable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
-			localized, nullable,
+			localized, nullable, false,
 			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}

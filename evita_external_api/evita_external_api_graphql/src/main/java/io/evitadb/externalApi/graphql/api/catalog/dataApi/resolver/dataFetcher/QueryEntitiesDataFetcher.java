@@ -53,7 +53,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.FilterByAwareFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HeadAwareFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OrderByAwareFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RequireAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
@@ -225,7 +228,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
 		final Head userHeadConstraints = (Head) this.headConstraintResolver.resolve(
 			this.entitySchema.getName(),
-			QueryEntitiesHeaderDescriptor.HEAD.name(),
+			HeadAwareFieldHeaderDescriptor.HEAD.name(),
 			arguments.head()
 		);
 		if (userHeadConstraints != null) {
@@ -242,7 +245,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		}
 		return (FilterBy) this.filterConstraintResolver.resolve(
 			this.entitySchema.getName(),
-			QueryEntitiesHeaderDescriptor.FILTER_BY.name(),
+			FilterByAwareFieldHeaderDescriptor.FILTER_BY.name(),
 			arguments.filterBy()
 		);
 	}
@@ -254,7 +257,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		}
 		return (OrderBy) this.orderConstraintResolver.resolve(
 			this.entitySchema.getName(),
-			QueryEntitiesHeaderDescriptor.ORDER_BY.name(),
+			OrderByAwareFieldHeaderDescriptor.ORDER_BY.name(),
 			arguments.orderBy()
 		);
 	}
@@ -269,7 +272,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (arguments.require() != null) {
 			final Require explicitRequire = (Require) this.requireConstraintResolver.resolve(
 				this.entitySchema.getName(),
-				QueryEntitiesHeaderDescriptor.REQUIRE.name(),
+				RequireAwareFieldHeaderDescriptor.REQUIRE.name(),
 				arguments.require()
 			);
 			if (explicitRequire != null) {
@@ -338,25 +341,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			.map(EntityLocaleEquals::getLocale)
 			.orElse(null);
 
-		final Currency desiredPriceInCurrency = Optional.ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
-			.map(PriceInCurrency::getCurrency)
-			.orElse(null);
-
-		final Optional<PriceValidIn> priceValidInConstraint = Optional.ofNullable(QueryUtils.findFilter(query, PriceValidIn.class));
-		final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
-			.map(it -> it.getTheMoment(() -> OffsetDateTime.MIN))
-			.orElse(null);
-
-		final String[] desiredPriceInPriceLists = Optional.ofNullable(QueryUtils.findFilter(query, PriceInPriceLists.class))
-			.map(PriceInPriceLists::getPriceLists)
-			.orElse(null);
-
 		return new EntityQueryContext(
-			desiredLocale,
-			desiredPriceInCurrency,
-			desiredPriceInPriceLists,
-			desiredPriceValidIn == OffsetDateTime.MIN ? null : desiredPriceValidIn,
-			desiredPriceValidIn == OffsetDateTime.MIN
+			desiredLocale
 		);
 	}
 
@@ -369,10 +355,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	                         @Nullable Object require) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
-			final Object head = environment.getArgument(QueryEntitiesHeaderDescriptor.HEAD.name());
-			final Object filterBy = environment.getArgument(QueryEntitiesHeaderDescriptor.FILTER_BY.name());
-			final Object orderBy = environment.getArgument(QueryEntitiesHeaderDescriptor.ORDER_BY.name());
-			final Object require = environment.getArgument(QueryEntitiesHeaderDescriptor.REQUIRE.name());
+			final Object head = environment.getArgument(HeadAwareFieldHeaderDescriptor.HEAD.name());
+			final Object filterBy = environment.getArgument(FilterByAwareFieldHeaderDescriptor.FILTER_BY.name());
+			final Object orderBy = environment.getArgument(OrderByAwareFieldHeaderDescriptor.ORDER_BY.name());
+			final Object require = environment.getArgument(RequireAwareFieldHeaderDescriptor.REQUIRE.name());
 
 			return new Arguments(head, filterBy, orderBy, require);
 		}

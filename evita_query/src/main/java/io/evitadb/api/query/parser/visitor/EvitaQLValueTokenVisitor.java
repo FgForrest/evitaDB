@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -176,29 +176,29 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
 
 
     @Override
-    public Value visitPositionalParameterVariadicValueTokens(@Nonnull PositionalParameterVariadicValueTokensContext ctx) {
+    public Value visitPositionalParameterVariadicValueTokens(PositionalParameterVariadicValueTokensContext ctx) {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.positionalParameter().accept(parameterVisitor);
+                final Object argument = ctx.positionalParameter().accept(this.parameterVisitor);
                 return parseVariadicArguments(ctx, argument);
             }
         );
     }
 
     @Override
-    public Value visitNamedParameterVariadicValueTokens(@Nonnull NamedParameterVariadicValueTokensContext ctx) {
+    public Value visitNamedParameterVariadicValueTokens(NamedParameterVariadicValueTokensContext ctx) {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.namedParameter().accept(parameterVisitor);
+                final Object argument = ctx.namedParameter().accept(this.parameterVisitor);
                 return parseVariadicArguments(ctx, argument);
             }
         );
     }
 
     @Override
-    public Value visitExplicitVariadicValueTokens(@Nonnull ExplicitVariadicValueTokensContext ctx) {
+    public Value visitExplicitVariadicValueTokens(ExplicitVariadicValueTokensContext ctx) {
         return parse(
             ctx,
             () -> new Value(
@@ -211,11 +211,11 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitPositionalParameterValueToken(@Nonnull PositionalParameterValueTokenContext ctx) {
+    public Value visitPositionalParameterValueToken(PositionalParameterValueTokenContext ctx) {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.positionalParameter().accept(parameterVisitor);
+                final Object argument = ctx.positionalParameter().accept(this.parameterVisitor);
                 assertDataTypeIsAllowed(ctx, argument.getClass());
                 return new Value(argument);
             }
@@ -223,11 +223,11 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitNamedParameterValueToken(@Nonnull NamedParameterValueTokenContext ctx) {
+    public Value visitNamedParameterValueToken(NamedParameterValueTokenContext ctx) {
         return parse(
             ctx,
             () -> {
-                final Object argument = ctx.namedParameter().accept(parameterVisitor);
+                final Object argument = ctx.namedParameter().accept(this.parameterVisitor);
                 assertDataTypeIsAllowed(ctx, argument.getClass());
                 return new Value(argument);
             }
@@ -235,7 +235,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitIntValueToken(@Nonnull IntValueTokenContext ctx) {
+    public Value visitIntValueToken(IntValueTokenContext ctx) {
         return parse(
             ctx,
             Long.class,
@@ -244,7 +244,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitStringValueToken(@Nonnull StringValueTokenContext ctx) {
+    public Value visitStringValueToken(StringValueTokenContext ctx) {
         return parse(
             ctx,
             String.class,
@@ -253,7 +253,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitFloatValueToken(@Nonnull FloatValueTokenContext ctx) {
+    public Value visitFloatValueToken(FloatValueTokenContext ctx) {
         return parse(
             ctx,
             BigDecimal.class,
@@ -262,7 +262,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitBooleanValueToken(@Nonnull BooleanValueTokenContext ctx) {
+    public Value visitBooleanValueToken(BooleanValueTokenContext ctx) {
         return parse(
             ctx,
             Boolean.class,
@@ -271,7 +271,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitDateValueToken(@Nonnull DateValueTokenContext ctx) {
+    public Value visitDateValueToken(DateValueTokenContext ctx) {
         return parse(
             ctx,
             LocalDate.class,
@@ -280,7 +280,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitTimeValueToken(@Nonnull TimeValueTokenContext ctx) {
+    public Value visitTimeValueToken(TimeValueTokenContext ctx) {
         return parse(
             ctx,
             LocalTime.class,
@@ -297,7 +297,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitDateTimeValueToken(@Nonnull DateTimeValueTokenContext ctx) {
+    public Value visitDateTimeValueToken(DateTimeValueTokenContext ctx) {
         return parse(
             ctx,
             LocalDateTime.class,
@@ -314,7 +314,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitOffsetDateTimeValueToken(@Nonnull OffsetDateTimeValueTokenContext ctx) {
+    public Value visitOffsetDateTimeValueToken(OffsetDateTimeValueTokenContext ctx) {
         return parse(
             ctx,
             OffsetDateTime.class,
@@ -331,7 +331,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitEnumValueToken(@Nonnull EnumValueTokenContext ctx) {
+    public Value visitEnumValueToken(EnumValueTokenContext ctx) {
         assertLiteralIsAllowed(ctx);
         assertSubclassOfDataTypeIsAllowed(ctx, Enum.class);
 
@@ -341,7 +341,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitFloatNumberRangeValueToken(@Nonnull FloatNumberRangeValueTokenContext ctx) {
+    public Value visitFloatNumberRangeValueToken(FloatNumberRangeValueTokenContext ctx) {
         return parse(
             ctx,
             BigDecimalNumberRange.class,
@@ -350,7 +350,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitIntNumberRangeValueToken(@Nonnull IntNumberRangeValueTokenContext ctx) {
+    public Value visitIntNumberRangeValueToken(IntNumberRangeValueTokenContext ctx) {
         return parse(
             ctx,
             LongNumberRange.class,
@@ -359,7 +359,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitDateTimeRangeValueToken(@Nonnull DateTimeRangeValueTokenContext ctx) {
+    public Value visitDateTimeRangeValueToken(DateTimeRangeValueTokenContext ctx) {
         return parse(
             ctx,
             DateTimeRange.class,
@@ -368,7 +368,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     }
 
     @Override
-    public Value visitUuidValueToken(@Nonnull UuidValueTokenContext ctx) {
+    public Value visitUuidValueToken(UuidValueTokenContext ctx) {
         return parse(
             ctx,
             UUID.class,
@@ -411,7 +411,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
      * @param dataType data type to check
      */
     protected void assertDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
-        if ((allowedDataTypes != null) && allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
+        if ((this.allowedDataTypes != null) && this.allowedDataTypes.stream().anyMatch(type -> type.isAssignableFrom(dataType))) {
             return;
         }
 
@@ -432,7 +432,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
      * @param dataType data type to check
      */
     protected void assertSubclassOfDataTypeIsAllowed(@Nonnull ParserRuleContext ctx, @Nonnull Class<?> dataType) {
-        if ((allowedDataTypes != null) && allowedDataTypes.stream().anyMatch(dataType::isAssignableFrom)) {
+        if ((this.allowedDataTypes != null) && this.allowedDataTypes.stream().anyMatch(dataType::isAssignableFrom)) {
             return;
         }
 

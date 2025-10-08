@@ -163,8 +163,14 @@ PUT /rest/evita/schema
               "name": "categories",
               "referencedEntityType": "Category",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
-              "indexedInScopes": ["LIVE"]
+              "indexedInScopes": [
+                {
+                  "scope": "LIVE",
+                  "indexType": "FOR_FILTERING"
+                }
+              ]
             }
           },
           {
@@ -185,8 +191,14 @@ PUT /rest/evita/schema
               "name": "brand",
               "referencedEntityType": "Brand",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_ONE",
-              "indexedInScopes": ["LIVE"],
+              "indexedInScopes": [
+                {
+                  "scope": "LIVE",
+                  "indexType": "FOR_FILTERING"
+                }
+              ],
               "facetedInScopes": ["LIVE"]
             }
           },
@@ -196,8 +208,14 @@ PUT /rest/evita/schema
               "name": "stock",
               "referencedEntityType": "Stock",
               "referencedEntityTypeManaged": true,
+              "referencedGroupTypeManaged": false,
               "cardinality": "ZERO_OR_MORE",
-              "indexedInScopes": ["LIVE"],
+              "indexedInScopes": [
+                {
+                  "scope": "LIVE",
+                  "indexType": "FOR_FILTERING"
+                }
+              ],
               "facetedInScopes": ["LIVE"]
             }
           }

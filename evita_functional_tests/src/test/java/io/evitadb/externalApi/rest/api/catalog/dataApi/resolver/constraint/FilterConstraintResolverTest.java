@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,14 +54,14 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new FilterConstraintResolver(catalogSchema);
+		this.resolver = new FilterConstraintResolver(this.catalogSchema);
 	}
 
 	@Test
 	void shouldResolveValueFilterConstraint() {
 		assertEquals(
 			attributeEquals("CODE", "123"),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeCodeEquals",
 				"123"
@@ -71,8 +71,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueFilterConstraint() {
-		assertThrows(UnsupportedDataTypeException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", List.of()));
-		assertThrows(UnsupportedDataTypeException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", Map.of()));
+		assertThrows(UnsupportedDataTypeException.class, () -> this.resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", List.of()));
+		assertThrows(UnsupportedDataTypeException.class, () -> this.resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", Map.of()));
 	}
 
 	@Test
@@ -86,7 +86,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 					attributeIs("AGE", AttributeSpecialValue.NULL)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"and",
 				List.of(
@@ -99,8 +99,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveChildFilterConstraint() {
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "and", "abc"));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "and", Map.of()));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "and", "abc"));
+		assertThrows(EvitaInternalError.class, () -> this.resolver.resolve(Entities.PRODUCT, "and", Map.of()));
 	}
 
 	@Test
@@ -113,7 +113,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				),
 				directRelation()
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"hierarchyCategoryWithin",
 				map()
@@ -132,7 +132,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 					entityPrimaryKeyInSet(1)
 				)
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"hierarchyCategoryWithin",
 				map()
@@ -151,7 +151,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				1,
 				2
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
 				List.of(1, 2)
@@ -164,7 +164,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				null,
 				2
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
 				Arrays.asList(null, 2)
@@ -177,7 +177,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				1,
 				null
 			),
-			resolver.resolve(
+			this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
 				Arrays.asList(1, null)
@@ -189,7 +189,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	void shouldNotResolveFilterConstraintWithArgumentsResultingInRange() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> resolver.resolve(
+			() -> this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
 				List.of(1)
@@ -198,7 +198,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 		assertThrows(
 			EvitaInternalError.class,
-			() -> resolver.resolve(
+			() -> this.resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
 				map()
@@ -240,7 +240,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			QueryPurifierVisitor.purify(
-				resolver.resolve(
+				this.resolver.resolve(
 					Entities.PRODUCT,
 					"filterBy",
 					map()
@@ -303,7 +303,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			QueryPurifierVisitor.purify(
-				resolver.resolve(
+				this.resolver.resolve(
 					Entities.PRODUCT,
 					"filterBy",
 					map()

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,31 +101,31 @@ public abstract class ClientPageReadState extends ClientDataFullDatabaseState
 		final Set<RequireConstraint> requirements = new HashSet<>();
 		final Set<EntityContentRequire> contentRequirements = new HashSet<>();
 		/* 75% times fetch attributes */
-		if (random.nextInt(4) != 0) {
+		if (this.random.nextInt(4) != 0) {
 			contentRequirements.add(attributeContent());
 		}
 		/* 75% times fetch associated data */
-		if (random.nextInt(4) != 0) {
+		if (this.random.nextInt(4) != 0) {
 			contentRequirements.add(
 				associatedDataContent(
 					this.productSchema
 						.getAssociatedData()
 						.keySet()
 						.stream()
-						.filter(it -> random.nextInt(4) != 0)
+						.filter(it -> this.random.nextInt(4) != 0)
 						.toArray(String[]::new)
 				)
 			);
 		}
 		/* 50% times fetch prices */
 		final FilterConstraint priceConstraint;
-		if (random.nextBoolean()) {
+		if (this.random.nextBoolean()) {
 			priceConstraint = createRandomPriceFilterBy(
-				random, priceStatistics, productSchema.getIndexedPricePlaces()
+				this.random, this.priceStatistics, this.productSchema.getIndexedPricePlaces()
 			);
 
 			/* 75% only filtered prices */
-			if (random.nextInt(4) != 0) {
+			if (this.random.nextInt(4) != 0) {
 				contentRequirements.add(priceContentRespectingFilter());
 			} else {
 				contentRequirements.add(priceContentAll());
@@ -135,16 +135,16 @@ public abstract class ClientPageReadState extends ClientDataFullDatabaseState
 		}
 
 		/* 25% times load references */
-		if (random.nextInt(4) == 0) {
+		if (this.random.nextInt(4) == 0) {
 			/* 50% times load all references */
-			if (random.nextBoolean()) {
+			if (this.random.nextBoolean()) {
 				contentRequirements.add(referenceContentAll());
 			} else {
 				/* 50% select only some of them */
 				contentRequirements.add(
 					referenceContent(
 						Stream.of(BRAND_ENTITY_TYPE, CATEGORY_ENTITY_TYPE, GROUP_ENTITY_TYPE)
-							.filter(it -> random.nextBoolean())
+							.filter(it -> this.random.nextBoolean())
 							.toArray(String[]::new)
 					)
 				);
@@ -154,26 +154,26 @@ public abstract class ClientPageReadState extends ClientDataFullDatabaseState
 		final Locale randomExistingLocale = this.productSchema
 			.getLocales()
 			.stream()
-			.skip(random.nextInt(this.productSchema.getLocales().size()))
+			.skip(this.random.nextInt(this.productSchema.getLocales().size()))
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("No locales found!"));
 
 		requirements.add(
-			page(random.nextInt(5) + 1, 20)
+			page(this.random.nextInt(5) + 1, 20)
 		);
 		requirements.add(
 			entityFetch(contentRequirements.toArray(EntityContentRequire[]::new))
 		);
 
-		final List<Integer> productIds = generatedEntities.get(PRODUCT_ENTITY_TYPE);
+		final List<Integer> productIds = this.generatedEntities.get(PRODUCT_ENTITY_TYPE);
 		this.query = Query.query(
 			collection(PRODUCT_ENTITY_TYPE),
 			filterBy(
 				and(
 					entityPrimaryKeyInSet(
 						Stream.iterate(
-							productIds.get(random.nextInt(productIds.size())),
-							aLong -> productIds.get(random.nextInt(productIds.size()))
+							productIds.get(this.random.nextInt(productIds.size())),
+							aLong -> productIds.get(this.random.nextInt(productIds.size()))
 						)
 							.limit(100)
 							.toArray(Integer[]::new)
@@ -190,7 +190,7 @@ public abstract class ClientPageReadState extends ClientDataFullDatabaseState
 
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
-		entity.getPrices().forEach(it -> this.priceStatistics.updateValue(it, random));
+		entity.getPrices().forEach(it -> this.priceStatistics.updateValue(it, this.random));
 	}
 
 }

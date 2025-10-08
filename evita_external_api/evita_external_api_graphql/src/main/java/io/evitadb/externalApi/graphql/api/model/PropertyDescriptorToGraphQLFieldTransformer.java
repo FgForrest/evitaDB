@@ -55,7 +55,7 @@ public class PropertyDescriptorToGraphQLFieldTransformer implements PropertyDesc
 	}
 
 	@Override
-	public GraphQLFieldDefinition.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public GraphQLFieldDefinition.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()
 			.description(propertyDescriptor.description());
 		Assert.isPremiseValid(
@@ -71,12 +71,12 @@ public class PropertyDescriptorToGraphQLFieldTransformer implements PropertyDesc
 		}
 
 		if (propertyDescriptor.type() != null) {
-			final GraphQLOutputType graphQLType = (GraphQLOutputType) propertyDataTypeTransformer.apply(propertyDescriptor.type());
+			final GraphQLOutputType graphQLType = (GraphQLOutputType) this.propertyDataTypeTransformer.apply(propertyDescriptor.type());
 			fieldBuilder.type(graphQLType);
 		}
 
-		if (fieldDecorator != null) {
-			fieldDecorator.accept(fieldBuilder);
+		if (this.fieldDecorator != null) {
+			this.fieldDecorator.accept(fieldBuilder);
 		}
 
 		return fieldBuilder;
@@ -84,6 +84,6 @@ public class PropertyDescriptorToGraphQLFieldTransformer implements PropertyDesc
 
 	@Nonnull
 	public PropertyDescriptorToGraphQLFieldTransformer with(@Nonnull FieldDecorator decorator) {
-		return new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeTransformer, decorator);
+		return new PropertyDescriptorToGraphQLFieldTransformer(this.propertyDataTypeTransformer, decorator);
 	}
 }

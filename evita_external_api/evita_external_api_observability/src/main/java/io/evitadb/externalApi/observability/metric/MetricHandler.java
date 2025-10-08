@@ -31,10 +31,9 @@ import io.evitadb.api.observability.annotation.ExportMetric;
 import io.evitadb.api.observability.annotation.ExportMetricLabel;
 import io.evitadb.api.observability.annotation.HistogramSettings;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
-import io.evitadb.core.async.ClientRunnableTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.ClientInfiniteCallableTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.externalApi.observability.configuration.ObservabilityOptions;
 import io.evitadb.function.ChainableConsumer;
@@ -368,7 +367,7 @@ public class MetricHandler {
 	 * Registers JVM metrics based on the configuration.
 	 */
 	private void registerJvmMetrics() {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+		final List<String> allowedEventsFromConfig = this.observabilityConfig.getAllowedEvents();
 
 		if (allowedEventsFromConfig != null && allowedEventsFromConfig.stream().noneMatch(DEFAULT_JVM_METRICS_NAME::equals)) {
 			allowedEventsFromConfig
@@ -389,7 +388,7 @@ public class MetricHandler {
 	 */
 	@Nonnull
 	private Set<Class<? extends CustomMetricsExecutionEvent>> getAllowedEventSet() {
-		final List<String> allowedEventsFromConfig = observabilityConfig.getAllowedEvents();
+		final List<String> allowedEventsFromConfig = this.observabilityConfig.getAllowedEvents();
 		final Set<Class<? extends CustomMetricsExecutionEvent>> knownEvents = EvitaJfrEventRegistry.getEventClasses();
 
 		final Set<String> configuredEvents = new HashSet<>(16);
@@ -417,7 +416,7 @@ public class MetricHandler {
 	/**
 	 * Task that listens for JFR events and transforms them into Prometheus metrics.
 	 */
-	private static class MetricTask extends ClientRunnableTask<Void> implements Task<Void, Void> {
+	private static class MetricTask extends ClientInfiniteCallableTask<Void, Void> {
 		private final AtomicReference<RecordingStream> recordingStream = new AtomicReference<>();
 		@Getter private final CompletableFuture<Boolean> initialized = new CompletableFuture<>();
 
@@ -567,13 +566,20 @@ public class MetricHandler {
 						((MetricTask) theTask).initialized.complete(true);
 						recordingStream.start();
 					}
+
+					return null;
 				}
 			);
 		}
 
 		@Override
-		public boolean cancel() {
+		protected void stopInternal() {
 			this.recordingStream.get().close();
+		}
+
+		@Override
+		public boolean cancel() {
+			stopInternal();
 			return super.cancel();
 		}
 

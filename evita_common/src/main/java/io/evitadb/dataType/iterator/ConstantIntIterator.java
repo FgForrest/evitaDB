@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,21 +40,21 @@ public class ConstantIntIterator implements OfInt {
 	public ConstantIntIterator(int[] constant) {
 		this.constant = constant;
 		if (this.constant.length > 0) {
-			this.nextNumberToReturn = this.constant[++index];
+			this.nextNumberToReturn = this.constant[++this.index];
 		}
 	}
 
 	@Override
 	public int nextInt() {
-		if (nextNumberToReturn == END_OF_STREAM) {
+		if (this.nextNumberToReturn == END_OF_STREAM) {
 			throw new NoSuchElementException("Stream exhausted!");
 		}
 		final int numberToReturn = this.nextNumberToReturn;
-		final int nextIndex = index + 1;
-		if (nextIndex < constant.length) {
-			this.nextNumberToReturn = this.constant[++index];
+		final int nextIndex = this.index + 1;
+		if (nextIndex < this.constant.length) {
+			this.nextNumberToReturn = this.constant[++this.index];
 		} else {
-			index++;
+			this.index++;
 			this.nextNumberToReturn = END_OF_STREAM;
 		}
 		return numberToReturn;
@@ -62,7 +62,7 @@ public class ConstantIntIterator implements OfInt {
 
 	@Override
 	public boolean hasNext() {
-		return nextNumberToReturn != END_OF_STREAM;
+		return this.nextNumberToReturn != END_OF_STREAM;
 	}
 
 }

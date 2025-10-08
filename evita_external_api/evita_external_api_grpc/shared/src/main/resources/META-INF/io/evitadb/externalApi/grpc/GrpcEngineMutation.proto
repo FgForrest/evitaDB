@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+import "GrpcCatalogSchemaMutation.proto";
+import "GrpcEvitaDataTypes.proto";
+import "GrpcInfrastrutureMutation.proto";
+
+// Mutation is responsible for setting up a new CatalogSchema.
+message GrpcCreateCatalogSchemaMutation {
+  // Name of newly created catalog schema.
+  string catalogName = 1;
+}
+
+// Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+message GrpcRestoreCatalogSchemaMutation {
+  // Name of catalog schema to restore.
+  string catalogName = 1;
+}
+
+// Mutation is responsible for renaming an existing CatalogSchema.
+message GrpcModifyCatalogSchemaNameMutation {
+  // Name of the catalog schema the mutation is targeting (will rename).
+  string catalogName = 1;
+  // The new name of the catalog schema.
+  string newCatalogName = 2;
+  // Flag indicating whether to replace the existing catalog or just to rename it.
+  bool overwriteTarget = 3;
+}
+
+// Mutation is responsible for altering an existing CatalogSchema.
+message GrpcModifyCatalogSchemaMutation {
+  // Name of the catalog schema the mutation is targeting (will rename).
+  string catalogName = 1;
+  // Collection of schema mutations that should be applied on current version of the catalog schema.
+  repeated GrpcLocalCatalogSchemaMutation schemaMutations = 2;
+}
+
+// Mutation that transitions a catalog to the "live" state, making it transactional.
+message GrpcMakeCatalogAliveMutation {
+  // Name of the catalog schema the mutation is targeting (will rename).
+  string catalogName = 1;
+}
+
+// Mutation is responsible for removing an existing CatalogSchema.
+message GrpcRemoveCatalogSchemaMutation {
+  // Name of catalog schema to remove.
+  string catalogName = 1;
+}
+
+// Mutation that sets the mutability state of a catalog.
+message GrpcSetCatalogMutabilityMutation {
+  // Name of the catalog to modify.
+  string catalogName = 1;
+  // Whether the catalog should be mutable (read-write) or immutable (read-only).
+  bool mutable = 2;
+}
+
+// Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+message GrpcDuplicateCatalogMutation {
+  // Name of the source catalog to duplicate.
+  string catalogName = 1;
+  // Name of the new catalog to create with duplicated contents.
+  string newCatalogName = 2;
+}
+
+// Mutation that sets the active state of a catalog.
+message GrpcSetCatalogStateMutation {
+  // Name of the catalog to modify.
+  string catalogName = 1;
+  // Whether the catalog should be active or inactive.
+  bool active = 2;
+}
+
+// This structure encapsulates all mutations that needs to be executed on entire evitaDB level and not locally to
+// single catalog schema instance.
+message GrpcEngineMutation {
+  // The top level catalog schema mutation to be executed.
+  oneof mutation {
+    // Mutation is responsible for setting up a new CatalogSchema.
+    GrpcCreateCatalogSchemaMutation createCatalogSchemaMutation = 1;
+    // Mutation is responsible for renaming an existing CatalogSchema.
+    GrpcModifyCatalogSchemaNameMutation modifyCatalogSchemaNameMutation = 2;
+    // Mutation is responsible for renaming an existing CatalogSchema.
+    GrpcModifyCatalogSchemaMutation modifyCatalogSchemaMutation = 3;
+    // Mutation that transitions a catalog to the "live" state, making it transactional.
+    GrpcMakeCatalogAliveMutation makeCatalogAliveMutation = 4;
+    // Mutation is responsible for removing an existing CatalogSchema.
+    GrpcRemoveCatalogSchemaMutation removeCatalogSchemaMutation = 5;
+    // Mutation delimits one transaction from another.
+    GrpcTransactionMutation transactionMutation = 6;
+    // Mutation that sets the mutability state of a catalog.
+    GrpcSetCatalogMutabilityMutation setCatalogMutabilityMutation = 7;
+    // Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+    GrpcDuplicateCatalogMutation duplicateCatalogMutation = 8;
+    // Mutation that sets the active state of a catalog.
+    GrpcSetCatalogStateMutation setCatalogStateMutation = 9;
+    // Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
+    GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;
+  }
+}

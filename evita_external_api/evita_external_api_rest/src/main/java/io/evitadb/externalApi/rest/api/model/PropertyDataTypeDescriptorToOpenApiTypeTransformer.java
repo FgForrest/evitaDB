@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements Prope
 	private final RestBuildingContext restBuildingContext;
 
 	@Override
-	public OpenApiSimpleType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
+	public OpenApiSimpleType apply(PropertyDataTypeDescriptor typeDescriptor) {
 		if (typeDescriptor instanceof PrimitivePropertyDataTypeDescriptor primitiveType) {
 			if (primitiveType.javaType().isEnum() ||
 				(primitiveType.javaType().isArray() && primitiveType.javaType().componentType().isEnum())) {
@@ -61,7 +61,7 @@ public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements Prope
 					primitiveType.javaType(),
 					primitiveType.nonNull()
 				);
-				restBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
+				this.restBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
 				return enumType.resultType();
 			} else {
 				return DataTypesConverter.getOpenApiScalar(

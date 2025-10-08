@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,12 +26,12 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CacheRecordType;
 import io.evitadb.core.cache.payload.BinaryEntityComputationalObjectAdapter;
 import io.evitadb.core.cache.payload.EntityComputationalObjectAdapter;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cache.AnteroomRecordStatisticsUpdatedEvent;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -46,12 +46,15 @@ import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -82,7 +85,7 @@ import java.util.function.UnaryOperator;
  */
 @Slf4j
 @ThreadSafe
-public class CacheAnteroom {
+public class CacheAnteroom implements Closeable {
 	/**
 	 * Contains limit of maximal entries held in CacheAnteroom. When this limit is exceeded the anteroom needs to be
 	 * re-evaluated and the adepts either cleared or moved to {@link CacheEden}. In other words it's the size of the
@@ -179,10 +182,10 @@ public class CacheAnteroom {
 	) {
 		if (formula instanceof final CacheableFormula inputFormula &&
 			(formula instanceof CacheablePriceFormula || !formulaVisitor.isWithin(NonCacheableFormulaScope.class))) {
-			if (formula.getEstimatedCost() >= minimalComplexityThreshold) {
+			if (formula.getEstimatedCost() >= this.minimalComplexityThreshold) {
 				final String catalogName = evitaSession.getCatalogName();
 				final long formulaHash = computeDataStructureHash(catalogName, entityType, inputFormula);
-				final Formula cachedFormula = cacheEden.getCachedRecord(evitaSession, catalogName, entityType, inputFormula, Formula.class, formulaHash);
+				final Formula cachedFormula = this.cacheEden.getCachedRecord(evitaSession, catalogName, entityType, inputFormula, Formula.class, formulaHash);
 				return cachedFormula != null ?
 					cachedFormula :
 					recordUsageAndReturnInstrumentedCopyIfNotYetSeen(formulaVisitor, inputFormula, formulaHash);
@@ -207,10 +210,10 @@ public class CacheAnteroom {
 		@Nonnull String entityType,
 		@Nonnull CacheableEvitaResponseExtraResultComputer<U> computer
 	) {
-		if (computer.getEstimatedCost() > minimalComplexityThreshold) {
+		if (computer.getEstimatedCost() > this.minimalComplexityThreshold) {
 			final String catalogName = evitaSession.getCatalogName();
 			final long recordHash = computeDataStructureHash(catalogName, entityType, computer);
-			final EvitaResponseExtraResultComputer<?> cachedResult = cacheEden.getCachedRecord(
+			final EvitaResponseExtraResultComputer<?> cachedResult = this.cacheEden.getCachedRecord(
 				evitaSession, catalogName, entityType, computer, EvitaResponseExtraResultComputer.class, recordHash
 			);
 			return cachedResult == null ?
@@ -233,10 +236,10 @@ public class CacheAnteroom {
 		@Nonnull String entityType,
 		@Nonnull CacheableSorter cacheableSorter
 	) {
-		if (cacheableSorter.getEstimatedCost() > minimalComplexityThreshold) {
+		if (cacheableSorter.getEstimatedCost() > this.minimalComplexityThreshold) {
 			final String catalogName = evitaSession.getCatalogName();
 			final long recordHash = computeDataStructureHash(catalogName, entityType, cacheableSorter);
-			final Sorter cachedResult = cacheEden.getCachedRecord(
+			final Sorter cachedResult = this.cacheEden.getCachedRecord(
 				evitaSession, catalogName, entityType, cacheableSorter, Sorter.class, recordHash
 			);
 			return cachedResult == null ?
@@ -281,9 +284,9 @@ public class CacheAnteroom {
 			Optional.ofNullable(entityRequirement)
 				.map(it -> it.getRequirements().length + 1)
 				.orElse(0),
-			minimalComplexityThreshold
+			this.minimalComplexityThreshold
 		);
-		final ServerEntityDecorator cachedResult = cacheEden.getCachedRecord(
+		final ServerEntityDecorator cachedResult = this.cacheEden.getCachedRecord(
 			evitaSession, catalogName, entityType, entityWrapper, ServerEntityDecorator.class, recordHash
 		);
 		if (cachedResult == null) {
@@ -305,7 +308,7 @@ public class CacheAnteroom {
 						);
 					}
 				);
-				if (enlarged.get() && currentCacheAdepts.size() > maxRecordCount) {
+				if (enlarged.get() && currentCacheAdepts.size() > this.maxRecordCount) {
 					CacheAnteroom.this.evaluateAssociatesAsynchronously();
 				}
 				cacheRecordAdept.used();
@@ -350,9 +353,9 @@ public class CacheAnteroom {
 			Optional.ofNullable(entityRequirement)
 				.map(it -> it.getRequirements().length + 1)
 				.orElse(0),
-			minimalComplexityThreshold
+			this.minimalComplexityThreshold
 		);
-		final ServerBinaryEntityDecorator cachedResult = cacheEden.getCachedRecord(
+		final ServerBinaryEntityDecorator cachedResult = this.cacheEden.getCachedRecord(
 			evitaSession, catalogName, entityType, entityWrapper, ServerBinaryEntityDecorator.class, recordHash
 		);
 		if (cachedResult == null) {
@@ -371,7 +374,7 @@ public class CacheAnteroom {
 					);
 				}
 			);
-			if (enlarged.get() && currentCacheAdepts.size() > maxRecordCount) {
+			if (enlarged.get() && currentCacheAdepts.size() > this.maxRecordCount) {
 				CacheAnteroom.this.evaluateAssociatesAsynchronously();
 			}
 			cacheRecordAdept.used();
@@ -379,6 +382,13 @@ public class CacheAnteroom {
 		} else {
 			return cachedResult;
 		}
+	}
+
+	@Override
+	public void close() throws IOException {
+		IOUtils.closeQuietly(
+			this.edenGateKeeper::close
+		);
 	}
 
 	/**
@@ -391,7 +401,7 @@ public class CacheAnteroom {
 	 * process.
 	 */
 	void evaluateAssociatesSynchronouslyIfNoAdeptsWait() {
-		if (!cacheEden.isAdeptsWaitingForEvaluation()) {
+		if (!this.cacheEden.isAdeptsWaitingForEvaluation()) {
 			evaluateAssociates(true);
 		}
 	}
@@ -406,7 +416,7 @@ public class CacheAnteroom {
 		@Nonnull Serializable entityType,
 		@Nonnull TransactionalDataRelatedStructure dataStructure
 	) {
-		return cacheAdepts.get().get(computeDataStructureHash(catalogName, entityType, dataStructure));
+		return this.cacheAdepts.get().get(computeDataStructureHash(catalogName, entityType, dataStructure));
 	}
 
 	/*
@@ -579,7 +589,7 @@ public class CacheAnteroom {
 				}
 			}
 		);
-		if (currentCacheAdepts.size() > maxRecordCount) {
+		if (currentCacheAdepts.size() > this.maxRecordCount) {
 			CacheAnteroom.this.evaluateAssociatesAsynchronously();
 		}
 	}

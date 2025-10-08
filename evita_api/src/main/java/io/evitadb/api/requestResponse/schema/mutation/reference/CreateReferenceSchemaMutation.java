@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
@@ -112,6 +113,7 @@ public class CreateReferenceSchemaMutation
 		);
 	}
 
+	@SerializableCreator
 	public CreateReferenceSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -164,7 +166,9 @@ public class CreateReferenceSchemaMutation
 			// we can convert mutation to updates only if the reference type matches
 			final ReferenceSchemaContract existingVersion = currentReference.get();
 			if (!(existingVersion instanceof ReflectedReferenceSchemaContract)) {
-				final ReferenceSchemaContract createdVersion = mutate(currentEntitySchema, null);
+				final ReferenceSchemaContract createdVersion = Objects.requireNonNull(
+					mutate(currentEntitySchema, null)
+				);
 
 				return new MutationCombinationResult<>(
 					null,

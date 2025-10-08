@@ -213,6 +213,16 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	}
 
 	public WriteOnlyFileHandle(
+		@Nullable FileType fileType,
+		@Nullable String logicalName,
+		@Nonnull Path targetFile,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper
+	) {
+		this(null, fileType, logicalName, storageOptions, targetFile, observableOutputKeeper);
+	}
+
+	public WriteOnlyFileHandle(
 		@Nullable String catalogName,
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
@@ -333,8 +343,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 
 	@Override
 	public String toString() {
-		/* TODO JNO - remove size printing */
-		return "write handle: " + this.targetFile + " (current size on disk: " + this.targetFile.toFile().length() + " bytes)";
+		return "write handle: " + this.targetFile;
 	}
 
 	/**

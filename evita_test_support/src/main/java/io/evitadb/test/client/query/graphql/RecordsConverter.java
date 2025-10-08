@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.SegmentDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordStripFieldHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
@@ -70,7 +71,7 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_PAGE,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+						this.entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
 				getRecordPageArguments(entityType, page)
 			);
 		} else if (strip != null) {
@@ -78,7 +79,7 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_STRIP,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+						this.entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
 				getRecordStripArguments(strip)
 			);
 		} else if (entityFetch != null || !hasExtraResults) {
@@ -86,7 +87,7 @@ public class RecordsConverter extends RequireConverter {
 				ResponseDescriptor.RECORD_PAGE,
 				recordPageBuilder -> recordPageBuilder
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
+						this.entityFetchConverter.convert(b2, entityType, locale, entityFetch)),
 				getRecordPageArguments(entityType, new Page(null, null))
 			);
 		}
@@ -102,7 +103,7 @@ public class RecordsConverter extends RequireConverter {
 		if (page.getPageNumber() != 1) {
 			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
-					RecordPageFieldHeaderDescriptor.NUMBER,
+					PaginatedListFieldHeaderDescriptor.NUMBER,
 					offset,
 					multipleArguments,
 					page.getPageNumber()
@@ -112,7 +113,7 @@ public class RecordsConverter extends RequireConverter {
 		if (page.getPageSize() != 20) {
 			argumentSuppliers.add(
 				(offset, multipleArguments) -> new Argument(
-					RecordPageFieldHeaderDescriptor.SIZE,
+					PaginatedListFieldHeaderDescriptor.SIZE,
 					offset,
 					multipleArguments,
 					page.getPageSize()

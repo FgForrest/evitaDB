@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,11 +143,12 @@ public interface HistogramContract extends Serializable {
 		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
 		@Serial private static final long serialVersionUID = 4216355542992506073L;
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return '[' +
-				(requested ? "^" : "") + threshold +
-				": " + occurrences +
+				(this.requested ? "^" : "") + this.threshold +
+				": " + this.occurrences +
 				')';
 		}
 	}

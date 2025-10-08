@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,20 +30,24 @@ import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
+import io.evitadb.api.requestResponse.data.structure.InternalEntityBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
@@ -72,7 +76,7 @@ public class SealedEntityProxyState
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
 	 * from internally wrapped entity {@link #entity()}.
 	 */
-	@Nullable protected EntityBuilder entityBuilder;
+	@Nullable protected InternalEntityBuilder entityBuilder;
 	/**
 	 * Optional information about the last {@link EntityReference} returned from {@link EvitaSessionContract#upsertEntity(EntityMutation)},
 	 * it may contain newly assigned {@link EntityContract#getPrimaryKey()} that is not available in the wrapped entity.
@@ -93,14 +97,14 @@ public class SealedEntityProxyState
 	@Nonnull
 	@Override
 	public String getType() {
-		return entity.getType();
+		return this.entity.getType();
 	}
 
 	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
-		return ofNullable(entity.getPrimaryKey())
-			.orElseGet(() -> ofNullable(entityReference)
+		return ofNullable(this.entity.getPrimaryKey())
+			.orElseGet(() -> ofNullable(this.entityReference)
 				.map(EntityReference::getPrimaryKey)
 				.orElse(null)
 			);
@@ -116,9 +120,10 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback() {
-		propagateReferenceMutations();
-		return Optional.ofNullable(this.entityBuilder)
+	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback(@Nonnull Propagation propagation) {
+		propagateReferenceMutations(propagation);
+		return Optional
+			.ofNullable(this.entityBuilder)
 			.map(
 				it -> new EntityBuilderWithCallback(
 					it,
@@ -133,10 +138,11 @@ public class SealedEntityProxyState
 						this.generatedProxyObjects
 							.entrySet()
 							.stream()
-							.filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
-							.flatMap(goEntry -> goEntry.getValue().proxies().stream())
-							.forEach(refProxy -> ((SealedEntityReferenceProxyState)((ProxyStateAccessor)refProxy).getProxyState())
-								.notifyBuilderUpserted()
+							.filter(goEntry -> goEntry.getKey() instanceof ReferenceProxyCacheKey)
+							.flatMap(goEntry -> goEntry.getValue().proxies(propagation).stream())
+							.forEach(
+								refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
+									.notifyBuilderUpserted()
 							);
 					}
 				)
@@ -144,122 +150,194 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
+	public EntityBuilder getEntityBuilderWithMutations(@Nonnull Collection<LocalMutation<?, ?>> mutations) {
+		Assert.isPremiseValid(this.entityBuilder == null, "Entity builder already created!");
+		if (this.entity instanceof EntityDecorator entityDecorator) {
+			this.entityBuilder = new ExistingEntityBuilder(entityDecorator, mutations);
+		} else if (this.entity instanceof Entity theEntity) {
+			this.entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
+		} else if (this.entity instanceof EntityBuilder) {
+			throw new GenericEvitaInternalError("Entity builder already created!");
+		} else {
+			throw new GenericEvitaInternalError("Unexpected entity type: " + this.entity.getClass().getName());
+		}
+		return this.entityBuilder;
+	}
+
+	@Nonnull
+	public InternalEntityBuilder entityBuilder() {
+		if (this.entityBuilder == null) {
+			if (this.entity instanceof EntityDecorator entityDecorator) {
+				this.entityBuilder = new ExistingEntityBuilder(entityDecorator);
+			} else if (this.entity instanceof Entity theEntity) {
+				this.entityBuilder = new ExistingEntityBuilder(theEntity);
+			} else if (this.entity instanceof InternalEntityBuilder theBuilder) {
+				this.entityBuilder = theBuilder;
+			} else {
+				throw new GenericEvitaInternalError("Unexpected entity type: " + this.entity.getClass().getName());
+			}
+		}
+		return this.entityBuilder;
+	}
+
+	@Nonnull
 	public Optional<EntityBuilder> entityBuilderIfPresent() {
 		return ofNullable(this.entityBuilder);
 	}
 
-	@Nonnull
-	public EntityBuilder getEntityBuilderWithMutations(@Nonnull Collection<LocalMutation<?, ?>> mutations) {
-		Assert.isPremiseValid(entityBuilder == null, "Entity builder already created!");
-		if (entity instanceof EntityDecorator entityDecorator) {
-			entityBuilder = new ExistingEntityBuilder(entityDecorator, mutations);
-		} else if (entity instanceof Entity theEntity) {
-			entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
-		} else if (entity instanceof EntityBuilder) {
-			throw new GenericEvitaInternalError("Entity builder already created!");
-		} else {
-			throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
-		}
-		return entityBuilder;
-	}
-
-	@Nonnull
-	public EntityBuilder entityBuilder() {
-		if (entityBuilder == null) {
-			if (entity instanceof EntityDecorator entityDecorator) {
-				entityBuilder = new ExistingEntityBuilder(entityDecorator);
-			} else if (entity instanceof Entity theEntity) {
-				entityBuilder = new ExistingEntityBuilder(theEntity);
-			} else if (entity instanceof EntityBuilder theBuilder) {
-				entityBuilder = theBuilder;
-			} else {
-				throw new GenericEvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
-			}
-		}
-		return entityBuilder;
-	}
-
+	/**
+	 * Creates a proxy for an entity reference based on the specified parameters. The proxy will represent the entity’s
+	 * reference and manage its interaction with the system. If the reference already exists, the proxy handles the
+	 * existing instance; otherwise, a new reference is created and initialized.
+	 *
+	 * @param entitySchema    the schema of the entity that owns the reference
+	 * @param referenceSchema the schema of the reference to be proxied
+	 * @param expectedType    the expected type of the proxy to be created, defining the contract it should implement
+	 * @param referenceKey    the unique key associated with the reference, including its name, primary key, and potentially
+	 *                        an internal identifier
+	 * @param <T>             the type of the proxy that will be returned
+	 * @return a proxy instance implementing the specified contract for the reference
+	 * @throws EntityClassInvalidException if the entity class or its schema configurations are invalid or incompatible
+	 */
 	@Nonnull
 	public <T> T createEntityReferenceProxy(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType,
-		int primaryKey
+		@Nonnull ReferenceKey referenceKey
 	) throws EntityClassInvalidException {
+		final EntityContract theEntity = entityBuilderIfPresent()
+			.map(EntityContract.class::cast)
+			.orElse(this.entity);
+		final Optional<ReferenceContract> existingReference = theEntity
+			.getReference(referenceKey);
+		final ReferenceKey resolvedReferenceKey = existingReference
+			.map(ReferenceContract::getReferenceKey)
+			.orElseGet(() -> new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey(), entityBuilder().getNextReferenceInternalId()));
+
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final Optional<EntityBuilder> entityBuilderRef = entityBuilderIfPresent();
-			final EntityContract entity = entityBuilderRef
-				.map(EntityContract.class::cast)
-				.orElseGet(this::entity);
-			return entity.getReference(referenceSchema.getName(), primaryKey)
+			final Map<String, AttributeSchemaContract> attributeTypesForReference = getAttributeTypesForReference(
+				referenceSchema.getName()
+			);
+			return existingReference
 				.filter(
-					ref -> entityBuilderRef
-						.filter(ExistingEntityBuilder.class::isInstance)
-						.map(ExistingEntityBuilder.class::cast)
-						.map(eb -> eb.isPresentInBaseEntity(ref))
-						.orElse(true)
+					ref -> !(entityBuilder() instanceof ExistingEntityBuilder eeb) ||
+						eeb.isPresentInBaseEntity(ref)
 				)
 				.map(
-					existingReference -> new ProxyWithUpsertCallback(
+					it -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, recipes, collectedRecipes,
-							this.entity, this::getPrimaryKey,
-							referencedEntitySchemas,
-							new ExistingReferenceBuilder(existingReference, getEntitySchema()),
+							this.getProxyClass(), expectedType,
+							this.recipes,
+							this.collectedRecipes,
+							this.entity,
+							this::getPrimaryKey,
+							this.referencedEntitySchemas,
+							new ExistingReferenceBuilder(
+								it,
+								entitySchema,
+								attributeTypesForReference
+							),
+							attributeTypesForReference,
 							getReflectionLookup(),
 							this.generatedProxyObjects
 						)
 					)
 				)
-				.orElseGet(() -> new ProxyWithUpsertCallback(
+				.orElseGet(
+					() -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType, recipes, collectedRecipes,
-							this.entity, this::getPrimaryKey,
+							this.getProxyClass(), expectedType,
+							this.recipes,
+							this.collectedRecipes,
+							this.entity,
+							this::getPrimaryKey,
 							getReferencedEntitySchemas(),
 							new InitialReferenceBuilder(
 								entitySchema,
+								referenceSchema,
 								referenceSchema.getName(),
-								primaryKey,
-								referenceSchema.getCardinality(),
-								referenceSchema.getReferencedEntityType()
+								referenceKey.primaryKey(),
+								resolvedReferenceKey.internalPrimaryKey(),
+								attributeTypesForReference
 							),
+							attributeTypesForReference,
 							getReflectionLookup(),
 							this.generatedProxyObjects
 						)
 					)
 				);
 		};
-		return generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
+
+		Assert.isPremiseValid(
+			!resolvedReferenceKey.isUnknownReference(),
+			"Cannot create reference proxy for reference without assigned primary key!"
+		);
+		return this.generatedProxyObjects
+			.computeIfAbsent(
+				new ReferenceProxyCacheKey(resolvedReferenceKey),
 				key -> instanceSupplier.get()
-			)
-			.proxy(expectedType, instanceSupplier);
+			).proxy(expectedType, instanceSupplier);
+	}
+
+	/**
+	 * Retrieves or initializes a map of attribute types for the specified reference schema.
+	 * This method ensures that the attribute types are stored in a local data store
+	 * associated with the given reference schema.
+	 *
+	 * @param referenceName the name of the reference schema
+	 * @return a map where the keys are attribute names and the values are attribute schema contracts for the reference schema
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	public Map<String, AttributeSchemaContract> getAttributeTypesForReference(@Nonnull String referenceName) {
+		return (Map<String, AttributeSchemaContract>)
+			getOrCreateLocalDataStore()
+				.computeIfAbsent(
+					"__referenceAttributes_" + referenceName,
+					k -> CollectionUtils.createHashMap(4)
+				);
+	}
+
+	/**
+	 * Creates new proxy for a reference.
+	 *
+	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
+	 * not known (the referenced entity needs to be persisted first).
+	 *
+	 * @param expectedType            contract that the proxy should implement
+	 * @param reference               reference instance to create proxy for
+	 * @param <T>                     type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 */
+	@Nonnull
+	public <T> T getOrCreateEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull ReferenceContract reference) {
+		return getOrCreateEntityReferenceProxy(expectedType, reference, getAttributeTypesForReference(reference.getReferenceName()));
 	}
 
 	/**
 	 * Method propagates all mutations in reference proxies to the {@link #entityBuilder()}.
 	 */
-	public void propagateReferenceMutations() {
-		this.generatedProxyObjects.entrySet().stream()
-			.filter(it -> it.getKey().proxyType() == ProxyType.REFERENCE)
+	public void propagateReferenceMutations(@Nonnull Propagation propagation) {
+		final InternalEntityBuilder theEntityBuilder = entityBuilder();
+		this.generatedProxyObjects
+			.entrySet()
+			.stream()
+			.filter(it -> it.getKey() instanceof ReferenceProxyCacheKey)
 			.flatMap(
 				it -> it.getValue()
-					.proxy(
-						SealedEntityReferenceProxy.class,
-						() -> {
-							throw new EvitaInvalidUsageException("Unexpected proxy type!");
-						})
-					.getReferenceBuilderIfPresent()
-					.stream()
+				        .getSealedEntityReferenceProxies(propagation)
+				        .map(SealedEntityReferenceProxy::getReferenceBuilderIfPresent)
+				        .filter(Optional::isPresent)
+				        .map(Optional::get)
 			)
-			.forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
+			.forEach(refBuilder -> theEntityBuilder.addOrReplaceReferenceMutations(refBuilder, false));
 	}
 
 	@Override
 	public String toString() {
-		return entity instanceof EntityBuilder eb ?
-			eb.toInstance().toString() : entity.toString();
+		return this.entity instanceof EntityBuilder eb ?
+			eb.toInstance().toString() : this.entity.toString();
 	}
 
 }

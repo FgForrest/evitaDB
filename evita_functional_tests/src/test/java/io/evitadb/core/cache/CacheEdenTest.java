@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -175,7 +175,7 @@ class CacheEdenTest {
 	private int[] generateRandomIntegers(int number) {
 		final int[] result = new int[number];
 		for (int i = 0; i < number; i++) {
-			result[i] = random.nextInt();
+			result[i] = this.random.nextInt();
 		}
 		return result;
 	}
@@ -183,7 +183,7 @@ class CacheEdenTest {
 	private long[] generateRandomLongs(int number) {
 		final long[] result = new long[number];
 		for (int i = 0; i < number; i++) {
-			result[i] = random.nextLong();
+			result[i] = this.random.nextLong();
 		}
 		return result;
 	}

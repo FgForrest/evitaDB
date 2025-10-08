@@ -24,11 +24,16 @@
 package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.dataType.Scope;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -76,24 +81,42 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 	public static final String CATEGORY_ENTITY = Entities.CATEGORY;
 	private final Function<String, TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula>> fct =
 		entityType -> (groupId, facetIds, bitmaps) -> new FacetGroupOrFormula(entityType, groupId, facetIds, bitmaps);
+	private final ReferenceSchema brandReferenceSchema = ReferenceSchema._internalBuild(
+		Entities.BRAND, Entities.BRAND, true, Cardinality.ZERO_OR_MORE,
+		null, false,
+		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
+		Scope.NO_SCOPE
+	);
+	private final ReferenceSchema storeReferenceSchema = ReferenceSchema._internalBuild(
+		Entities.STORE, Entities.STORE, true, Cardinality.ZERO_OR_MORE,
+		null, false,
+		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
+		Scope.NO_SCOPE
+	);
+	private final ReferenceSchema parameterReferenceSchema = ReferenceSchema._internalBuild(
+		Entities.PARAMETER, Entities.PARAMETER, true, Cardinality.ZERO_OR_MORE,
+		null, false,
+		new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)},
+		Scope.NO_SCOPE
+	);
 	private FacetIndex facetIndex;
 
 	@BeforeEach
 	void setUp() {
-		facetIndex = new FacetIndex();
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 1), 1, 1);
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 1), 1, 3);
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 3), 3, 4);
-		facetIndex.addFacet(new ReferenceKey(Entities.STORE, 1), 1, 5);
-		facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 1), null, 100);
-		facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 1), null, 101);
-		facetIndex.addFacet(new ReferenceKey(Entities.PARAMETER, 2), null, 102);
+		this.facetIndex = new FacetIndex();
+		this.facetIndex.addFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 1), 1, 1);
+		this.facetIndex.addFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 2), 2, 2);
+		this.facetIndex.addFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 1), 1, 3);
+		this.facetIndex.addFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 3), 3, 4);
+		this.facetIndex.addFacet(this.storeReferenceSchema, new ReferenceKey(Entities.STORE, 1), 1, 5);
+		this.facetIndex.addFacet(this.parameterReferenceSchema, new ReferenceKey(Entities.PARAMETER, 1), null, 100);
+		this.facetIndex.addFacet(this.parameterReferenceSchema, new ReferenceKey(Entities.PARAMETER, 1), null, 101);
+		this.facetIndex.addFacet(this.parameterReferenceSchema, new ReferenceKey(Entities.PARAMETER, 2), null, 102);
 	}
 
 	@Test
 	void shouldReturnFacetingEntityTypes() {
-		final Set<String> referencedEntities = facetIndex.getReferencedEntities();
+		final Set<String> referencedEntities = this.facetIndex.getReferencedEntities();
 		assertEquals(3, referencedEntities.size());
 		assertTrue(referencedEntities.contains(BRAND_ENTITY));
 		assertTrue(referencedEntities.contains(STORE_ENTITY));
@@ -102,23 +125,23 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnFacetingEntityIds() {
-		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
+		final List<FacetGroupFormula> brandReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, brandReferencingEntityIds.size());
 		assertArrayEquals(new int[]{1, 3}, brandReferencingEntityIds.get(0).compute().getArray());
 
-		final List<FacetGroupFormula> storeReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			STORE_ENTITY, fct.apply(STORE_ENTITY), new ArrayBitmap(1)
+		final List<FacetGroupFormula> storeReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			STORE_ENTITY, this.fct.apply(STORE_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, storeReferencingEntityIds.size());
 		assertArrayEquals(new int[]{5}, storeReferencingEntityIds.get(0).compute().getArray());
 
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(8)).size());
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, fct.apply(STORE_ENTITY), new ArrayBitmap(8)).size());
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(CATEGORY_ENTITY, fct.apply(CATEGORY_ENTITY), new ArrayBitmap(1)).size());
+		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(8)).size());
+		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, this.fct.apply(STORE_ENTITY), new ArrayBitmap(8)).size());
+		assertEquals(0, this.facetIndex.getFacetReferencingEntityIdsFormula(CATEGORY_ENTITY, this.fct.apply(CATEGORY_ENTITY), new ArrayBitmap(1)).size());
 	}
 
 	@Test
@@ -138,7 +161,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 				"STORE:\n" +
 				"\tGROUP 1:\n" +
 				"\t\t1: [5]",
-			facetIndex.toString()
+			this.facetIndex.toString()
 		);
 	}
 
@@ -146,18 +169,18 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 	void shouldInsertNewFacetingEntityId() {
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
-		facetIndex.resetDirty();
-		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		this.facetIndex.resetDirty();
+		this.facetIndex.getModifiedStorageParts(1, trappedChanges);
 		assertEquals(0, trappedChanges.getTrappedChangesCount());
 
-		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 8);
+		this.facetIndex.addFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 2), 2, 8);
 
-		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(2)
+		final List<FacetGroupFormula> brandReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(2)
 		);
 		assertArrayEquals(new int[]{2, 8}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
 
-		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		this.facetIndex.getModifiedStorageParts(1, trappedChanges);
 		assertEquals(1, trappedChanges.getTrappedChangesCount());
 	}
 
@@ -165,17 +188,17 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 	void shouldRemoveExistingFacetingEntityId() {
 		final TrappedChanges trappedChanges = new TrappedChanges();
 
-		facetIndex.resetDirty();
-		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		this.facetIndex.resetDirty();
+		this.facetIndex.getModifiedStorageParts(1, trappedChanges);
 		assertEquals(0, trappedChanges.getTrappedChangesCount());
 
-		facetIndex.removeFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
+		this.facetIndex.removeFacet(this.brandReferenceSchema, new ReferenceKey(Entities.BRAND, 2), 2, 2);
 
-		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
+		final List<FacetGroupFormula> brandReferencingEntityIds = this.facetIndex.getFacetReferencingEntityIdsFormula(
+			BRAND_ENTITY, this.fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 		assertArrayEquals(new int[]{1, 3}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
-		facetIndex.getModifiedStorageParts(1, trappedChanges);
+		this.facetIndex.getModifiedStorageParts(1, trappedChanges);
 		assertEquals(1, trappedChanges.getTrappedChangesCount());
 	}
 
@@ -223,7 +246,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 					final int[] recordIds = entry.getValue()[0];
 					final int[] groupIds = entry.getValue()[1];
 					for (int i = 0; i < recordIds.length; i++) {
-						facetIndex.addFacet(entry.getKey(), groupIds[i], recordIds[i]);
+						facetIndex.addFacet(this.brandReferenceSchema, entry.getKey(), groupIds[i], recordIds[i]);
 					}
 				}
 				final Map<ReferenceKey, int[][]> baseStructure = testState.initialSet();
@@ -264,7 +287,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 
 								try {
 									final ReferenceKey referenceKey = new ReferenceKey(entityType, newReferencedId);
-									facetIndex.addFacet(referenceKey, groupId, newEntityId);
+									facetIndex.addFacet(this.brandReferenceSchema, referenceKey, groupId, newEntityId);
 									baseStructure.merge(
 										referenceKey,
 										new int[][]{{newEntityId}, {groupId}},
@@ -296,7 +319,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 									.append(");\n");
 
 								try {
-									facetIndex.removeFacet(entityReference, groupIdToRemove, entityIdToRemove);
+									facetIndex.removeFacet(this.brandReferenceSchema, entityReference, groupIdToRemove, entityIdToRemove);
 									final int[] newEntityIds = ArrayUtils.removeIntFromArrayOnIndex(entityIds[0], rndNo);
 									final int[] newGroupIds = ArrayUtils.removeIntFromArrayOnIndex(entityIds[1], rndNo);
 									if (ArrayUtils.isEmpty(newEntityIds)) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Override
 	public BitmapChanges createLayer() {
-		return new BitmapChanges(roaringBitmap);
+		return new BitmapChanges(this.roaringBitmap);
 	}
 
 	@Nonnull
@@ -221,7 +221,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	public int get(int index) {
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return roaringBitmap.select(index);
+			return this.roaringBitmap.select(index);
 		} else {
 			return layer.getMergedBitmap().select(index);
 		}
@@ -293,7 +293,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		final BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			if (this.memoizedCardinality == -1) {
-				this.memoizedCardinality = roaringBitmap.getCardinality();
+				this.memoizedCardinality = this.roaringBitmap.getCardinality();
 			}
 			return this.memoizedCardinality;
 		} else {
@@ -311,7 +311,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		TransactionalBitmap that = (TransactionalBitmap) o;
-		return roaringBitmap.equals(that.roaringBitmap);
+		return this.roaringBitmap.equals(that.roaringBitmap);
 	}
 
 	@Override

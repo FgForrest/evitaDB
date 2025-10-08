@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -82,10 +82,10 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	 */
 	public PriceRecordContract[] getPriceRecords() {
 		if (this.sortingForm != SortingForm.ENTITY_PK) {
-			Arrays.sort(priceRecords, ENTITY_PK_COMPARATOR);
+			Arrays.sort(this.priceRecords, ENTITY_PK_COMPARATOR);
 			this.sortingForm = SortingForm.ENTITY_PK;
 		}
-		return priceRecords;
+		return this.priceRecords;
 	}
 
 	/**
@@ -136,19 +136,19 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 			// if the last expected entity changed
 			if (this.lastExpectedEntity != lastExpectedEntity) {
 				// look for the index of the last expected entity
-				this.lastExpectedEntityIndex = findFirstEntityPkIndex(lastExpectedEntity, this.lastIndex + 1, entityIds.length);
+				this.lastExpectedEntityIndex = findFirstEntityPkIndex(lastExpectedEntity, this.lastIndex + 1, this.entityIds.length);
 				// compute the end of the area where the entityPk might be present - it must precede the index of last expected entity
-				this.searchEndIndex = lastExpectedEntityIndex >= 0 ? lastExpectedEntityIndex + 1 : -1 * (lastExpectedEntityIndex) - 2 + 1;
+				this.searchEndIndex = this.lastExpectedEntityIndex >= 0 ? this.lastExpectedEntityIndex + 1 : -1 * (this.lastExpectedEntityIndex) - 2 + 1;
 				// remember the last expected entity
 				this.lastExpectedEntity = lastExpectedEntity;
 			} else if (entityPk == lastExpectedEntity) {
 				// if we reached the last expected entity - we have already precomputed index - just use it
-				if (lastExpectedEntityIndex >= 0) {
-					this.lastIndex = lastExpectedEntityIndex;
+				if (this.lastExpectedEntityIndex >= 0) {
+					this.lastIndex = this.lastExpectedEntityIndex;
 					// we found it - so report it, but also check the subsequent records - there may be more of them for same entity id
-					return reportFound(entityPk, lastExpectedEntityIndex, priceConsumer);
+					return reportFound(entityPk, this.lastExpectedEntityIndex, priceConsumer);
 				} else {
-					this.lastIndex = -1 * (lastExpectedEntityIndex) - 2;
+					this.lastIndex = -1 * (this.lastExpectedEntityIndex) - 2;
 					// we remembered, that we didn't find it
 					return false;
 				}
@@ -156,7 +156,7 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 
 			// if the entityPk is not the lastExpected entity find its proper location in shortened span
 			// defined by searchEndIndex
-			int priceRecordIndex = findFirstEntityPkIndex(entityPk, this.lastIndex + 1, searchEndIndex);
+			int priceRecordIndex = findFirstEntityPkIndex(entityPk, this.lastIndex + 1, this.searchEndIndex);
 
 			// if we didn't find the record
 			if (priceRecordIndex < 0) {
@@ -177,11 +177,11 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 		private int findFirstEntityPkIndex(int entityPk, int fromIndex, int toIndex) {
 			// look for the index of price detail (searched block is getting smaller and smaller with each match)
 			int priceRecordIndex = Arrays.binarySearch(
-				entityIds, fromIndex, toIndex, entityPk
+				this.entityIds, fromIndex, toIndex, entityPk
 			);
 
 			// there may be duplicates and binary search might have not found the exactly first occurrence
-			while (priceRecordIndex > 0 && priceRecords[priceRecordIndex - 1].entityPrimaryKey() == entityPk) {
+			while (priceRecordIndex > 0 && this.priceRecords[priceRecordIndex - 1].entityPrimaryKey() == entityPk) {
 				priceRecordIndex--;
 			}
 			return priceRecordIndex;
@@ -195,8 +195,8 @@ public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 		private boolean reportFound(int entityPk, int firstEntityPkIndex, @Nonnull Consumer<PriceRecordContract> priceConsumer) {
 			// there may be duplicates in a row - we need to consume them all
 			do {
-				priceConsumer.accept(priceRecords[firstEntityPkIndex++]);
-			} while (priceRecords.length > firstEntityPkIndex && priceRecords[firstEntityPkIndex].entityPrimaryKey() == entityPk);
+				priceConsumer.accept(this.priceRecords[firstEntityPkIndex++]);
+			} while (this.priceRecords.length > firstEntityPkIndex && this.priceRecords[firstEntityPkIndex].entityPrimaryKey() == entityPk);
 			// report we found the record
 			return true;
 		}

@@ -27,7 +27,7 @@ package io.evitadb.store.spi.chunk;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.chunk.PageTransformer;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
 
@@ -46,7 +46,7 @@ public class ServerChunkTransformerAccessor implements ChunkTransformerAccessor 
 	@Nonnull
 	@Override
 	public ChunkTransformer apply(@Nonnull String referenceName) {
-		final ChunkTransformer transformer = evitaRequest.getReferenceChunkTransformer(referenceName);
+		final ChunkTransformer transformer = this.evitaRequest.getReferenceChunkTransformer(referenceName);
 		return convertIfNecessary(transformer);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ public abstract class ClientDataState implements CatalogSetup, TestConstants, Ev
 	 * Function allowing to pseudo randomly pick referenced entity for the product.
 	 */
 	protected final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-		final List<Integer> entityIndex = generatedEntities.computeIfAbsent(entityType, serializable -> new LinkedList<>());
+		final List<Integer> entityIndex = this.generatedEntities.computeIfAbsent(entityType, serializable -> new LinkedList<>());
 		final int entityCount = entityIndex.size();
 		if (entityCount == 0) {
 			return null;

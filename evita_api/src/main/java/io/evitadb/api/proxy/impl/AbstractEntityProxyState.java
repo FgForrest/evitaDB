@@ -28,16 +28,20 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ReferencedEntityBuilderProvider;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityProxy.EntityBuilderWithCallback;
-import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
+import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
+import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -152,23 +156,29 @@ abstract class AbstractEntityProxyState implements
 
 	/**
 	 * Returns the sealed entity that is being proxied.
+	 *
+	 * @return the underlying sealed entity instance
 	 */
 	@Nonnull
 	public EntityContract getEntity() {
-		return entity;
+		return this.entity;
 	}
 
 	/**
 	 * Returns the primary key of the sealed entity that is being proxied or null.
+	 *
+	 * @return primary key of the entity if available, otherwise null
 	 */
 	@Override
 	@Nullable
 	public Integer getPrimaryKey() {
-		return entity.getPrimaryKey();
+		return this.entity.getPrimaryKey();
 	}
 
 	/**
 	 * Returns the primary key of the sealed entity that is being proxied or throws exception.
+	 *
+	 * @return primary key of the entity
 	 */
 	@Override
 	public int getPrimaryKeyOrThrowException() {
@@ -177,26 +187,32 @@ abstract class AbstractEntityProxyState implements
 
 	/**
 	 * Returns the class of the proxy was built upon.
+	 *
+	 * @return the proxy interface/class this state was created for
 	 */
 	@Nonnull
 	public Class<?> getProxyClass() {
-		return proxyClass;
+		return this.proxyClass;
 	}
 
 	/**
-	 * Returns the map of recipes provided from outside that are used to build the proxy.
+	 * Returns the reflection lookup used by this proxy state for memoized reflection access.
+	 *
+	 * @return reflection lookup instance
 	 */
 	@Nonnull
 	public ReflectionLookup getReflectionLookup() {
-		return reflectionLookup;
+		return this.reflectionLookup;
 	}
 
 	/**
 	 * Returns entity schema from the {@link #entity}.
+	 *
+	 * @return schema of the proxied entity
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchema() {
-		return entity.getSchema();
+		return this.entity.getSchema();
 	}
 
 	/**
@@ -207,7 +223,7 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return ofNullable(referencedEntitySchemas.get(entityType));
+		return ofNullable(this.referencedEntitySchemas.get(entityType));
 	}
 
 	/**
@@ -215,44 +231,49 @@ abstract class AbstractEntityProxyState implements
 	 *
 	 * @param entityType name of the entity type
 	 * @return entity schema for the passed entity type or empty result
+	 * @throws CollectionNotFoundException when the collection (entity type) is unknown
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchemaOrThrow(@Nonnull String entityType) throws CollectionNotFoundException {
-		return ofNullable(referencedEntitySchemas.get(entityType))
+		return ofNullable(this.referencedEntitySchemas.get(entityType))
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 	}
 
 	/**
 	 * Returns existing or creates new memory Map data store for data written by {@link LocalDataStore}.
+	 *
+	 * @return a non-null mutable map backing the local data store
 	 */
 	@Override
 	public Map<String, Serializable> getOrCreateLocalDataStore() {
-		if (localDataStore == null) {
-			localDataStore = new ConcurrentHashMap<>();
+		if (this.localDataStore == null) {
+			this.localDataStore = new ConcurrentHashMap<>();
 		}
-		return localDataStore;
+		return this.localDataStore;
 	}
 
 	/**
 	 * Returns existing memory Map data store for data written by {@link LocalDataStore}. Might return null, if there
 	 * are no data written yet.
+	 *
+	 * @return the local data store map if already created, otherwise null
 	 */
 	@Override
 	public Map<String, Serializable> getLocalDataStoreIfPresent() {
-		return localDataStore;
+		return this.localDataStore;
 	}
 
 	/**
 	 * Creates new or returns existing proxy for an external entity that is accessible via reference of current entity.
-	 * Possible referenced entities are {@link ProxyType#PARENT} or {@link ProxyType#REFERENCED_ENTITY}.
 	 *
 	 * This method should be used if the referenced entity is not known (doesn't exists) but its entity primary key is
 	 * known upfront.
 	 *
 	 * @param entitySchema schema of the entity to be created
+	 * @param referenceName name of the reference the entity is accessed through
 	 * @param expectedType contract that the proxy should implement
-	 * @param proxyType    type of the proxy (either {@link ProxyType#PARENT} or {@link ProxyType#REFERENCED_ENTITY})
 	 * @param primaryKey   primary key of the referenced entity
+	 * @param type type of the referenced object (entity vs. reference)
 	 * @param <T>          type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
@@ -260,20 +281,21 @@ abstract class AbstractEntityProxyState implements
 	@Nonnull
 	public <T> T getOrCreateReferencedEntityProxy(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String referenceName,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType,
-		int primaryKey
+		int primaryKey,
+		@Nonnull ReferencedObjectType type
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityProxy(
-				expectedType, recipes, collectedRecipes,
+				expectedType, this.recipes, this.collectedRecipes,
 				new InitialEntityBuilder(entitySchema, primaryKey),
-				referencedEntitySchemas,
+				this.referencedEntitySchemas,
 				getReflectionLookup()
 			)
 		);
 		return this.generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(entitySchema.getName(), primaryKey, proxyType),
+				new ReferencedEntityProxyCacheKey(referenceName, primaryKey, type),
 				key -> instanceSupplier.get()
 			)
 			.proxy(
@@ -283,28 +305,143 @@ abstract class AbstractEntityProxyState implements
 	}
 
 	/**
-	 * Creates new or returns existing proxy for an external entity that is accessible via reference of current entity.
-	 * Possible referenced entities are {@link ProxyType#PARENT} or {@link ProxyType#REFERENCED_ENTITY}.
+	 * Creates new or returns existing proxy for an external entity that is accessible via parent of current entity.
 	 *
 	 * This method should be used if the referenced entity is known.
 	 *
 	 * @param expectedType            contract that the proxy should implement
 	 * @param entity                  sealed entity to create proxy for
-	 * @param proxyType               type of the proxy (either {@link ProxyType#PARENT} or {@link ProxyType#REFERENCED_ENTITY})
 	 * @param <T>                     type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
 	 */
 	@Nonnull
-	public <T> T getOrCreateReferencedEntityProxy(
+	public <T> T getOrCreateParentEntityProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity,
-		@Nonnull ProxyType proxyType
+		@Nonnull EntityContract entity
 	) {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			createReferencedEntityProxy(expectedType, entity)
 		);
 		return this.generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKeyOrThrowException(), proxyType),
+			           new ParentProxyCacheKey(entity.getPrimaryKeyOrThrowException()),
+			           key -> instanceSupplier.get()
+		           ).proxy(expectedType, instanceSupplier);
+	}
+
+	/**
+	 * Creates new or returns existing proxy for an external entity that is accessible via reference of current entity.
+	 *
+	 * This method should be used if the referenced entity is not known (doesn't exists) but its entity primary key is
+	 * known upfront.
+	 *
+	 * @param entitySchema schema of the entity to be created
+	 * @param expectedType contract that the proxy should implement
+	 * @param primaryKey   primary key of the referenced entity
+	 * @param <T>          type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 * @throws EntityClassInvalidException if the proxy contract is not valid
+	 */
+	@Nonnull
+	public <T> T getOrCreateParentEntityProxy(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Class<T> expectedType,
+		int primaryKey
+	) throws EntityClassInvalidException {
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
+			ProxycianFactory.createEntityProxy(
+				expectedType, this.recipes, this.collectedRecipes,
+				new InitialEntityBuilder(entitySchema, primaryKey),
+				this.referencedEntitySchemas,
+				getReflectionLookup()
+			)
+		);
+		return this.generatedProxyObjects.computeIfAbsent(
+			new ParentProxyCacheKey(primaryKey),
+			key -> instanceSupplier.get()
+		).proxy(
+			expectedType,
+			instanceSupplier
+		);
+	}
+
+	/**
+	 * Creates new or returns existing proxy for an external entity that is accessible via parent of current entity.
+	 *
+	 * This method should be used if the referenced entity is known.
+	 *
+	 * @param expectedType            contract that the proxy should implement
+	 * @param primaryKey              primary key of the entity to get proxy for
+	 * @param <T>                     type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 */
+	@Nonnull
+	public <T> Optional<T> getParentEntityProxyIfPresent(
+		@Nonnull Class<T> expectedType,
+		int primaryKey
+	) {
+		return ofNullable(
+			this.generatedProxyObjects.get(
+				new ParentProxyCacheKey(primaryKey)
+			)
+		).flatMap(it -> it.proxyIfPossible(expectedType));
+	}
+
+	/**
+	 * Creates proxy instance of entity builder that implements `expectedType` contract and creates new entity builder.
+	 *
+	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
+	 * not known (the referenced entity needs to be persisted first).
+	 *
+	 * @param entitySchema schema of the entity to be created
+	 * @param expectedType contract that the proxy should implement
+	 * @param callback     callback that will be called when the entity is upserted
+	 * @param <T>          type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 * @throws EntityClassInvalidException if the proxy contract is not valid
+	 */
+	@Nonnull
+	public <T> T getOrCreateParentEntityProxyWithCallback(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull Consumer<EntityReference> callback
+	) throws EntityClassInvalidException {
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
+			ProxycianFactory.createEntityProxy(
+				expectedType, this.recipes, this.collectedRecipes,
+				new InitialEntityBuilder(entitySchema),
+				this.referencedEntitySchemas,
+				getReflectionLookup()
+			),
+			callback
+		);
+		return this.generatedProxyObjects.computeIfAbsent(
+			           new ParentProxyCacheKey(Integer.MIN_VALUE),
+			           key -> instanceSupplier.get()
+		           ).proxy(expectedType, instanceSupplier);
+	}
+
+	/**
+	 * Creates new or returns existing proxy for an external entity that is accessible via reference of current entity.
+	 *
+	 * This method should be used if the referenced entity is known.
+	 *
+	 * @param expectedType            contract that the proxy should implement
+	 * @param entity                  sealed entity to create proxy for
+	 * @param <T>                     type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 */
+	@Nonnull
+	public <T> T getOrCreateReferencedEntityProxy(
+		@Nonnull String referenceName,
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull ReferencedObjectType type
+	) {
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
+			createReferencedEntityProxy(expectedType, entity)
+		);
+		return this.generatedProxyObjects.computeIfAbsent(
+				new ReferencedEntityProxyCacheKey(referenceName, entity.getPrimaryKeyOrThrowException(), type),
 				key -> instanceSupplier.get()
 			)
 			.proxy(expectedType, instanceSupplier);
@@ -324,23 +461,24 @@ abstract class AbstractEntityProxyState implements
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
 	@Nonnull
-	public <T> T createReferencedEntityProxyWithCallback(
+	public <T> T getOrCreateReferencedEntityProxyWithCallback(
+		@Nonnull String referenceName,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType,
+		@Nonnull ReferencedObjectType type,
 		@Nonnull Consumer<EntityReference> callback
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityProxy(
-				expectedType, recipes, collectedRecipes,
+				expectedType, this.recipes, this.collectedRecipes,
 				new InitialEntityBuilder(entitySchema),
-				referencedEntitySchemas,
+				this.referencedEntitySchemas,
 				getReflectionLookup()
 			),
 			callback
 		);
 		return this.generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
+				new ReferencedEntityProxyCacheKey(referenceName, Integer.MIN_VALUE, type),
 				key -> instanceSupplier.get()
 			)
 			.proxy(expectedType, instanceSupplier);
@@ -360,7 +498,7 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull EntityContract entity
 	) {
 		return ProxycianFactory.createEntityProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup()
+			expectedType, this.recipes, this.collectedRecipes, entity, this.referencedEntitySchemas, getReflectionLookup()
 		);
 	}
 
@@ -369,9 +507,11 @@ abstract class AbstractEntityProxyState implements
 	 *
 	 * This method should be used if the reference is known.
 	 *
+	 * @param mainType                main contract of the outer entity proxy
 	 * @param expectedType            contract that the proxy should implement
 	 * @param entity                  sealed entity to create proxy for
 	 * @param reference               reference instance to create proxy for
+	 * @param referenceAttributeTypes attribute schema of the reference (by name)
 	 * @param <T>                     type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
 	 */
@@ -380,12 +520,15 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull Class<?> mainType,
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntityContract entity,
-		@Nonnull ReferenceContract reference
+		@Nonnull ReferenceContract reference,
+		@Nonnull Map<String, AttributeSchemaContract> referenceAttributeTypes
 	) {
 		return ProxycianFactory.createEntityReferenceProxy(
 			mainType, expectedType, this.recipes, this.collectedRecipes,
 			entity, this::getPrimaryKey,
-			this.referencedEntitySchemas, reference, getReflectionLookup(),
+			this.referencedEntitySchemas,
+			reference, referenceAttributeTypes,
+			getReflectionLookup(),
 			this.generatedProxyObjects
 		);
 	}
@@ -398,24 +541,31 @@ abstract class AbstractEntityProxyState implements
 	 *
 	 * @param expectedType            contract that the proxy should implement
 	 * @param reference               reference instance to create proxy for
+	 * @param attributeTypes          attribute schema of the reference (by name)
 	 * @param <T>                     type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
 	 */
 	@Nonnull
 	public <T> T getOrCreateEntityReferenceProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull ReferenceContract reference
+		@Nonnull ReferenceContract reference,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityReferenceProxy(
 				this.getProxyClass(), expectedType, this.recipes, this.collectedRecipes,
 				this.entity, this::getPrimaryKey,
-				this.referencedEntitySchemas, reference, getReflectionLookup(),
+				this.referencedEntitySchemas, reference, attributeTypes, getReflectionLookup(),
 				this.generatedProxyObjects
 			)
 		);
+		final ReferenceKey referenceKey = reference.getReferenceKey();
+		Assert.isPremiseValid(
+			!referenceKey.isUnknownReference(),
+			"Cannot create reference proxy for reference without assigned primary key!"
+		);
 		return this.generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
+				new ReferenceProxyCacheKey(reference.getReferenceKey()),
 				key -> instanceSupplier.get()
 			)
 			.proxy(
@@ -443,21 +593,22 @@ abstract class AbstractEntityProxyState implements
 	/**
 	 * Returns the registered proxy, matching the registration context in creation methods method.
 	 *
-	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
+	 * @param referenceName the {@link ReferenceSchemaContract#getName()} of the referenced entity type
 	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
 	 * @param expectedType         the expected class type of the proxy
-	 * @param proxyType            set of logical types to be searched for the proxy instance
+	 * @param type the type of the referenced object
+	 * @return optional containing the proxy if present and compatible, otherwise empty
 	 */
 	@Nonnull
 	public <T> Optional<T> getReferencedEntityObjectIfPresent(
-		@Nonnull String referencedEntityType,
+		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType
+		@Nonnull ReferencedObjectType type
 	) {
 		return ofNullable(
 			this.generatedProxyObjects.get(
-				new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, proxyType)
+				new ReferencedEntityProxyCacheKey(referenceName, referencedPrimaryKey, type)
 			)
 		).flatMap(it -> it.proxyIfPossible(expectedType));
 	}
@@ -467,20 +618,67 @@ abstract class AbstractEntityProxyState implements
 	 * accessed via it. We need to provide exactly the same instances of those objects when the same method is called
 	 * or the logically same object is retrieved via different method with compatible type.
 	 *
-	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
+	 * @param referenceName the {@link ReferenceSchemaContract#getName()} of the referenced entity type
 	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
+	 * @param type the type of the referenced object
 	 * @param proxy                the proxy object
-	 * @param logicalType          logical type of the proxy object
 	 */
 	public void registerReferencedEntityObject(
-		@Nonnull String referencedEntityType,
+		@Nonnull String referenceName,
 		int referencedPrimaryKey,
-		@Nonnull Object proxy,
-		@Nonnull ProxyType logicalType
+		@Nonnull ReferencedObjectType type,
+		@Nonnull Object proxy
 	) {
 		this.generatedProxyObjects.put(
-			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType),
+			new ReferencedEntityProxyCacheKey(referenceName, referencedPrimaryKey, type),
 			new ProxyWithUpsertCallback(proxy)
+		);
+	}
+
+	/**
+	 * Registers a referenced parent object by associating it with its primary key
+	 * in the generated proxy objects cache.
+	 *
+	 * @param primaryKey the primary key representing the parent object
+	 * @param proxy the proxy object representing the referenced parent object, must not be null
+	 */
+	public void registerReferencedParentObject(
+		int primaryKey,
+		@Nonnull Object proxy
+	) {
+		this.generatedProxyObjects.put(
+			new ParentProxyCacheKey(primaryKey),
+			new ProxyWithUpsertCallback(proxy)
+		);
+	}
+
+	/**
+	 * Method registers created proxy object that was created by this proxy instance and relates to referenced objects
+	 * accessed via it. We need to provide exactly the same instances of those objects when the same method is called
+	 * or the logically same object is retrieved via different method with compatible type.
+	 *
+	 * @param referenceKey the {@link ReferenceContract#getReferenceKey()} of the reference
+	 * @param proxy                the proxy object
+	 */
+	public void registerReferenceObject(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Object proxy
+	) {
+		this.generatedProxyObjects.put(
+			new ReferenceProxyCacheKey(referenceKey),
+			new ProxyWithUpsertCallback(proxy)
+		);
+	}
+
+	/**
+	 * Method unregisters created proxy object that was created by this proxy instance and relates to reference
+	 * accessed via it.
+	 *
+	 * @param referenceKey the {@link ReferenceKey} of the reference
+	 */
+	public void unregisterReferenceObject(@Nonnull ReferenceKey referenceKey) {
+		this.generatedProxyObjects.remove(
+			new ReferenceProxyCacheKey(referenceKey)
 		);
 	}
 
@@ -488,36 +686,46 @@ abstract class AbstractEntityProxyState implements
 	 * Method unregisters created proxy object that was created by this proxy instance and relates to referenced objects
 	 * accessed via it.
 	 *
-	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
+	 * @param referenceName the {@link ReferenceSchemaContract#getName()} of the referenced entity type
 	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
-	 * @param logicalType          logical type of the proxy object
+	 * @param type the type of the referenced object
 	 */
 	public void unregisterReferencedEntityObject(
-		@Nonnull String referencedEntityType,
+		@Nonnull String referenceName,
 		int referencedPrimaryKey,
-		@Nonnull ProxyType logicalType
+		@Nonnull ReferencedObjectType type
 	) {
 		this.generatedProxyObjects.remove(
-			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType)
+			new ReferencedEntityProxyCacheKey(referenceName, referencedPrimaryKey, type)
 		);
 	}
 
+	/**
+	 * Returns a stream of entity builders with upsert callbacks for all referenced entities reachable
+	 * from this proxy according to the provided propagation depth.
+	 *
+	 * - SHALLOW: only directly referenced entities/reference proxies created by this state
+	 * - DEEP: recursively includes referenced entities of those referenced entities as well
+	 *
+	 * @param propagation controls whether referenced entities are traversed shallowly or deeply
+	 * @return stream of entity builders with their associated upsert callbacks
+	 */
 	@Override
 	@Nonnull
-	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback() {
+	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback(@Nonnull Propagation propagation) {
 		return this.generatedProxyObjects.entrySet().stream()
 			.filter(
-				it -> it.getKey().proxyType() == ProxyType.PARENT ||
-					it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY
+				it -> it.getKey() instanceof ParentProxyCacheKey ||
+					it.getKey() instanceof ReferencedEntityProxyCacheKey
 			)
 			.flatMap(
 				it -> Stream.concat(
 					// we need first store the referenced entities of referenced entity (depth wise)
 					it.getValue().getSealedEntityProxies()
-						.flatMap(SealedEntityProxy::getReferencedEntityBuildersWithCallback),
+						.flatMap(proxy -> proxy.getReferencedEntityBuildersWithCallback(propagation)),
 					// and then the referenced entity itself
 					it.getValue().getSealedEntityProxies()
-						.map(SealedEntityProxy::getEntityBuilderWithCallback)
+						.map(proxy -> proxy.getEntityBuilderWithCallback(propagation))
 						.filter(Optional::isPresent)
 						.map(Optional::get)
 						.map(
@@ -530,7 +738,7 @@ abstract class AbstractEntityProxyState implements
 									mutationCallback == null ?
 										externalCallback :
 										entityReference1 -> {
-											mutation.updateEntityReference(entityReference1);
+											mutation.entityUpserted(entityReference1);
 											externalCallback.accept(entityReference1);
 										}
 								);
@@ -551,28 +759,79 @@ abstract class AbstractEntityProxyState implements
 
 	/**
 	 * Method is called during Java (de)serialization process. It is used to initialize the transient fields.
+	 *
+	 * @param ois object input stream used by Java serialization
+	 * @throws ClassNotFoundException when a class cannot be resolved during deserialization
+	 * @throws IOException when the underlying stream fails
 	 */
 	@Serial
 	private void readObject(@Nonnull ObjectInputStream ois) throws ClassNotFoundException, IOException {
 		ois.defaultReadObject();
 		this.reflectionLookup = ReflectionLookup.NO_CACHE_INSTANCE;
-		this.collectedRecipes = new ConcurrentHashMap<>(recipes);
+		this.collectedRecipes = new ConcurrentHashMap<>(this.recipes);
 		this.generatedProxyObjects = new ConcurrentHashMap<>();
 	}
 
 	/**
-	 * Cache key for generated proxies.
+	 * A cache key used for identifying a specific proxy instance of a referenced entity.
+	 * This key uniquely represents a combination of a reference name, an entity's primary key,
+	 * and the referenced object type, which together identify a proxy instance in the cache.
 	 *
-	 * @param identifier entity of reference name
-	 * @param primaryKey primary key of the object being wrapped
-	 * @param proxyType  the type of the proxy (entity or reference)
+	 * This record implements the {@link ProxyInstanceCacheKey} interface, signifying its use
+	 * as a key for caching generated proxy instances.
+	 *
+	 * @param referenceName The name of the reference associated with the proxy instance.
+	 * @param entityPrimaryKey The primary key of the entity that the proxy instance represents.
+	 * @param type The type of the referenced object associated with the proxy instance.
 	 */
-	protected record ProxyInstanceCacheKey(
-		@Nonnull String identifier,
-		int primaryKey,
-		@Nonnull ProxyType proxyType
-	) {
+	protected record ReferencedEntityProxyCacheKey(
+		@Nonnull String referenceName,
+		int entityPrimaryKey,
+		@Nonnull ReferencedObjectType type
+	) implements ProxyInstanceCacheKey {
 
+	}
+
+	/**
+	 * Cache key for generated entity proxies of parent entities.
+	 *
+	 * @param entityPrimaryKey entity primary key
+	 */
+	protected record ParentProxyCacheKey(
+		int entityPrimaryKey
+	) implements ProxyInstanceCacheKey {
+
+	}
+
+	/**
+	 * Cache key for generated entity proxies of references.
+	 *
+	 * @param referenceName name of the reference
+	 * @param referencedEntityPrimaryKey primary key of the referenced entity
+	 * @param internalPrimaryKey internal primary key of the referenced
+	 */
+	protected record ReferenceProxyCacheKey(
+		@Nonnull String referenceName,
+		int referencedEntityPrimaryKey,
+		int internalPrimaryKey
+	) implements ProxyInstanceCacheKey {
+
+		/**
+		 * Creates cache key from a {@link ReferenceKey} ensuring it represents a known reference.
+		 *
+		 * @param referenceKey composite key of the reference (name + referenced pk + internal pk)
+		 */
+		public ReferenceProxyCacheKey(@Nonnull ReferenceKey referenceKey) {
+			this(
+				referenceKey.referenceName(),
+				referenceKey.primaryKey(),
+				referenceKey.internalPrimaryKey()
+			);
+			Assert.isPremiseValid(
+				!referenceKey.isUnknownReference(),
+				"Cannot create cache key for reference without assigned primary key!"
+			);
+		}
 	}
 
 	/**
@@ -586,25 +845,50 @@ abstract class AbstractEntityProxyState implements
 		@Nonnull private final List<Object> proxies;
 		@Nonnull private Consumer<EntityReference> callback;
 
+		/**
+		 * Creates a holder for a proxy instance and an upsert callback to be invoked after persistence.
+		 *
+		 * @param proxy    the proxy instance to register
+		 * @param callback the callback to execute when the entity is upserted
+		 */
 		public ProxyWithUpsertCallback(@Nonnull Object proxy, @Nonnull Consumer<EntityReference> callback) {
 			this.proxies = new LinkedList<>();
 			this.proxies.add(proxy);
 			this.callback = callback;
 		}
 
+		/**
+		 * Creates a holder for a proxy instance without any upsert callback.
+		 *
+		 * @param proxy the proxy instance to register
+		 */
 		public ProxyWithUpsertCallback(@Nonnull Object proxy) {
 			this(proxy, DO_NOTHING_CALLBACK);
 		}
 
+		/**
+		 * Returns the upsert callback associated with this proxy holder.
+		 *
+		 * @return callback to be invoked after upsert; may be a no-op
+		 */
 		@Nonnull
 		public Consumer<EntityReference> callback() {
-			return callback;
+			return this.callback;
 		}
 
+		/**
+		 * Returns a proxy instance implementing the requested contract. If such proxy is already stored,
+		 * it is returned; otherwise a new proxy is created via the supplied factory and memoized.
+		 *
+		 * @param classToImplement the expected proxy contract
+		 * @param newInstanceSupplier supplier that creates a new proxy holder when needed
+		 * @param <T> concrete contract type of the requested proxy
+		 * @return proxy instance implementing the requested contract
+		 */
 		@SuppressWarnings("unchecked")
 		@Nonnull
 		public <T> T proxy(@Nonnull Class<T> classToImplement, @Nonnull Supplier<ProxyWithUpsertCallback> newInstanceSupplier) {
-			for (Object proxy : proxies) {
+			for (Object proxy : this.proxies) {
 				if (classToImplement.isInstance(proxy)) {
 					return (T) proxy;
 				}
@@ -624,10 +908,17 @@ abstract class AbstractEntityProxyState implements
 			return proxy;
 		}
 
+		/**
+		 * Attempts to return a proxy implementing the requested contract if already present.
+		 *
+		 * @param classToImplement the expected proxy contract
+		 * @param <T> concrete contract type of the requested proxy
+		 * @return optional containing the proxy if available, otherwise empty
+		 */
 		@SuppressWarnings("unchecked")
 		@Nonnull
-		public <T> Optional<? extends T> proxyIfPossible(@Nonnull Class<T> classToImplement) {
-			for (Object proxy : proxies) {
+		public <T> Optional<T> proxyIfPossible(@Nonnull Class<T> classToImplement) {
+			for (Object proxy : this.proxies) {
 				if (classToImplement.isInstance(proxy)) {
 					return of((T) proxy);
 				}
@@ -635,14 +926,49 @@ abstract class AbstractEntityProxyState implements
 			return empty();
 		}
 
+		/**
+		 * Returns proxies stored in this holder according to propagation setting.
+		 *
+		 * - SHALLOW: returns only the first stored proxy (if any)
+		 * - DEEP: returns all stored proxies
+		 *
+		 * @param propagation selection of shallow vs. deep proxy set
+		 * @return collection of proxies according to the propagation
+		 */
 		@Nonnull
-		public Collection<Object> proxies() {
-			return proxies;
+		public Collection<Object> proxies(@Nonnull Propagation propagation) {
+			if (propagation == Propagation.SHALLOW) {
+				return this.proxies.isEmpty() ? List.of() : List.of(this.proxies.get(0));
+			} else {
+				return this.proxies;
+			}
 		}
 
+		/**
+		 * Returns a stream of proxies that implement SealedEntityProxy interface.
+		 *
+		 * @return stream of sealed-entity proxies stored in this holder
+		 */
 		@Nonnull
 		public Stream<SealedEntityProxy> getSealedEntityProxies() {
-			return proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
+			return this.proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
+		}
+
+		/**
+		 * Returns a stream of proxies that implement SealedEntityReferenceProxy.
+		 *
+		 * - SHALLOW: returns only the first matching reference proxy
+		 * - DEEP: returns all matching reference proxies
+		 *
+		 * @param propagation selection of shallow vs. deep traversal
+		 * @return stream of sealed-entity reference proxies according to propagation
+		 */
+		@Nonnull
+		public Stream<SealedEntityReferenceProxy> getSealedEntityReferenceProxies(@Nonnull Propagation propagation) {
+			return switch (propagation) {
+				case DEEP -> this.proxies.stream().filter(SealedEntityReferenceProxy.class::isInstance).map(SealedEntityReferenceProxy.class::cast);
+				case SHALLOW -> this.proxies.stream().filter(SealedEntityReferenceProxy.class::isInstance).map(SealedEntityReferenceProxy.class::cast).findFirst().stream();
+			};
 		}
 
 	}

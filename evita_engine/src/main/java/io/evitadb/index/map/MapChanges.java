@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	@Nonnull
 	public Set<K> getRemovedKeys() {
-		return Collections.unmodifiableSet(removedKeys);
+		return Collections.unmodifiableSet(this.removedKeys);
 	}
 
 	/**
@@ -112,12 +112,13 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	@Nonnull
 	public Map<K, V> getModifiedKeys() {
-		return Collections.unmodifiableMap(modifiedKeys);
+		return Collections.unmodifiableMap(this.modifiedKeys);
 	}
 
 	/**
 	 * Computes the correct value for the passed key taking changes in this diff layer into an account.
 	 */
+	@Nullable
 	@SuppressWarnings("unchecked")
 	V get(Object key) {
 		if (containsRemoved((K) key)) {
@@ -159,6 +160,7 @@ public class MapChanges<K, V> implements Serializable {
 	 * Method records insertion / update of the record with particular key. The update is trapped within this object
 	 * data. If the record was not in original map the {@link #createdKeyCount} is incremented.
 	 */
+	@Nullable
 	V put(K key, V value) {
 		final V originalValue;
 		if (containsCreatedOrModified(key)) {
@@ -171,7 +173,7 @@ public class MapChanges<K, V> implements Serializable {
 				registerCreatedKey(key, value);
 			}
 		}
-		if (removedKeys.remove(key)) {
+		if (this.removedKeys.remove(key)) {
 			if (originalValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
 				transactionalLayerProducer.removeLayer();
 			}
@@ -199,10 +201,10 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	boolean containsValue(Object value) {
 		//noinspection unchecked
-		if (modifiedKeys.containsValue((V) value)) {
+		if (this.modifiedKeys.containsValue((V) value)) {
 			return true;
 		} else {
-			for (Entry<K, V> entry : mapDelegate.entrySet()) {
+			for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 				if (Objects.equals(value, entry.getValue())) {
 					return !containsRemoved(entry.getKey());
 				}
@@ -215,22 +217,22 @@ public class MapChanges<K, V> implements Serializable {
 	 * Decreases {@link #createdKeyCount}.
 	 */
 	void decreaseCreatedKeyCount() {
-		createdKeyCount--;
+		this.createdKeyCount--;
 	}
 
 	/**
 	 * Computes the size of the map taking changes in this diff layer into an account.
 	 */
 	int size() {
-		return mapDelegate.size() - removedKeys.size() + createdKeyCount;
+		return this.mapDelegate.size() - this.removedKeys.size() + this.createdKeyCount;
 	}
 
 	/**
 	 * Resolves whether the original map with applied changes from this diff layer would produce empty map.
 	 */
 	boolean isEmpty() {
-		if (removedKeys.isEmpty() && createdKeyCount == 0) {
-			return mapDelegate.isEmpty();
+		if (this.removedKeys.isEmpty() && this.createdKeyCount == 0) {
+			return this.mapDelegate.isEmpty();
 		} else {
 			return size() == 0;
 		}
@@ -242,11 +244,11 @@ public class MapChanges<K, V> implements Serializable {
 	@Nonnull
 	HashMap<K, V> createMergedMap(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// create new hash map of requested size
-		final HashMap<K, V> copy = createHashMap(mapDelegate.size());
+		final HashMap<K, V> copy = createHashMap(this.mapDelegate.size());
 		// iterate original map and copy all values from it
-		for (Entry<K, V> entry : mapDelegate.entrySet()) {
+		for (Entry<K, V> entry : this.mapDelegate.entrySet()) {
 			final K key = entry.getKey();
-			if (!modifiedKeys.containsKey(key)) {
+			if (!this.modifiedKeys.containsKey(key)) {
 				final boolean wasRemoved = containsRemoved(key);
 				// we need to always create copy - something in the referenced object might have changed
 				// even the removed values need to be evaluated (in order to discard them from transactional memory set)
@@ -259,7 +261,7 @@ public class MapChanges<K, V> implements Serializable {
 					if (wasValueRemoved) {
 						transactionalLayerProducer.removeLayer(transactionalLayer);
 					} else if (!wasRemoved) {
-						value = transactionalLayerWrapper.apply(
+						value = this.transactionalLayerWrapper.apply(
 							transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 						);
 					}
@@ -271,7 +273,7 @@ public class MapChanges<K, V> implements Serializable {
 			}
 		}
 
-		for (Entry<K, V> entry : modifiedKeys.entrySet()) {
+		for (Entry<K, V> entry : this.modifiedKeys.entrySet()) {
 			final K key = entry.getKey();
 			// we need to always create copy - something in the referenced object might have changed
 			if (key instanceof TransactionalLayerProducer) {
@@ -279,7 +281,7 @@ public class MapChanges<K, V> implements Serializable {
 			}
 			V value = entry.getValue();
 			if (value instanceof TransactionalLayerProducer) {
-				value = transactionalLayerWrapper.apply(
+				value = this.transactionalLayerWrapper.apply(
 					transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) value)
 				);
 			}
@@ -295,33 +297,34 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	@Nonnull
 	Iterator<Entry<K, V>> getCreatedOrModifiedValuesIterator() {
-		return modifiedKeys.entrySet().iterator();
+		return this.modifiedKeys.entrySet().iterator();
 	}
 
 	/**
 	 * Returns true if particular key is recorded to be removed.
 	 */
 	boolean containsRemoved(K key) {
-		return removedKeys.contains(key);
+		return this.removedKeys.contains(key);
 	}
 
 	/**
 	 * Returns true if particular key is recorded to be inserted or updated.
 	 */
 	boolean containsCreatedOrModified(K key) {
-		return modifiedKeys.containsKey(key);
+		return this.modifiedKeys.containsKey(key);
 	}
 
 	/**
 	 * Returns inserted / updated value for particular key.
 	 */
 	V getCreatedOrModifiedValue(K key) {
-		return modifiedKeys.get(key);
+		return this.modifiedKeys.get(key);
 	}
 
 	/**
 	 * Registers an inserted entry.
 	 */
+	@Nullable
 	V registerCreatedKey(K key, V value) {
 		final V previous = this.modifiedKeys.put(key, value);
 		this.createdKeyCount++;
@@ -331,6 +334,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Registers an updated entry.
 	 */
+	@Nullable
 	V registerModifiedKey(K key, V value) {
 		return this.modifiedKeys.put(key, value);
 	}
@@ -345,6 +349,7 @@ public class MapChanges<K, V> implements Serializable {
 	/**
 	 * Removes previously registered inserted entry via. {@link #registerCreatedKey(Object, Object)}.
 	 */
+	@Nonnull
 	V removeCreatedKey(K key) {
 		final V previous = this.modifiedKeys.remove(key);
 		this.createdKeyCount--;

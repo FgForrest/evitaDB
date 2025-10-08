@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
@@ -48,8 +47,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Or
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
-import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
+import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -90,16 +89,16 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		this.orderConstraintResolver = new OrderConstraintResolver(
 			catalogSchema,
-			new AtomicReference<>(filterConstraintResolver)
+			new AtomicReference<>(this.filterConstraintResolver)
 		);
 		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
 			catalogSchema,
-			new AtomicReference<>(filterConstraintResolver)
+			new AtomicReference<>(this.filterConstraintResolver)
 		);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
-			filterConstraintResolver,
-			orderConstraintResolver,
+			this.filterConstraintResolver,
+			this.orderConstraintResolver,
 			requireConstraintResolver
 		);
 	}
@@ -111,7 +110,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> {
-			final HeadConstraint head = collection(entitySchema.getName());
+			final HeadConstraint head = collection(this.entitySchema.getName());
 			final FilterBy filterBy = buildFilterBy(arguments);
 			final OrderBy orderBy = buildOrderBy(arguments);
 			final Require require = buildRequire(environment, arguments, filterBy);
@@ -122,7 +121,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 				require
 			);
 		});
-		log.debug("Generated evitaDB query for entity deletion of type `{}` is `{}`.", entitySchema.getName(), query);
+		log.debug("Generated evitaDB query for entity deletion of type `{}` is `{}`.", this.entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		final SealedEntity[] deletedEntities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
@@ -139,8 +138,8 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		if (arguments.filterBy() == null) {
 			return null;
 		}
-		return (FilterBy) filterConstraintResolver.resolve(
-			entitySchema.getName(),
+		return (FilterBy) this.filterConstraintResolver.resolve(
+			this.entitySchema.getName(),
 			DeleteEntitiesMutationHeaderDescriptor.FILTER_BY.name(),
 			arguments.filterBy()
 		);
@@ -151,8 +150,8 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		if (arguments.orderBy() == null) {
 			return null;
 		}
-		return (OrderBy) orderConstraintResolver.resolve(
-			entitySchema.getName(),
+		return (OrderBy) this.orderConstraintResolver.resolve(
+			this.entitySchema.getName(),
 			DeleteEntitiesMutationHeaderDescriptor.ORDER_BY.name(),
 			arguments.orderBy()
 		);
@@ -165,10 +164,10 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 
 		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
-		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+		final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetAggregator.from(environment.getSelectionSet()),
 			extractDesiredLocale(filterBy),
-			entitySchema
+			this.entitySchema
 		);
 		entityFetch.ifPresentOrElse(requireConstraints::add, () -> requireConstraints.add(entityFetch()));
 

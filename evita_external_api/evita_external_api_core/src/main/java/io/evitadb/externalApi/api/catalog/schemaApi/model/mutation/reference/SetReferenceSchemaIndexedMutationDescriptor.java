@@ -70,6 +70,6 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(NAME, INDEXED_IN_SCOPES))
+		.staticFields(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
 		.build();
 }

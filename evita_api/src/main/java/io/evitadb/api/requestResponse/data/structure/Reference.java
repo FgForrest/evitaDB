@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,12 +31,11 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.dataType.map.LazyHashMap;
+import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Delegate;
 
@@ -48,10 +47,11 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -78,12 +78,12 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 @EqualsAndHashCode(of = {"version", "referenceKey"})
 public class Reference implements ReferenceContract {
-	@Serial private static final long serialVersionUID = -2624502273901281240L;
+	@Serial private static final long serialVersionUID = -7290835641974262053L;
 
 	/**
-	 * Entity schema definition.
+	 * Reference schema definition.
 	 */
-	private final EntitySchemaContract entitySchema;
+	private final ReferenceSchemaContract referenceSchema;
 	/**
 	 * Contains version of this object and gets increased with any entity update. Allows to execute
 	 * optimistic locking i.e. avoiding parallel modifications.
@@ -94,16 +94,6 @@ public class Reference implements ReferenceContract {
 	 * {@link ReferenceSchemaContract#getName()} and {@link Entity#getPrimaryKey()}.
 	 */
 	private final ReferenceKey referenceKey;
-	/**
-	 * Contains information about reference cardinality. This value is usually NULL except the case when the reference
-	 * is created for the first time and {@link io.evitadb.api.requestResponse.schema.EvolutionMode#ADDING_REFERENCES} is allowed.
-	 */
-	private final Cardinality referenceCardinality;
-	/**
-	 * Contains information about target entity type. This value is usually NULL except the case when the reference
-	 * is created for the first time and {@link io.evitadb.api.requestResponse.schema.EvolutionMode#ADDING_REFERENCES} is allowed.
-	 */
-	private final String referencedEntityType;
 	/**
 	 * Reference to the Evita {@link Entity} or any external entity not maintained by Evita.
 	 * Facet group aggregates facets of the same type - for example by color, size, brand or whatever else.
@@ -123,97 +113,117 @@ public class Reference implements ReferenceContract {
 	 */
 	private final boolean dropped;
 
-	/**
-	 * Creates new reference with given parameters. This method is used only as a temporal schema until it's created.
-	 */
-	@Nonnull
-	public static ReferenceSchema createImplicitSchema(
-		@Nonnull String referenceName,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
-		@Nullable GroupEntityReference group
+	public Reference(
+		int internalId,
+		@Nonnull Reference reference
 	) {
-		return ReferenceSchema._internalBuild(
-			referenceName, referencedEntityType, false, cardinality,
-			ofNullable(group).map(GroupEntityReference::getType).orElse(null), false,
-			null, null
+		this.version = reference.version;
+		this.referenceSchema = reference.referenceSchema;
+		final ReferenceKey originalRefKey = reference.referenceKey;
+		this.referenceKey = new ReferenceKey(
+			originalRefKey.referenceName(),
+			originalRefKey.primaryKey(),
+			internalId
 		);
+		this.group = reference.group;
+		this.attributes = reference.attributes;
+		this.dropped = reference.dropped;
+	}
+
+	public Reference(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Reference reference
+	) {
+		this.version = reference.version;
+		this.referenceSchema = referenceSchema;
+		final ReferenceKey originalRefKey = reference.referenceKey;
+		this.referenceKey = new ReferenceKey(
+			originalRefKey.referenceName(),
+			originalRefKey.primaryKey(),
+			originalRefKey.internalPrimaryKey()
+		);
+		this.group = reference.group;
+		this.attributes = reference.attributes;
+		this.dropped = reference.dropped;
 	}
 
 	public Reference(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String referenceName,
-		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int internalId,
+		@Nonnull ReferenceContract reference
+	) {
+		this.version = reference.version();
+		this.referenceSchema = referenceSchema;
+		final ReferenceKey originalRefKey = reference.getReferenceKey();
+		this.referenceKey = new ReferenceKey(
+			originalRefKey.referenceName(),
+			originalRefKey.primaryKey(),
+			internalId
+		);
+		this.group = reference.getGroup().orElse(null);
+		this.attributes = new ReferenceAttributes(
+			entitySchema,
+			referenceSchema,
+			reference.getAttributeValues(),
+			reference instanceof Reference ref && !(ref.attributes.attributeTypes.isEmpty()) ?
+				new HashMap<>(ref.attributes.attributeTypes) :
+				new LazyHashMap<>(4)
+		);
+		this.dropped = reference.dropped();
+	}
+
+	public Reference(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group
 	) {
 		this.version = 1;
-		this.entitySchema = entitySchema;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = cardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceSchema = referenceSchema;
+		this.referenceKey = referenceKey;
 		this.group = group;
-		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
 		this.attributes = new ReferenceAttributes(
 			entitySchema,
-			reference.orElseGet(
-				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
-			),
+			referenceSchema,
 			Collections.emptyMap(),
-			reference
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			referenceSchema.getAttributes()
 		);
 		this.dropped = false;
 	}
 
 	public Reference(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		int version,
-		@Nonnull String referenceName,
-		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group,
 		boolean dropped
 	) {
-		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.version = version;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = cardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceKey = referenceKey;
 		this.group = group;
-		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
 		this.attributes = new ReferenceAttributes(
 			entitySchema,
-			reference.orElseGet(
-				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
-			),
+			referenceSchema,
 			Collections.emptyMap(),
-			reference
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			referenceSchema.getAttributes()
 		);
 		this.dropped = dropped;
 	}
 
 	public Reference(
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		int version,
-		@Nonnull String referenceName,
-		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group,
 		@Nonnull Attributes<AttributeSchemaContract> attributes,
 		boolean dropped
 	) {
-		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.version = version;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = cardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceKey = referenceKey;
 		this.group = group;
 		this.attributes = attributes;
 		this.dropped = dropped;
@@ -221,80 +231,62 @@ public class Reference implements ReferenceContract {
 
 	public Reference(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		int version,
-		@Nonnull String referenceName,
-		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group,
 		@Nonnull Map<AttributeKey, AttributeValue> attributes,
 		boolean dropped
 	) {
-		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.version = version;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = cardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceKey = referenceKey;
 		this.group = group;
-		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
 		this.attributes = new ReferenceAttributes(
 			entitySchema,
-			reference.orElseGet(
-				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
-			),
+			referenceSchema,
 			attributes,
-			reference
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			referenceSchema.getAttributes()
 		);
 		this.dropped = dropped;
 	}
 
 	public Reference(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		int version,
-		@Nonnull String referenceName,
-		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group,
 		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
 		boolean dropped
 	) {
-		this.entitySchema = entitySchema;
+		this.referenceSchema = referenceSchema;
 		this.version = version;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = cardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceKey = referenceKey;
 		this.group = group;
-		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
 		this.attributes = new ReferenceAttributes(
 			entitySchema,
-			reference.orElseGet(
-				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
-			),
+			referenceSchema,
 			attributes,
-			reference
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			attributeTypes
 		);
 		this.dropped = dropped;
 	}
 
 	public Reference(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull String referenceName,
-		int referencedEntityPrimaryKey,
-		@Nullable String referencedEntityType,
-		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable GroupEntityReference group,
 		@Nonnull Attributes<AttributeSchemaContract> attributes
 	) {
-		this.entitySchema = entitySchema;
+		Assert.isPremiseValid(
+			!referenceKey.isUnknownReference(),
+			"Internal id must be non-zero!"
+		);
+		this.referenceSchema = referenceSchema;
 		this.version = 1;
-		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
-		this.referenceCardinality = cardinality;
-		this.referencedEntityType = referencedEntityType;
+		this.referenceKey = referenceKey;
 		this.group = group;
 		this.attributes = attributes;
 		this.dropped = false;
@@ -303,7 +295,7 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey() {
-		return referenceKey;
+		return this.referenceKey;
 	}
 
 	@Nonnull
@@ -315,27 +307,19 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	@Override
 	public String getReferencedEntityType() {
-		return Objects.requireNonNull(
-			getReferenceSchema()
-				.map(ReferenceSchemaContract::getReferencedEntityType)
-				.orElse(referencedEntityType)
-		);
+		return this.referenceSchema.getReferencedEntityType();
 	}
 
 	@Nonnull
 	@Override
 	public Cardinality getReferenceCardinality() {
-		return Objects.requireNonNull(
-			getReferenceSchema()
-				.map(ReferenceSchemaContract::getCardinality)
-				.orElse(referenceCardinality)
-		);
+		return this.referenceSchema.getCardinality();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<GroupEntityReference> getGroup() {
-		return ofNullable(group);
+		return ofNullable(this.group);
 	}
 
 	@Nonnull
@@ -347,32 +331,31 @@ public class Reference implements ReferenceContract {
 	@Nonnull
 	@Override
 	public Optional<ReferenceSchemaContract> getReferenceSchema() {
-		return this.entitySchema.getReference(referenceKey.referenceName());
+		return of(this.referenceSchema);
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceSchemaContract getReferenceSchemaOrThrow() {
-		return getReferenceSchema()
-			.orElseThrow(() -> new EvitaInvalidUsageException("Reference schema is not available!"));
+		return this.referenceSchema;
 	}
 
 	@Override
 	public boolean dropped() {
-		return dropped;
+		return this.dropped;
 	}
 
 	@Override
 	public int version() {
-		return version;
+		return this.version;
 	}
 
 	@Override
 	public String toString() {
-		return (dropped ? "❌ " : "") +
-			"References `" + referenceKey.referenceName() + "` " + referenceKey.primaryKey() +
-			(group == null ? "" : " in " + group) +
-			(attributes.attributesAvailable() ? ", attrs: " + attributes : "");
+		return (this.dropped ? "❌ " : "") +
+			"References `" + this.referenceKey.referenceName() + "` " + this.referenceKey.primaryKey() + "/" + this.referenceKey.internalPrimaryKey() +
+			(this.group == null ? "" : " in " + this.group) +
+			(this.attributes.attributesAvailable() ? ", attrs: " + this.attributes : "");
 	}
 
 }

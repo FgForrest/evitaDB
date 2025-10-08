@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class LazyEvaluatedEntityPriceRecords implements FilteredPriceRecords {
 
 		@Override
 		public boolean forEachPriceOfEntity(int entityPk, int lastExpectedEntity, @Nonnull Consumer<PriceRecordContract> priceConsumer) {
-			for (PriceListAndCurrencyPriceIndex priceIndex : priceIndexes) {
+			for (PriceListAndCurrencyPriceIndex priceIndex : this.priceIndexes) {
 				final PriceRecordContract[] lowestPriceRecordsForEntity = priceIndex.getLowestPriceRecordsForEntity(entityPk);
 				if (!ArrayUtils.isEmpty(lowestPriceRecordsForEntity)) {
 					for (PriceRecordContract thePrice : lowestPriceRecordsForEntity) {

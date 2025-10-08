@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public class AssociatedDataStoragePartSerializer extends Serializer<AssociatedDa
 
 	@Override
 	public void write(Kryo kryo, Output output, AssociatedDataStoragePart object) {
-		final long uniqueId = ofNullable(object.getStoragePartPK()).orElseGet(() -> object.computeUniquePartIdAndSet(keyCompressor));
+		final long uniqueId = ofNullable(object.getStoragePartPK()).orElseGet(() -> object.computeUniquePartIdAndSet(this.keyCompressor));
 		output.writeLong(uniqueId);
 		output.writeInt(object.getEntityPrimaryKey());
 		kryo.writeObject(output, object.getValue());

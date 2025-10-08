@@ -40,7 +40,7 @@ import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexBuilder;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
@@ -50,7 +50,7 @@ import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -108,7 +108,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull CatalogBootstrap catalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
@@ -146,7 +146,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull CatalogBootstrap lastCatalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
@@ -390,7 +390,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull CatalogHeader catalogHeader,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
@@ -424,7 +424,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		int storageProtocolVersion,
 		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
-		@Nullable WalFileReference walFileLocation,
+		@Nullable LogFileRecordReference walFileLocation,
 		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
 		@Nonnull UUID catalogId,
 		@Nonnull String catalogName,
@@ -436,12 +436,12 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			catalogVersion,
 			walFileLocation,
 			collectionFileReferenceIndex,
-			offsetIndex.getCompressedKeys(),
+			this.offsetIndex.getCompressedKeys(),
 			catalogId,
 			catalogName,
 			catalogState,
 			lastEntityCollectionPrimaryKey,
-			offsetIndex.getActiveRecordShare(catalogStoragePath.resolve(name).toFile().length())
+			this.offsetIndex.getActiveRecordShare(catalogStoragePath.resolve(this.name).toFile().length())
 		);
 		putStoragePart(catalogVersion, newCatalogHeader);
 		this.currentCatalogHeader = newCatalogHeader;

@@ -6,7 +6,6 @@ option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/wrappers.proto";
 import "GrpcEvitaDataTypes.proto";
-import "GrpcQueryParam.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
 

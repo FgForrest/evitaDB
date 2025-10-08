@@ -116,6 +116,43 @@ public class FileUtils {
 	}
 
 	/**
+	 * Renames a source file to the target file name, or replaces the target file if it already exists.
+	 *
+	 * @param sourceFile the path of the source file that needs to be renamed
+	 * @param targetFile the path of the target file to rename to or replace
+	 */
+	public static void renameOrReplaceFile(@Nonnull Path sourceFile, @Nonnull Path targetFile) {
+		try {
+			Files.move(
+				sourceFile,
+				targetFile,
+				StandardCopyOption.REPLACE_EXISTING,
+				StandardCopyOption.ATOMIC_MOVE
+			);
+		} catch (AtomicMoveNotSupportedException e) {
+			try {
+				Files.move(
+					sourceFile,
+					targetFile,
+					StandardCopyOption.REPLACE_EXISTING
+				);
+			} catch (IOException fallbackException) {
+				throw new UnexpectedIOException(
+					"Failed to rename file: " + sourceFile + " to " + targetFile,
+					"Failed to rename file!",
+					fallbackException
+				);
+			}
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to rename file: " + sourceFile + " to " + targetFile,
+				"Failed to rename file!",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Renames source folder to target folder including all subfolders and files within.
 	 *
 	 * @param source the source folder path to rename
@@ -400,4 +437,5 @@ public class FileUtils {
 			);
 		}
 	}
+
 }

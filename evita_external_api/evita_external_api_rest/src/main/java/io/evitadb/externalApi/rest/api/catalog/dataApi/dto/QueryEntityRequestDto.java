@@ -48,22 +48,22 @@ public class QueryEntityRequestDto {
 
 	@Nonnull
 	public Optional<JsonNode> getHead() {
-		return getContainer(head);
+		return getContainer(this.head);
 	}
 
 	@Nonnull
 	public Optional<JsonNode> getFilterBy() {
-		return getContainer(filterBy);
+		return getContainer(this.filterBy);
 	}
 
 	@Nonnull
 	public Optional<JsonNode> getOrderBy() {
-		return getContainer(orderBy);
+		return getContainer(this.orderBy);
 	}
 
 	@Nonnull
 	public Optional<JsonNode> getRequire() {
-		return getContainer(require);
+		return getContainer(this.require);
 	}
 
 	@Nonnull

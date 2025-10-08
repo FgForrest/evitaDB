@@ -61,7 +61,7 @@ public class CatalogIndexStoragePartSerializer_2024_11 extends Serializer<Catalo
 		final Set<AttributeKey> attributeKeys = CollectionUtils.createHashSet(attributeCount);
 		for (int i = 0; i < attributeCount; i++) {
 			attributeKeys.add(
-				keyCompressor.getKeyForId(input.readVarInt(true))
+				this.keyCompressor.getKeyForId(input.readVarInt(true))
 			);
 		}
 

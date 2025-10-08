@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,15 +26,17 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -49,7 +51,7 @@ class ModifyAttributeSchemaDeprecationNoticeMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new ModifyAttributeSchemaDeprecationNoticeMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new ModifyAttributeSchemaDeprecationNoticeMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -58,7 +60,7 @@ class ModifyAttributeSchemaDeprecationNoticeMutationConverterTest {
 			"code",
 			"depr"
 		);
-		final ModifyAttributeSchemaDeprecationNoticeMutation convertedMutation = converter.convert(
+		final ModifyAttributeSchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
@@ -72,7 +74,7 @@ class ModifyAttributeSchemaDeprecationNoticeMutationConverterTest {
 			"code",
 			null
 		);
-		final ModifyAttributeSchemaDeprecationNoticeMutation convertedMutation = converter.convert(
+		final ModifyAttributeSchemaDeprecationNoticeMutation convertedMutation = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -82,7 +84,27 @@ class ModifyAttributeSchemaDeprecationNoticeMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final ModifyAttributeSchemaDeprecationNoticeMutation inputMutation = new ModifyAttributeSchemaDeprecationNoticeMutation(
+			"code",
+			"depr"
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyAttributeSchemaDeprecationNoticeMutation.class.getSimpleName())
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
+					.build()
+			);
 	}
 }

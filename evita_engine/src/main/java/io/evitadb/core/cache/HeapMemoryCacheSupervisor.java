@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
@@ -35,6 +35,7 @@ import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.utils.IOUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,16 +63,12 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 	 */
 	private final CacheAnteroom cacheAnteroom;
 	/**
-	 * Eden cache.
-	 */
-	private final CacheEden cacheEden;
-	/**
 	 * Task that reevaluates the cache contents.
 	 */
 	private final DelayedAsyncTask reevaluationTask;
 
 	public HeapMemoryCacheSupervisor(@Nonnull CacheOptions cacheOptions, @Nonnull Scheduler scheduler) {
-		this.cacheEden = new CacheEden(
+		final CacheEden cacheEden = new CacheEden(
 			cacheOptions.cacheSizeInBytes(),
 			cacheOptions.minimalUsageThreshold(),
 			cacheOptions.minimalComplexityThreshold(),
@@ -202,4 +199,11 @@ public class HeapMemoryCacheSupervisor implements CacheSupervisor {
 		}
 	}
 
+	@Override
+	public void close() {
+		IOUtils.closeQuietly(
+			this.cacheAnteroom::close,
+			this.reevaluationTask::close
+		);
+	}
 }

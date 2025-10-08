@@ -26,8 +26,11 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
+import java.util.concurrent.CompletionException;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Tests for {@link ExceptionUtils}.
@@ -77,6 +80,85 @@ class ExceptionUtilsTest {
         // Should not enter infinite loop and should return one of the exceptions in the chain
         // In this case, it returns exception1 because that's where the algorithm stops
         assertSame(exception1, rootCause);
+    }
+
+    @Test
+    void shouldReturnSupplierResultWhenNoExceptionThrown() {
+        // given
+        final String expectedResult = "test result";
+
+        // when
+        final String result = ExceptionUtils.unwrapCompletionException(() -> expectedResult);
+
+        // then
+        assertEquals(expectedResult, result);
+    }
+
+    @Test
+    void shouldUnwrapRuntimeExceptionFromCompletionException() {
+        // given
+        final IllegalArgumentException originalException = new IllegalArgumentException("Original exception");
+        final CompletionException completionException = new CompletionException(originalException);
+
+        // when & then
+        final IllegalArgumentException thrownException = assertThrows(
+            IllegalArgumentException.class,
+            () -> ExceptionUtils.unwrapCompletionException(() -> {
+                throw completionException;
+            })
+        );
+
+        assertSame(originalException, thrownException);
+    }
+
+    @Test
+    void shouldRethrowCompletionExceptionWhenCauseIsNotRuntimeException() {
+        // given
+        final Exception originalException = new Exception("Original exception");
+        final CompletionException completionException = new CompletionException(originalException);
+
+        // when & then
+        final CompletionException thrownException = assertThrows(
+            CompletionException.class,
+            () -> ExceptionUtils.unwrapCompletionException(() -> {
+                throw completionException;
+            })
+        );
+
+        assertSame(completionException, thrownException);
+        assertSame(originalException, thrownException.getCause());
+    }
+
+    @Test
+    void shouldRethrowCompletionExceptionWhenCauseIsNull() {
+        // given
+        final CompletionException completionException = new CompletionException(null);
+
+        // when & then
+        final CompletionException thrownException = assertThrows(
+            CompletionException.class,
+            () -> ExceptionUtils.unwrapCompletionException(() -> {
+                throw completionException;
+            })
+        );
+
+        assertSame(completionException, thrownException);
+    }
+
+    @Test
+    void shouldPassThroughNonCompletionExceptions() {
+        // given
+        final RuntimeException originalException = new RuntimeException("Original exception");
+
+        // when & then
+        final RuntimeException thrownException = assertThrows(
+            RuntimeException.class,
+            () -> ExceptionUtils.unwrapCompletionException(() -> {
+                throw originalException;
+            })
+        );
+
+        assertSame(originalException, thrownException);
     }
 
     /**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,15 +27,17 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -50,7 +52,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new AllowEvolutionModeInCatalogSchemaMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new AllowEvolutionModeInCatalogSchemaMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -59,7 +61,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 			CatalogEvolutionMode.ADDING_ENTITY_TYPES
 		);
 
-		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convert(
+		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					CatalogEvolutionMode.ADDING_ENTITY_TYPES
@@ -68,7 +70,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation2 = converter.convert(
+		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					"ADDING_ENTITY_TYPES"
@@ -81,7 +83,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowEvolutionModeInCatalogSchemaMutation expectedMutation = new AllowEvolutionModeInCatalogSchemaMutation();
 
-		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convert(
+		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of())
 				.build()
@@ -91,7 +93,27 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final AllowEvolutionModeInCatalogSchemaMutation inputMutation = new AllowEvolutionModeInCatalogSchemaMutation(
+			CatalogEvolutionMode.ADDING_ENTITY_TYPES
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), AllowEvolutionModeInCatalogSchemaMutation.class.getSimpleName())
+					.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), new String[] {
+						CatalogEvolutionMode.ADDING_ENTITY_TYPES.name()
+					})
+					.build()
+			);
 	}
 }

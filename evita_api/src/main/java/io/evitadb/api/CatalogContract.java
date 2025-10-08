@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.exception.CatalogNotAliveException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.InvalidMutationException;
@@ -31,16 +32,20 @@ import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
-import io.evitadb.api.requestResponse.system.CatalogVersionDescriptor;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.TimeFlow;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.dataType.PaginatedList;
@@ -54,7 +59,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
@@ -90,11 +94,20 @@ public interface CatalogContract {
 	SealedCatalogSchema getSchema();
 
 	/**
-	 * Alters existing schema applying passed schema mutation.
+	 * Updates the internal schema based on the provided schema mutations. This method processes a series of
+	 * {@link LocalCatalogSchemaMutation} objects to modify the current catalog schema, handling different types
+	 * of schema mutations including entity schema creation, removal, modification, and renaming. It registers
+	 * mutations with an active transaction if available, applies schema modifications, and ensures persistence
+	 * and proper rollback in the event of an error.
+	 *
+	 * @param sessionId an optional session ID that can be used to register the mutations with an active session
+	 * @param schemaMutation an array of {@link LocalCatalogSchemaMutation} objects that specify the mutations
+	 *                       to apply to the catalog schema
+	 * @return the updated {@link SealedCatalogSchema} reflecting all applied mutations
 	 */
 	@Nonnull
 	CatalogSchemaContract updateSchema(
-		@Nonnull EvitaSessionContract session,
+		@Nullable UUID sessionId,
 		@Nonnull LocalCatalogSchemaMutation... schemaMutation
 	) throws SchemaAlteringException;
 
@@ -146,7 +159,7 @@ public interface CatalogContract {
 	 * @param mutation mutation to be applied
 	 * @throws InvalidMutationException when mutation is not applicable to the catalog
 	 */
-	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull Mutation mutation) throws InvalidMutationException;
+	void applyMutation(@Nonnull EvitaSessionContract session, @Nonnull CatalogBoundMutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns collection maintaining all entities of same type.
@@ -233,7 +246,10 @@ public interface CatalogContract {
 	 * Replaces folder of the `catalogToBeReplaced` with contents of this catalog.
 	 */
 	@Nonnull
-	CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced);
+	ProgressingFuture<CatalogContract> replace(
+		@Nonnull CatalogSchemaContract updatedSchema,
+		@Nullable CatalogContract catalogToBeReplaced
+	);
 
 	/**
 	 * Returns map with current {@link EntitySchemaContract entity schema} instances indexed by their
@@ -262,11 +278,22 @@ public interface CatalogContract {
 	/**
 	 * Changes state of the catalog from {@link CatalogState#WARMING_UP} to {@link CatalogState#ALIVE}.
 	 *
-	 * @param progressObserver optional observer that will be notified about the progress of the go-live operation
 	 * @see CatalogState
 	 */
 	@Nonnull
-	GoLiveProgress goLive(@Nullable IntConsumer progressObserver);
+	CatalogContract goLive();
+
+	/**
+	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture
+	 * operates on WAL (Write Ahead Log) and can be enabled only when the catalog is in {@link CatalogState#ALIVE} state.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
+	 * @throws CatalogNotAliveException when the catalog is not in {@link CatalogState#ALIVE} state
+	 */
+	@Nonnull
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request)
+		throws CatalogNotAliveException;
 
 	/**
 	 * Method checks whether there are new records in the WAL that haven't been incorporated into the catalog yet and
@@ -284,7 +311,7 @@ public interface CatalogContract {
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
@@ -294,22 +321,22 @@ public interface CatalogContract {
 	 * @param timeFlow the time flow used to filter the catalog versions
 	 * @param page     the page number of the paginated list
 	 * @param pageSize the number of versions per page
-	 * @return a paginated list of {@link CatalogVersion} instances
+	 * @return a paginated list of {@link StoredVersion} instances
 	 */
 	@Nonnull
-	PaginatedList<CatalogVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+	PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
-	 * Returns a stream of {@link CatalogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
 	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
 	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
 	 * gradually as the stream provides the data.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
-	 * @return a stream of {@link CatalogVersionDescriptor} instances
+	 * @return a stream of {@link WriteAheadLogVersionDescriptor} instances
 	 */
 	@Nonnull
-	Stream<CatalogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+	Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -322,7 +349,7 @@ public interface CatalogContract {
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
+	Stream<CatalogBoundMutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
@@ -336,7 +363,7 @@ public interface CatalogContract {
 	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
-	Stream<Mutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
+	Stream<CatalogBoundMutation> getReversedCommittedMutationStream(@Nullable Long catalogVersion);
 
 	/**
 	 * Creates a backup of the specified catalog and returns an InputStream to read the binary data of the zip file.
@@ -378,6 +405,15 @@ public interface CatalogContract {
 	);
 
 	/**
+	 * Duplicates the current catalog to another catalog with the specified name.
+	 *
+	 * @param targetCatalogName the name of the target catalog to which the current catalog will be duplicated
+	 * @return a future that will be completed when the duplication is finished
+	 */
+	@Nonnull
+	ProgressingFuture<Void> duplicateTo(@Nonnull String targetCatalogName);
+
+	/**
 	 * Returns catalog statistics aggregating basic information about the catalog and the data stored in it.
 	 *
 	 * @return catalog statistics
@@ -399,5 +435,4 @@ public interface CatalogContract {
 	 * @return true if the process or operation is terminated, false otherwise.
 	 */
 	boolean isTerminated();
-
 }

@@ -70,16 +70,16 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws MalformedURLException {
-		mainDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve(DIRECTORY);
-		if (!mainDirectory.toFile().exists()) {
-			mainDirectory.toFile().mkdirs();
+		this.mainDirectory = Path.of(System.getProperty("java.io.tmpdir")).resolve(DIRECTORY);
+		if (!this.mainDirectory.toFile().exists()) {
+			this.mainDirectory.toFile().mkdirs();
 		}
 	}
 
 	@Tag(LONG_RUNNING_TEST)
 	@ParameterizedTest
 	@ValueSource(
-		strings = {"2024.5", "2025.1", "2025.3"}
+		strings = {"2024.5", "2025.1", "2025.3", "2025.6"}
 	)
 	void verifyBackwardCompatibilityTo(String version) throws IOException {
 		final Path targetDirectory = this.mainDirectory.resolve(version);
@@ -88,7 +88,7 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			log.info("Downloading and unzipping " + fileName);
 
 			targetDirectory.toFile().mkdirs();
-			// first download the file from https://evitadb.io/test/evita-demo-dataset_2024.5.zip to tmp folder and unzip it
+			// first download the file from https://evitadb.io/test/evita-demo-dataset_202X.Y.zip to tmp folder and unzip it
 			final Path targetZipFile = targetDirectory.resolve(fileName);
 			try (final InputStream is = new URL("https://evitadb.io/download/test/" + fileName).openStream()) {
 				Files.copy(is, targetZipFile, StandardCopyOption.REPLACE_EXISTING);
@@ -137,9 +137,10 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			)
 		) {
 
+			evita.waitUntilFullyInitialized();
 			final SystemStatus status = evita.management().getSystemStatus();
 			assertEquals(0, status.catalogsCorrupted());
-			assertEquals(1, status.catalogsOk());
+			assertEquals(1, status.catalogsActive());
 
 			// check the catalog has its own id
 			final UUID catalogId = evita.queryCatalog(

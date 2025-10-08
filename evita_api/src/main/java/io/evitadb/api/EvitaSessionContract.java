@@ -50,6 +50,7 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
@@ -61,6 +62,7 @@ import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -68,9 +70,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -93,6 +95,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.utils.ExceptionUtils.unwrapCompletionException;
 
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
@@ -178,17 +181,17 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * That means until this operation is fully finished. The next opened session will be operating in the new
 	 * catalog state.
 	 *
-	 * Session is {@link #close() closed} immediately and method returns a {@link GoLiveProgress} object that can be
+	 * Session is {@link #close() closed} immediately and method returns a {@link Progress} object that can be
 	 * used to monitor the progress of the go-live operation or to wait for it to finish via. completion stage accessible
-	 * via {@link GoLiveProgress#onCompletion()}.
+	 * via {@link Progress#onCompletion()}.
 	 *
 	 * @param progressObserver optional progress observer that can be used to monitor the percentage progress of the go-live operation.
-	 * @return {@link GoLiveProgress} object that can be used to monitor the progress of the go-live operation or to
-	 *          wait for it to finish using completion stage accessible via {@link GoLiveProgress#onCompletion()}
+	 * @return {@link Progress} object that can be used to monitor the progress of the go-live operation or to
+	 *          wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
 	 * @see CatalogState
 	 */
 	@Nonnull
-	GoLiveProgress goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver);
+	Progress<CommitVersions> goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver);
 
 	/**
 	 * Method switches catalog to the {@link CatalogState#ALIVE} state and terminates the current Evita session. It's not
@@ -196,16 +199,16 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * That means until this operation is fully finished. The next opened session will be operating in the new
 	 * catalog state.
 	 *
-	 * Session is {@link #close() closed} immediately and method returns a {@link GoLiveProgress} object that can be
+	 * Session is {@link #close() closed} immediately and method returns a {@link Progress} object that can be
 	 * used to monitor the progress of the go-live operation or to wait for it to finish via. completion stage accessible
-	 * via {@link GoLiveProgress#onCompletion()}.
+	 * via {@link Progress#onCompletion()}.
 	 *
-	 * @return {@link GoLiveProgress} object that can be used to monitor the progress of the go-live operation or to
-	 *          wait for it to finish using completion stage accessible via {@link GoLiveProgress#onCompletion()}
+	 * @return {@link Progress} object that can be used to monitor the progress of the go-live operation or to
+	 *          wait for it to finish using completion stage accessible via {@link Progress#onCompletion()}
 	 * @see CatalogState
 	 */
 	@Nonnull
-	default GoLiveProgress goLiveAndCloseWithProgress() {
+	default Progress<CommitVersions> goLiveAndCloseWithProgress() {
 		return goLiveAndCloseWithProgress(null);
 	}
 
@@ -286,6 +289,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	CommitProgress closeNowWithProgress();
+
+	/**
+	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request.
+	 *
+	 * @param request defines what events are captured
+	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
+	 */
+	@Nonnull
+	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request);
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
@@ -782,9 +794,26 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 			catalogSchemaBuilder.getName().equals(getCatalogName()),
 			"Schema builder targets `" + catalogSchemaBuilder.getName() + "` catalog, but the session targets `" + getCatalogName() + "` catalog!"
 		);
-		return catalogSchemaBuilder.toMutation()
-			.map(ModifyCatalogSchemaMutation::getSchemaMutations)
-			.map(this::updateCatalogSchema)
+		return catalogSchemaBuilder
+			.toMutation()
+			.map(
+				mutation ->
+					unwrapCompletionException(
+						() -> this.getEvita()
+						          .applyMutation(
+							          new ModifyCatalogSchemaMutation(
+								          mutation.getCatalogName(),
+								          this.getId(),
+								          mutation.getSchemaMutations()
+							          )
+						          )
+						          // we need to wait for the mutation to be processed before we can return the version
+						          .onCompletion()
+						          .toCompletableFuture()
+						          .join()
+					).catalogSchemaVersion()
+			)
+			// no mutation was provided, so we return the current version
 			.orElseGet(() -> getCatalogSchema().version());
 	}
 
@@ -840,7 +869,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default int updateEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateEntitySchema)
-			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()).version());
+			.orElseGet(() -> getEntitySchemaOrThrowException(entitySchemaBuilder.getName()).version());
 	}
 
 	/**
@@ -855,7 +884,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default SealedEntitySchema updateAndFetchEntitySchema(@Nonnull EntitySchemaBuilder entitySchemaBuilder) throws SchemaAlteringException {
 		return entitySchemaBuilder.toMutation()
 			.map(this::updateAndFetchEntitySchema)
-			.orElseGet(() -> getEntitySchemaOrThrow(entitySchemaBuilder.getName()));
+			.orElseGet(() -> getEntitySchemaOrThrowException(entitySchemaBuilder.getName()));
 	}
 
 	/**
@@ -1154,41 +1183,46 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	SealedEntity[] deleteSealedEntitiesAndReturnBodies(@Nonnull Query query);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched except for
 	 * {@link ReflectedReference} which are removed. The reflected references are set up automatically by the system
 	 * when the main reference is created and that's why they are removed automatically when the main reference is removed.
 	 *
-	 * BEWARE: this method represents the hard delete operation and the entity will be removed from the catalog permanently.
-	 * If you need to archive the entity instead of removing it, use the {@link #archiveEntity(String, int)} method.
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
 	 *
-	 * @return true if entity existed and was removed
+	 * @return true if entity existed and was archived
 	 */
 	boolean archiveEntity(@Nonnull String entityType, int primaryKey);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return true if entity existed and was removed
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
+	 *
+	 * @return true if entity existed and was archived
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	boolean archiveEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
+	 *
+	 * @return archived entity fetched according to `require` definition
 	 */
 	@Nonnull
 	Optional<SealedEntity> archiveEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Live Scope to Archived Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Archived Scope has usually fewer indexes for searching and sorting, which means the data occupies less memory compared to Live Scope.
+	 *
+	 * @return archived entity fetched according to `require` definition
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
@@ -1196,36 +1230,44 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		throws EntityClassInvalidException;
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return true if entity existed and was removed
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return true if entity existed and was restored
 	 */
 	boolean restoreEntity(@Nonnull String entityType, int primaryKey);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return true if entity existed and was removed
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return true if entity existed and was restored
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	boolean restoreEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException;
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return restored entity fetched according to `require` definition
 	 */
 	@Nonnull
 	Optional<SealedEntity> restoreEntity(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
-	 * Method removes existing entity in collection by its primary key. All entities of other entity types that reference
-	 * removed entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
+	 * Method moves existing entity from Archived Scope to Live Scope by its primary key. All entities of other entity types that reference
+	 * this entity in their {@link SealedEntity#getReference(String, int)} still keep the data untouched.
 	 *
-	 * @return removed entity fetched according to `require` definition
+	 * Live Scope has usually more indexes for searching and sorting, which means the data occupies more memory compared to Archived Scope.
+	 *
+	 * @return restored entity fetched according to `require` definition
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull
@@ -1242,7 +1284,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	CatalogVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns stream of change data captures (mutations) that occurred in the catalog that match the specified criteria

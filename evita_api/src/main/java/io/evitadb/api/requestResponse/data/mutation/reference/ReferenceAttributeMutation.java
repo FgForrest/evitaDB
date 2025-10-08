@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,15 +28,14 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation.ReferenceKeyWithAttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -51,8 +50,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Objects;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -60,9 +58,9 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
 public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey> implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKeyWithAttributeKey> {
-	@Serial private static final long serialVersionUID = -1403540167469945561L;
+	@Serial private static final long serialVersionUID = -5135310891814031602L;
 	/**
 	 * Contains wrapped attribute mutation that affects the attribute of the reference.
 	 */
@@ -83,41 +81,48 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		super(referenceKey);
 		this.attributeMutation = attributeMutation;
 		this.attributeKey = attributeMutation.getAttributeKey();
-		this.comparableKey = new ReferenceKeyWithAttributeKey(referenceKey, attributeKey);
+		this.comparableKey = new ReferenceKeyWithAttributeKey(referenceKey, this.attributeKey);
 	}
 
 	public ReferenceAttributeMutation(@Nonnull String referenceName, int primaryKey, @Nonnull AttributeMutation attributeMutation) {
 		this(new ReferenceKey(referenceName, primaryKey), attributeMutation);
 	}
 
+	private ReferenceAttributeMutation(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeMutation attributeMutation, long decisiveTimestamp) {
+		super(referenceKey, decisiveTimestamp);
+		this.attributeMutation = attributeMutation;
+		this.attributeKey = attributeMutation.getAttributeKey();
+		this.comparableKey = new ReferenceKeyWithAttributeKey(referenceKey, this.attributeKey);
+	}
+
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return new ReferenceAttributeSkipToken(referenceKey.referenceName(), attributeKey);
+		return new ReferenceAttributeSkipToken(this.referenceKey.referenceName(), this.attributeKey);
 	}
 
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
-		if (attributeMutation instanceof final AttributeSchemaEvolvingMutation schemaValidatingMutation) {
-			final ReferenceSchemaContract referenceSchema = entitySchemaBuilder.getReference(referenceKey.referenceName())
-				.orElseThrow(() -> new GenericEvitaInternalError("Reference to type `" + referenceKey.referenceName() + "` was not found!"));
+		if (this.attributeMutation instanceof final AttributeSchemaEvolvingMutation schemaValidatingMutation) {
+			final ReferenceSchemaContract referenceSchema = entitySchemaBuilder.getReference(this.referenceKey.referenceName())
+				.orElseThrow(() -> new GenericEvitaInternalError("Reference to type `" + this.referenceKey.referenceName() + "` was not found!"));
 
-			attributeMutation.verifyOrEvolveSchema(
+			this.attributeMutation.verifyOrEvolveSchema(
 				catalogSchema,
 				entitySchemaBuilder,
-				referenceSchema.getAttribute(attributeKey.attributeName()).orElse(null),
+				referenceSchema.getAttribute(this.attributeKey.attributeName()).orElse(null),
 				schemaValidatingMutation.getAttributeValue(),
 				(csb, esb) -> {
-					if (attributeKey.localized()) {
-						esb.withLocale(attributeKey.locale());
+					if (this.attributeKey.localized()) {
+						esb.withLocale(this.attributeKey.locale());
 					}
 					final Consumer<ReferenceSchemaBuilder> referenceSchemaUpdater = whichIs -> {
-						final boolean attributeExists = whichIs.getAttribute(attributeKey.attributeName()).isPresent();
+						final boolean attributeExists = whichIs.getAttribute(this.attributeKey.attributeName()).isPresent();
 						whichIs.withAttribute(
-							attributeKey.attributeName(),
+							this.attributeKey.attributeName(),
 							schemaValidatingMutation.getAttributeValue().getClass(),
 							thatIs -> {
-								thatIs.localized(attributeKey::localized);
+								thatIs.localized(this.attributeKey::localized);
 								if (!attributeExists) {
 									thatIs.nullable();
 								}
@@ -126,14 +131,14 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 					};
 					if (referenceSchema.isReferencedEntityTypeManaged()) {
 						esb.withReferenceToEntity(
-							referenceKey.referenceName(),
+							this.referenceKey.referenceName(),
 							referenceSchema.getReferencedEntityType(),
 							referenceSchema.getCardinality(),
 							referenceSchemaUpdater
 						);
 					} else {
 						esb.withReferenceTo(
-							referenceKey.referenceName(),
+							this.referenceKey.referenceName(),
 							referenceSchema.getReferencedEntityType(),
 							referenceSchema.getCardinality(),
 							referenceSchemaUpdater
@@ -147,37 +152,40 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Nonnull
 	@Override
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+		return mutateLocal(
+			entitySchema,
+			existingValue,
+			Map.of()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceContract existingValue,
+		@Nonnull Map<String, AttributeSchemaContract> locallyAddedAttributeTypes
+	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot update attributes on reference " + referenceKey + " - reference doesn't exist!")
+			() -> new InvalidMutationException("Cannot update attributes on reference `" + this.referenceKey + "` - reference doesn't exist!")
 		);
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
 		final ExistingReferenceAttributesBuilder attributeBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
-			existingValue.getReferenceSchema()
-				.orElseGet(
-					() -> Reference.createImplicitSchema(
-						existingValue.getReferenceName(),
-						existingValue.getReferencedEntityType(),
-						existingValue.getReferenceCardinality(),
-						existingValue.getGroup().orElse(null)
-					)
-				),
+			existingValue.getReferenceSchemaOrThrow(),
 			existingValue.getAttributeValues(),
-			existingValue.getReferenceSchema()
-				.map(AttributeSchemaProvider::getAttributes)
-				.orElse(Collections.emptyMap())
+			locallyAddedAttributeTypes
 		);
 		final Attributes<AttributeSchemaContract> newAttributes = attributeBuilder
-			.mutateAttribute(attributeMutation)
+			.mutateAttribute(this.attributeMutation)
 			.build();
 
 		if (attributeBuilder.differs(newAttributes)) {
 			return new Reference(
-				entitySchema,
+				existingValue.getReferenceSchemaOrThrow(),
 				existingValue.version() + 1,
-				existingValue.getReferenceName(), existingValue.getReferencedPrimaryKey(),
-				existingValue.getReferencedEntityType(), existingValue.getReferenceCardinality(),
+				existingValue.getReferenceKey(),
 				existingValue.getGroup().orElse(null),
 				newAttributes,
 				false
@@ -190,7 +198,7 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Override
 	public long getPriority() {
 		// we need that attribute removals are placed before insert/remove reference itself
-		final long priority = attributeMutation.getPriority();
+		final long priority = this.attributeMutation.getPriority();
 		if (priority >= PRIORITY_REMOVAL) {
 			return priority + 1;
 		} else {
@@ -204,49 +212,30 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		return Operation.UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new ReferenceAttributeMutation(this.referenceKey, this.attributeMutation, newDecisiveTimestamp);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceMutation<ReferenceKeyWithAttributeKey> withInternalPrimaryKey(int internalPrimaryKey) {
+		return new ReferenceAttributeMutation(
+			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
+			this.attributeMutation, this.decisiveTimestamp
+		);
+	}
+
 	@Override
 	public String toString() {
-		return "reference `" + referenceKey + "` attribute mutation: " + attributeMutation;
+		return "reference `" + this.referenceKey + "` attribute mutation: " + this.attributeMutation;
 	}
 
 	@Nonnull
 	@Override
 	public ReferenceKeyWithAttributeKey getComparableKey() {
-		return comparableKey;
-	}
-
-	public static class ReferenceKeyWithAttributeKey implements Comparable<ReferenceKeyWithAttributeKey>, Serializable {
-		@Serial private static final long serialVersionUID = 773755868610382953L;
-		private final ReferenceKey referenceKey;
-		private final AttributeKey attributeKey;
-
-		public ReferenceKeyWithAttributeKey(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeKey attributeKey) {
-			this.referenceKey = referenceKey;
-			this.attributeKey = attributeKey;
-		}
-
-		@Override
-		public int compareTo(ReferenceKeyWithAttributeKey o) {
-			final int entityReferenceComparison = referenceKey.compareTo(o.referenceKey);
-			if (entityReferenceComparison == 0) {
-				return attributeKey.compareTo(o.attributeKey);
-			} else {
-				return entityReferenceComparison;
-			}
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(referenceKey, attributeKey);
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (o == null || getClass() != o.getClass()) return false;
-			ReferenceKeyWithAttributeKey that = (ReferenceKeyWithAttributeKey) o;
-			return Objects.equals(referenceKey, that.referenceKey) && Objects.equals(attributeKey, that.attributeKey);
-		}
+		return this.comparableKey;
 	}
 
 }

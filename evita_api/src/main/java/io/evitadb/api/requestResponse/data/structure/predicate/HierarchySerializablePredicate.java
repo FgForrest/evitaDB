@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -92,21 +92,21 @@ public class HierarchySerializablePredicate implements SerializablePredicate<Int
 	 * Returns true if the attributes were fetched along with the entity.
 	 */
 	public boolean wasFetched() {
-		return requiresHierarchy;
+		return this.requiresHierarchy;
 	}
 
 	/**
 	 * Method verifies that attributes was fetched with the entity.
 	 */
 	public void checkFetched() throws ContextMissingException {
-		if (!requiresHierarchy) {
+		if (!this.requiresHierarchy) {
 			throw ContextMissingException.hierarchyContextMissing();
 		}
 	}
 
 	@Override
 	public boolean test(Integer attributeValue) {
-		if (requiresHierarchy) {
+		if (this.requiresHierarchy) {
 			return true;
 		} else {
 			return false;

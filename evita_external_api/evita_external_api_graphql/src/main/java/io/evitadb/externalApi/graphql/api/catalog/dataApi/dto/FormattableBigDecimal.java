@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class FormattableBigDecimal {
      * @return whether the original value should be formatted or not (depending on locale and possibly other metadata)
      */
     public boolean isShouldFormat() {
-        return formatLocale != null;
+        return this.formatLocale != null;
     }
 
     @Nonnull

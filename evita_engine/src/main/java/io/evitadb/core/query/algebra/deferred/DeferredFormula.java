@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,17 +62,17 @@ public class DeferredFormula extends AbstractFormula {
 
 	@Override
 	protected long getEstimatedCostInternal() {
-		return retrieveLambda.getEstimatedCost();
+		return this.retrieveLambda.getEstimatedCost();
 	}
 
 	@Override
 	protected long getCostInternal() {
-		return retrieveLambda.getCost();
+		return this.retrieveLambda.getCost();
 	}
 
 	@Override
 	protected long getCostToPerformanceInternal() {
-		return retrieveLambda.getCost() / Math.max(1, retrieveLambda.get().size());
+		return this.retrieveLambda.getCost() / Math.max(1, this.retrieveLambda.get().size());
 	}
 
 	@Override
@@ -83,18 +83,18 @@ public class DeferredFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		return retrieveLambda.get();
+		return this.retrieveLambda.get();
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return retrieveLambda.getEstimatedCardinality();
+		return this.retrieveLambda.getEstimatedCardinality();
 	}
 
 	@Nonnull
 	@Override
 	public long[] gatherBitmapIdsInternal() {
-		return retrieveLambda.gatherTransactionalIds();
+		return this.retrieveLambda.gatherTransactionalIds();
 	}
 
 	@Override
@@ -102,7 +102,7 @@ public class DeferredFormula extends AbstractFormula {
 		return hashFunction.hashLongs(
 			new long[] {
 				CLASS_ID,
-				retrieveLambda.getHash()
+				this.retrieveLambda.getHash()
 			}
 		);
 	}
@@ -114,6 +114,6 @@ public class DeferredFormula extends AbstractFormula {
 
 	@Override
 	public String toString() {
-		return "DEFERRED CALCULATION: " + retrieveLambda.toString();
+		return "DEFERRED CALCULATION: " + this.retrieveLambda.toString();
 	}
 }

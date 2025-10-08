@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ package io.evitadb.api.proxy.impl.reference;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
-import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
+import io.evitadb.api.proxy.impl.ReferencedObjectType;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -56,6 +56,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -214,7 +215,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull BiFunction<String, ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
-		@Nonnull ResultWrapper resultWrapper
+		@Nonnull ResultWrapper resultWrapper,
+		@Nonnull ReferencedObjectType referencedObjectType
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceContract reference = theState.getReference();
@@ -225,7 +227,9 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return resultWrapper.wrap(
 				() -> entityExtractor.apply(theState.getType(), referenceDecorator)
-					.map(it -> theState.getOrCreateReferencedEntityProxy(itemType, it, ProxyType.REFERENCED_ENTITY))
+					.map(it -> theState.getOrCreateReferencedEntityProxy(referenceName, itemType, it,
+					                                                     referencedObjectType
+					))
 					.orElse(null)
 			);
 		};
@@ -317,7 +321,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 				}
 
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final ReferenceSchemaContract referenceSchema = proxyState.getReferenceSchema();
+				final ReferenceSchemaContract referenceSchema = Objects.requireNonNull(proxyState.getReferenceSchema());
 				final String referenceName = referenceSchema.getName();
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
@@ -378,7 +382,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 									throw ContextMissingException.referencedEntityContextMissing(theEntityType, referenceName);
 								}
 							},
-							resultWrapper
+							resultWrapper,
+							ReferencedObjectType.TARGET
 						);
 					} else if (referencedEntityGroup != null) {
 						// or return complex type of the referenced entity group
@@ -404,7 +409,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 									throw ContextMissingException.referencedEntityGroupContextMissing(theEntityType, referenceName);
 								}
 							},
-							resultWrapper
+							resultWrapper,
+							ReferencedObjectType.GROUP
 						);
 					} else if (entityType.isPresent()) {
 						// otherwise return entity or group based on entity type matching result
@@ -418,7 +424,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 										throw ContextMissingException.referencedEntityContextMissing(theEntityType, referenceName);
 									}
 								},
-								resultWrapper
+								resultWrapper,
+								ReferencedObjectType.TARGET
 							);
 						} else if (entityIsReferencedGroup) {
 							return singleEntityResult(
@@ -432,7 +439,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 										throw ContextMissingException.referencedEntityGroupContextMissing(theEntityType, referenceName);
 									}
 								},
-								resultWrapper
+								resultWrapper,
+								ReferencedObjectType.GROUP
 							);
 						} else {
 							return null;

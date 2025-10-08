@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.CollectionDataApiRestBuildingContext;
@@ -51,7 +52,6 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
@@ -191,7 +191,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	private void buildEndpoints() {
-		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint(this.buildingContext));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint());
 
 		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final CollectionDataApiRestBuildingContext collectionBuildingContext = setupForCollection(entitySchema);
@@ -229,15 +229,15 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.filter(GlobalAttributeSchemaContract::isUniqueGloballyInAnyScope)
 			.toList();
 		if(!globallyUniqueAttributes.isEmpty()) {
-			this.endpointBuilder.buildGetUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, false)
+			this.endpointBuilder.buildGetUnknownEntityEndpoint(globallyUniqueAttributes, false)
 				.ifPresent(this.buildingContext::registerEndpoint);
-			this.endpointBuilder.buildListUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, false)
+			this.endpointBuilder.buildListUnknownEntityEndpoint(globallyUniqueAttributes, false)
 				.ifPresent(this.buildingContext::registerEndpoint);
 
 			if (!this.buildingContext.getLocalizedEntityObjects().isEmpty()) {
-				this.endpointBuilder.buildGetUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, true)
+				this.endpointBuilder.buildGetUnknownEntityEndpoint(globallyUniqueAttributes, true)
 					.ifPresent(this.buildingContext::registerEndpoint);
-				this.endpointBuilder.buildListUnknownEntityEndpoint(this.buildingContext, globallyUniqueAttributes, true)
+				this.endpointBuilder.buildListUnknownEntityEndpoint(globallyUniqueAttributes, true)
 					.ifPresent(this.buildingContext::registerEndpoint);
 			}
 		}

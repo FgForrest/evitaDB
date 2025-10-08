@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ public class RestInputJsonPrinter {
 	public String print(@Nonnull JsonNode node) {
 		String graphQLJson;
 		try {
-			graphQLJson = constraintWriter.writeValueAsString(node);
+			graphQLJson = this.constraintWriter.writeValueAsString(node);
 		} catch (JsonProcessingException e) {
 			throw new IllegalStateException(e);
 		}

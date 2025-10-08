@@ -27,11 +27,17 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -64,8 +70,16 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
 	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
 	};
-	private final EntityIndex entityIndex = new GlobalEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
-	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(1, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Entities.BRAND));
+	private final EntityIndex entityIndex = new GlobalEntityIndex(1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL));
+	private final ReferencedTypeEntityIndex referenceTypesIndex = new ReferencedTypeEntityIndex(
+		1,
+		this.productSchema.getName(),
+		new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE,
+			Scope.DEFAULT_SCOPE,
+			Entities.BRAND
+		)
+	);
 
 	@Override
 	protected void alterCatalogSchema(CatalogSchemaEditor.CatalogSchemaBuilder schema) {
@@ -88,54 +102,65 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 
 	@Test
 	void shouldInsertNewReference() {
-		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
+		final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(new ReferenceKey(Entities.BRAND, 10));
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, referenceKey));
+		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 		referenceInsert(
-			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null,
-			getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1), DO_NOTHING_CONSUMER
+			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null,
+			getEntityAttributeValueSupplierFactory(this.productSchema, 1), DO_NOTHING_CONSUMER
 		);
-		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
+		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
 	}
 
 	@Test
 	void shouldIndexAttributes() {
 		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
-		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, referenceKey));
-		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(ENTITY_NAME, 1);
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey(referenceKey)));
+		final ExistingDataSupplierFactory entityAttributeValueSupplierFactory = getEntityAttributeValueSupplierFactory(this.productSchema, 1);
+		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 
 		referenceInsert(
-			1, productSchema, executor, entityIndex, referenceTypesIndex, referenceIndex, referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
+			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(referenceKey), null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(
-			executor, entityAttributeValueSupplierFactory, referenceTypesIndex, referenceIndex, referenceMutation.getReferenceKey(), referenceMutation.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			referenceSchema, new RepresentativeReferenceKey(referenceMutation.getReferenceKey()), referenceMutation.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A"));
 		attributeUpdate(
-			executor, entityAttributeValueSupplierFactory, referenceTypesIndex, referenceIndex, a.getReferenceKey(), a.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			referenceSchema, new RepresentativeReferenceKey(a.getReferenceKey()), a.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001"));
 		attributeUpdate(
-			executor, entityAttributeValueSupplierFactory, referenceTypesIndex, referenceIndex, referenceMutation1.getReferenceKey(), referenceMutation1.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			referenceSchema, new RepresentativeReferenceKey(referenceMutation1.getReferenceKey()), referenceMutation1.getAttributeMutation()
 		);
 
-		assertArrayEquals(new int[]{10}, referenceTypesIndex.getAllPrimaryKeys().getArray());
+		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
 		assertArrayEquals(new int[]{1}, referenceIndex.getAllPrimaryKeys().getArray());
 
+		final ReferenceSchema brandReferenceSchema = ReferenceSchema._internalBuild(
+			Entities.BRAND, Entities.BRAND, true, Cardinality.ZERO_OR_MORE, null, false,
+			new ScopedReferenceIndexType[]{new ScopedReferenceIndexType(
+				Scope.LIVE, ReferenceIndexType.FOR_FILTERING)}, new Scope[]{Scope.DEFAULT_SCOPE}
+		);
 		AttributeSchemaContract brandCodeSchema = AttributeSchema._internalBuild(ATTRIBUTE_BRAND_CODE, String.class, false);
-		assertEquals(10, referenceTypesIndex.getUniqueIndex(brandCodeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{10}, referenceTypesIndex.getFilterIndex(ATTRIBUTE_BRAND_EAN, null).getRecordsEqualTo("EAN-001").getArray());
-		assertEquals(1, referenceIndex.getUniqueIndex(brandCodeSchema, null).getRecordIdByUniqueValue("A"));
-		assertArrayEquals(new int[]{1}, referenceIndex.getFilterIndex(ATTRIBUTE_BRAND_EAN, null).getRecordsEqualTo("EAN-001").getArray());
+		AttributeSchemaContract brandEanSchema = AttributeSchema._internalBuild(ATTRIBUTE_BRAND_EAN, String.class, false);
+		assertEquals(2, this.referenceTypesIndex.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null).getRecordIdByUniqueValue("A"));
+		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getFilterIndex(brandReferenceSchema, brandEanSchema, null).getRecordsEqualTo("EAN-001").getArray());
+		assertEquals(1, referenceIndex.getUniqueIndex(brandReferenceSchema, brandCodeSchema, null).getRecordIdByUniqueValue("A"));
+		assertArrayEquals(new int[]{1}, referenceIndex.getFilterIndex(brandReferenceSchema, brandEanSchema, null).getRecordsEqualTo("EAN-001").getArray());
 	}
 
 	@Nonnull
 	ExistingDataSupplierFactory getEntityAttributeValueSupplierFactory(
-		@Nonnull String entityType,
+		@Nonnull EntitySchema entitySchema,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingDataFactory(executor.getContainerAccessor(), entityType, entityPrimaryKey);
+		return new EntityStoragePartExistingDataFactory(this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey);
 	}
 
 }

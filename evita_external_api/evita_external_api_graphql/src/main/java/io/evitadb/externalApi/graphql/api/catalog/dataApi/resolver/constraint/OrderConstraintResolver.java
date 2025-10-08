@@ -39,8 +39,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
-
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
  * as root container.

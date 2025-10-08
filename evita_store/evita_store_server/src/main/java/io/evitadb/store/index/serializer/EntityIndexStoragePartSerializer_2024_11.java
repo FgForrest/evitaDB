@@ -27,9 +27,11 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -38,6 +40,7 @@ import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.cardinality.CardinalityIndex.CardinalityKey;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
@@ -59,7 +62,8 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 @Deprecated(since = "2024.11", forRemoval = true)
 @RequiredArgsConstructor
-public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityIndexStoragePart> {
+public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityIndexStoragePart>
+	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
@@ -76,8 +80,12 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final EntityIndexType entityIndexType = readEntityIndexType == EntityIndexType.REFERENCED_HIERARCHY_NODE ?
 			EntityIndexType.REFERENCED_ENTITY : readEntityIndexType;
 		final Serializable discriminator = input.readBoolean() ? (Serializable) kryo.readClassAndObject(input) : null;
-		final EntityIndexKey entityIndexKey = discriminator == null ?
-			new EntityIndexKey(entityIndexType) : new EntityIndexKey(entityIndexType, discriminator);
+		final EntityIndexKey entityIndexKey = switch (entityIndexType) {
+			case GLOBAL -> new EntityIndexKey(entityIndexType);
+			case REFERENCED_ENTITY_TYPE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, discriminator);
+			case REFERENCED_ENTITY -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
+			case REFERENCED_HIERARCHY_NODE -> new EntityIndexKey(entityIndexType, Scope.DEFAULT_SCOPE, new RepresentativeReferenceKey((ReferenceKey)discriminator));
+		};
 
 		final TransactionalBitmap entityIds = kryo.readObject(input, TransactionalBitmap.class);
 
@@ -93,7 +101,7 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
 		for (int i = 0; i < attributeIndexesCount; i++) {
 			final AttributeIndexType attributeIndexType = kryo.readObject(input, AttributeIndexType.class);
-			final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
+			final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 			attributeIndexes.add(new AttributeIndexStorageKey(entityIndexKey, attributeIndexType, attributeKey));
 		}
 
@@ -102,7 +110,7 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final int priceIndexesCount = input.readVarInt(true);
 		final Set<PriceIndexKey> priceIndexes = createHashSet(priceIndexesCount);
 		for (int i = 0; i < priceIndexesCount; i++) {
-			final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
+			final CompressiblePriceKey priceKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 			final PriceInnerRecordHandling innerRecordHandling = PriceInnerRecordHandling.values()[input.readVarInt(true)];
 			priceIndexes.add(
 				new PriceIndexKey(priceKey.getPriceList(), priceKey.getCurrency(), innerRecordHandling)
@@ -114,7 +122,7 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		final int facetIndexesCount = input.readVarInt(true);
 		final Set<String> facetIndexes = createHashSet(facetIndexesCount);
 		for (int i = 0; i < facetIndexesCount; i++) {
-			final String entityType = keyCompressor.getKeyForId(input.readVarInt(true));
+			final String entityType = this.keyCompressor.getKeyForId(input.readVarInt(true));
 			facetIndexes.add(entityType);
 		}
 

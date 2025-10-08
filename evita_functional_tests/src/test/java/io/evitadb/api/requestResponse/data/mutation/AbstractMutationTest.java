@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -63,7 +64,7 @@ public abstract class AbstractMutationTest {
 		Collections.emptySet(),
 		Collections.emptyMap(),
 		Collections.emptyMap(),
-		Collections.singletonMap(
+		Map.of(
 			"brand",
 			ReferenceSchema._internalBuild(
 				"brand",
@@ -74,13 +75,36 @@ public abstract class AbstractMutationTest {
 					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
 				},
 				new Scope[] {Scope.LIVE}
+			),
+			"category",
+			ReferenceSchema._internalBuild(
+				"category",
+				null,
+				null,
+				"category",
+				false,
+				Cardinality.ZERO_OR_MORE,
+				null, false,
+				new ScopedReferenceIndexType[] {
+					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				},
+				new Scope[] {Scope.LIVE},
+				Map.of(
+					"categoryPriority",
+					AttributeSchema._internalBuild(
+						"categoryPriority",
+						Long.class,
+						false
+					)
+				),
+				Map.of()
 			)
 		),
 		EnumSet.allOf(EvolutionMode.class),
 		Collections.emptyMap()
 	);
 	protected final Map<String, EntitySchemaContract> entitySchemas = Collections.singletonMap(
-		productSchema.getName(), productSchema
+		this.productSchema.getName(), this.productSchema
 	);
 	protected final SealedCatalogSchema catalogSchema = new CatalogSchemaDecorator(
 		CatalogSchema._internalBuild(
@@ -91,13 +115,13 @@ public abstract class AbstractMutationTest {
 				@Nonnull
 				@Override
 				public Collection<EntitySchemaContract> getEntitySchemas() {
-					return entitySchemas.values();
+					return AbstractMutationTest.this.entitySchemas.values();
 				}
 
 				@Nonnull
 				@Override
 				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-					return ofNullable(entitySchemas.get(entityType));
+					return ofNullable(AbstractMutationTest.this.entitySchemas.get(entityType));
 				}
 			}
 		)

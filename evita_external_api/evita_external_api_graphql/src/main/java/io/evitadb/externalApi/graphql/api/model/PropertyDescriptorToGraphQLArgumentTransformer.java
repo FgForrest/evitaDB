@@ -45,7 +45,7 @@ public class PropertyDescriptorToGraphQLArgumentTransformer implements PropertyD
 	private final PropertyDataTypeDescriptorTransformer<GraphQLType> propertyDataTypeTransformer;
 
 	@Override
-	public GraphQLArgument.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public GraphQLArgument.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final GraphQLArgument.Builder argumentBuilder = GraphQLArgument.newArgument()
 			.description(propertyDescriptor.description());
 
@@ -56,7 +56,7 @@ public class PropertyDescriptorToGraphQLArgumentTransformer implements PropertyD
 			argumentBuilder.deprecate(propertyDescriptor.deprecate());
 		}
 		if (propertyDescriptor.type() != null) {
-			final GraphQLInputType graphQLType = (GraphQLInputType) propertyDataTypeTransformer.apply(propertyDescriptor.type());
+			final GraphQLInputType graphQLType = (GraphQLInputType) this.propertyDataTypeTransformer.apply(propertyDescriptor.type());
 			argumentBuilder.type(graphQLType);
 		}
 		if (propertyDescriptor.defaultValue() != null) {

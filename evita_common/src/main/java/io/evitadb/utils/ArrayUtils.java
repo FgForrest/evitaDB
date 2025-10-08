@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -55,9 +56,12 @@ import java.util.function.UnaryOperator;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ArrayUtils {
 
+	public static final Class<?>[] EMPTY_CLASS_ARRAY = new Class[0];
+	public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 	public static final String[] EMPTY_STRING_ARRAY = new String[0];
 	public static final int[] EMPTY_INT_ARRAY = new int[0];
 	public static final long[] EMPTY_LONG_ARRAY = new long[0];
+	public static final Serializable[] EMPTY_SERIALIZABLE_ARRAY = new Serializable[0];
 
 	/**
 	 * Returns true if array is either null or has no items in it
@@ -385,8 +389,21 @@ public class ArrayUtils {
 	 * Method computes insertion point of an arbitrary record into the ordered array.
 	 * Result object contains information about the position and whether the record is already in the array.
 	 */
-	public static <T, U> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T[] a, @Nonnull U b, @Nonnull ToIntBiFunction<T, U> comparator) {
+	public static <T, U> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull U b, @Nonnull T[] a, @Nonnull ToIntBiFunction<T, U> comparator) {
 		final int index = binarySearch(a, b, comparator);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an arbitrary record into the ordered array.
+	 * Result object contains information about the position and whether the record is already in the array.
+	 */
+	public static <T, U> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull U b, @Nonnull T[] a, int fromIndex, int toIndex, @Nonnull ToIntBiFunction<T, U> comparator) {
+		final int index = binarySearch(a, b, fromIndex, toIndex, comparator);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
 		} else {
@@ -1230,6 +1247,45 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Compares two arrays of elements that are instances of {@link Comparable}.
+	 * The comparison is lexicographical, element by element.
+	 * If both arrays are equal up to the shorter length, the longer array is considered greater.
+	 *
+	 * @param <T> the type of elements in the arrays, must implement {@link Comparable}
+	 * @param a the first array to compare, must not be null
+	 * @param b the second array to compare, must not be null
+	 * @return a negative integer, zero, or a positive integer as the first array
+	 *         is less than, equal to, or greater than the second array
+	 * @throws NullPointerException if either array or any element within the arrays is null
+	 */
+	public static <T extends Comparable<T>> int compare(@Nonnull T[] a, @Nonnull T[] b) {
+		return compare((Object[]) a, (Object[]) b);
+	}
+
+	/**
+	 * Compares two arrays of unknown elements that are instances of {@link Comparable}.
+	 * The comparison is lexicographical, element by element.
+	 * If both arrays are equal up to the shorter length, the longer array is considered greater.
+	 *
+	 * @param a the first array to compare, must not be null
+	 * @param b the second array to compare, must not be null
+	 * @return a negative integer, zero, or a positive integer as the first array
+	 *         is less than, equal to, or greater than the second array
+	 * @throws NullPointerException if either array or any element within the arrays is null
+	 */
+	public static int compare(@Nonnull Object[] a, @Nonnull Object[] b) {
+		final int minLength = Math.min(a.length, b.length);
+		for (int i = 0; i < minLength; i++) {
+			//noinspection unchecked,rawtypes
+			final int comparisonResult = ((Comparable)a[i]).compareTo(b[i]);
+			if (comparisonResult != 0) {
+				return comparisonResult;
+			}
+		}
+		return Integer.compare(a.length, b.length);
+	}
+
+	/**
 	 * Simple DTO object for passing information about the record lookup in the ordered array.
 	 *
 	 * @param position       Position where the looked up object:
@@ -1251,13 +1307,13 @@ public class ArrayUtils {
 
 		@Override
 		public Integer get(int index) {
-			return elements[index];
+			return this.elements[index];
 		}
 
 		@Override
 		public Integer set(int index, Integer element) {
-			int v = elements[index];
-			elements[index] = element;
+			int v = this.elements[index];
+			this.elements[index] = element;
 			return v;
 		}
 
@@ -1267,19 +1323,19 @@ public class ArrayUtils {
 			if (o == null || getClass() != o.getClass()) return false;
 			if (!super.equals(o)) return false;
 			IntArrayWrapper integers = (IntArrayWrapper) o;
-			return Arrays.equals(elements, integers.elements);
+			return Arrays.equals(this.elements, integers.elements);
 		}
 
 		@Override
 		public int hashCode() {
 			int result = super.hashCode();
-			result = 31 * result + Arrays.hashCode(elements);
+			result = 31 * result + Arrays.hashCode(this.elements);
 			return result;
 		}
 
 		@Override
 		public int size() {
-			return elements.length;
+			return this.elements.length;
 		}
 
 	}
@@ -1295,13 +1351,13 @@ public class ArrayUtils {
 
 		@Override
 		public T get(int index) {
-			return elements[index];
+			return this.elements[index];
 		}
 
 		@Override
 		public T set(int index, T element) {
-			T v = elements[index];
-			elements[index] = element;
+			T v = this.elements[index];
+			this.elements[index] = element;
 			return v;
 		}
 
@@ -1312,19 +1368,19 @@ public class ArrayUtils {
 			if (!super.equals(o)) return false;
 			//noinspection unchecked
 			ArrayWrapper<T> otherElements = (ArrayWrapper<T>) o;
-			return Arrays.equals(elements, otherElements.elements);
+			return Arrays.equals(this.elements, otherElements.elements);
 		}
 
 		@Override
 		public int hashCode() {
 			int result = super.hashCode();
-			result = 31 * result + Arrays.hashCode(elements);
+			result = 31 * result + Arrays.hashCode(this.elements);
 			return result;
 		}
 
 		@Override
 		public int size() {
-			return elements.length;
+			return this.elements.length;
 		}
 
 	}

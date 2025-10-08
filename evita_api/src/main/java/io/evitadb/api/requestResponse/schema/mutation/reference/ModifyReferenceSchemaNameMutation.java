@@ -42,6 +42,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -72,7 +73,7 @@ public class ModifyReferenceSchemaNameMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReferenceSchemaNameMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReferenceSchemaNameMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -119,7 +120,7 @@ public class ModifyReferenceSchemaNameMutation
 			);
 		} else {
 			final ReferenceSchemaContract theSchema = existingReferenceSchema.get();
-			final ReferenceSchemaContract updatedReferenceSchema = mutate(entitySchema, theSchema);
+			final ReferenceSchemaContract updatedReferenceSchema = Objects.requireNonNull(mutate(entitySchema, theSchema));
 			return replaceReferenceSchema(entitySchema, theSchema, updatedReferenceSchema);
 		}
 	}

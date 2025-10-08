@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ public class DefaultSerializer<T> extends Serializer<T> {
 	public T read(Kryo kryo, Input input, Class<? extends T> type) {
 		if (type.isEnum()) {
 			//noinspection unchecked
-			return (T) enumNameSerializer.read(kryo, input, type);
+			return (T) this.enumNameSerializer.read(kryo, input, type);
 		} else {
 			throw new UnsupportedDataTypeException(type, EvitaDataTypes.getSupportedDataTypes());
 		}

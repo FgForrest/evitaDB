@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.EndpointHandler;
+import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.utils.Assert;
 import io.netty.channel.EventLoop;
@@ -82,7 +82,7 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLSchemaEndpointE
     @Nonnull
     protected CompletableFuture<EndpointResponse> doHandleRequest(@Nonnull GraphQLSchemaEndpointExecutionContext executionContext) {
         return executionContext.executeAsyncInRequestThreadPool(
-            () -> new SuccessEndpointResponse(graphQL.get().getGraphQLSchema())
+            () -> new SuccessEndpointResponse(this.graphQL.get().getGraphQLSchema())
         );
     }
 

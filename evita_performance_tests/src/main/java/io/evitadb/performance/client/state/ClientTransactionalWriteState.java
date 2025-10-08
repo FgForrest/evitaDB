@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -132,9 +132,9 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 		);
 		 */
 		// create read/write bulk session
-		this.session = evita.createReadWriteSession(writeCatalogName);
+		this.session = this.evita.createReadWriteSession(writeCatalogName);
 		// create product modificator
-		this.modificationFunction = dataGenerator.createModificationFunction(randomEntityPicker, random);
+		this.modificationFunction = this.dataGenerator.createModificationFunction(this.randomEntityPicker, this.random);
 		// create product iterator
 		/*this.productIterator = StreamSupport.stream(
 				Spliterators.spliteratorUnknownSize(
@@ -146,7 +146,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 			.map(it -> (EntityBuilder) new CopyExistingEntityBuilder(it))
 			.iterator();*/
 		this.productIterator = Collections.emptyIterator();
-		this.productSchema = session.getEntitySchema(PRODUCT_ENTITY_TYPE)
+		this.productSchema = this.session.getEntitySchema(PRODUCT_ENTITY_TYPE)
 			.orElseThrow(() -> new GenericEvitaInternalError("Schema for entity `" + PRODUCT_ENTITY_TYPE + "` was not found!"));
 	}
 
@@ -158,8 +158,8 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 		this.session.close();
 		this.evita.close();
 		System.out.println("\nInitial database size was " + INITIAL_COUNT_OF_PRODUCTS + " of records.");
-		System.out.println("Inserted " + insertCounter + " records in iteration.");
-		System.out.println("Updated " + updateCounter + " records in iteration.");
+		System.out.println("Inserted " + this.insertCounter + " records in iteration.");
+		System.out.println("Updated " + this.updateCounter + " records in iteration.");
 	}
 
 	/**
@@ -168,11 +168,11 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 	@Setup(Level.Invocation)
 	public void prepareCall() {
 		// there is 50% on update instead of insert
-		if (random.nextBoolean()) {
-			final List<Integer> existingProductIds = generatedEntities.get(PRODUCT_ENTITY_TYPE);
-			final int index = random.nextInt(existingProductIds.size());
+		if (this.random.nextBoolean()) {
+			final List<Integer> existingProductIds = this.generatedEntities.get(PRODUCT_ENTITY_TYPE);
+			final int index = this.random.nextInt(existingProductIds.size());
 			final Integer primaryKey = existingProductIds.get(index);
-			final SealedEntity existingEntity = session.getEntity(
+			final SealedEntity existingEntity = this.session.getEntity(
 				PRODUCT_ENTITY_TYPE,
 				primaryKey,
 				entityFetchAllContent()
@@ -181,12 +181,12 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 			this.product = this.modificationFunction.apply(existingEntity);
 			this.updateCounter++;
 		} else {
-			if (productIterator.hasNext()) {
-				this.product = productIterator.next();
-				addToGeneratedEntities(productSchema, this.product.getPrimaryKey());
+			if (this.productIterator.hasNext()) {
+				this.product = this.productIterator.next();
+				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKeyOrThrowException());
 				// keep track of already assigned primary keys (may have gaps, may be in random order)
-				if (this.product.getPrimaryKey() > this.pkPeek) {
-					this.pkPeek = this.product.getPrimaryKey();
+				if (this.product.getPrimaryKeyOrThrowException() > this.pkPeek) {
+					this.pkPeek = this.product.getPrimaryKeyOrThrowException();
 				}
 			} else {
 				// when products are exhausted - start again from scratch
@@ -203,8 +203,8 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 					.iterator();
 				 */
 				// initialize first product from the new round
-				this.product = productIterator.next();
-				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKey());
+				this.product = this.productIterator.next();
+				addToGeneratedEntities(this.productSchema, this.product.getPrimaryKeyOrThrowException());
 			}
 			this.insertCounter++;
 		}
@@ -216,7 +216,7 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 	}
 
 	private void addToGeneratedEntities(EntitySchemaContract productSchema, Integer primaryKey) {
-		generatedEntities
+		this.generatedEntities
 			.computeIfAbsent(productSchema.getName(), serializable -> new LinkedList<>())
 			.add(primaryKey);
 	}

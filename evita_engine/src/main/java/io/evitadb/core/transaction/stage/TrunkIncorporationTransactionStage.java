@@ -34,6 +34,7 @@ import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.TransactionManager.ProcessResult;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
+import io.evitadb.function.Functions;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -108,7 +109,8 @@ public final class TrunkIncorporationTransactionStage
 					task.catalogVersion(),
 					this.timeout,
 					true,
-					true // we want to wait for lock so that we can complete the commit progress record
+					true, // we want to wait for lock so that we can complete the commit progress record
+					Functions.noOpLongConsumer()
 				)
 				.ifPresentOrElse(
 					result -> {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -45,10 +45,18 @@ import java.util.OptionalInt;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public abstract class ParentMutation implements SchemaEvolvingLocalMutation<OptionalInt, Integer> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
+	@Getter private final long decisiveTimestamp;
+
+	protected ParentMutation() {
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	protected ParentMutation(long decisiveTimestamp) {
+		this.decisiveTimestamp = decisiveTimestamp;
+	}
 
 	@Nonnull
 	@Override

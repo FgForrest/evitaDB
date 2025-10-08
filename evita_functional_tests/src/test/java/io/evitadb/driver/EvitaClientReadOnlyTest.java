@@ -55,7 +55,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.system.CatalogVersion;
+import io.evitadb.api.requestResponse.system.StoredVersion;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
@@ -115,11 +115,19 @@ import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies behaviour of {@link EvitaClient}.
+ * This test verifies the read-only behavior of {@link EvitaClient}.
+ *
+ * The test suite covers various read operations including:
+ * - Querying entities (single, lists, references)
+ * - Retrieving entity schemas
+ * - Fetching catalog information and statistics
+ * - Testing session management and termination
+ * - Verifying error handling
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
+@DisplayName("EvitaClient read-only tests - should")
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
@@ -136,6 +144,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	};
 	private static final int PRODUCT_COUNT = 10;
 
+	/**
+	 * Initializes the test dataset for EvitaClient read-only operations testing.
+	 *
+	 * This method sets up:
+	 * - Test entities (brands, categories, price lists, stores, products)
+	 * - Client configuration with gRPC and system API endpoints
+	 * - Certificate configuration for secure communication
+	 * - Sample data generation using predefined schemas
+	 *
+	 * @param evitaServer the Evita server instance to configure
+	 * @return DataCarrier containing the configured EvitaClient and test data
+	 */
 	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		final DataGenerator dataGenerator = new DataGenerator.Builder()
@@ -157,6 +177,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			.getEndpointConfiguration(SystemProvider.CODE)
 			.getHost()[0];
 
+		// Extract server certificate path and derive client certificate path
 		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions().certificate().getFolderPath().toString();
 		final int lastDash = serverCertificates.lastIndexOf('-');
 		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
@@ -176,15 +197,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
 		try (final EvitaClient setupClient = new EvitaClient(evitaClientConfiguration)) {
 			setupClient.defineCatalog(TEST_CATALOG);
-			// create bunch or entities for referencing in products
+			// Create test entities for referencing in products
 			setupClient.updateCatalog(
 				TEST_CATALOG,
 				session -> {
+					// Add global unique code attribute to catalog schema
 					session.getCatalogSchema()
 						.openForWrite()
 						.withAttribute(ATTRIBUTE_CODE, String.class, thatIs -> thatIs.uniqueGlobally())
 						.updateVia(session);
 
+					// Generate brand entities (5 entities)
 					dataGenerator.generateEntities(
 							dataGenerator.getSampleBrandSchema(
 								session,
@@ -200,6 +223,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(5)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
+					// Generate category entities with hierarchical structure (10 entities)
 					dataGenerator.generateEntities(
 							dataGenerator.getSampleCategorySchema(
 								session,
@@ -220,6 +244,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(10)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
+					// Generate price list entities with ordering attributes (4 entities)
 					dataGenerator.generateEntities(
 							dataGenerator.getSamplePriceListSchema(
 								session,
@@ -237,6 +262,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(4)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
+					// Generate store entities (12 entities)
 					dataGenerator.generateEntities(
 							dataGenerator.getSampleStoreSchema(
 								session,
@@ -251,6 +277,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(12)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
+					// Generate parameter group entities (5 entities)
 					dataGenerator.generateEntities(
 							dataGenerator.getSampleParameterGroupSchema(
 								session,
@@ -265,6 +292,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(20)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
+					// Generate parameter entities (20 entities)
 					dataGenerator.generateEntities(
 							dataGenerator.getSampleParameterSchema(
 								session,
@@ -279,6 +307,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						.limit(20)
 						.forEach(it -> createEntity(session, GENERATED_ENTITIES, it));
 
+					// Setup product schema with references to other entities
 					productSchema.set(
 						dataGenerator.getSampleProductSchema(
 							session,
@@ -302,6 +331,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						)
 					);
 
+					// Generate product entities with full content (10 entities)
 					final Map<Integer, SealedEntity> theProducts = CollectionUtils.createHashMap(10);
 					dataGenerator.generateEntities(
 							productSchema.get(),
@@ -332,6 +362,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Recursively asserts that a category's parent relationship is correctly mapped from the original entity.
+	 *
+	 * This method verifies:
+	 * - Parent ID consistency between original and proxy entities
+	 * - Parent entity reference correctness
+	 * - Recursive validation of parent hierarchy
+	 *
+	 * @param originalCategories map of original category entities by their primary keys
+	 * @param category the category proxy to validate
+	 * @param locale the locale for localized attribute validation, may be null
+	 */
 	private static void assertCategoryParent(
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nonnull CategoryInterface category,
@@ -357,6 +399,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Validates parent relationships for a collection of category entities.
+	 *
+	 * This is a convenience method that iterates through multiple categories
+	 * and validates each one's parent relationship using {@link #assertCategoryParent}.
+	 *
+	 * @param categories collection of category proxies to validate
+	 * @param originalCategories map of original category entities by their primary keys
+	 * @param locale the locale for localized attribute validation, may be null
+	 */
 	private static void assertCategoryParents(
 		@Nonnull Collection<CategoryInterface> categories,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
@@ -367,6 +419,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Validates that a category proxy correctly represents the original sealed entity.
+	 *
+	 * This method verifies:
+	 * - Entity type and primary key consistency
+	 * - Basic attributes (code, priority, validity)
+	 * - Localized attributes (name) for specific or all locales
+	 *
+	 * @param category the category proxy to validate
+	 * @param sealedEntity the original sealed entity to compare against
+	 * @param locale the specific locale to validate, or null to validate all locales
+	 */
 	private static void assertCategory(
 		@Nonnull CategoryInterface category,
 		@Nonnull SealedEntity sealedEntity,
@@ -387,6 +451,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Validates that a stream of category IDs matches the expected array of category IDs.
+	 *
+	 * This method:
+	 * - Converts the stream to a sorted array for comparison
+	 * - Verifies the count of IDs matches expectations
+	 * - Ensures all expected IDs are present in the correct order
+	 *
+	 * @param categoryIds stream of category IDs to validate
+	 * @param expectedCategoryIds array of expected category IDs
+	 */
 	private static void assertCategoryIds(
 		@Nonnull Stream<Integer> categoryIds,
 		@Nonnull int[] expectedCategoryIds
@@ -405,6 +480,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Validates that a product proxy correctly represents the original sealed entity.
+	 *
+	 * This is a convenience method that delegates to the full validation method
+	 * with null values for currency, price lists, and locale.
+	 *
+	 * @param originalProduct the original sealed entity to compare against
+	 * @param product the product proxy to validate
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	private static void assertProduct(
 		@Nonnull SealedEntity originalProduct,
 		@Nullable ProductInterface product,
@@ -416,6 +501,23 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Comprehensively validates that a product proxy correctly represents the original sealed entity.
+	 *
+	 * This method performs extensive validation including:
+	 * - Basic product data (ID, type, attributes)
+	 * - Associated data (referenced file sets)
+	 * - Category relationships and hierarchy
+	 * - Price information and calculations
+	 * - Reference validation (brands, parameters, stores)
+	 *
+	 * @param originalProduct the original sealed entity to compare against
+	 * @param product the product proxy to validate
+	 * @param originalCategories map of original category entities for reference validation
+	 * @param currency the currency context for price validation, may be null
+	 * @param priceLists array of price list names for price filtering, may be null
+	 * @param locale the locale context for localized data validation, may be null
+	 */
 	private static void assertProduct(
 		@Nonnull SealedEntity originalProduct,
 		@Nullable ProductInterface product,
@@ -547,6 +649,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Validates basic product data consistency between original entity and proxy.
+	 *
+	 * This method verifies:
+	 * - Product is not null
+	 * - Primary key consistency (both getPrimaryKey() and getId())
+	 * - Entity type consistency (both getType() and getEntityType())
+	 *
+	 * @param originalProduct the original sealed entity to compare against
+	 * @param product the product proxy to validate
+	 */
 	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
 		assertNotNull(product);
 		assertEquals(originalProduct.getPrimaryKey(), product.getPrimaryKey());
@@ -555,6 +668,19 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(TestEntity.PRODUCT, product.getEntityType());
 	}
 
+	/**
+	 * Validates product attribute consistency between original entity and proxy.
+	 *
+	 * This method verifies:
+	 * - Code attribute consistency
+	 * - Name attribute for the specified locale
+	 * - Quantity attribute (both direct and alternative property access)
+	 * - Alias boolean attribute
+	 *
+	 * @param originalProduct the original sealed entity to compare against
+	 * @param product the product proxy to validate
+	 * @param locale the locale for localized attribute validation, may be null
+	 */
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
@@ -565,7 +691,13 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 	/**
 	 * Creates new entity and inserts it into the index.
-	 * This method is called only in set-up method.
+	 *
+	 * This method is called only in set-up method to populate the test database
+	 * with generated entities and track the count of entities per type.
+	 *
+	 * @param session the Evita session to use for entity insertion
+	 * @param generatedEntities map tracking the count of generated entities by type
+	 * @param it the entity builder containing the entity data to insert
 	 */
 	private static void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
 		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
@@ -575,7 +707,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that multiple EvitaClient instances can run in parallel without conflicts.
+	 *
+	 * This test verifies that creating a second client with the same configuration
+	 * and running operations on both clients simultaneously works correctly.
+	 *
+	 * @param evitaClient the primary EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("be able to run parallel clients")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldBeAbleToRunParallelClients(EvitaClient evitaClient) {
 		final EvitaClient anotherParallelClient = new EvitaClient(evitaClient.getConfiguration());
@@ -583,7 +724,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		shouldListCatalogNames(evitaClient);
 	}
 
+	/**
+	 * Tests that entity schemas can be fetched from catalog schema even when not cached.
+	 *
+	 * This test verifies that a fresh client with empty cache can successfully
+	 * retrieve entity schemas through the catalog schema interface.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("be able to fetch non-cached entity schema from catalog schema")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldAbleToFetchNonCachedEntitySchemaFromCatalogSchema(EvitaClient evitaClient) {
 		final EvitaClient clientWithEmptyCache = new EvitaClient(evitaClient.getConfiguration());
@@ -596,7 +746,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that the client can retrieve a list of available catalog names.
+	 *
+	 * This test verifies that the client correctly returns the set of catalog names
+	 * and that the expected test catalog is present in the results.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("list catalog names")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldListCatalogNames(EvitaClient evitaClient) {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
@@ -604,13 +763,31 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 	}
 
+	/**
+	 * Tests that the client can retrieve the current state of a catalog.
+	 *
+	 * This test verifies that the client correctly returns the catalog state
+	 * and that the test catalog is in the expected ALIVE state.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("get catalog state")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetCatalogState(EvitaClient evitaClient) {
 		assertEquals(CatalogState.ALIVE, evitaClient.getCatalogState(TEST_CATALOG).orElseThrow());
 	}
 
+	/**
+	 * Tests that the client can execute queries against a catalog and retrieve catalog schema.
+	 *
+	 * This test verifies that the client can successfully query a catalog
+	 * and retrieve the catalog schema with correct name and structure.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("query catalog")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryCatalog(EvitaClient evitaClient) {
 		final CatalogSchemaContract catalogSchema = evitaClient.queryCatalog(
@@ -622,7 +799,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(TEST_CATALOG, catalogSchema.getName());
 	}
 
+	/**
+	 * Tests that the client can execute asynchronous queries against a catalog.
+	 *
+	 * This test verifies that the client can successfully execute queries asynchronously
+	 * using CompletableFuture and retrieve the catalog schema correctly.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @throws ExecutionException if the asynchronous execution fails
+	 * @throws InterruptedException if the thread is interrupted while waiting
+	 */
 	@Test
+	@DisplayName("query catalog asynchronously")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryCatalogAsynchronously(EvitaClient evitaClient) throws ExecutionException, InterruptedException {
 		final CompletableFuture<CatalogSchemaContract> catalogSchema = evitaClient.queryCatalogAsync(
@@ -634,29 +822,41 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(TEST_CATALOG, catalogSchema.get().getName());
 	}
 
+	/**
+	 * Tests that the client can query and retrieve a single entity reference.
+	 *
+	 * This test verifies that the client can successfully query for a specific entity
+	 * and retrieve its reference with correct type and primary key information.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("query one entity reference")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryOneEntityReference(EvitaClient evitaClient) {
 		final EntityReference entityReference = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryOneEntityReference(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(1)
-						)
-					)
+					createSimpleEntityQuery(Entities.PRODUCT, 1)
 				).orElseThrow();
 			}
 		);
 
 		assertNotNull(entityReference);
-		assertEquals(Entities.PRODUCT, entityReference.getType());
-		assertEquals(1, entityReference.getPrimaryKey());
+		assertEntityTypeAndPrimaryKey(entityReference, Entities.PRODUCT, 1);
 	}
 
+	/**
+	 * Tests that querying for a non-existent entity returns an empty result.
+	 *
+	 * This test verifies that the client correctly handles queries for entities
+	 * that don't exist by returning an empty Optional rather than throwing an exception.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("not query one missing entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotQueryOneMissingEntity(EvitaClient evitaClient) {
 		final Optional<EntityReference> entityReference = evitaClient.queryCatalog(
@@ -676,7 +876,19 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertTrue(entityReference.isEmpty());
 	}
 
+	/**
+	 * Tests that the client can query and retrieve a single sealed entity with full content.
+	 *
+	 * This parameterized test verifies that the client can successfully query for a specific entity
+	 * and retrieve its complete sealed representation with all attributes, references, and data.
+	 * The test uses random seeds to test different entities and configurations.
+	 *
+	 * @param seed the random seed for test data selection
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@DisplayName("query one sealed entity")
 	@ParameterizedTest()
 	@MethodSource("returnRandomSeed")
 	void shouldQueryOneSealedEntity(long seed, EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
@@ -721,7 +933,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertExactlyEquals(products.get(primaryKey), sealedEntity);
 	}
 
-	@DisplayName("Should return custom entity model instance")
+	/**
+	 * Tests that the client can query and return a custom entity model instance.
+	 *
+	 * This test verifies that the client can successfully query for an entity
+	 * and return it as a custom proxy interface (ProductInterface) rather than
+	 * the default SealedEntity, with proper validation of the proxy's behavior.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
+	@DisplayName("return custom entity model instance")
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void queryOneCustomEntity(
@@ -749,7 +972,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that the client can query and retrieve a single sealed entity in binary format.
+	 *
+	 * This test verifies that the client can successfully query for an entity
+	 * using binary session flags and retrieve the entity in binary serialized format.
+	 * Currently disabled as this functionality is not yet implemented.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("query one sealed binary entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	@Disabled("Not working (yet)")
 	void shouldQueryOneSealedBinaryEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
@@ -775,7 +1009,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertExactlyEquals(products.get(1), sealedEntity);
 	}
 
+	/**
+	 * Tests that the client can query and retrieve a list of entity references.
+	 *
+	 * This test verifies that the client can successfully query for multiple entities
+	 * by their primary keys and retrieve their references with correct type and key information.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("query list of entity references")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryListOfEntityReferences(EvitaClient evitaClient) {
 		final Integer[] requestedIds = {1, 2, 5};
@@ -783,12 +1026,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				return session.queryListOfEntityReferences(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(requestedIds)
-						)
-					)
+					createSimpleEntityQuery(Entities.PRODUCT, requestedIds)
 				);
 			}
 		);
@@ -798,12 +1036,21 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 
 		for (int i = 0; i < entityReferences.size(); i++) {
 			final EntityReference entityReference = entityReferences.get(i);
-			assertEquals(Entities.PRODUCT, entityReference.getType());
-			assertEquals(requestedIds[i], entityReference.getPrimaryKey());
+			assertEntityTypeAndPrimaryKey(entityReference, Entities.PRODUCT, requestedIds[i]);
 		}
 	}
 
+	/**
+	 * Tests that the client can query and retrieve a list of sealed entities with full content.
+	 *
+	 * This test verifies that the client can successfully query for multiple entities
+	 * by their primary keys and retrieve their complete sealed representations with all data.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("query list of sealed entities")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryListOfSealedEntities(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Integer[] requestedIds = {1, 2, 5};
@@ -811,15 +1058,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				return session.queryListOfSealedEntities(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							entityPrimaryKeyInSet(requestedIds)
-						),
-						require(
-							entityFetchAll()
-						)
-					)
+					createFullEntityQuery(Entities.PRODUCT, requestedIds)
 				);
 			}
 		);
@@ -835,7 +1074,19 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that the client can query and retrieve a list of custom entity model instances.
+	 *
+	 * This test verifies that the client can successfully query for multiple entities
+	 * and return them as custom proxy interfaces (ProductInterface) with proper validation
+	 * of the proxy behavior and data consistency.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
+	@DisplayName("query list of custom entities")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryListOfCustomEntities(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
 		final Integer[] requestedIds = {1, 2, 5};
@@ -868,7 +1119,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Tests that the client can fetch referenced entity predecessors correctly.
+	 *
+	 * This test verifies that the client can successfully retrieve category entities
+	 * that have references with predecessor attributes, and that these references
+	 * contain the expected `ReferencedEntityPredecessor` attribute values.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("fetch referenced entity predecessors")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldFetchReferencedEntityPredecessors(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		evitaClient.queryCatalog(
@@ -915,7 +1177,22 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Tests that the client can retrieve entity lists along with extra query results.
+	 *
+	 * This test verifies that the client can successfully execute queries that return
+	 * not only the entity data but also additional computed results such as:
+	 * - Query telemetry information
+	 * - Price histograms for price analysis
+	 * - Attribute histograms for attribute value distribution
+	 * - Hierarchical data structures
+	 * - Facet summaries for faceted search
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("get list with extra results")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetListWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity someProductWithCategory = products.values()
@@ -983,7 +1260,27 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
 	}
 
+	/**
+	 * Tests that the client can retrieve custom entity model instances along with extra query results.
+	 *
+	 * This test verifies that the client can successfully execute queries that return
+	 * custom proxy interfaces (ProductInterface) instead of SealedEntity, while also
+	 * providing additional computed results such as:
+	 * - Query telemetry information
+	 * - Price histograms for price analysis
+	 * - Attribute histograms for attribute value distribution
+	 * - Hierarchical data structures
+	 * - Facet summaries for faceted search
+	 *
+	 * The test also validates that the custom entity proxies correctly represent
+	 * the original data with proper price context and locale settings.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
+	@DisplayName("get list of custom entities with extra results")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetListOfCustomEntitiesWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
 		final SealedEntity someProductWithCategory = products.values()
@@ -1068,7 +1365,6 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertTrue(theHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
 		assertTrue(theHistogram.getBuckets().length > 0);
 
-		/* TOBEDONE #43 - provide access to entities of specific interface type */
 		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
 		assertNotNull(hierarchy);
 		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
@@ -1080,7 +1376,18 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(facetSummary.getReferenceStatistics().isEmpty());
 	}
 
+	/**
+	 * Tests that the client can retrieve a single entity by its primary key.
+	 *
+	 * This test verifies that the client can successfully fetch a specific entity
+	 * using its primary key and entity type, returning a complete SealedEntity
+	 * with all requested content including attributes, references, and associated data.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("get single entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Optional<SealedEntity> sealedEntity = evitaClient.queryCatalog(
@@ -1103,7 +1410,20 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		});
 	}
 
+	/**
+	 * Tests that the client can retrieve a single entity as a custom proxy interface.
+	 *
+	 * This test verifies that the client can successfully fetch a specific entity
+	 * using its primary key and return it as a custom proxy interface (ProductInterface)
+	 * instead of the default SealedEntity, with proper validation of the proxy's
+	 * behavior and data consistency against the original entity data.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
+	@DisplayName("get single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
 		final Optional<ProductInterface> product = evitaClient.queryCatalog(
@@ -1126,7 +1446,23 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		});
 	}
 
+	/**
+	 * Tests that the client can enrich a partially loaded entity with additional content.
+	 *
+	 * This test verifies the entity enrichment functionality by:
+	 * 1. First fetching an entity with limited content (only attributes)
+	 * 2. Then fetching the same entity with full content requirements
+	 * 3. Validating that the enriched entity contains all the expected data
+	 *    while the limited entity differs from the complete version
+	 *
+	 * This demonstrates the system's ability to incrementally load entity data
+	 * based on different fetch requirements.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("enrich single entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldEnrichSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
@@ -1160,7 +1496,24 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertExactlyEquals(products.get(7), enrichedEntity);
 	}
 
+	/**
+	 * Tests that the client can enrich a partially loaded custom entity proxy with additional content.
+	 *
+	 * This test verifies the entity enrichment functionality for custom proxy interfaces by:
+	 * 1. First fetching an entity as ProductInterface with limited content (only attributes)
+	 * 2. Validating that missing content throws ContextMissingException when accessed
+	 * 3. Then fetching the same entity with full content requirements
+	 * 4. Validating that the enriched entity proxy contains all the expected data
+	 *
+	 * This demonstrates the system's ability to incrementally load entity data
+	 * for custom proxy interfaces based on different fetch requirements.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
+	@DisplayName("enrich single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldEnrichSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
 		final ProductInterface product = evitaClient.queryCatalog(
@@ -1197,7 +1550,24 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertProduct(products.get(7), enrichedEntity, originalCategories);
 	}
 
+	/**
+	 * Tests that the client can limit the content of a single entity fetch operation.
+	 *
+	 * This test verifies the entity content limiting functionality by:
+	 * 1. First fetching an entity with full content requirements
+	 * 2. Then fetching the same entity with limited content (only attributes)
+	 * 3. Validating that the full entity matches the expected complete data
+	 * 4. Validating that the limited entity differs from the complete version
+	 *
+	 * This demonstrates the system's ability to control the amount of data
+	 * loaded for entities based on specific fetch requirements, which is
+	 * important for performance optimization.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
 	@Test
+	@DisplayName("limit single entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldLimitSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
@@ -1231,7 +1601,26 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertDiffers(products.get(7), limitedEntity);
 	}
 
+	/**
+	 * Tests that the client can limit the content of a single custom entity proxy fetch operation.
+	 *
+	 * This test verifies the entity content limiting functionality for custom proxy interfaces by:
+	 * 1. First fetching an entity as ProductInterface with full content requirements
+	 * 2. Then fetching the same entity with limited content (only attributes)
+	 * 3. Validating that the full entity proxy contains all the expected data
+	 * 4. Validating that the limited entity proxy throws ContextMissingException
+	 *    when accessing content that wasn't fetched
+	 *
+	 * This demonstrates the system's ability to control the amount of data
+	 * loaded for custom entity proxies based on specific fetch requirements,
+	 * which is important for performance optimization.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 * @param originalCategories map of original category entities for reference validation
+	 */
 	@Test
+	@DisplayName("limit single custom entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldLimitSingleCustomEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products, Map<Integer, SealedEntity> originalCategories) {
 		final ProductInterface sealedEntity = evitaClient.queryCatalog(
@@ -1268,16 +1657,35 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
 	}
 
+	/**
+	 * Tests that the client can retrieve the system status information.
+	 *
+	 * This test verifies that the client can successfully retrieve system-level
+	 * status information including server health, version, and operational metrics.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
 	@Test
+	@DisplayName("retrieve system status")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveSystemStatus(EvitaClient evitaClient) {
 		final SystemStatus systemStatus = evitaClient.management().getSystemStatus();
 		assertNotNull(systemStatus);
-		assertEquals(1, systemStatus.catalogsOk());
+		assertEquals(1, systemStatus.catalogsActive());
 		assertEquals(0, systemStatus.catalogsCorrupted());
 	}
 
+	/**
+	 * Verifies that catalog statistics can be retrieved from the management API.
+	 *
+	 * This test checks that the client can successfully fetch catalog statistics including:
+	 * - Catalog name, state, and version
+	 * - Total records and index count
+	 * - Size on disk in bytes
+	 * - Entity collection statistics for all entity types
+	 */
 	@Test
+	@DisplayName("retrieve catalog statistics")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCatalogStatistics(EvitaClient evitaClient) {
 		final CatalogStatistics[] catalogStatistics = evitaClient.management().getCatalogStatistics();
@@ -1286,7 +1694,8 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		final CatalogStatistics statistics = catalogStatistics[0];
 
 		assertEquals(TEST_CATALOG, statistics.catalogName());
-		assertFalse(statistics.corrupted());
+		assertFalse(statistics.unusable());
+		assertFalse(statistics.readOnly());
 		assertEquals(CatalogState.ALIVE, statistics.catalogState());
 		assertEquals(1, statistics.catalogVersion());
 		assertTrue(statistics.totalRecords() > 1);
@@ -1302,7 +1711,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Verifies that catalog version information can be retrieved at specific moments in time.
+	 *
+	 * This test checks that the client can successfully fetch catalog version information:
+	 * - Current catalog version at the present moment
+	 * - First catalog version (version 0) when passing null timestamp
+	 * - Proper version numbers and introduction timestamps
+	 */
 	@Test
+	@DisplayName("retrieve catalog version at specific moment")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCatalogVersionAtTheMoment(EvitaClient evitaClient) {
 		final long lastCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
@@ -1313,18 +1731,25 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final CatalogVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
+				final StoredVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
 				assertEquals(lastCatalogVersion, catalogVersionAt.version());
 				assertNotNull(catalogVersionAt.introducedAt());
 
-				final CatalogVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
+				final StoredVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
 				assertEquals(0, firstCatalogVersionAt.version());
 				assertNotNull(firstCatalogVersionAt.introducedAt());
 			}
 		);
 	}
 
+	/**
+	 * Verifies that entity collection size can be retrieved correctly.
+	 *
+	 * This test checks that the client can successfully fetch the number of entities
+	 * in a specific collection and that it matches the expected count from the test data.
+	 */
 	@Test
+	@DisplayName("retrieve entity collection size")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldRetrieveCollectionSize(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Integer productCount = evitaClient.queryCatalog(
@@ -1337,7 +1762,15 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(products.size(), productCount);
 	}
 
+	/**
+	 * Verifies that sealed entities can be queried even without proper fetch requirements.
+	 *
+	 * This test checks that the client can successfully query entities using minimal
+	 * requirements and still return valid sealed entity instances, demonstrating
+	 * the system's ability to handle incomplete fetch specifications gracefully.
+	 */
 	@Test
+	@DisplayName("query sealed entities even without proper requirements")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryListOfSealedEntitiesEvenWithoutProperRequirements(EvitaClient evitaClient) {
 		final List<SealedEntity> sealedEntities = evitaClient.queryCatalog(
@@ -1356,7 +1789,14 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(3, sealedEntities.size());
 	}
 
+	/**
+	 * Verifies that termination callbacks are properly invoked when a client session is closed.
+	 *
+	 * This test checks that when a session is explicitly closed by the client,
+	 * the registered termination callback is executed and receives the correct session ID.
+	 */
 	@Test
+	@DisplayName("call termination callback when client closes session")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldCallTerminationCallbackWhenClientClosesSession(EvitaClient evitaClient) {
 		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
@@ -1370,7 +1810,14 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(terminatedSessionId.get());
 	}
 
+	/**
+	 * Verifies that termination callbacks are properly invoked when the entire client is closed.
+	 *
+	 * This test checks that when a client instance is closed, all active sessions
+	 * are terminated and their registered termination callbacks are executed properly.
+	 */
 	@Test
+	@DisplayName("call termination callback when client is closed")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldCallTerminationCallbackWhenClientIsClosed(EvitaClient evitaClient) {
 		final EvitaClient newEvitaClient = new EvitaClient(evitaClient.getConfiguration());
@@ -1385,7 +1832,15 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(terminatedSessionId.get());
 	}
 
+	/**
+	 * Verifies that termination callbacks are properly invoked when the server closes a session.
+	 *
+	 * This test checks that when a session is closed from the server side,
+	 * the client detects the session termination and executes the registered
+	 * termination callback when the next operation is attempted.
+	 */
 	@Test
+	@DisplayName("call termination callback when server closes the session")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldCallTerminationCallbackWhenServerClosesTheSession(EvitaClient evitaClient, EvitaServer evitaServer) {
 		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
@@ -1414,7 +1869,15 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * Verifies that errors are properly translated and sessions remain open after exceptions.
+	 *
+	 * This test checks that when an invalid operation is performed (querying a non-existing entity type),
+	 * the client properly translates the error into a meaningful exception while keeping
+	 * the session active for subsequent operations.
+	 */
 	@Test
+	@DisplayName("translate error correctly and leave session open")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldTranslateErrorCorrectlyAndLeaveSessionOpen(EvitaClient evitaClient) {
 		final EvitaSessionContract clientSession = evitaClient.createReadOnlySession(TEST_CATALOG);
@@ -1430,7 +1893,16 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
-	@DisplayName("Should return entity schema directly or via model class")
+	/**
+	 * Tests that the client can retrieve entity schemas both directly and via model classes.
+	 *
+	 * This test verifies that the client can successfully retrieve entity schemas
+	 * using both entity type strings and proxy interface classes, and that both
+	 * approaches return equivalent schema definitions.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 */
+	@DisplayName("return entity schema directly or via model class")
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldReturnEntitySchema(EvitaClient evitaClient) {
@@ -1448,7 +1920,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
-	@DisplayName("Should provide paginated access to references")
+	/**
+	 * Tests that the client can provide paginated access to entity references.
+	 *
+	 * This test verifies that the client can successfully retrieve entity references
+	 * in paginated chunks, allowing for efficient processing of large reference sets
+	 * without loading all references at once.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
+	@DisplayName("provide paginated access to references")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	@Test
 	void shouldReturnPaginatedReferences(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
@@ -1517,7 +1999,17 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
-	@DisplayName("Should provide total count of references only")
+	/**
+	 * Tests that the client can retrieve the total count of references without fetching the actual reference data.
+	 *
+	 * This test verifies that when using pagination with page size 0, the client correctly
+	 * returns only the total count of references without loading the reference entities themselves,
+	 * which is useful for performance optimization when only counts are needed.
+	 *
+	 * @param evitaClient the EvitaClient instance injected by the test framework
+	 * @param products map of product entities available for testing
+	 */
+	@DisplayName("provide total count of references only")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	@Test
 	void shouldReturnTotalCountOfReferencesOnly(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
@@ -1558,6 +2050,49 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 					return productByPk.getReferenceChunk(Entities.PARAMETER).getTotalRecordCount();
 				}
 			)
+		);
+	}
+
+	/**
+	 * Helper method to assert that an entity has the expected type and primary key.
+	 *
+	 * @param entity the entity to check
+	 * @param expectedType the expected entity type
+	 * @param expectedPrimaryKey the expected primary key
+	 */
+	private static void assertEntityTypeAndPrimaryKey(@Nonnull EntityReferenceContract<?> entity, @Nonnull String expectedType, int expectedPrimaryKey) {
+		assertEquals(expectedType, entity.getType());
+		assertEquals(expectedPrimaryKey, entity.getPrimaryKey());
+	}
+
+	/**
+	 * Helper method to create a simple query for fetching entities by primary keys.
+	 *
+	 * @param entityType the entity collection type
+	 * @param primaryKeys the primary keys to filter by
+	 * @return the constructed query
+	 */
+	@Nonnull
+	private static Query createSimpleEntityQuery(@Nonnull String entityType, @Nonnull Integer... primaryKeys) {
+		return query(
+			collection(entityType),
+			filterBy(entityPrimaryKeyInSet(primaryKeys))
+		);
+	}
+
+	/**
+	 * Helper method to create a query for fetching entities with full content by primary keys.
+	 *
+	 * @param entityType the entity collection type
+	 * @param primaryKeys the primary keys to filter by
+	 * @return the constructed query with entityFetchAll requirement
+	 */
+	@Nonnull
+	private static Query createFullEntityQuery(@Nonnull String entityType, @Nonnull Integer... primaryKeys) {
+		return query(
+			collection(entityType),
+			filterBy(entityPrimaryKeyInSet(primaryKeys)),
+			require(entityFetchAll())
 		);
 	}
 

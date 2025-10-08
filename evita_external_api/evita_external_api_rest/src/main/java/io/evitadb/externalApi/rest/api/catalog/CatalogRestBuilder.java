@@ -30,6 +30,7 @@ import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogEndpointBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.cdcApi.CatalogCdcApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogDataApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogSchemaApiRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -71,18 +72,19 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 		buildCommonTypes();
 		buildEndpoints();
 
-		new CatalogDataApiRestBuilder(buildingContext).build();
-		new CatalogSchemaApiRestBuilder(buildingContext).build();
+		new CatalogDataApiRestBuilder(this.buildingContext).build();
+		new CatalogSchemaApiRestBuilder(this.buildingContext).build();
+		new CatalogCdcApiRestBuilder(this.buildingContext).build();
 
-		return buildingContext.buildRest();
+		return this.buildingContext.buildRest();
 	}
 
 	private void buildCommonTypes() {
-		buildingContext.registerType(buildScalarEnum());
-		buildingContext.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildScalarEnum());
+		this.buildingContext.registerType(ErrorDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
 
 	private void buildEndpoints() {
-		buildingContext.registerEndpoint(endpointBuilder.buildOpenApiSpecificationEndpoint(buildingContext));
+		this.buildingContext.registerEndpoint(this.endpointBuilder.buildOpenApiSpecificationEndpoint(this.buildingContext));
 	}
 }

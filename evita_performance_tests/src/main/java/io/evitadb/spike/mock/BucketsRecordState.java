@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.spike.mock;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -34,6 +33,7 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import lombok.Getter;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
@@ -66,21 +66,21 @@ public class BucketsRecordState {
 	 */
 	@Setup(Level.Trial)
 	public void setUp() {
-		entityIds = generateBitmap(VALUE_COUNT, 1);
-		request = new AttributeHistogramRequest(
+		this.entityIds = generateBitmap(VALUE_COUNT, 1);
+		this.request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
 			Comparator.naturalOrder(),
 			Arrays.asList(
-				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
-				new FilterIndex(new AttributeKey("whatever"), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
+				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
+				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
 			),
 			Collections.emptySet()
 		);
 		this.buckets = generateBuckets(BUCKET_COUNT, VALUE_COUNT);
-		this.formula = new ConstantFormula(entityIds);
+		this.formula = new ConstantFormula(this.entityIds);
 	}
 
 	private static ValueToRecordBitmap[] generateBuckets(int bucketCount, int valueCount) {

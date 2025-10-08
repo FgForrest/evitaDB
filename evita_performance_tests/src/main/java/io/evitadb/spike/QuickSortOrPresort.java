@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,10 +69,10 @@ public class QuickSortOrPresort {
 		 */
 		@Setup(Level.Invocation)
 		public void setUp() {
-			randomSortedAttribute = generateRandomStrings(VALUE_COUNT);
-			assignedRecordIds = new int[VALUE_COUNT];
+			this.randomSortedAttribute = generateRandomStrings(VALUE_COUNT);
+			this.assignedRecordIds = new int[VALUE_COUNT];
 			for (int i = 0; i < VALUE_COUNT; i++) {
-				assignedRecordIds[i] = i + 1;
+				this.assignedRecordIds[i] = i + 1;
 			}
 		}
 
@@ -110,25 +110,25 @@ public class QuickSortOrPresort {
 				positions.add(i);
 			}
 
-			selectedRecordIds = new RoaringBitmap();
-			recordIdPositions = new int[totalCount];
-			unsortedRecordIds = new FastRankRoaringBitmap();
+			this.selectedRecordIds = new RoaringBitmap();
+			this.recordIdPositions = new int[totalCount];
+			this.unsortedRecordIds = new FastRankRoaringBitmap();
 
 			int peek = 0;
 			int lastPk = -1;
 			for (int i = 0; i < totalCount; i++) {
 				lastPk += 1 + RANDOM.nextInt(2);
-				unsortedRecordIds.add(lastPk);
-				recordIdPositions[i] = positions.remove(RANDOM.nextInt(positions.size()));
+				this.unsortedRecordIds.add(lastPk);
+				this.recordIdPositions[i] = positions.remove(RANDOM.nextInt(positions.size()));
 				if (peek < VALUE_COUNT && RANDOM.nextBoolean()) {
 					peek++;
-					selectedRecordIds.add(lastPk);
+					this.selectedRecordIds.add(lastPk);
 				}
 			}
 
-			sortedRecordIds = ArrayUtils.computeSortedSecondAlongFirstArray(
-				Comparator.comparing(o -> recordIdPositions[unsortedRecordIds.rank(o)]),
-				unsortedRecordIds.toArray()
+			this.sortedRecordIds = ArrayUtils.computeSortedSecondAlongFirstArray(
+				Comparator.comparing(o -> this.recordIdPositions[this.unsortedRecordIds.rank(o)]),
+				this.unsortedRecordIds.toArray()
 			);
 		}
 

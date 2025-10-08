@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.cardinality.CardinalityIndex;
@@ -34,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
@@ -46,9 +46,9 @@ import java.io.Serial;
  */
 @RequiredArgsConstructor
 @AllArgsConstructor
-@ToString(of = {"attributeKey", "entityIndexPrimaryKey"})
-public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = 6163295675316818632L;
+@ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
+public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
+	@Serial private static final long serialVersionUID = -929865952179187357L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -57,7 +57,7 @@ public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, R
 	/**
 	 * Contains name and locale of the indexed attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * This map contains cardinality of the attribute values. Key is the combination of attribute value and entity id.
 	 * Value is the number of occurrences of this combination in the index.
@@ -68,14 +68,15 @@ public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, R
 	 */
 	@Getter @Setter private Long storagePartPK;
 
+	@Nonnull
 	@Override
 	public AttributeIndexType getIndexType() {
 		return AttributeIndexType.CARDINALITY;
 	}
 
 	@Override
-	public AttributeKey getStoragePartSourceKey() {
-		return attributeKey;
+	public AttributeIndexKey getStoragePartSourceKey() {
+		return this.attributeIndexKey;
 	}
 
 }

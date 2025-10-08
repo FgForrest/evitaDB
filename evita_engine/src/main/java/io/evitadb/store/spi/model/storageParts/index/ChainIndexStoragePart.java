@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.attribute.ChainIndex.ChainElementState;
@@ -34,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.util.Map;
@@ -49,9 +49,9 @@ import java.util.Map;
 @NotThreadSafe
 @RequiredArgsConstructor
 @AllArgsConstructor
-@ToString(of = "attributeKey")
-public class ChainIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
-	@Serial private static final long serialVersionUID = -2563092938071912295L;
+@ToString(of = "attributeIndexKey")
+public class ChainIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
+	@Serial private static final long serialVersionUID = 8894604958733971199L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -60,7 +60,7 @@ public class ChainIndexStoragePart implements AttributeIndexStoragePart, RecordW
 	/**
 	 * Contains name and locale of the indexed attribute.
 	 */
-	@Getter private final AttributeKey attributeKey;
+	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
 	 * Index contains information about non-interrupted chains of predecessors for an entity which is not a head entity
 	 * but is part of different chain (inconsistent state).
@@ -83,14 +83,15 @@ public class ChainIndexStoragePart implements AttributeIndexStoragePart, RecordW
 	 */
 	@Getter @Setter private Long storagePartPK;
 
+	@Nonnull
 	@Override
 	public AttributeIndexType getIndexType() {
 		return AttributeIndexType.CHAIN;
 	}
 
 	@Override
-	public AttributeKey getStoragePartSourceKey() {
-		return attributeKey;
+	public AttributeIndexKey getStoragePartSourceKey() {
+		return this.attributeIndexKey;
 	}
 
 

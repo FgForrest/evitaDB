@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,18 +85,18 @@ public class BloomFilter {
 		// initialize bitset with appropriate size for `expectedRecordCount` and `reliability`
 		this.bitSet = new BitSet(computeBitSize(expectedRecordCount, reliability));
 		// cache the size for further computations
-		this.size = bitSet.size();
+		this.size = this.bitSet.size();
 	}
 
 	/**
 	 * Method adds new value to the bloom filter.
 	 */
 	public void add(long value) {
-		bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.xx3().hashLong(value)) % size), true);
-		bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.murmur_3().hashLong(value)) % size), true);
-		bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.farmNa().hashLong(value)) % size), true);
-		bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.city_1_1().hashLong(value)) % size), true);
-		bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.metro().hashLong(value)) % size), true);
+		this.bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.xx3().hashLong(value)) % this.size), true);
+		this.bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.murmur_3().hashLong(value)) % this.size), true);
+		this.bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.farmNa().hashLong(value)) % this.size), true);
+		this.bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.city_1_1().hashLong(value)) % this.size), true);
+		this.bitSet.set(Math.toIntExact(Math.abs(LongHashFunction.metro().hashLong(value)) % this.size), true);
 	}
 
 	/**
@@ -111,18 +111,18 @@ public class BloomFilter {
 	 * has been ever added to this bloom filter instance.
 	 */
 	public boolean mightBePresent(long value) {
-		return bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.xx3().hashLong(value)) % size)) &&
-			bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.murmur_3().hashLong(value)) % size)) &&
-			bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.farmNa().hashLong(value)) % size)) &&
-			bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.city_1_1().hashLong(value)) % size)) &&
-			bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.metro().hashLong(value)) % size));
+		return this.bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.xx3().hashLong(value)) % this.size)) &&
+			this.bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.murmur_3().hashLong(value)) % this.size)) &&
+			this.bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.farmNa().hashLong(value)) % this.size)) &&
+			this.bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.city_1_1().hashLong(value)) % this.size)) &&
+			this.bitSet.get(Math.toIntExact(Math.abs(LongHashFunction.metro().hashLong(value)) % this.size));
 	}
 
 	/**
 	 * Returns number of bits in the internal {@link BitSet} field (the size of the bloom filter).
 	 */
 	public int size() {
-		return size;
+		return this.size;
 	}
 
 	/**
@@ -130,7 +130,7 @@ public class BloomFilter {
 	 * types. The result is not accurate, but it's the best effort estimate.
 	 */
 	public int getSizeInBytes() {
-		return BASE_MEMORY_SIZE + size;
+		return BASE_MEMORY_SIZE + this.size;
 	}
 
 }

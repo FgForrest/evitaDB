@@ -66,6 +66,10 @@ import static java.util.Optional.of;
  */
 class ReferenceBlock<T> {
 	/**
+	 * The reference schema defining the reference attributes.
+	 */
+	private final ReferenceSchema referenceSchema;
+	/**
 	 * The bitmap of all referenced entity primary keys.
 	 */
 	@Getter private final RoaringBitmap referencedPrimaryKeys;
@@ -77,7 +81,7 @@ class ReferenceBlock<T> {
 	/**
 	 * The supplier of all attribute mutations that needs to be applied when the counterpart references are created.
 	 */
-	@Getter private final Function<ReferenceKey, ReferenceAttributeMutation[]> attributeSupplier;
+	@Getter private final Function<ReferenceKey, Stream<ReferenceAttributeMutation>> attributeSupplier;
 	/**
 	 * The set of missing mandated attributes.
 	 */
@@ -127,6 +131,7 @@ class ReferenceBlock<T> {
 			.mapToInt(attributeValueProvider::getReferencedEntityPrimaryKey)
 			.forEach(writer::add);
 		this.referencedPrimaryKeys = writer.get();
+		this.referenceSchema = localReferenceSchema;
 
 		// now build the attribute supplier for all attribute mutations that needs to be applied
 		final Optional<ReferenceSchema> theOtherReferenceSchema;
@@ -149,7 +154,7 @@ class ReferenceBlock<T> {
 		this.attributeSupplier = theOtherReferenceSchema
 			.map(
 				referencedEntitySchema ->
-					(Function<ReferenceKey, ReferenceAttributeMutation[]>) (referenceKey) ->
+					(Function<ReferenceKey, Stream<ReferenceAttributeMutation>>) (referenceKey) ->
 						// for each reference attribute schema
 						attributeValueProvider.getAttributeSchemas(
 								localReferenceSchema, referencedEntitySchema, inheritedAttributes.get()
@@ -159,10 +164,10 @@ class ReferenceBlock<T> {
 									locales, attributeValueProvider, referencedEntitySchema,
 									referenceKey, attributeSchema, inheritedAttributes.get()
 								)
-							).toArray(ReferenceAttributeMutation[]::new)
+							)
 			)
 			// if the other reference schema does not (yet) exist, return an empty array
-			.orElse(refKey -> new ReferenceAttributeMutation[0]);
+			.orElse(refKey -> Stream.empty());
 	}
 
 	/**
@@ -222,6 +227,7 @@ class ReferenceBlock<T> {
 						.filter(attVal -> attributeKey.equals(attVal.key()))
 						.map(AttributeValue::valueOrThrowException)
 						.findFirst()
+						.map(ReferenceBlock::convertIfNecessary)
 						.orElse(defaultValue);
 				// if the attribute is localized
 				if (attributeSchema.isLocalized()) {
@@ -233,7 +239,7 @@ class ReferenceBlock<T> {
 								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 								new UpsertAttributeMutation(
 									attributeKey,
-									convertIfNecessary(valueLookup.apply(attributeKey))
+									valueLookup.apply(attributeKey)
 								)
 							);
 						});
@@ -245,7 +251,7 @@ class ReferenceBlock<T> {
 							attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
 							new UpsertAttributeMutation(
 								attributeKey,
-								convertIfNecessary(valueLookup.apply(attributeKey))
+								valueLookup.apply(attributeKey)
 							)
 						)
 					);
@@ -257,6 +263,7 @@ class ReferenceBlock<T> {
 						.filter(attVal -> attributeKey.equals(attVal.key()))
 						.map(AttributeValue::valueOrThrowException)
 						.findFirst()
+			            .map(ReferenceBlock::convertIfNecessary)
 						.orElse(null);
 				if (attributeSchema.isLocalized()) {
 					// set-up a stream of reference attribute mutations for each locale
@@ -273,7 +280,7 @@ class ReferenceBlock<T> {
 								// otherwise, return a single reference attribute mutation
 								return new ReferenceAttributeMutation(
 									attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-									new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
+									new UpsertAttributeMutation(attributeKey, value)
 								);
 							} else {
 								return null;
@@ -293,7 +300,7 @@ class ReferenceBlock<T> {
 						return Stream.of(
 							new ReferenceAttributeMutation(
 								attributeValueProvider.getReferenceKey(referencedEntitySchema, reference),
-								new UpsertAttributeMutation(attributeKey, convertIfNecessary(value))
+								new UpsertAttributeMutation(attributeKey, value)
 							)
 						);
 					} else {

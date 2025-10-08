@@ -26,14 +26,15 @@ package io.evitadb.store.catalog.task;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
-import io.evitadb.core.async.ClientRunnableTask;
-import io.evitadb.core.async.Interruptible;
+import io.evitadb.core.executor.ClientRunnableTask;
+import io.evitadb.core.executor.Interruptible;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.RestoreTask.RestoreSettings;
 import io.evitadb.store.catalog.task.stream.CountingInputStream;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
+import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -90,7 +91,7 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 				catalogName, Integer.parseInt(matcher.group(1))
 			);
 		} else if (entryName.endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX)) {
-			final int walIndex = CatalogPersistenceService.getIndexFromWalFileName(originalCatalogName, fileName);
+			final int walIndex = CatalogWriteAheadLog.getIndexFromWalFileName(fileName);
 			return CatalogPersistenceService.getWalFileName(catalogName, walIndex);
 		} else {
 			return fileName;
@@ -216,10 +217,11 @@ public class RestoreTask extends ClientRunnableTask<RestoreSettings> {
 		boolean deleteAfterRestore
 	) implements Serializable, FileIdCarrier {
 
+		@Nonnull
 		@Override
 		public String toString() {
-			return "FileName: `" + pathToFile + '`' +
-				", totalSizeInBytes: " + StringUtils.formatByteSize(totalSizeInBytes);
+			return "FileName: `" + this.pathToFile + '`' +
+				", totalSizeInBytes: " + StringUtils.formatByteSize(this.totalSizeInBytes);
 		}
 	}
 

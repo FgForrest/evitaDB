@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,5 +28,5 @@ package io.evitadb.api.requestResponse.cdc;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public sealed interface CaptureSite permits SchemaSite, DataSite {
+public sealed interface CaptureSite<T extends CaptureSite<T>> extends Comparable<T> permits SchemaSite, DataSite {
 }

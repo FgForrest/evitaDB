@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,15 +70,15 @@ public class JavaWrappingExecutable implements Executable, EvitaTestSupport {
 
 	@Override
 	public void execute() throws Throwable {
-		final JavaTestContext javaTestContext = testContextAccessor.get();
+		final JavaTestContext javaTestContext = this.testContextAccessor.get();
 
 		final InvocationResult result = javaTestContext.executeJShellCommands(
-			composeRequiredBlocks(javaTestContext.getJShell(), getRootDirectory(), requiredResources, codeSnippetIndex),
-			sideEffect,
+			composeRequiredBlocks(javaTestContext.getJShell(), getRootDirectory(), this.requiredResources, this.codeSnippetIndex),
+			this.sideEffect,
 			invocationResult -> {
 				if (invocationResult.exception() == null) {
 					try {
-						delegate.execute();
+						this.delegate.execute();
 					} catch (Throwable e) {
 						return new InvocationResult(
 							invocationResult.snippets(),

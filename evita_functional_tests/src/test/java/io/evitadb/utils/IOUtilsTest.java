@@ -86,13 +86,14 @@ class IOUtilsTest {
 
 	@Test
 	void testLambdaWithException() {
-		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
-			IOUtils.executeSafely(
-				IllegalStateException::new,
-				() -> {
-					throw new IOException("Exception in lambda");
-				}
-			)
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class, () ->
+				IOUtils.executeSafely(
+					IllegalStateException::new,
+					() -> {
+						throw new IOException("Exception in lambda");
+					}
+				)
 		);
 
 		assertEquals("Exception in lambda", exception.getSuppressed()[0].getMessage());
@@ -109,14 +110,15 @@ class IOUtilsTest {
 
 	@Test
 	void testConsumerWithException() {
-		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
-			IOUtils.executeSafely(
-				1,
-				IllegalStateException::new,
-				i -> {
-					throw new IOException("Exception in lambda");
-				}
-			)
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class, () ->
+				IOUtils.executeSafely(
+					1,
+					IllegalStateException::new,
+					i -> {
+						throw new IOException("Exception in lambda");
+					}
+				)
 		);
 
 		assertEquals("Exception in lambda", exception.getSuppressed()[0].getMessage());
@@ -133,13 +135,14 @@ class IOUtilsTest {
 
 	@Test
 	void testCloseWithSingleException() {
-		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
-			IOUtils.close(
-				IllegalStateException::new,
-				() -> {
-					throw new IOException("Single exception in close");
-				}
-			)
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class, () ->
+				IOUtils.close(
+					IllegalStateException::new,
+					() -> {
+						throw new IOException("Single exception in close");
+					}
+				)
 		);
 
 		assertEquals("Single exception in close", exception.getSuppressed()[0].getMessage());
@@ -147,19 +150,102 @@ class IOUtilsTest {
 
 	@Test
 	void testCloseWithMultipleExceptions() {
-		IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
-			IOUtils.close(IllegalStateException::new,
-				() -> {
-					throw new IOException("Exception 1");
-				},
-				() -> {
-					throw new IOException("Exception 2");
-				}
-			)
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class, () ->
+				IOUtils.close(
+					IllegalStateException::new,
+					() -> {
+						throw new IOException("Exception 1");
+					},
+					() -> {
+						throw new IOException("Exception 2");
+					}
+				)
 		);
 
 		assertEquals(2, exception.getSuppressed().length);
 		assertEquals("Exception 1", exception.getSuppressed()[0].getMessage());
 		assertEquals("Exception 2", exception.getSuppressed()[1].getMessage());
+	}
+
+	@Test
+	void testCloseWithRunnableWithoutException() {
+		IOUtils.close(
+			IllegalStateException::new,
+			() -> System.out.println("First resource closed successfully."),
+			() -> System.out.println("Second resource closed successfully.")
+		);
+	}
+
+	@Test
+	void testCloseWithRunnableWithSingleException() {
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class,
+			() ->
+				IOUtils.closeSafely(
+					() -> new IllegalStateException(),
+					() -> {
+						throw new RuntimeException("Single exception in close");
+					}
+				)
+		);
+
+		assertEquals("Single exception in close", exception.getSuppressed()[0].getMessage());
+	}
+
+	@Test
+	void testCloseWithRunnableWithMultipleExceptions() {
+		IllegalStateException exception = assertThrows(
+			IllegalStateException.class, () ->
+				IOUtils.closeSafely(
+					() -> new IllegalStateException(),
+					() -> {
+						throw new RuntimeException("Exception 1");
+					},
+					() -> {
+						throw new Error("Exception 2");
+					}
+				)
+		);
+
+		assertEquals(2, exception.getSuppressed().length);
+		assertEquals("Exception 1", exception.getSuppressed()[0].getMessage());
+		assertEquals("Exception 2", exception.getSuppressed()[1].getMessage());
+	}
+
+	@Test
+	void testCloseQuietlyWithIOExceptionThrowingRunnable() {
+		IOUtils.closeQuietly(
+			() -> System.out.println("First resource closed successfully."),
+			() -> {
+				throw new IOException("This exception should be caught and logged");
+			},
+			() -> System.out.println("Third resource closed successfully.")
+		);
+		// No assertion needed as the method should not throw any exception
+	}
+
+	@Test
+	void testCloseQuietlyWithRunnable() {
+		IOUtils.closeSafely(
+			() -> System.out.println("First resource closed successfully."),
+			() -> {
+				throw new RuntimeException("This exception should be caught and logged");
+			},
+			() -> System.out.println("Third resource closed successfully.")
+		);
+		// No assertion needed as the method should not throw any exception
+	}
+
+	@Test
+	void testCloseQuietlyWithRunnableThrowingError() {
+		IOUtils.closeSafely(
+			() -> System.out.println("First resource closed successfully."),
+			() -> {
+				throw new Error("This error should be caught and logged");
+			},
+			() -> System.out.println("Third resource closed successfully.")
+		);
+		// No assertion needed as the method should not throw any exception
 	}
 }

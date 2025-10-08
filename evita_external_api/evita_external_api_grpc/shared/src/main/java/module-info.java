@@ -25,10 +25,12 @@ module evita.external.api.grpc.shared {
 	exports io.evitadb.externalApi.grpc.certificate;
 	exports io.evitadb.externalApi.grpc.requestResponse.cdc;
 	exports io.evitadb.externalApi.grpc.requestResponse.traffic;
+	exports io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine;
 
 	requires static lombok;
 	requires static jsr305;
 	requires static org.slf4j;
+
 	requires com.fasterxml.jackson.databind;
 
 	requires evita.common;

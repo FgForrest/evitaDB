@@ -71,7 +71,11 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 				Arrays.stream(attributeSetExact.getAttributeValues())
 					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
 					.toArray(Serializable[]::new),
-				indexForSort[0].getSortIndex(attributeName, orderByVisitor.getLocale())
+				indexForSort[0].getSortIndex(
+					processingScope.referenceSchema(),
+					attributeSchema,
+					orderByVisitor.getLocale()
+				)
 			)
 		);
 	}

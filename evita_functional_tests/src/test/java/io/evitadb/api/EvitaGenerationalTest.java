@@ -98,7 +98,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 * Function allowing to pseudo randomly pick referenced entity for the product.
 	 */
 	protected final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-		final Integer entityCount = generatedEntities.computeIfAbsent(entityType, serializable -> 0);
+		final Integer entityCount = this.generatedEntities.computeIfAbsent(entityType, serializable -> 0);
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
@@ -123,9 +123,9 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 * Creates new product stream for the iteration.
 	 */
 	protected Stream<EntityBuilder> getProductStream() {
-		return dataGenerator.generateEntities(
-			productSchema,
-			randomEntityPicker,
+		return this.dataGenerator.generateEntities(
+			this.productSchema,
+			this.randomEntityPicker,
 			SEED
 		);
 	}
@@ -168,7 +168,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						SEED
 					)
 					.limit(5)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleCategorySchema(session),
@@ -176,7 +176,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						SEED
 					)
 					.limit(10)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSamplePriceListSchema(session),
@@ -184,7 +184,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						SEED
 					)
 					.limit(4)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleStoreSchema(session),
@@ -192,7 +192,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						SEED
 					)
 					.limit(12)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleParameterGroupSchema(session),
@@ -200,7 +200,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						SEED
 					)
 					.limit(20)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
 				this.dataGenerator.generateEntities(
 						this.dataGenerator.getSampleParameterSchema(session),
@@ -208,9 +208,9 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 						SEED
 					)
 					.limit(200)
-					.forEach(it -> createEntity(session, generatedEntities, it));
+					.forEach(it -> createEntity(session, this.generatedEntities, it));
 
-				this.productSchema = dataGenerator.getSampleProductSchema(
+				this.productSchema = this.dataGenerator.getSampleProductSchema(
 					session,
 					entitySchemaBuilder -> {
 						entitySchemaBuilder
@@ -273,7 +273,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 				int updateCounter = testState.updateCounter();
 				// create product modificator
 				if (this.modificationFunction == null) {
-					this.modificationFunction = dataGenerator.createModificationFunction(randomEntityPicker, random);
+					this.modificationFunction = this.dataGenerator.createModificationFunction(this.randomEntityPicker, random);
 				}
 
 				String operation = null;

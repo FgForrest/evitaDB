@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import javax.annotation.Nonnull;
 import java.time.DateTimeException;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * {@link Coercing} for converting between Java's side {@link Locale} and client string.
@@ -65,7 +66,7 @@ public class LocaleCoercing implements Coercing<Locale, String> {
             throw new CoercingParseValueException("Locale input is not a string.");
         }
         try {
-            return EvitaDataTypes.toTargetType((String) input, Locale.class);
+            return Objects.requireNonNull(EvitaDataTypes.toTargetType((String) input, Locale.class));
         } catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -78,7 +79,7 @@ public class LocaleCoercing implements Coercing<Locale, String> {
             throw new CoercingParseValueException("Locale input is not a StringValue.");
         }
         try {
-            return EvitaDataTypes.toTargetType(((StringValue) input).getValue(), Locale.class);
+            return Objects.requireNonNull(EvitaDataTypes.toTargetType(((StringValue) input).getValue(), Locale.class));
         } catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

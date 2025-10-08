@@ -255,7 +255,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 	public HierarchySpecificationFilterConstraint[] getHierarchySpecificationConstraints() {
 		return Arrays.stream(getChildren())
 			.filter(HierarchySpecificationFilterConstraint.class::isInstance)
-			.map(it -> (HierarchySpecificationFilterConstraint) it)
+			.map(HierarchySpecificationFilterConstraint.class::cast)
 			.toArray(HierarchySpecificationFilterConstraint[]::new);
 	}
 

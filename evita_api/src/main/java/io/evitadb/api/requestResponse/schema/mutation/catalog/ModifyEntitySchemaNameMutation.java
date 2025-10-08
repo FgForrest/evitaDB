@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,14 +67,15 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
-				.getEntitySchema(name).map(it -> mutate(catalogSchema, it))
+				.getEntitySchema(this.name)
+				.map(it -> mutate(catalogSchema, it))
 				.ifPresentOrElse(
-					it -> mutationEntitySchemaAccessor.replaceEntitySchema(name, it),
+					it -> mutationEntitySchemaAccessor.replaceEntitySchema(this.name, it),
 					() -> {
-						throw new GenericEvitaInternalError("Entity schema not found: " + name);
+						throw new GenericEvitaInternalError("Entity schema not found: " + this.name);
 					}
 				);
 		}
@@ -87,16 +88,16 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.notNull(
 			entitySchema,
-			() -> new InvalidSchemaMutationException("Entity schema `" + name + "` doesn't exist!")
+			() -> new InvalidSchemaMutationException("Entity schema `" + this.name + "` doesn't exist!")
 		);
-		if (newName.equals(catalogSchema.getName())) {
+		if (this.newName.equals(catalogSchema.getName())) {
 			// nothing has changed - we can return existing schema
 			return entitySchema;
 		} else {
 			return EntitySchema._internalBuild(
 				entitySchema.version() + 1,
-				newName,
-				NamingConvention.generate(newName),
+				this.newName,
+				NamingConvention.generate(this.newName),
 				entitySchema.getDescription(),
 				entitySchema.getDeprecationNotice(),
 				entitySchema.isWithGeneratedPrimaryKey(),
@@ -123,7 +124,7 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 
 	@Override
 	public String toString() {
-		return "Modify entity `" + name + "` schema: " +
-			"newName='" + newName + "', overwriteTarget=" + overwriteTarget;
+		return "Modify entity `" + this.name + "` schema: " +
+			"newName='" + this.newName + "', overwriteTarget=" + this.overwriteTarget;
 	}
 }

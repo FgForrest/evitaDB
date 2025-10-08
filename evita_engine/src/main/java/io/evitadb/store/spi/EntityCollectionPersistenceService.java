@@ -29,8 +29,8 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
@@ -38,8 +38,8 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.StoragePart;
@@ -49,6 +49,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.OptionalInt;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 
 /**
  * This interface represents a link between {@link io.evitadb.api.EntityCollectionContract} and its persistent storage.
@@ -58,7 +59,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public non-sealed interface EntityCollectionPersistenceService extends PersistenceService {
+public non-sealed interface EntityCollectionPersistenceService extends RichPersistenceService {
 
 	/**
 	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
@@ -71,7 +72,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, DataStoreChanges)}
+	 * and (because it's immutable) is exchanged with each {@link #flushTrappedUpdates(long, TrappedChanges, IntConsumer)}
 	 * method call.
 	 */
 	@Nonnull
@@ -189,7 +190,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	/**
 	 * Method reconstructs entity index from underlying containers.
 	 */
-	@Nullable
+	@Nonnull
 	EntityIndex readEntityIndex(
 		long catalogVersion,
 		int entityIndexId,
@@ -214,8 +215,8 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	OptionalInt fetchLastAssignedInternalPriceIdFromGlobalIndex(long catalogVersion, int entityIndexId);
 
 	/**
-	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, DataStoreChanges)}
-	 * or {@link #flushTrappedUpdates(long, DataStoreChanges)}   you'll lose the data in the buffers.
+	 * Closes the entity collection persistent storage. If you don't call {@link #flushTrappedUpdates(long, TrappedChanges, IntConsumer)}
+	 * or {@link #flushTrappedUpdates(long, TrappedChanges, IntConsumer)}   you'll lose the data in the buffers.
 	 */
 	@Override
 	void close();

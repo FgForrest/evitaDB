@@ -24,7 +24,6 @@
 package io.evitadb.api.proxy.mock;
 
 import io.evitadb.api.requestResponse.data.InstanceEditor;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
@@ -42,12 +41,6 @@ public interface ProductCategoryInterfaceEditor extends ProductCategoryInterface
 	ProductCategoryInterfaceEditor setShadow(boolean shadow);
 
 	ProductCategoryInterfaceEditor setLabel(Locale locale, @Nonnull String label);
-
-	ProductCategoryInterfaceEditor setCategory(@Nonnull CategoryInterface category);
-
-	ProductCategoryInterfaceEditor setCategoryReference(@Nonnull EntityReference categoryReference);
-
-	ProductCategoryInterfaceEditor setCategoryReferencePrimaryKey(int categoryReferencePrimaryKey);
 
 }
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,8 +55,8 @@ class CachedRecordKryoConfigurer implements Consumer<Kryo> {
 	public void accept(Kryo kryo) {
 		kryo.register(FlattenedFormula.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaSerializer(), FlattenedFormula.class), CACHE_BASE);
 		kryo.register(FlattenedFormulaWithFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredOutRecordsSerializer(), FlattenedFormulaWithFilteredOutRecords.class), 201);
-		kryo.register(FlattenedFormulaWithFilteredPrices.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesSerializer(globalEntityIndexAccessor), FlattenedFormulaWithFilteredPrices.class), 202);
-		kryo.register(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer(globalEntityIndexAccessor), FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class), 203);
+		kryo.register(FlattenedFormulaWithFilteredPrices.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesSerializer(this.globalEntityIndexAccessor), FlattenedFormulaWithFilteredPrices.class), 202);
+		kryo.register(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, new SerialVersionBasedSerializer<>(new FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer(this.globalEntityIndexAccessor), FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class), 203);
 		kryo.register(FlattenedHistogramComputer.class, new SerialVersionBasedSerializer<>(new FlattenedHistogramComputerSerializer(), FlattenedHistogramComputer.class), 204);
 	}
 

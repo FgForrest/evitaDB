@@ -44,7 +44,7 @@ public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer imple
 	private final PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> propertyDataTypeDescriptorTransformer;
 
 	@Override
-	public OpenApiEndpointParameter.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public OpenApiEndpointParameter.Builder apply(PropertyDescriptor propertyDescriptor) {
 		final OpenApiEndpointParameter.Builder parameterBuilder = OpenApiEndpointParameter.newQueryParameter()
 			.description(propertyDescriptor.description());
 
@@ -55,7 +55,7 @@ public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer imple
 			parameterBuilder.deprecationNotice(propertyDescriptor.deprecate());
 		}
 		if (propertyDescriptor.type() != null) {
-			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
+			final OpenApiSimpleType openApiType = this.propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
 			parameterBuilder.type(openApiType);
 		}
 		if (propertyDescriptor.defaultValue() != null) {

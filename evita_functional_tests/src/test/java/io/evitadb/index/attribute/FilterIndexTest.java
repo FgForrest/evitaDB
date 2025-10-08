@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangePoint;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -57,180 +57,180 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class FilterIndexTest implements TimeBoundedTestSupport {
-	private final FilterIndex stringAttribute = new FilterIndex(new AttributeKey("a"), String.class);
-	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeKey("b"), NumberRange.class);
+	private final FilterIndex stringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", null), String.class);
+	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
 
 	@Test
 	void shouldInsertNewStringRecordId() {
-		stringAttribute.addRecord(1, "A");
-		stringAttribute.addRecord(2, new String[] {"A", "B"});
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertEquals(2, stringAttribute.getAllRecords().size());
+		this.stringAttribute.addRecord(1, "A");
+		this.stringAttribute.addRecord(2, new String[] {"A", "B"});
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertEquals(2, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldInsertNewStringRecordIdInTheMiddle() {
-		stringAttribute.addRecord(1, "A");
-		stringAttribute.addRecord(3, "C");
-		assertArrayEquals(new int[] {1}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {3}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertEquals(2, stringAttribute.getAllRecords().size());
-		stringAttribute.addRecord(2, "B");
-		assertArrayEquals(new int[] {1}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertArrayEquals(new int[] {3}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertEquals(3, stringAttribute.getAllRecords().size());
+		this.stringAttribute.addRecord(1, "A");
+		this.stringAttribute.addRecord(3, "C");
+		assertArrayEquals(new int[] {1}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {3}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertEquals(2, this.stringAttribute.getAllRecords().size());
+		this.stringAttribute.addRecord(2, "B");
+		assertArrayEquals(new int[] {1}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertArrayEquals(new int[] {3}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertEquals(3, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldInsertNewStringRecordIdInTheBeginning() {
-		stringAttribute.addRecord(1, "C");
-		stringAttribute.addRecord(2, "B");
-		stringAttribute.addRecord(3, "A");
+		this.stringAttribute.addRecord(1, "C");
+		this.stringAttribute.addRecord(2, "B");
+		this.stringAttribute.addRecord(3, "A");
 
-		assertArrayEquals(new int[] {3}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertArrayEquals(new int[] {1}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertEquals(3, stringAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {3}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertArrayEquals(new int[] {1}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertEquals(3, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldInsertNewRangeRecord() {
-		rangeAttribute.addRecord(1, IntegerNumberRange.between(5, 10));
-		rangeAttribute.addRecord(2, IntegerNumberRange.between(11, 20));
-		rangeAttribute.addRecord(3, IntegerNumberRange.between(5, 15));
+		this.rangeAttribute.addRecord(1, IntegerNumberRange.between(5, 10));
+		this.rangeAttribute.addRecord(2, IntegerNumberRange.between(11, 20));
+		this.rangeAttribute.addRecord(3, IntegerNumberRange.between(5, 15));
 
-		assertArrayEquals(new int[] {1}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 10)).getArray());
-		assertArrayEquals(new int[] {2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
-		assertArrayEquals(new int[] {3}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
-		assertEquals(3, rangeAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {1}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 10)).getArray());
+		assertArrayEquals(new int[] {2}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
+		assertArrayEquals(new int[] {3}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
+		assertEquals(3, this.rangeAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldRemoveStringRecordId() {
 		fillStringAttribute();
-		stringAttribute.removeRecord(1, new String[] {"A", "C"});
+		this.stringAttribute.removeRecord(1, new String[] {"A", "C"});
 
-		assertArrayEquals(new int[] {2}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertArrayEquals(new int[] {3}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertArrayEquals(new int[] {4}, stringAttribute.getRecordsEqualTo("D").getArray());
-		assertEquals(4, stringAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {2}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertArrayEquals(new int[] {3}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertArrayEquals(new int[] {4}, this.stringAttribute.getRecordsEqualTo("D").getArray());
+		assertEquals(4, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldRemoveStringRecordIdRemovingFirstBucket() {
 		fillStringAttribute();
-		stringAttribute.removeRecord(1, "A");
-		stringAttribute.removeRecord(2, "A");
+		this.stringAttribute.removeRecord(1, "A");
+		this.stringAttribute.removeRecord(2, "A");
 
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertArrayEquals(new int[] {1, 3}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertArrayEquals(new int[] {4}, stringAttribute.getRecordsEqualTo("D").getArray());
-		assertEquals(4, stringAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertArrayEquals(new int[] {1, 3}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertArrayEquals(new int[] {4}, this.stringAttribute.getRecordsEqualTo("D").getArray());
+		assertEquals(4, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldRemoveStringRecordIdRemovingLastBucket() {
 		fillStringAttribute();
-		stringAttribute.removeRecord(4, "D");
+		this.stringAttribute.removeRecord(4, "D");
 
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertArrayEquals(new int[] {1, 3}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertEquals(3, stringAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertArrayEquals(new int[] {1, 3}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertEquals(3, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldRemoveStringRecordIdRemovingMiddleBuckets() {
 		fillStringAttribute();
-		stringAttribute.removeRecord(1, new String[] {"B", "C"});
-		stringAttribute.removeRecord(2, "B");
-		stringAttribute.removeRecord(3, "C");
+		this.stringAttribute.removeRecord(1, new String[] {"B", "C"});
+		this.stringAttribute.removeRecord(2, "B");
+		this.stringAttribute.removeRecord(3, "C");
 
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[] {4}, stringAttribute.getRecordsEqualTo("D").getArray());
-		assertEquals(3, stringAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[] {4}, this.stringAttribute.getRecordsEqualTo("D").getArray());
+		assertEquals(3, this.stringAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldRemoveRangeRecord() {
 		fillRangeAttribute();
-		rangeAttribute.removeRecord(1, IntegerNumberRange.between(5, 10));
+		this.rangeAttribute.removeRecord(1, IntegerNumberRange.between(5, 10));
 
-		assertArrayEquals(new int[] {1}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(50, 90)).getArray());
-		assertArrayEquals(new int[] {2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
-		assertArrayEquals(new int[] {3}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
-		assertEquals(3, rangeAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {1}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(50, 90)).getArray());
+		assertArrayEquals(new int[] {2}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
+		assertArrayEquals(new int[] {3}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
+		assertEquals(3, this.rangeAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldRemoveRangeRecordRemovingBucket() {
 		fillRangeAttribute();
-		rangeAttribute.removeRecord(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10), IntegerNumberRange.between(50, 90)});
-		rangeAttribute.removeRecord(3, IntegerNumberRange.between(5, 15));
+		this.rangeAttribute.removeRecord(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10), IntegerNumberRange.between(50, 90)});
+		this.rangeAttribute.removeRecord(3, IntegerNumberRange.between(5, 15));
 
-		assertArrayEquals(new int[] {2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
-		assertEquals(1, rangeAttribute.getAllRecords().size());
+		assertArrayEquals(new int[] {2}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
+		assertEquals(1, this.rangeAttribute.getAllRecords().size());
 	}
 
 	@Test
 	void shouldReturnAllRecords() {
 		fillStringAttribute();
-		assertArrayEquals(new int[] {1, 2, 3, 4}, stringAttribute.getAllRecords().getArray());
+		assertArrayEquals(new int[] {1, 2, 3, 4}, this.stringAttribute.getAllRecords().getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsStartingWith() {
 		// generate records to verify starts with function
-		stringAttribute.addRecord(1, "Alfa");
-		stringAttribute.addRecord(2, "AlfaBeta");
-		stringAttribute.addRecord(3, "Alfeta");
-		stringAttribute.addRecord(4, "Ab");
-		stringAttribute.addRecord(5, "Beta");
-		stringAttribute.addRecord(6, "Betaversion");
-		stringAttribute.addRecord(7, "Bet");
-		stringAttribute.addRecord(8, "Betamax");
-		stringAttribute.addRecord(9, "Gamma");
-		stringAttribute.addRecord(10, "GammaAlfa");
-		stringAttribute.addRecord(11, "GammaBeta");
+		this.stringAttribute.addRecord(1, "Alfa");
+		this.stringAttribute.addRecord(2, "AlfaBeta");
+		this.stringAttribute.addRecord(3, "Alfeta");
+		this.stringAttribute.addRecord(4, "Ab");
+		this.stringAttribute.addRecord(5, "Beta");
+		this.stringAttribute.addRecord(6, "Betaversion");
+		this.stringAttribute.addRecord(7, "Bet");
+		this.stringAttribute.addRecord(8, "Betamax");
+		this.stringAttribute.addRecord(9, "Gamma");
+		this.stringAttribute.addRecord(10, "GammaAlfa");
+		this.stringAttribute.addRecord(11, "GammaBeta");
 
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsWhoseValuesStartWith("Alfa").compute().getArray());
-		assertArrayEquals(new int[] {4}, stringAttribute.getRecordsWhoseValuesStartWith("Ab").compute().getArray());
-		assertArrayEquals(new int[] {5, 6, 7, 8}, stringAttribute.getRecordsWhoseValuesStartWith("Bet").compute().getArray());
-		assertArrayEquals(new int[] {5, 6, 8}, stringAttribute.getRecordsWhoseValuesStartWith("Beta").compute().getArray());
-		assertArrayEquals(new int[] {9, 10, 11}, stringAttribute.getRecordsWhoseValuesStartWith("Gamma").compute().getArray());
-		assertArrayEquals(new int[] {11}, stringAttribute.getRecordsWhoseValuesStartWith("GammaBeta").compute().getArray());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsWhoseValuesStartWith("Alfa").compute().getArray());
+		assertArrayEquals(new int[] {4}, this.stringAttribute.getRecordsWhoseValuesStartWith("Ab").compute().getArray());
+		assertArrayEquals(new int[] {5, 6, 7, 8}, this.stringAttribute.getRecordsWhoseValuesStartWith("Bet").compute().getArray());
+		assertArrayEquals(new int[] {5, 6, 8}, this.stringAttribute.getRecordsWhoseValuesStartWith("Beta").compute().getArray());
+		assertArrayEquals(new int[] {9, 10, 11}, this.stringAttribute.getRecordsWhoseValuesStartWith("Gamma").compute().getArray());
+		assertArrayEquals(new int[] {11}, this.stringAttribute.getRecordsWhoseValuesStartWith("GammaBeta").compute().getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsGreaterThan() {
 		fillStringAttribute();
-		assertArrayEquals(new int[] {1, 3, 4}, stringAttribute.getRecordsGreaterThan("B").getArray());
+		assertArrayEquals(new int[] {1, 3, 4}, this.stringAttribute.getRecordsGreaterThan("B").getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsGreaterThanEq() {
 		fillStringAttribute();
-		assertArrayEquals(new int[] {1, 3, 4}, stringAttribute.getRecordsGreaterThanEq("C").getArray());
+		assertArrayEquals(new int[] {1, 3, 4}, this.stringAttribute.getRecordsGreaterThanEq("C").getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsLesserThan() {
 		fillStringAttribute();
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsLesserThan("C").getArray());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsLesserThan("C").getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsLesserThanEq() {
 		fillStringAttribute();
-		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsLesserThanEq("B").getArray());
+		assertArrayEquals(new int[] {1, 2}, this.stringAttribute.getRecordsLesserThanEq("B").getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_Czech() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", new Locale("cs", "CZ")), String.class);
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", new Locale("cs", "CZ")), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -242,7 +242,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_English() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeKey("a", Locale.ENGLISH), String.class);
+		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -255,24 +255,24 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnRecordsBetween() {
 		fillStringAttribute();
-		assertArrayEquals(new int[]{1, 3, 4}, stringAttribute.getRecordsBetween("C", "D").getArray());
+		assertArrayEquals(new int[]{1, 3, 4}, this.stringAttribute.getRecordsBetween("C", "D").getArray());
 	}
 
 	@Test
 	void shouldReturnRecordsValidIn() {
 		fillRangeAttribute();
-		assertArrayEquals(new int[]{1, 3}, rangeAttribute.getRecordsValidIn(8L).getArray());
+		assertArrayEquals(new int[]{1, 3}, this.rangeAttribute.getRecordsValidIn(8L).getArray());
 	}
 
 	@Test
 	void shouldIndexDeltaRanges() {
 		fillRangeAttribute();
-		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
-		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
-		rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		this.rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
 
-		assertArrayEquals(new int[] {1, 2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(20, 30)).getArray());
-		final RangePoint<?>[] ranges = rangeAttribute.getRangeIndex().getRanges();
+		assertArrayEquals(new int[] {1, 2}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(20, 30)).getArray());
+		final RangePoint<?>[] ranges = this.rangeAttribute.getRangeIndex().getRanges();
 		assertEquals(
 			"""
 					TransactionalRangePoint{threshold=-9223372036854775808, starts=[], ends=[]}
@@ -293,29 +293,29 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldFailToRemoveNonExistingRange() {
 		fillRangeAttribute();
-		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
-		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
-		rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		this.rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
 
 		assertThrows(
 			IllegalArgumentException.class,
-			() -> rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(4, 6)})
+			() -> this.rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(4, 6)})
 		);
 	}
 
 	@Test
 	void shouldRemoveIndexedDeltaRanges() {
 		fillRangeAttribute();
-		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
-		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
-		rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		this.rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
 
-		rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10)});
-		rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
-		rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		this.rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10)});
+		this.rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+		this.rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
 
-		assertArrayEquals(new int[] {2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(20, 30)).getArray());
-		final RangePoint<?>[] ranges = rangeAttribute.getRangeIndex().getRanges();
+		assertArrayEquals(new int[] {2}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(20, 30)).getArray());
+		final RangePoint<?>[] ranges = this.rangeAttribute.getRangeIndex().getRanges();
 		assertEquals(
 			"""
 			TransactionalRangePoint{threshold=-9223372036854775808, starts=[], ends=[]}
@@ -344,7 +344,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 			100,
 			new TestState(
 				new StringBuilder(),
-				new FilterIndex(new AttributeKey("c"), IntegerNumberRange.class)
+				new FilterIndex(new AttributeIndexKey(null, "c", null), IntegerNumberRange.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -482,7 +482,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new FilterIndex(
-								new AttributeKey("a"),
+								new AttributeIndexKey(null, "a", null),
 								committed.getInvertedIndex().getValueToRecordBitmap(),
 								committed.getRangeIndex(),
 								Integer.class
@@ -498,27 +498,27 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	}
 
 	private void fillStringAttribute() {
-		stringAttribute.addRecord(1, new String[]{"A", "B", "C"});
-		stringAttribute.addRecord(2, new String[]{"A", "B"});
-		stringAttribute.addRecord(3, "C");
-		stringAttribute.addRecord(4, "D");
-		assertArrayEquals(new int[]{1, 2}, stringAttribute.getRecordsEqualTo("A").getArray());
-		assertArrayEquals(new int[]{1, 2}, stringAttribute.getRecordsEqualTo("B").getArray());
-		assertArrayEquals(new int[]{1, 3}, stringAttribute.getRecordsEqualTo("C").getArray());
-		assertArrayEquals(new int[]{4}, stringAttribute.getRecordsEqualTo("D").getArray());
-		assertFalse(stringAttribute.isEmpty());
+		this.stringAttribute.addRecord(1, new String[]{"A", "B", "C"});
+		this.stringAttribute.addRecord(2, new String[]{"A", "B"});
+		this.stringAttribute.addRecord(3, "C");
+		this.stringAttribute.addRecord(4, "D");
+		assertArrayEquals(new int[]{1, 2}, this.stringAttribute.getRecordsEqualTo("A").getArray());
+		assertArrayEquals(new int[]{1, 2}, this.stringAttribute.getRecordsEqualTo("B").getArray());
+		assertArrayEquals(new int[]{1, 3}, this.stringAttribute.getRecordsEqualTo("C").getArray());
+		assertArrayEquals(new int[]{4}, this.stringAttribute.getRecordsEqualTo("D").getArray());
+		assertFalse(this.stringAttribute.isEmpty());
 	}
 
 	private void fillRangeAttribute() {
-		rangeAttribute.addRecord(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10), IntegerNumberRange.between(50, 90)});
-		rangeAttribute.addRecord(2, IntegerNumberRange.between(11, 20));
-		rangeAttribute.addRecord(3, IntegerNumberRange.between(5, 15));
-		assertArrayEquals(new int[] {1}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 10)).getArray());
-		assertArrayEquals(new int[] {1}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(50, 90)).getArray());
-		assertArrayEquals(new int[] {2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
-		assertArrayEquals(new int[] {3}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
-		assertEquals(3, rangeAttribute.getAllRecords().size());
-		assertFalse(rangeAttribute.isEmpty());
+		this.rangeAttribute.addRecord(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10), IntegerNumberRange.between(50, 90)});
+		this.rangeAttribute.addRecord(2, IntegerNumberRange.between(11, 20));
+		this.rangeAttribute.addRecord(3, IntegerNumberRange.between(5, 15));
+		assertArrayEquals(new int[] {1}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 10)).getArray());
+		assertArrayEquals(new int[] {1}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(50, 90)).getArray());
+		assertArrayEquals(new int[] {2}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(11, 20)).getArray());
+		assertArrayEquals(new int[] {3}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
+		assertEquals(3, this.rangeAttribute.getAllRecords().size());
+		assertFalse(this.rangeAttribute.isEmpty());
 	}
 
 	private record TestState(

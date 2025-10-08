@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,38 +24,30 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
-import java.util.Locale;
 
 /**
  * Implementation of {@link SchemaMutationConverter} for resolving {@link DisallowLocaleInEntitySchemaMutation}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DisallowLocaleInEntitySchemaMutationConverter extends EntitySchemaMutationConverter<DisallowLocaleInEntitySchemaMutation> {
+public class DisallowLocaleInEntitySchemaMutationConverter
+	extends EntitySchemaMutationConverter<DisallowLocaleInEntitySchemaMutation> {
 
-	public DisallowLocaleInEntitySchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public DisallowLocaleInEntitySchemaMutationConverter(
+		@Nonnull MutationObjectMapper objectParser,
+		@Nonnull MutationResolvingExceptionFactory exceptionFactory
+	) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return DisallowLocaleInEntitySchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected DisallowLocaleInEntitySchemaMutation convert(@Nonnull Input input) {
-		return new DisallowLocaleInEntitySchemaMutation(
-			(Locale[]) input.getRequiredField(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
-		);
+	protected Class<DisallowLocaleInEntitySchemaMutation> getMutationClass() {
+		return DisallowLocaleInEntitySchemaMutation.class;
 	}
 }

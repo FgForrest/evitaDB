@@ -170,12 +170,16 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 					.newBuilder()
 					.setVersion(systemStatus.version())
 					.setStartedAt(toGrpcOffsetDateTime(systemStatus.startedAt()))
+					.setEngineVersion(systemStatus.engineVersion())
+					.setIntroducedAt(toGrpcOffsetDateTime(systemStatus.introducedAt()))
 					.setUptime(systemStatus.uptime().toSeconds())
 					.setInstanceId(systemStatus.instanceId())
 					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
-					.setCatalogsOk(systemStatus.catalogsOk())
+					.setCatalogsOk(systemStatus.catalogsActive())
+					.setCatalogsActive(systemStatus.catalogsActive())
+					.setCatalogsInactive(systemStatus.catalogsInactive())
 					.setReadiness(toGrpcReadinessState(readiness.map(Readiness::state).orElse(ReadinessState.UNKNOWN)))
-					.setReadOnly(evita.getConfiguration().server().readOnly());
+					.setReadOnly(this.evita.getConfiguration().server().readOnly());
 
 				this.externalApiServer.getProbeProviders().stream()
 					.flatMap(probe -> probe.getHealthProblems(this.evita, this.externalApiServer, enabledApiEndpoints).stream())
@@ -244,7 +248,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				/* TOBEDONE JNO #25 - handle differently */
 				if (this.evita.getConfiguration().server().readOnly()) {
 					responseObserver.onError(
-						new ReadOnlyException()
+						ReadOnlyException.engineReadOnly()
 					);
 				} else {
 					responseObserver.onNext(
@@ -390,7 +394,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 				final long totalSizeInBytes = request.getTotalSizeInBytes();
 
 				try {
-					final Path workDirectory = evita.getConfiguration().transaction().transactionWorkDirectory();
+					final Path workDirectory = this.evita.getConfiguration().transaction().transactionWorkDirectory();
 					final String catalogNameToRestore = request.getCatalogName();
 					Assert.isPremiseValid(catalogNameToRestore != null, "Catalog name to restore must be provided.");
 
@@ -402,8 +406,8 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						}
 
 						fileId = UUIDUtil.randomUUID();
-						backupFilePath = management.exportFileService().createTempFile(fileId + ".zip");
-						restorationTask = management.createRestorationTask(
+						backupFilePath = this.management.exportFileService().createTempFile(fileId + ".zip");
+						restorationTask = this.management.createRestorationTask(
 							catalogNameToRestore,
 							fileId,
 							backupFilePath,
@@ -412,7 +416,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						);
 						this.management.registerWaitingTask(restorationTask);
 					} else {
-						backupFilePath = management.exportFileService().getTempFile(fileId + ".zip");
+						backupFilePath = this.management.exportFileService().getTempFile(fileId + ".zip");
 						restorationTask = this.management.getWaitingTask(createRestoreTaskFindPredicate(fileId))
 							.orElseThrow(() -> new UnexpectedIOException("Task not found for file: " + backupFilePath, "Task not found for file id!"));
 					}
@@ -679,6 +683,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 								.build();
 							responseObserver.onNext(response);
 						}
+						responseObserver.onCompleted();
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
 							"Failed to fetch the designated file: " + e.getMessage(),
@@ -686,7 +691,6 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 							e
 						);
 					}
-					responseObserver.onCompleted();
 				}
 			},
 			this.evita.getRequestExecutor(),

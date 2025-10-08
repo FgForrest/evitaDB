@@ -50,7 +50,7 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST_EXPORT);
 		// initialize the evitaDB server
-		evita = new Evita(
+		this.evita = new Evita(
 			EvitaConfiguration.builder()
 				.server(
 					// disable automatic session termination
@@ -75,12 +75,12 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 				.build()
 		);
 		// create new empty catalog for evitaDB
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST_EXPORT);
 	}
@@ -88,6 +88,6 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteTest() {
 		// here comes your test logic
-		assertNotNull(evita);
+		assertNotNull(this.evita);
 	}
 }

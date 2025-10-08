@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
@@ -92,6 +93,20 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 			return this.dataStoreChanges.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		} else {
 			return layer.getIndexIfExists(entityIndexKey, accessorWhenMissing);
+		}
+	}
+
+	@Nullable
+	@Override
+	public <IK extends IndexKey, I extends Index<IK>> I getIndexIfExists(
+		int entityIndexPrimaryKey,
+		@Nonnull IntFunction<I> accessorWhenMissing
+	) {
+		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
+		if (layer == null) {
+			return this.dataStoreChanges.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
+		} else {
+			return layer.getIndexIfExists(entityIndexPrimaryKey, accessorWhenMissing);
 		}
 	}
 

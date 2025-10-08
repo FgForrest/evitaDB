@@ -1,19 +1,24 @@
 /*
- * JBoss, Home of Professional Open Source.
- * Copyright 2014 Red Hat, Inc., and individual contributors
- * as indicated by the @author tags.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *  http://www.apache.org/licenses/LICENSE-2.0
+ *   Copyright (c) 2025
  *
- * Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
  */
 
 package io.evitadb.externalApi.utils.path;
@@ -23,13 +28,20 @@ import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.QueryParams;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.evitadb.externalApi.http.RoutableWebSocket;
+import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.utils.MethodNotAllowedService;
 import io.evitadb.externalApi.utils.NotFoundService;
+import io.evitadb.externalApi.utils.NotFoundWebSocketHandler;
 import io.evitadb.externalApi.utils.path.routing.CopyOnWriteMap;
+import io.evitadb.externalApi.utils.path.routing.PathHandlerDescriptor;
 import io.evitadb.externalApi.utils.path.routing.PathTemplate;
 import io.evitadb.externalApi.utils.path.routing.PathTemplateMatcher;
+import io.evitadb.utils.Assert;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -44,16 +56,18 @@ import static io.evitadb.externalApi.http.AdditionalHttpHeaderNames.INTERNAL_HEA
  *
  * @author Stuart Douglas
  */
-public class RoutingHandlerService implements HttpService {
+@Slf4j
+public class RoutingHandlerService implements HttpService, WebSocketHandler {
 
 	// Matcher objects grouped by http methods.
-	private final Map<HttpMethod, PathTemplateMatcher<HttpService>> matches = new CopyOnWriteMap<>();
+	private final Map<HttpMethod, PathTemplateMatcher<PathHandlerDescriptor>> matches = new CopyOnWriteMap<>();
 	// Matcher used to find if this instance contains matches for any http method for a path.
 	// This matcher is used to report if this instance can match a path for one of the http methods.
-	private final PathTemplateMatcher<HttpService> allMethodsMatcher = new PathTemplateMatcher<>();
+	private final PathTemplateMatcher<PathHandlerDescriptor> allMethodsMatcher = new PathTemplateMatcher<>();
 
-	// Handler called when no match was found and invalid method handler can't be invoked.
-	private volatile HttpService fallbackHandler = new NotFoundService();
+	// Service called when no match was found and invalid method handler can't be invoked.
+	private volatile HttpService fallbackHttpService = new NotFoundService();
+	private volatile WebSocketHandler fallbackWebSocketHandler = new NotFoundWebSocketHandler();
 	// Handler called when this instance can not match the http method but can match another http method.
 	// For example: For an exchange the POST method is not matched by this instance but at least one http method is
 	// matched for the same exchange.
@@ -74,27 +88,54 @@ public class RoutingHandlerService implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		PathTemplateMatcher<HttpService> matcher = matches.get(req.method());
+		PathTemplateMatcher<PathHandlerDescriptor> matcher = this.matches.get(req.method());
 		if (matcher == null) {
 			return handleNoMatch(ctx, req);
 		}
-		PathTemplateMatcher.PathMatchResult<HttpService> match = matcher.match(req.uri().getPath());
-		if (match == null) {
+		PathTemplateMatcher.PathMatchResult<PathHandlerDescriptor> match = matcher.match(req.uri().getPath());
+		if (match == null || !match.getValue().isHttpService()) {
 			return handleNoMatch(ctx, req);
 		}
 
 		final RequestHeadersBuilder headersBuilder = req.headers().toBuilder();
 
-		if (rewriteQueryParameters) {
+		if (this.rewriteQueryParameters) {
 			QueryParams.fromQueryString(ctx.query()).forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
 			match.getParameters().forEach((key, value) -> headersBuilder.add(INTERNAL_HEADER_PREFIX + key, value));
 		}
 
 		final HttpRequest newRequest = req.withHeaders(headersBuilder.build());
 		if (match.getValue() != null) {
-			return match.getValue().serve(ctx, newRequest);
+			return match.getValue().asHttpService().serve(ctx, newRequest);
 		} else {
-			return fallbackHandler.serve(ctx, newRequest);
+			return this.fallbackHttpService.serve(ctx, newRequest);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		PathTemplateMatcher<PathHandlerDescriptor> matcher;
+		if (ctx.sessionProtocol().isExplicitHttp1()) {
+			matcher = this.matches.get(HttpMethod.GET);
+		} else if (ctx.sessionProtocol().isExplicitHttp2()) {
+			matcher = this.matches.get(HttpMethod.CONNECT);
+		} else {
+			log.debug("WebSocket connection with unsupported protocol: {}", ctx.sessionProtocol());
+			return handleNoMatch(ctx, in);
+		}
+		if (matcher == null) {
+			return handleNoMatch(ctx, in);
+		}
+		PathTemplateMatcher.PathMatchResult<PathHandlerDescriptor> match = matcher.match(in.path());
+		if (match == null || !match.getValue().isWebSocketHandler()) {
+			return handleNoMatch(ctx, in);
+		}
+
+		if (match.getValue() != null) {
+			return match.getValue().asWebSocketHandler().handle(ctx, in);
+		} else {
+			return this.fallbackWebSocketHandler.handle(ctx, in);
 		}
 	}
 
@@ -106,62 +147,113 @@ public class RoutingHandlerService implements HttpService {
 	 * @param req The request that was not matched.
 	 * @throws Exception
 	 */
+	@Nonnull
 	private HttpResponse handleNoMatch(final @Nonnull ServiceRequestContext ctx, final @Nonnull HttpRequest req) throws Exception {
 		// if invalidMethodHandler is null we fail fast without matching with allMethodsMatcher
-		if (invalidMethodHandler != null && allMethodsMatcher.match(req.method().toString()) != null) {
-			return invalidMethodHandler.serve(ctx, req);
+		if (this.invalidMethodHandler != null && this.allMethodsMatcher.match(req.method().toString()) != null) {
+			return this.invalidMethodHandler.serve(ctx, req);
 		}
-		return fallbackHandler.serve(ctx, req);
+		return this.fallbackHttpService.serve(ctx, req);
 	}
 
-	public synchronized RoutingHandlerService add(final String method, final String template, HttpService handler) {
-		return add(HttpMethod.tryParse(method), template, handler);
+	/**
+	 * Handles the case in with a match was not found for the http method but might exist for another http method.
+	 * For example: POST not matched for a path but at least one match exists for same path.
+	 *
+	 * @param ctx The context of the request.
+	 * @param in The request that was not matched.
+	 */
+	private WebSocket handleNoMatch(final @Nonnull ServiceRequestContext ctx, final @Nonnull RoutableWebSocket in) {
+		return this.fallbackWebSocketHandler.handle(ctx, in);
 	}
 
-	public synchronized RoutingHandlerService add(HttpMethod method, String template, HttpService handler) {
-		PathTemplateMatcher<HttpService> matcher = matches.get(method);
+	@Nonnull
+	public synchronized RoutingHandlerService add(@Nonnull final String method, @Nonnull final String template, @Nonnull HttpService handler) {
+		final HttpMethod parsedMethod = HttpMethod.tryParse(method);
+		Assert.isPremiseValid(parsedMethod != null, "Invalid method: " + method);
+		return add(parsedMethod, template, handler);
+	}
+
+	@Nonnull
+	public synchronized RoutingHandlerService add(@Nonnull HttpMethod method, @Nonnull String template, @Nonnull HttpService handler) {
+		PathTemplateMatcher<PathHandlerDescriptor> matcher = this.matches.get(method);
 		if (matcher == null) {
-			matches.put(method, matcher = new PathTemplateMatcher<>());
+			this.matches.put(method, matcher = new PathTemplateMatcher<>());
 		}
-		HttpService res = matcher.get(template);
+		PathHandlerDescriptor res = matcher.get(template);
 		if (res == null) {
-			matcher.add(template, handler);
+			matcher.add(template, new PathHandlerDescriptor(handler));
 		}
-		if (allMethodsMatcher.match(template) == null) {
-			allMethodsMatcher.add(template, handler);
+		if (this.allMethodsMatcher.match(template) == null) {
+			this.allMethodsMatcher.add(template, new PathHandlerDescriptor(handler));
 		}
+
+		// automatic support for WebSockets
+		if (HttpMethod.GET.equals(method) && handler instanceof WebSocketHandler) {
+			addWebSocketHandler(HttpMethod.CONNECT, template, (WebSocketHandler) handler);
+			// GET method gets registered automatically by the above code because the handler is common for both HTTP and WebSocket
+		}
+
 		return this;
 	}
 
-	public synchronized RoutingHandlerService get(final String template, HttpService handler) {
+	@Nonnull
+	public synchronized RoutingHandlerService get(@Nonnull final String template, @Nonnull HttpService handler) {
 		return add(HttpMethod.GET, template, handler);
 	}
 
-	public synchronized RoutingHandlerService post(final String template, HttpService handler) {
+	@Nonnull
+	public synchronized RoutingHandlerService post(@Nonnull final String template, @Nonnull HttpService handler) {
 		return add(HttpMethod.POST, template, handler);
 	}
 
-	public synchronized RoutingHandlerService put(final String template, HttpService handler) {
+	@Nonnull
+	public synchronized RoutingHandlerService put(@Nonnull final String template, @Nonnull HttpService handler) {
 		return add(HttpMethod.PUT, template, handler);
 	}
 
-	public synchronized RoutingHandlerService delete(final String template, HttpService handler) {
+	@Nonnull
+	public synchronized RoutingHandlerService delete(@Nonnull final String template, @Nonnull HttpService handler) {
 		return add(HttpMethod.DELETE, template, handler);
 	}
 
-	public synchronized RoutingHandlerService addAll(RoutingHandlerService routingHandler) {
-		for (Entry<HttpMethod, PathTemplateMatcher<HttpService>> entry : routingHandler.getMatches().entrySet()) {
+	@Nonnull
+	public synchronized RoutingHandlerService add(@Nonnull final String template, @Nonnull final WebSocketHandler handler) {
+		// for connecting WebSockets using HTTP/1
+		addWebSocketHandler(HttpMethod.GET, template, handler);
+		// for connecting WebSockets using HTTP/2
+		addWebSocketHandler(HttpMethod.CONNECT, template, handler);
+		return this;
+	}
+
+	private synchronized void addWebSocketHandler(@Nonnull HttpMethod method, @Nonnull String template, @Nonnull WebSocketHandler handler) {
+		PathTemplateMatcher<PathHandlerDescriptor> matcher = this.matches.get(method);
+		if (matcher == null) {
+			this.matches.put(method, matcher = new PathTemplateMatcher<>());
+		}
+		PathHandlerDescriptor res = matcher.get(template);
+		if (res == null) {
+			matcher.add(template, new PathHandlerDescriptor(handler));
+		}
+		if (this.allMethodsMatcher.match(template) == null) {
+			this.allMethodsMatcher.add(template, new PathHandlerDescriptor(handler));
+		}
+	}
+
+	@Nonnull
+	public synchronized RoutingHandlerService addAll(@Nonnull RoutingHandlerService routingHandler) {
+		for (Entry<HttpMethod, PathTemplateMatcher<PathHandlerDescriptor>> entry : routingHandler.getMatches().entrySet()) {
 			HttpMethod method = entry.getKey();
-			PathTemplateMatcher<HttpService> matcher = matches.get(method);
+			PathTemplateMatcher<PathHandlerDescriptor> matcher = this.matches.get(method);
 			if (matcher == null) {
-				matches.put(method, matcher = new PathTemplateMatcher<>());
+				this.matches.put(method, matcher = new PathTemplateMatcher<>());
 			}
 			matcher.addAll(entry.getValue());
 			// If we use allMethodsMatcher.addAll() we can have duplicate
 			// PathTemplates which we want to ignore here so it does not crash.
 			for (PathTemplate template : entry.getValue().getPathTemplates()) {
-				if (allMethodsMatcher.match(template.getTemplateString()) == null) {
-					allMethodsMatcher.add(template, null);
+				if (this.allMethodsMatcher.match(template.getTemplateString()) == null) {
+					this.allMethodsMatcher.add(template, null);
 				}
 			}
 		}
@@ -176,10 +268,18 @@ public class RoutingHandlerService implements HttpService {
 	 * @param path the path tempate to remove
 	 * @return this handler
 	 */
-	public RoutingHandlerService remove(HttpMethod method, String path) {
-		PathTemplateMatcher<HttpService> handler = matches.get(method);
+	@Nonnull
+	public RoutingHandlerService remove(@Nonnull HttpMethod method, @Nonnull String path) {
+		PathTemplateMatcher<PathHandlerDescriptor> handler = this.matches.get(method);
 		if(handler != null) {
 			handler.remove(path);
+		}
+		// remove other WebSocket handlers as well if present
+		if (HttpMethod.GET.equals(method)) {
+			PathTemplateMatcher<PathHandlerDescriptor> webSocketHandler = this.matches.get(HttpMethod.CONNECT);
+			if(webSocketHandler != null && webSocketHandler.get(path).isWebSocketHandler()) {
+				webSocketHandler.remove(path);
+			}
 		}
 		return this;
 	}
@@ -193,28 +293,28 @@ public class RoutingHandlerService implements HttpService {
 	 * @return this handler
 	 */
 	public RoutingHandlerService remove(String path) {
-		allMethodsMatcher.remove(path);
+		this.allMethodsMatcher.remove(path);
 		return this;
 	}
 
-	Map<HttpMethod, PathTemplateMatcher<HttpService>> getMatches() {
-		return matches;
+	Map<HttpMethod, PathTemplateMatcher<PathHandlerDescriptor>> getMatches() {
+		return this.matches;
 	}
 
 	/**
 	 * @return Handler called when no match was found and invalid method handler can't be invoked.
 	 */
-	public HttpService getFallbackHandler() {
-		return fallbackHandler;
+	public HttpService getFallbackHttpService() {
+		return this.fallbackHttpService;
 	}
 
 	/**
-	 * @param fallbackHandler Handler that will be called when no match was found and invalid method handler can't be
+	 * @param fallbackHttpService Handler that will be called when no match was found and invalid method handler can't be
 	 * invoked.
 	 * @return This instance.
 	 */
-	public RoutingHandlerService setFallbackHandler(HttpService fallbackHandler) {
-		this.fallbackHandler = fallbackHandler;
+	public RoutingHandlerService setFallbackHttpService(HttpService fallbackHttpService) {
+		this.fallbackHttpService = fallbackHttpService;
 		return this;
 	}
 
@@ -222,7 +322,7 @@ public class RoutingHandlerService implements HttpService {
 	 * @return Handler called when this instance can not match the http method but can match another http method.
 	 */
 	public HttpService getInvalidMethodHandler() {
-		return invalidMethodHandler;
+		return this.invalidMethodHandler;
 	}
 
 	/**

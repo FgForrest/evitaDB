@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntity
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -56,7 +56,7 @@ class EntitySchemaMutationAggregateConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new EntitySchemaMutationAggregateConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new EntitySchemaMutationAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -66,7 +66,7 @@ class EntitySchemaMutationAggregateConverterTest {
 			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
 		);
 
-		final List<LocalEntitySchemaMutation> convertedMutations1 = converter.convert(
+		final List<LocalEntitySchemaMutation> convertedMutations1 = this.converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(Locale.ENGLISH))
@@ -78,7 +78,7 @@ class EntitySchemaMutationAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations1);
 
-		final List<LocalEntitySchemaMutation> convertedMutations2 = converter.convert(
+		final List<LocalEntitySchemaMutation> convertedMutations2 = this.converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en"))
@@ -92,12 +92,13 @@ class EntitySchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<LocalEntitySchemaMutation> convertedMutations = converter.convert(Map.of());
+		final List<LocalEntitySchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
+
 }

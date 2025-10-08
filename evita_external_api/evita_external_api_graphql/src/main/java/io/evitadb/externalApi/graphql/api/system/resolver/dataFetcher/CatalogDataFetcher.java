@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescrip
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Returns single catalog dto by name.
@@ -45,8 +46,8 @@ public class CatalogDataFetcher implements DataFetcher<CatalogContract>, ReadDat
 
     @Nonnull
     @Override
-    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) {
-        final String catalogName = environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name());
-        return evita.getCatalogInstanceOrThrowException(catalogName);
+    public CatalogContract get(DataFetchingEnvironment environment) {
+        final String catalogName = Objects.requireNonNull(environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name()));
+        return this.evita.getCatalogInstanceOrThrowException(catalogName);
     }
 }

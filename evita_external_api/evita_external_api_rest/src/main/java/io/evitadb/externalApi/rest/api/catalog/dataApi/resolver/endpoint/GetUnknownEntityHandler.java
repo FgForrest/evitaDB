@@ -42,7 +42,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
 
@@ -78,7 +76,7 @@ public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingCo
 
 				final Query query = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() -> Query.query(
 					buildHead(executionContext),
-					FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restHandlingContext.getCatalogSchema()),
+					FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, this.restHandlingContext.getCatalogSchema()),
 					RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 				));
 

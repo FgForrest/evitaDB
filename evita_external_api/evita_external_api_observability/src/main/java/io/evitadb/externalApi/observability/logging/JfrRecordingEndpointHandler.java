@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRec
 				);
 
 				try {
-					return manager.getObjectMapper().readValue(content, dataClass);
+					return this.manager.getObjectMapper().readValue(content, dataClass);
 				} catch (JsonProcessingException e) {
 					throw createInternalError("Could not parse request body: ", e);
 				}
@@ -112,7 +112,7 @@ public abstract class JfrRecordingEndpointHandler extends EndpointHandler<JfrRec
 	@Override
 	protected void writeResponse(@Nonnull JfrRecordingEndpointExecutionContext executionContext, @Nonnull HttpResponseWriter responseWriter, @Nonnull Object result, @Nonnull EventLoop eventExecutor) {
 		try {
-			responseWriter.write(HttpData.copyOf(manager.getObjectMapper().writeValueAsBytes(result)));
+			responseWriter.write(HttpData.copyOf(this.manager.getObjectMapper().writeValueAsBytes(result)));
 		} catch (JsonProcessingException e) {
 			throw new GenericEvitaInternalError(
 				"Failed to serialize response object to JSON.",

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface SetEntitySchemaWithHierarchyMutationDescriptor {
+public interface SetEntitySchemaWithHierarchyMutationDescriptor extends EntitySchemaMutationDescriptor {
 
 	PropertyDescriptor WITH_HIERARCHY = PropertyDescriptor.builder()
 		.name("withHierarchy")
@@ -73,6 +73,6 @@ public interface SetEntitySchemaWithHierarchyMutationDescriptor {
 			Mutation is responsible for setting a `EntitySchema.withHierarchy`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(WITH_HIERARCHY, INDEXED_IN_SCOPES))
+		.staticFields(List.of(MUTATION_TYPE, WITH_HIERARCHY, INDEXED_IN_SCOPES))
 		.build();
 }

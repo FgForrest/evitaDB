@@ -27,6 +27,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Collection;
@@ -49,6 +51,8 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Converts {@link Query} into REST equivalent query string.
@@ -82,7 +86,10 @@ public class RestQueryConverter implements AutoCloseable {
 			final CatalogSchemaContract catalogSchema = session.getCatalogSchema();
 
 			// convert query parts
-			final String collection = query.getCollection().getEntityType();
+			final String collection = ofNullable(query.getCollection())
+				.map(Collection::getEntityType)
+				.orElseThrow(() -> new EntityCollectionRequiredException("Collection must be provided for REST query."));
+
 			final String header = resolveHeader(catalogName, collection);
 			final String body = convertBody(catalogSchema, query, collection);
 
@@ -92,11 +99,13 @@ public class RestQueryConverter implements AutoCloseable {
 
 	@Override
 	public void close() throws Exception {
-		evita.close();
+		if (this.evita != null) {
+			this.evita.close();
+		}
 	}
 
 	@Nonnull
-	private String resolveHeader(@Nonnull String catalogName, @Nonnull String entityType) {
+	private static String resolveHeader(@Nonnull String catalogName, @Nonnull String entityType) {
 		return "/rest/" + catalogName + "/" + entityType + "/query";
 	}
 
@@ -111,7 +120,7 @@ public class RestQueryConverter implements AutoCloseable {
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 
-		final ObjectNode body = jsonNodeFactory.objectNode();
+		final ObjectNode body = this.jsonNodeFactory.objectNode();
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(4);
 		if (query.getHead() != null) {
 			final HeadConstraint head = ConstraintCloneVisitor.clone(query.getHead(), (visitor, theConstraint) -> theConstraint instanceof Collection ? null : theConstraint);
@@ -147,11 +156,11 @@ public class RestQueryConverter implements AutoCloseable {
 		);
 
 		rootConstraints.forEach(c -> body.putIfAbsent(c.key(), c.value()));
-		return inputJsonPrinter.print(body);
+		return this.inputJsonPrinter.print(body);
 	}
 
 	@Nonnull
-	private String constructRequest(@Nonnull String header, @Nonnull String query) {
+	private static String constructRequest(@Nonnull String header, @Nonnull String query) {
 		return "POST " + header + "\n\n" + query;
 	}
 }

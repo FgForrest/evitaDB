@@ -24,14 +24,15 @@
 package io.evitadb.store.catalog;
 
 import io.evitadb.core.CatalogConsumersListener;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.wal.CatalogWriteAheadLog.WalPurgeCallback;
+import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -175,6 +176,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 
 	@Override
 	public void close() {
+		IOUtils.closeQuietly(this.purgeTask::close);
 		// clear all files immediately, database shuts down and there will be no active sessions
 		this.lastKnownMinimalActiveVersion.set(0L);
 		for (MaintainedFile maintainedFile : this.maintainedFiles) {

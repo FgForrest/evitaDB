@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationFactory;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.WriteDataFetcher;
 import io.evitadb.externalApi.graphql.metric.event.request.ExecutedEvent;
@@ -70,14 +70,14 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	 */
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	@Nonnull private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
+	@Nonnull private final GraphQLEntityUpsertMutationFactory entityUpsertMutationResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public UpsertEntityMutatingDataFetcher(@Nonnull ObjectMapper objectMapper,
 										   @Nonnull CatalogSchemaContract catalogSchema,
 	                                       @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
-		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
+		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationFactory(objectMapper, entitySchema);
 		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(
 			catalogSchema,
@@ -102,12 +102,12 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 
 		final EntityMutation entityMutation = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
-			entityUpsertMutationResolver.convert(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
+			this.entityUpsertMutationResolver.createFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations()));
 		final EntityContentRequire[] contentRequires = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 			buildEnrichingRequires(environment));
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		log.debug("Upserting entity `{}` with PK {} and fetching new version with `{}`.",  entitySchema.getName(), arguments.primaryKey(), Arrays.toString(contentRequires));
+		log.debug("Upserting entity `{}` with PK {} and fetching new version with `{}`.", this.entitySchema.getName(), arguments.primaryKey(), Arrays.toString(contentRequires));
 		final SealedEntity upsertedEntity = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 			evitaSession.upsertAndFetchEntity(entityMutation, contentRequires));
 
@@ -119,10 +119,10 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	@Nonnull
 	private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment) {
-		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+		final Optional<EntityFetch> entityFetch = this.entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetAggregator.from(environment.getSelectionSet()),
 			null,
-			entitySchema
+			this.entitySchema
 		);
 		return entityFetch
 			.map(EntityFetch::getRequirements)

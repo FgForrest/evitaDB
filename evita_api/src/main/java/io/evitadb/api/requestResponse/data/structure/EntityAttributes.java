@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,12 +26,16 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.map.LazyHashMap;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Extension of {@link Attributes} for entity attributes.
@@ -61,15 +65,23 @@ public class EntityAttributes extends Attributes<EntityAttributeSchemaContract> 
 		@Nonnull EntitySchemaContract entitySchema
 	) {
 		super(
-			entitySchema, Collections.emptyList(),
-			entitySchema.getAttributes()
+			entitySchema,
+			Collections.emptyList(),
+			new LazyHashMap<>(4)
 		);
 	}
 
 	@Nonnull
 	@Override
+	public Optional<EntityAttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
+		return this.entitySchema.getAttribute(attributeName)
+	                            .or(() -> ofNullable(this.attributeTypes.get(attributeName)));
+	}
+
+	@Nonnull
+	@Override
 	protected AttributeNotFoundException createAttributeNotFoundException(@Nonnull String attributeName) {
-		return new AttributeNotFoundException(attributeName, entitySchema);
+		return new AttributeNotFoundException(attributeName, this.entitySchema);
 	}
 
 }

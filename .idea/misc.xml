@@ -5,6 +5,8 @@
       <item index="0" class="java.lang.String" itemvalue="io.evitadb.test.annotation.DataSet" />
       <item index="1" class="java.lang.String" itemvalue="io.evitadb.test.annotation.OnDataSetTearDown" />
     </list>
+    <pattern value="**.*Contract" method="*" />
+    <pattern value="**.*Builder" method="*" />
   </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />
   <component name="MavenProjectsManager">
@@ -16,12 +18,7 @@
     </option>
     <option name="ignoredFiles">
       <set>
-        <option value="$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/test/pom.xml" />
-        <option value="$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/workaround/pom.xml" />
         <option value="$PROJECT_DIR$/jacoco/pom.xml" />
-        <option value="$PROJECT_DIR$/roaringBitmap/pom.xml" />
-        <option value="$PROJECT_DIR$/workaround/grpc/pom.xml" />
-        <option value="$PROJECT_DIR$/workaround/roaringBitmap/pom.xml" />
       </set>
     </option>
   </component>

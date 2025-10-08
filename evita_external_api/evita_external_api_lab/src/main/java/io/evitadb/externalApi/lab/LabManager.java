@@ -37,7 +37,6 @@ import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
-import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -74,17 +73,13 @@ public class LabManager {
 		this.headerOptions = headerOptions;
 		this.labConfig = labConfig;
 
-		final long buildingStartTime = System.currentTimeMillis();
-
 		registerLabGui();
 		this.corsEndpoints.forEach((path, endpoint) -> this.labRouter.add(HttpMethod.OPTIONS, path.toString(), endpoint.toHandler()));
-
-		log.info("Built Lab in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	@Nonnull
 	public HttpService getLabRouter() {
-		return new PathNormalizingHandler(this.labRouter);
+		return this.labRouter.decorate(PathNormalizingHandler::new);
 	}
 
 	/**

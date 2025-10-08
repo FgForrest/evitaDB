@@ -65,10 +65,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 
 import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
 import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_BODY;
 import static io.evitadb.externalApi.grpc.generated.GrpcTrafficRecordingContent.TRAFFIC_RECORDING_HEADER;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * Class contains static methods for converting enums from and to gRPC representation.
@@ -88,6 +91,12 @@ public class EvitaEnumConverter {
 			case 0 -> CatalogState.WARMING_UP;
 			case 1 -> CatalogState.ALIVE;
 			case 3 -> CatalogState.CORRUPTED;
+			case 4 -> CatalogState.INACTIVE;
+			case 5 -> CatalogState.GOING_ALIVE;
+			case 6 -> CatalogState.BEING_ACTIVATED;
+			case 7 -> CatalogState.BEING_DEACTIVATED;
+			case 8 -> CatalogState.BEING_CREATED;
+			case 9 -> CatalogState.BEING_DELETED;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote catalog state: " + grpcCatalogState);
 		};
 	}
@@ -103,7 +112,13 @@ public class EvitaEnumConverter {
 		return switch (catalogState) {
 			case WARMING_UP -> GrpcCatalogState.WARMING_UP;
 			case ALIVE -> GrpcCatalogState.ALIVE;
+			case INACTIVE -> GrpcCatalogState.INACTIVE;
 			case CORRUPTED -> GrpcCatalogState.CORRUPTED;
+			case GOING_ALIVE -> GrpcCatalogState.GOING_ALIVE;
+			case BEING_ACTIVATED -> GrpcCatalogState.BEING_ACTIVATED;
+			case BEING_DEACTIVATED -> GrpcCatalogState.BEING_DEACTIVATED;
+			case BEING_DELETED -> GrpcCatalogState.BEING_DELETED;
+			case BEING_CREATED -> GrpcCatalogState.BEING_CREATED;
 		};
 	}
 
@@ -585,15 +600,16 @@ public class EvitaEnumConverter {
 	 * @return the converted {@link Cardinality}, or null if grpcCardinality is 0
 	 * @throws EvitaInternalError if the grpcCardinality is unrecognized
 	 */
-	@Nullable
-	public static Cardinality toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
+	@Nonnull
+	public static Optional<Cardinality> toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
 		return switch (grpcCardinality.getNumber()) {
-			case 0 -> null;
-			case 1 -> Cardinality.ZERO_OR_ONE;
-			case 2 -> Cardinality.EXACTLY_ONE;
-			case 3 -> Cardinality.ZERO_OR_MORE;
-			case 4 -> Cardinality.ONE_OR_MORE;
-			default -> throw new GenericEvitaInternalError("Unrecognized remote cardinality: " + grpcCardinality);
+			case 1 -> of(Cardinality.ZERO_OR_ONE);
+			case 2 -> of(Cardinality.EXACTLY_ONE);
+			case 3 -> of(Cardinality.ZERO_OR_MORE);
+			case 4 -> of(Cardinality.ONE_OR_MORE);
+			case 5 -> of(Cardinality.ZERO_OR_MORE_WITH_DUPLICATES);
+			case 6 -> of(Cardinality.ONE_OR_MORE_WITH_DUPLICATES);
+			default -> empty();
 		};
 	}
 
@@ -613,6 +629,8 @@ public class EvitaEnumConverter {
 			case EXACTLY_ONE -> GrpcCardinality.EXACTLY_ONE;
 			case ZERO_OR_MORE -> GrpcCardinality.ZERO_OR_MORE;
 			case ONE_OR_MORE -> GrpcCardinality.ONE_OR_MORE;
+			case ZERO_OR_MORE_WITH_DUPLICATES -> GrpcCardinality.ZERO_OR_MORE_WITH_DUPLICATES;
+			case ONE_OR_MORE_WITH_DUPLICATES -> GrpcCardinality.ONE_OR_MORE_WITH_DUPLICATES;
 		};
 	}
 
@@ -662,6 +680,7 @@ public class EvitaEnumConverter {
 			case 5 -> EvolutionMode.ADDING_LOCALES;
 			case 6 -> EvolutionMode.ADDING_CURRENCIES;
 			case 7 -> EvolutionMode.ADDING_HIERARCHY;
+			case 8 -> EvolutionMode.UPDATING_REFERENCE_CARDINALITY;
 			default -> throw new GenericEvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
 		};
 	}
@@ -683,6 +702,7 @@ public class EvitaEnumConverter {
 			case ADDING_LOCALES -> GrpcEvolutionMode.ADDING_LOCALES;
 			case ADDING_CURRENCIES -> GrpcEvolutionMode.ADDING_CURRENCIES;
 			case ADDING_HIERARCHY -> GrpcEvolutionMode.ADDING_HIERARCHY;
+			case UPDATING_REFERENCE_CARDINALITY -> GrpcEvolutionMode.UPDATING_REFERENCE_CARDINALITY;
 		};
 	}
 
@@ -798,11 +818,11 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcAttributeSchemaType toGrpcAttributeSchemaType(@Nonnull Class<? extends AttributeSchemaContract> attributeSchemaClass) {
 		if (GlobalAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
-			return GrpcAttributeSchemaType.GLOBAL;
+			return GrpcAttributeSchemaType.GLOBAL_SCHEMA;
 		} else if (EntityAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
-			return GrpcAttributeSchemaType.ENTITY;
+			return GrpcAttributeSchemaType.ENTITY_SCHEMA;
 		} else if (AttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
-			return GrpcAttributeSchemaType.REFERENCE;
+			return GrpcAttributeSchemaType.REFERENCE_SCHEMA;
 		} else {
 			throw new GenericEvitaInternalError("Unrecognized attribute schema type: " + attributeSchemaClass);
 		}

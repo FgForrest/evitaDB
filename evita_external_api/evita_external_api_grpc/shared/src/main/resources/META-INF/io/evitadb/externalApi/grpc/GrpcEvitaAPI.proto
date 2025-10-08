@@ -5,9 +5,11 @@ option java_multiple_files = true;
 option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 import "GrpcEnums.proto";
 import "GrpcEvitaDataTypes.proto";
-import "GrpcCatalogSchemaMutation.proto";
+import "GrpcEngineMutation.proto";
+import "GrpcChangeCapture.proto";
 
 // Response to a server status request.
 message GrpcReadyResponse {
@@ -121,10 +123,142 @@ message GrpcDeleteCatalogIfExistsResponse {
   bool success = 1;
 }
 
-// Request to update the catalog.
-message GrpcUpdateEvitaRequest {
-  // Collection of top level catalog schema mutations to be applied.
-  repeated GrpcTopLevelCatalogSchemaMutation schemaMutations = 1;
+// Request to make a catalog mutable.
+message GrpcMakeCatalogMutableRequest {
+  // Name of the catalog to make mutable.
+  string catalogName = 1;
+}
+
+// Response to a make catalog mutable request.
+message GrpcMakeCatalogMutableResponse {
+  // Indicator whether the catalog was made mutable successfully.
+  bool success = 1;
+}
+
+// Request to make a catalog immutable.
+message GrpcMakeCatalogImmutableRequest {
+  // Name of the catalog to make immutable.
+  string catalogName = 1;
+}
+
+// Response to a make catalog immutable request.
+message GrpcMakeCatalogImmutableResponse {
+  // Indicator whether the catalog was made immutable successfully.
+  bool success = 1;
+}
+
+// Request to make a catalog alive.
+message GrpcMakeCatalogAliveRequest {
+  // Name of the catalog to make alive.
+  string catalogName = 1;
+}
+
+// Response to a make catalog alive request.
+message GrpcMakeCatalogAliveResponse {
+  // Indicator whether the catalog was made alive successfully.
+  bool success = 1;
+}
+
+// Request to duplicate a catalog.
+message GrpcDuplicateCatalogRequest {
+  // Name of the source catalog to duplicate.
+  string catalogName = 1;
+  // Name of the new catalog to create with duplicated contents.
+  string newCatalogName = 2;
+}
+
+// Response to a duplicate catalog request.
+message GrpcDuplicateCatalogResponse {
+  // Indicator whether the catalog was duplicated successfully.
+  bool success = 1;
+}
+
+// Request to activate a catalog.
+message GrpcActivateCatalogRequest {
+  // Name of the catalog to activate.
+  string catalogName = 1;
+}
+
+// Response to an activate catalog request.
+message GrpcActivateCatalogResponse {
+  // Indicator whether the catalog was activated successfully.
+  bool success = 1;
+}
+
+// Request to deactivate a catalog.
+message GrpcDeactivateCatalogRequest {
+  // Name of the catalog to deactivate.
+  string catalogName = 1;
+}
+
+// Response to a deactivate catalog request.
+message GrpcDeactivateCatalogResponse {
+  // Indicator whether the catalog was deactivated successfully.
+  bool success = 1;
+}
+
+// Request to apply mutation on engine level.
+message GrpcApplyMutationRequest {
+  // Single engine level mutation to be applied.
+  GrpcEngineMutation mutation = 1;
+}
+
+// Response to apply mutation on engine level.
+message GrpcApplyMutationResponse {
+
+}
+
+// Response to apply mutation on engine level.
+message GrpcApplyMutationWithProgressResponse {
+  // The progress of the go live operation in percents.
+  int32 progressInPercent = 1;
+  // Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+  google.protobuf.Int64Value catalogVersion = 2;
+  // Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+  google.protobuf.Int32Value catalogSchemaVersion = 3;
+}
+
+// Request to register a system change capture.
+message GrpcRegisterSystemChangeCaptureRequest {
+  // Starting point for the search (engine version)
+  google.protobuf.Int64Value sinceVersion = 1;
+  // Starting point for the search (index of the mutation within engine version - currently each engine level transaction contains only one mutation)
+  google.protobuf.Int32Value sinceIndex = 2;
+  // Requested content of the capture - i.e. whether client wants to receive only the simple notification about the change
+  // or whether he wants to receive the full content of the change
+  GrpcChangeCaptureContent content = 3;
+}
+
+// Response to GrpcRegisterSystemChangeCapture request.
+message GrpcRegisterSystemChangeCaptureResponse {
+  // Identification of the registered capture
+  GrpcUuid uuid = 1;
+  // The list of mutations (CDC events) that match the criteria
+  GrpcChangeSystemCapture capture = 2;
+  // The type of the response - when subscription is set-up, acknowledgement is sent
+  // Then with each capture event, the type is set to `change`
+  GrpcCaptureResponseType responseType = 3;
+}
+
+// Request to get progress of the top-level engine mutations.
+message GrpcGetProgressRequest {
+  // The name of the catalog for which the progress is requested.
+  // Might be empty if the progress is not related to any catalog and is related to the whole evitaDB instance.
+  string catalogName = 1;
+}
+
+// Response to GrpcGetProgressRequest.
+message GrpcGetProgressResponse {
+  // contains information whether the progress was found or not
+  bool found = 1;
+  // The progress of the top-level engine mutation in percents.
+  google.protobuf.Int32Value progressInPercent = 2;
+  // Contains catalog name copied from the request (if the progress is related to a catalog)
+  string catalogName = 3;
+  // Contains catalog version when operation finishes (only if the mutation relates to a catalog)
+  google.protobuf.Int64Value catalogVersion = 4;
+  // Contains catalog schema version when operation finishes (only if the mutation relates to a catalog)
+  google.protobuf.Int32Value catalogSchemaVersion = 5;
 }
 
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
@@ -151,10 +285,44 @@ service EvitaService {
   // Procedure used to delete an existing catalog.
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   // Procedure used to update the catalog with a set of mutations.
-  rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
+  rpc ApplyMutation(GrpcApplyMutationRequest) returns (GrpcApplyMutationResponse);
+  // Procedure used to update the catalog with a set of mutations which tracks the progress of the operation.
+  rpc ApplyMutationWithProgress(GrpcApplyMutationRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to rename an existing catalog.
   rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
+  // Procedure used to rename an existing catalog with progress tracking.
+  rpc RenameCatalogWithProgress(GrpcRenameCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
   // Procedure used to replace an existing catalog.
   rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
+  // Procedure used to replace an existing catalog with progress tracking.
+  rpc ReplaceCatalogWithProgress(GrpcReplaceCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to make a catalog mutable.
+  rpc MakeCatalogMutable(GrpcMakeCatalogMutableRequest) returns (GrpcMakeCatalogMutableResponse);
+  // Procedure used to make a catalog mutable with progress tracking.
+  rpc MakeCatalogMutableWithProgress(GrpcMakeCatalogMutableRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to make a catalog immutable.
+  rpc MakeCatalogImmutable(GrpcMakeCatalogImmutableRequest) returns (GrpcMakeCatalogImmutableResponse);
+  // Procedure used to make a catalog immutable with progress tracking.
+  rpc MakeCatalogImmutableWithProgress(GrpcMakeCatalogImmutableRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to make a catalog alive.
+  rpc MakeCatalogAlive(GrpcMakeCatalogAliveRequest) returns (GrpcMakeCatalogAliveResponse);
+  // Procedure used to make a catalog alive with progress tracking.
+  rpc MakeCatalogAliveWithProgress(GrpcMakeCatalogAliveRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to duplicate a catalog.
+  rpc DuplicateCatalog(GrpcDuplicateCatalogRequest) returns (GrpcDuplicateCatalogResponse);
+  // Procedure used to duplicate a catalog with progress tracking.
+  rpc DuplicateCatalogWithProgress(GrpcDuplicateCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to activate a catalog.
+  rpc ActivateCatalog(GrpcActivateCatalogRequest) returns (GrpcActivateCatalogResponse);
+  // Procedure used to activate a catalog with progress tracking.
+  rpc ActivateCatalogWithProgress(GrpcActivateCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to deactivate a catalog.
+  rpc DeactivateCatalog(GrpcDeactivateCatalogRequest) returns (GrpcDeactivateCatalogResponse);
+  // Procedure used to deactivate a catalog with progress tracking.
+  rpc DeactivateCatalogWithProgress(GrpcDeactivateCatalogRequest) returns (stream GrpcApplyMutationWithProgressResponse);
+  // Procedure used to register a system change capture.
+  rpc RegisterSystemChangeCapture(GrpcRegisterSystemChangeCaptureRequest) returns (stream GrpcRegisterSystemChangeCaptureResponse);
+  // Procedure used to initiate progress consumption for top-level engine mutations.
+  rpc GetProgress(GrpcGetProgressRequest) returns (stream GrpcGetProgressResponse);
 
 }

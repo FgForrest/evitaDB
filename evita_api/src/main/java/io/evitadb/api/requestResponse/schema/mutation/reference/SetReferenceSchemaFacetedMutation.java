@@ -27,6 +27,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -72,6 +73,7 @@ public class SetReferenceSchemaFacetedMutation
 		this(name, faceted == null ? null : (faceted ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE));
 	}
 
+	@SerializableCreator
 	public SetReferenceSchemaFacetedMutation(
 		@Nonnull String name,
 		@Nullable Scope[] facetedInScopes
@@ -96,7 +98,7 @@ public class SetReferenceSchemaFacetedMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof SetReferenceSchemaFacetedMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof SetReferenceSchemaFacetedMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;

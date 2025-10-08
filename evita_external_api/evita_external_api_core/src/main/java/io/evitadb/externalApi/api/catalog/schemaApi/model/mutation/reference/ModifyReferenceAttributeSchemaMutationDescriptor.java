@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -40,12 +40,13 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ModifyReferenceAttributeSchemaMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
+	// todo lho input version
 	PropertyDescriptor ATTRIBUTE_SCHEMA_MUTATION = PropertyDescriptor.builder()
 		.name("attributeSchemaMutation")
 		.description("""
             Nested attribute schema mutation that mutates reference attributes of targeted reference.
 			""")
-		.type(nonNullRef(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullRef(AttributeSchemaMutationAggregateDescriptor.THIS))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -54,6 +55,6 @@ public interface ModifyReferenceAttributeSchemaMutationDescriptor extends Refere
 			Mutation is a holder for a single `AttributeSchema` that affect any
 			of `ReferenceSchema.attributes` in the `EntitySchema`.
 			""")
-		.staticFields(List.of(NAME, ATTRIBUTE_SCHEMA_MUTATION))
+		.staticFields(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_SCHEMA_MUTATION))
 		.build();
 }

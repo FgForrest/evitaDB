@@ -28,6 +28,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -811,6 +812,32 @@ public class StringUtils {
 		}
 
 		return replaceEach(result, searchList, replacementList, repeat, timeToLive - 1);
+	}
+
+	/**
+	 * Converts an array of {@link Serializable} objects into a single string by
+	 * concatenating their string representations, separated by commas.
+	 *
+	 * @param thisRepAV an array of {@link Serializable} objects to be converted into a string
+	 * @return a string representation of the input array, where each element is separated by a comma
+	 */
+	@Nonnull
+	public static String serializableArrayToString(@Nonnull Serializable[] thisRepAV) {
+		// Avoid stream/collector allocations; use a single StringBuilder and a tight loop
+		final int len = thisRepAV.length;
+		if (len == 0) {
+			return "";
+		}
+		// Heuristic initial capacity: average 8 chars per element plus separator space/comma
+		final StringBuilder sb = new StringBuilder(len * 10);
+		for (int i = 0; i < len; i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			final Serializable item = thisRepAV[i];
+			sb.append(item == null ? "NULL" : item.toString());
+		}
+		return sb.toString();
 	}
 
 	/*

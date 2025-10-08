@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ import java.util.UUID;
  *
  * @param catalogId unique identifier of the catalog
  * @param catalogName name of the catalog
- * @param corrupted true if the catalog is corrupted (other data will be not available)
+ * @param unusable true if the catalog is corrupted (other data will be not available)
+ * @param readOnly true if the catalog is read-only (no mutations are allowed)
  * @param catalogState current state of the catalog, null for corrupted catalog
  * @param catalogVersion version of the catalog, -1 for corrupted catalog
  * @param totalRecords total number of records in the catalog, -1 for corrupted catalog
@@ -47,7 +48,8 @@ import java.util.UUID;
 public record CatalogStatistics(
 	@Nullable UUID catalogId,
 	@Nonnull String catalogName,
-	boolean corrupted,
+	boolean unusable,
+	boolean readOnly,
 	@Nullable CatalogState catalogState,
 	long catalogVersion,
 	long totalRecords,
@@ -62,33 +64,34 @@ public record CatalogStatistics(
 		if (o == null || getClass() != o.getClass()) return false;
 
 		CatalogStatistics that = (CatalogStatistics) o;
-		return indexCount == that.indexCount && corrupted == that.corrupted && totalRecords == that.totalRecords && catalogVersion == that.catalogVersion && sizeOnDiskInBytes == that.sizeOnDiskInBytes && catalogName.equals(that.catalogName) && catalogState == that.catalogState && Arrays.equals(entityCollectionStatistics, that.entityCollectionStatistics);
+		return this.indexCount == that.indexCount && this.unusable == that.unusable && this.totalRecords == that.totalRecords && this.catalogVersion == that.catalogVersion && this.sizeOnDiskInBytes == that.sizeOnDiskInBytes && this.catalogName.equals(that.catalogName) && this.catalogState == that.catalogState && Arrays.equals(this.entityCollectionStatistics, that.entityCollectionStatistics);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = catalogName.hashCode();
-		result = 31 * result + Boolean.hashCode(corrupted);
-		result = 31 * result + Objects.hashCode(catalogState);
-		result = 31 * result + Long.hashCode(catalogVersion);
-		result = 31 * result + Long.hashCode(totalRecords);
-		result = 31 * result + Long.hashCode(indexCount);
-		result = 31 * result + Long.hashCode(sizeOnDiskInBytes);
-		result = 31 * result + Arrays.hashCode(entityCollectionStatistics);
+		int result = this.catalogName.hashCode();
+		result = 31 * result + Boolean.hashCode(this.unusable);
+		result = 31 * result + Objects.hashCode(this.catalogState);
+		result = 31 * result + Long.hashCode(this.catalogVersion);
+		result = 31 * result + Long.hashCode(this.totalRecords);
+		result = 31 * result + Long.hashCode(this.indexCount);
+		result = 31 * result + Long.hashCode(this.sizeOnDiskInBytes);
+		result = 31 * result + Arrays.hashCode(this.entityCollectionStatistics);
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "CatalogStatistics{" +
-			"catalogName='" + catalogName + '\'' +
-			", corrupted=" + corrupted +
-			", catalogState=" + catalogState +
-			", catalogVersion=" + catalogVersion +
-			", totalRecords=" + totalRecords +
-			", indexCount=" + indexCount +
-			", sizeOnDiskInBytes=" + sizeOnDiskInBytes +
-			", entityCollectionStatistics=" + Arrays.toString(entityCollectionStatistics) +
+			"catalogName='" + this.catalogName + '\'' +
+			", corrupted=" + this.unusable +
+			", catalogState=" + this.catalogState +
+			", catalogVersion=" + this.catalogVersion +
+			", totalRecords=" + this.totalRecords +
+			", indexCount=" + this.indexCount +
+			", sizeOnDiskInBytes=" + this.sizeOnDiskInBytes +
+			", entityCollectionStatistics=" + Arrays.toString(this.entityCollectionStatistics) +
 			'}';
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import lombok.Data;
@@ -50,7 +51,8 @@ import java.util.stream.Stream;
 @Data
 class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	private final EntityStoragePartAccessor containerAccessor;
-	private final ReferenceKey referenceKey;
+	private final ReferenceSchema referenceSchema;
+	private final RepresentativeReferenceKey referenceKey;
 	private final String entityType;
 	private final int entityPrimaryKey;
 	private Set<Locale> memoizedLocales;
@@ -64,25 +66,25 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	@Nonnull
 	@Override
 	public Set<Locale> getEntityExistingAttributeLocales() {
-		if (memoizedLocales == null) {
-			this.memoizedLocales = containerAccessor.getEntityStoragePart(
-				entityType, entityPrimaryKey, EntityExistence.MUST_EXIST
+		if (this.memoizedLocales == null) {
+			this.memoizedLocales = this.containerAccessor.getEntityStoragePart(
+				this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
 			).getAttributeLocales();
 		}
-		return memoizedLocales;
+		return this.memoizedLocales;
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		if (!Objects.equals(memoizedKey, attributeKey)) {
+		if (!Objects.equals(this.memoizedKey, attributeKey)) {
 			this.memoizedKey = attributeKey;
 			this.memoizedValue = getMemoizedReference()
 				.filter(Droppable::exists)
 				.flatMap(it -> it.getAttributeValue(attributeKey))
 				.filter(Droppable::exists);
 		}
-		return memoizedValue;
+		return this.memoizedValue;
 	}
 
 	@Nonnull
@@ -120,7 +122,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	 */
 	@Nonnull
 	private Optional<ReferenceContract> getMemoizedReference() {
-		final ReferencesStoragePart referencesStorageContainer = containerAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
+		final ReferencesStoragePart referencesStorageContainer = this.containerAccessor.getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		final ReferenceContract[] references = referencesStorageContainer.getReferences();
 		// we need to check the memoized instance is still the same, when the reference or its contents are modified
 		// the entire reference is replaced, so we need to retrieve it again
@@ -128,10 +130,21 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 			this.memoizedReferenceIndex = -1;
 			for (int i = 0; i < references.length; i++) {
 				final ReferenceContract reference = references[i];
-				if (Objects.equals(reference.getReferenceKey(), referenceKey)) {
-					this.memoizedReference = Optional.of(reference);
-					this.memoizedReferenceIndex = i;
-					break;
+				if (reference.exists()) {
+					final RepresentativeReferenceKey theReferenceKey =
+						this.referenceSchema.getName().equals(reference.getReferenceName()) &&
+							this.referenceSchema.getCardinality().allowsDuplicates() ?
+							new RepresentativeReferenceKey(
+								reference.getReferenceKey(),
+								this.referenceSchema.getRepresentativeAttributeDefinition()
+								                    .getRepresentativeValues(reference)
+							) :
+							new RepresentativeReferenceKey(reference.getReferenceKey());
+					if (Objects.equals(theReferenceKey, this.referenceKey)) {
+						this.memoizedReference = Optional.of(reference);
+						this.memoizedReferenceIndex = i;
+						break;
+					}
 				}
 			}
 			if (this.memoizedReferenceIndex == -1) {

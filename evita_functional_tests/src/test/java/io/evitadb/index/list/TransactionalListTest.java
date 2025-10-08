@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,23 +50,23 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		underlyingData = new LinkedList<>();
-		underlyingData.add(1);
-		underlyingData.add(2);
-		tested = new TransactionalList<>(underlyingData);
+		this.underlyingData = new LinkedList<>();
+		this.underlyingData.add(1);
+		this.underlyingData.add(2);
+		this.tested = new TransactionalList<>(this.underlyingData);
 	}
 
 	@Test
 	void shouldNotModifyOriginalState() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 				original.add(3);
 				assertListContains(original, 1, 2, 3, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 2, 3, 3);
 			}
 		);
@@ -75,7 +75,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAppendAtEnd() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(0);
 				original.add(1, 3);
@@ -84,7 +84,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 2, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 2, 3);
 			}
 		);
@@ -92,9 +92,9 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldMakeModificationsOnSameIndex() {
-		tested.addAll(Arrays.asList(3, 4, 5, 6, 7, 8, 9, 10));
+		this.tested.addAll(Arrays.asList(3, 4, 5, 6, 7, 8, 9, 10));
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(1);
 				original.add(5, 0);
@@ -103,7 +103,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 1, 3, 5, 6, 0, 8, 9, 10);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+				assertListContains(this.underlyingData, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 				assertListContains(committedVersion, 1, 3, 5, 6, 0, 8, 9, 10);
 			}
 		);
@@ -112,7 +112,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProcessClear() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(4);
 				original.add(5);
@@ -120,7 +120,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion);
 			}
 		);
@@ -129,7 +129,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProcessClearAndThenAdd() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.clear();
 				original.add(4);
@@ -137,7 +137,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 4, 5);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 4, 5);
 			}
 		);
@@ -146,7 +146,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCreateTransactionalCopyWithRemove() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 				original.add(4);
@@ -155,7 +155,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 3, 4);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 3, 4);
 			}
 		);
@@ -163,14 +163,14 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldReturnProperlyConstructedCopyOnMultipleModifyOperations() {
-		tested.add(5);
-		tested.add(2);
-		tested.add(9);
-		tested.add(0);
-		tested.add(4);
+		this.tested.add(5);
+		this.tested.add(2);
+		this.tested.add(9);
+		this.tested.add(0);
+		this.tested.add(4);
 
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(5);
 				original.add(7);
@@ -181,7 +181,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 1, 5, 2, 9);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2, 5, 2, 9, 0, 4);
+				assertListContains(this.underlyingData, 1, 2, 5, 2, 9, 0, 4);
 				assertListContains(committedVersion, 1, 5, 2, 9);
 			}
 		);
@@ -190,7 +190,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void removalsShouldNotModifyOriginalState() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(Integer.valueOf(2));
 				original.add(3);
@@ -198,7 +198,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 1, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 3);
 			}
 		);
@@ -207,16 +207,16 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void removalsShouldFailWhenPrepended() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(0, 4);
 				original.add(0, 3);
 				original.remove(3);
 
-				assertListContains(tested, 3, 4, 1);
+				assertListContains(this.tested, 3, 4, 1);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 3, 4, 1);
 			}
 		);
@@ -225,17 +225,17 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldMergeRemovalsAndUpdatesAndInsertionsOnTransactionCommit() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(0);
 				original.remove(0);
 				original.add(3);
 				original.add(3);
 
-				assertListContains(tested, 3, 3);
+				assertListContains(this.tested, 3, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 3, 3);
 			}
 		);
@@ -244,15 +244,15 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldAddSeveralItemsOnASamePosition() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(0, 3);
 				original.add(0, 4);
 
-				assertListContains(tested, 4, 3, 1, 2);
+				assertListContains(this.tested, 4, 3, 1, 2);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 4, 3, 1, 2);
 			}
 		);
@@ -261,7 +261,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldInterpretIsEmptyCorrectly() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				assertFalse(original.isEmpty());
 
@@ -284,7 +284,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertTrue(original.isEmpty());
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion);
 			}
 		);
@@ -293,18 +293,18 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProduceValidValueCollection() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 				original.remove(Integer.valueOf(2));
 
-				final Set<Integer> result = new HashSet<>(tested);
+				final Set<Integer> result = new HashSet<>(this.tested);
 				assertEquals(2, result.size());
 				assertTrue(result.contains(1));
 				assertTrue(result.contains(3));
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 3);
 			}
 		);
@@ -313,7 +313,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldNotModifyOriginalStateOnIteratorRemoval() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 
@@ -324,10 +324,10 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertTrue(it.hasNext());
 				final Integer third = it.next();
 
-				assertListContains(tested, 1, 3);
+				assertListContains(this.tested, 1, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 3);
 			}
 		);
@@ -336,7 +336,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldMergeChangesInKeySetIterator() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 
@@ -347,10 +347,10 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 
 				assertEquals(Integer.valueOf(2), removed);
 
-				assertListContains(tested, 1, 3);
+				assertListContains(this.tested, 1, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 3);
 			}
 		);
@@ -359,7 +359,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepIteratorContract() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 
@@ -395,7 +395,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				}
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 2, 3);
 			}
 		);
@@ -404,7 +404,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepIteratorContractWhenItemsRemoved() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 				original.remove(1);
@@ -436,7 +436,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				}
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 3);
 			}
 		);
@@ -445,7 +445,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldKeepListIteratorContractWhenItemsRemoved() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(3);
 				original.add(4);
@@ -476,7 +476,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertListContains(original, 1, 3);
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 1, 3);
 			}
 		);
@@ -485,7 +485,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldProperlyReturnLastItemWhenTwoRemovals() {
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.set(0, 99);
 				original.add(3);
@@ -507,7 +507,7 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 				assertEquals(Integer.valueOf(99), it.previous());
 			},
 			(original, committedVersion) -> {
-				assertListContains(underlyingData, 1, 2);
+				assertListContains(this.underlyingData, 1, 2);
 				assertListContains(committedVersion, 99, 2, 13, 14, 5);
 			}
 		);
@@ -517,9 +517,9 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	void verify() {
 		final List<Integer> base = Arrays.asList(18,18,1,5,5,18,18,10,19,5,9,1,13,11,14);
 		final List<Integer> verify = new ArrayList<>(base);
-		tested = new TransactionalList<>(base);
+		this.tested = new TransactionalList<>(base);
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(4, 3);
 				verify.add(4, 3);
@@ -542,9 +542,9 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	void verify2() {
 		final List<Integer> base = Arrays.asList(0,23,26,12,21,30,9,36,0,3,21,1,22,22,19,7,27,25,22,8);
 		final List<Integer> verify = new ArrayList<>(base);
-		tested = new TransactionalList<>(base);
+		this.tested = new TransactionalList<>(base);
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(1);
 				verify.remove(1);
@@ -567,9 +567,9 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	void verify3() {
 		final List<Integer> base = Arrays.asList(31,14,2,4,10,2,13,12,39,15,26,11,21,31);
 		final List<Integer> verify = new ArrayList<>(base);
-		tested = new TransactionalList<>(base);
+		this.tested = new TransactionalList<>(base);
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(4, 33);
 				verify.add(4, 33);
@@ -588,9 +588,9 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	void verify4() {
 		final List<Integer> base = Arrays.asList(25,32,3,17,21,9,34,29,13,6,4,3,15,38,0,28,13,22,10);
 		final List<Integer> verify = new ArrayList<>(base);
-		tested = new TransactionalList<>(base);
+		this.tested = new TransactionalList<>(base);
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.remove(5);
 				verify.remove(5);
@@ -613,9 +613,9 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	void verify5() {
 		final List<Integer> base = Arrays.asList(15,5,11,2,36,11,31,1,23,37,4,3,7,18,6,8,32,29,9);
 		final List<Integer> verify = new ArrayList<>(base);
-		tested = new TransactionalList<>(base);
+		this.tested = new TransactionalList<>(base);
 		assertStateAfterCommit(
-			tested,
+			this.tested,
 			original -> {
 				original.add(12, 38);
 				verify.add(12, 38);

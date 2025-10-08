@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import java.util.List;
 
@@ -37,7 +38,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ModifyEntitySchemaNameMutationDescriptor {
+public interface ModifyEntitySchemaNameMutationDescriptor extends MutationDescriptor {
 
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
@@ -66,6 +67,6 @@ public interface ModifyEntitySchemaNameMutationDescriptor {
 		.description("""
 			Mutation is responsible for renaming an existing `EntitySchema`.
 			""")
-		.staticFields(List.of(NAME, NEW_NAME, OVERWRITE_TARGET))
+		.staticFields(List.of(MUTATION_TYPE, NAME, NEW_NAME, OVERWRITE_TARGET))
 		.build();
 }

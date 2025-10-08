@@ -71,19 +71,19 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 				final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 				final Optional<CatalogContract> catalog = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
-					restHandlingContext.getEvita().getCatalogInstance(catalogName));
+					this.restHandlingContext.getEvita().getCatalogInstance(catalogName));
 				if (catalog.isEmpty()) {
 					requestExecutedEvent.finishOperationExecution();
 					requestExecutedEvent.finishResultSerialization();
 					return new NotFoundEndpointResponse();
-				}
+				};
 
 				final CatalogContract updatedCatalog = requestExecutedEvent.measureInternalEvitaDBExecution(() -> {
 					final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
 					switchCatalogToAliveState(catalog.get(), requestBody);
 
 					final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-					return restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
+					return this.restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
 						.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
 				});
 				requestExecutedEvent.finishOperationExecution();
@@ -110,7 +110,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 	@Nonnull
 	private Optional<String> renameCatalog(@Nonnull CatalogContract catalog,
 	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
-		final Evita evita = restHandlingContext.getEvita();
+		final Evita evita = this.restHandlingContext.getEvita();
 
 		final Optional<String> newCatalogName = Optional.ofNullable(requestBody.name());
 		if (newCatalogName.isEmpty()) {
@@ -127,8 +127,10 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		return newCatalogName;
 	}
 
-	private static void switchCatalogToAliveState(@Nonnull CatalogContract catalog,
-	                                              @Nonnull UpdateCatalogRequestDto requestBody) {
+	private void switchCatalogToAliveState(
+		@Nonnull CatalogContract catalog,
+		@Nonnull UpdateCatalogRequestDto requestBody
+	) {
 		final Optional<CatalogState> newCatalogState = Optional.ofNullable(requestBody.catalogState());
 		if (newCatalogState.isEmpty()) {
 			return;
@@ -143,7 +145,6 @@ public class UpdateCatalogHandler extends CatalogHandler {
 			() -> new RestInvalidArgumentException("Only a catalog in the `WARMING_UP` state can be switched to the `ALIVE` state.")
 		);
 
-		/* we need to synchronously wait here */
-		catalog.goLive(null).onCompletion().toCompletableFuture().join();
+		this.restHandlingContext.getEvita().makeCatalogAlive(catalog.getName());
 	}
 }

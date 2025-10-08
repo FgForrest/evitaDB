@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ class ComplexDataObjectToJsonConverterTest {
 		final ComplexDataObjectConverter<TestComplexObject> converter = new ComplexDataObjectConverter<>(veryComplexObject);
 		final ComplexDataObject serializableForm = (ComplexDataObject) converter.getSerializableForm();
 
-		final ComplexDataObjectToJsonConverter tested = new ComplexDataObjectToJsonConverter(objectMapper);
+		final ComplexDataObjectToJsonConverter tested = new ComplexDataObjectToJsonConverter(this.objectMapper);
 		serializableForm.accept(tested);
 
 		assertEquals(readFromClasspath("testData/DataObjectConverterTest_complexObject.json"), tested.getJsonAsString());
@@ -84,7 +84,7 @@ class ComplexDataObjectToJsonConverterTest {
 		final ComplexDataObjectConverter<ArrayContainer> converter = new ComplexDataObjectConverter<>(veryComplexObject);
 		final ComplexDataObject serializableForm = (ComplexDataObject) converter.getSerializableForm();
 
-		final ComplexDataObjectToJsonConverter complexDataObjectToJsonConverter = new ComplexDataObjectToJsonConverter(objectMapper);
+		final ComplexDataObjectToJsonConverter complexDataObjectToJsonConverter = new ComplexDataObjectToJsonConverter(this.objectMapper);
 		serializableForm.accept(complexDataObjectToJsonConverter);
 
 		assertEquals(readFromClasspath("testData/DataObjectConverterTest_arrayComplexObject.json"), complexDataObjectToJsonConverter.getJsonAsString());

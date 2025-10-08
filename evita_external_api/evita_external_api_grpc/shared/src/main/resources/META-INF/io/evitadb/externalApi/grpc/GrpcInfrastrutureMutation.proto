@@ -1,0 +1,31 @@
+syntax = "proto3";
+import "GrpcEvitaDataTypes.proto";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+option csharp_namespace = "EvitaDB";
+
+// Contains all possible infrastructure mutations in catalog.
+message GrpcInfrastructureMutation {
+  // The mutation to be performed.
+  oneof mutation {
+    // This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
+    // the scope of the transaction and verify its integrity.
+    GrpcTransactionMutation transactionMutation = 1;
+  }
+}
+
+// This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
+// the scope of the transaction and verify its integrity.
+message GrpcTransactionMutation {
+  // Represents the unique identifier of a transaction.
+  GrpcUuid transactionId = 1;
+  // Represents the next version the transaction transitions the state to.
+  int64 version = 2;
+  // Represents the number of mutations in this particular transaction.
+  int32 mutationCount = 3;
+  // Represents the size of the serialized transaction mutations that follow this mutation in bytes.
+  int64 walSizeInBytes = 4;
+  // Represents the timestamp of the commit.
+  GrpcOffsetDateTime commitTimestamp = 5;
+}

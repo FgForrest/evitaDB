@@ -10,6 +10,14 @@ import "GrpcEntitySchemaMutations.proto";
 import "GrpcReferenceSchemaMutations.proto";
 import "GrpcSortableAttributeCompoundSchemaMutations.proto";
 
+// Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within the `CatalogSchema`.
+message GrpcModifyEntitySchemaMutation {
+  // Entity type of entity schema that will be affected by passed mutations.
+  string entityType = 1;
+  // Collection of mutations that should be applied on current version of the schema.
+  repeated GrpcEntitySchemaMutation entitySchemaMutations = 2;
+}
+
 // Contains all possible entity schema mutations.
 message GrpcEntitySchemaMutation {
   // The mutation to be executed.
@@ -103,6 +111,14 @@ message GrpcEntitySchemaMutation {
     GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 59;
     // Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
     GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 60;
+    // Mutation is responsible for renaming or replacing a `EntitySchema`.
+    GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 61;
+    // Mutation is responsible for removing a `EntitySchema` - i.e. entity collection.
+    GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 62;
+    // Mutation is responsible for setting up a new `EntitySchema` in the `CatalogSchema`.
+    GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 63;
+    // Mutation is responsible for modifying existing `EntitySchema` in the `CatalogSchema`.
+    GrpcModifyEntitySchemaMutation modifyEntitySchemaMutation = 64;
 
     // Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.

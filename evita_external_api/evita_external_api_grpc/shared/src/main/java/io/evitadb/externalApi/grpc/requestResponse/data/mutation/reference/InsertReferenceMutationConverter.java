@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,9 +50,10 @@ public class InsertReferenceMutationConverter implements LocalMutationConverter<
 		return new InsertReferenceMutation(
 			new ReferenceKey(
 				mutation.getReferenceName(),
-				mutation.getReferencePrimaryKey()
+				mutation.getReferencePrimaryKey(),
+				mutation.getInternalPrimaryKey()
 			),
-			EvitaEnumConverter.toCardinality(mutation.getReferenceCardinality()),
+			EvitaEnumConverter.toCardinality(mutation.getReferenceCardinality()).orElse(null),
 			mutation.hasReferencedEntityType() ? mutation.getReferencedEntityType().getValue() : null
 		);
 	}
@@ -60,9 +61,11 @@ public class InsertReferenceMutationConverter implements LocalMutationConverter<
 	@Nonnull
 	@Override
 	public GrpcInsertReferenceMutation convert(@Nonnull InsertReferenceMutation mutation) {
+		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		final GrpcInsertReferenceMutation.Builder builder = GrpcInsertReferenceMutation.newBuilder()
-			.setReferenceName(mutation.getReferenceKey().referenceName())
-			.setReferencePrimaryKey(mutation.getReferenceKey().primaryKey())
+			.setReferenceName(referenceKey.referenceName())
+			.setReferencePrimaryKey(referenceKey.primaryKey())
+			.setInternalPrimaryKey(referenceKey.internalPrimaryKey())
 			.setReferenceCardinality(EvitaEnumConverter.toGrpcCardinality(mutation.getReferenceCardinality()));
 
 		if (mutation.getReferencedEntityType() != null) {

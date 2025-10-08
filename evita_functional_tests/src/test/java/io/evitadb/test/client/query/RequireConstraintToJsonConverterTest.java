@@ -66,15 +66,15 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 	@BeforeEach
 	void init() {
 		super.init();
-		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
-		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
+		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(this.catalogSchema);
+		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(this.catalogSchema);
 		this.baseConverter = new RequireConstraintToJsonConverter(
-			catalogSchema,
+			this.catalogSchema,
 			new AtomicReference<>(filterConstraintToJsonConverter),
 			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 		this.limitedConverter = new RequireConstraintToJsonConverter(
-			catalogSchema,
+			this.catalogSchema,
 			allowedRequireConstraints::contains,
 			new AtomicReference<>(filterConstraintToJsonConverter),
 			new AtomicReference<>(orderConstraintToJsonConverter)
@@ -96,7 +96,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 
 		assertEquals(
 			new JsonConstraint("facetBrandGroupsConjunction", facetBrandGroupsConjunction),
-			limitedConverter.convert(
+			this.limitedConverter.convert(
 				new EntityDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1, 2)))
 			).get()
@@ -120,7 +120,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 
 		assertEquals(
 			new JsonConstraint("stopAt", stopAt),
-			baseConverter.convert(
+			this.baseConverter.convert(
 				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				new HierarchyDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT)),
 				stopAt(

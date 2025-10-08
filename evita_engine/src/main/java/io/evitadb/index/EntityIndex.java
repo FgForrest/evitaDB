@@ -24,10 +24,11 @@
 package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.Versioned;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -176,7 +177,7 @@ public abstract class EntityIndex implements
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
-		this.attributeIndex = new AttributeIndex(entityType, indexKey.discriminator() instanceof ReferenceKey rk ? rk : null);
+		this.attributeIndex = new AttributeIndex(entityType, indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null);
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;
@@ -344,13 +345,19 @@ public abstract class EntityIndex implements
 	/**
 	 * Retrieves a unique index for the given attribute schema and optional locale.
 	 *
+	 * @param referenceSchema The reference schema contract that is envelope for attribute schema contract.
+	 *                        Can be null when attribute is defined on entity level.
 	 * @param attributeSchema The schema of the attribute for which the unique index is being retrieved. Must not be null.
 	 * @param locale The locale for which the unique index is sought, can be null.
 	 * @return The unique index corresponding to the specified attribute schema and locale, or null if it does not exist.
 	 */
 	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
-		return this.attributeIndex.getUniqueIndex(attributeSchema, this.indexKey.scope(), locale);
+	public UniqueIndex getUniqueIndex(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	) {
+		return this.attributeIndex.getUniqueIndex(referenceSchema, attributeSchema, this.indexKey.scope(), locale);
 	}
 
 	/**
@@ -471,8 +478,7 @@ public abstract class EntityIndex implements
 			attributeIndexStorageKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities,
-			null
+			facetIndexReferencedEntities
 		);
 	}
 
@@ -487,6 +493,42 @@ public abstract class EntityIndex implements
 	 */
 	protected boolean isRequireLocaleRemoval() {
 		return true;
+	}
+
+	/**
+	 * Returns the set of referenced entities in the facet index.
+	 *
+	 * @return the set of referenced entities in the facet index
+	 */
+	@Nonnull
+	private Set<String> getFacetIndexReferencedEntities() {
+		return this.facetIndex.getReferencedEntities();
+	}
+
+	/**
+	 * Retrieves the set of price index keys from a given PriceIndexContract.
+	 *
+	 * @param priceIndex the PriceIndexContract from which to retrieve the price index keys
+	 * @return a set of PriceIndexKey objects representing the price index keys
+	 */
+	@Nonnull
+	private static Set<PriceIndexKey> getPriceIndexKeys(@Nonnull PriceIndexContract priceIndex) {
+		return priceIndex
+			.getPriceListAndCurrencyIndexes()
+			.stream()
+			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
+			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Method returns the set of attribute index storage keys.
+	 *
+	 * @return the set of attribute index storage keys
+	 */
+	@Nonnull
+	private Set<AttributeIndexStorageKey> getAttributeIndexStorageKeys() {
+		return getAttributeIndexStorageKeyStream()
+			.collect(Collectors.toSet());
 	}
 
 	/**
@@ -507,42 +549,6 @@ public abstract class EntityIndex implements
 				this.attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, it))
 			)
 			.flatMap(it -> it);
-	}
-
-	/**
-	 * Retrieves the set of price index keys from a given PriceIndexContract.
-	 *
-	 * @param priceIndex the PriceIndexContract from which to retrieve the price index keys
-	 * @return a set of PriceIndexKey objects representing the price index keys
-	 */
-	@Nonnull
-	private static Set<PriceIndexKey> getPriceIndexKeys(@Nonnull PriceIndexContract priceIndex) {
-		return priceIndex
-			.getPriceListAndCurrencyIndexes()
-			.stream()
-			.map(PriceListAndCurrencyPriceIndex::getPriceIndexKey)
-			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Returns the set of referenced entities in the facet index.
-	 *
-	 * @return the set of referenced entities in the facet index
-	 */
-	@Nonnull
-	private Set<String> getFacetIndexReferencedEntities() {
-		return this.facetIndex.getReferencedEntities();
-	}
-
-	/**
-	 * Method returns the set of attribute index storage keys.
-	 *
-	 * @return the set of attribute index storage keys
-	 */
-	@Nonnull
-	private Set<AttributeIndexStorageKey> getAttributeIndexStorageKeys() {
-		return getAttributeIndexStorageKeyStream()
-			.collect(Collectors.toSet());
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -72,21 +72,21 @@ abstract class RequireConverter {
 	@Nonnull
 	protected Optional<JsonNode> convertFilterConstraint(@Nonnull DataLocator dataLocator,
 	                                                   @Nonnull FilterConstraint filterConstraint) {
-		return filterConstraintToJsonConverter.convert(dataLocator, filterConstraint)
+		return this.filterConstraintToJsonConverter.convert(dataLocator, filterConstraint)
 			.map(JsonConstraint::value);
 	}
 
 	@Nonnull
 	protected Optional<JsonNode> convertOrderConstraint(@Nonnull DataLocator dataLocator,
 	                                                    @Nonnull OrderConstraint orderConstraint) {
-		return orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
+		return this.orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
 			.map(JsonConstraint::value);
 	}
 
 	@Nonnull
 	protected Optional<JsonNode> convertRequireConstraint(@Nonnull DataLocator dataLocator,
 	                                                    @Nonnull RequireConstraint requireConstraint) {
-		return requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
+		return this.requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
 			.map(JsonConstraint::value);
 	}
 }

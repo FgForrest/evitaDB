@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 			// (it would be hard to manage their insertions and removals there)
 			final boolean unsupportedIndex = filterByVisitor
 				.getEntityIndexStream()
-				.anyMatch(it -> it instanceof ReferencedTypeEntityIndex);
+				.anyMatch(ReferencedTypeEntityIndex.class::isInstance);
 			if (unsupportedIndex) {
 				return SkipFormula.INSTANCE;
 			} else if (filterByVisitor.isPrefetchPossible()) {
@@ -125,7 +125,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 					} else if (formula instanceof SelectionFormula selectionFormula &&
 						(selectionFormula.getDelegate() instanceof LocaleFormula ||
 							selectionFormula.getDelegate() instanceof OrFormula orFormula &&
-								Arrays.stream(orFormula.getInnerFormulas()).allMatch(it -> it instanceof LocaleFormula))
+								Arrays.stream(orFormula.getInnerFormulas()).allMatch(LocaleFormula.class::isInstance))
 					) {
 						// skip this formula
 						return null;
@@ -155,8 +155,8 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 		@Nonnull
 		@Override
 		public Formula getPostProcessedFormula() {
-			return localizedAttributeFormulaFound ?
-				getResultClone() : originalFormula;
+			return this.localizedAttributeFormulaFound ?
+				getResultClone() : this.originalFormula;
 		}
 
 	}

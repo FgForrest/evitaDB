@@ -99,20 +99,20 @@ public class SubstringMap<V> {
 	public synchronized void put(String key, V value) {
 		checkNotNullParamWithNullPointerException("key", key);
 		Object[] newTable;
-		if (table.length / (double) size < 4 && table.length != Integer.MAX_VALUE) {
-			newTable = new Object[table.length << 1];
-			for (int i = 0; i < table.length; i += 2) {
-				if (table[i] != null) {
-					doPut(newTable, (String) table[i], table[i + 1]);
+		if (this.table.length / (double) this.size < 4 && this.table.length != Integer.MAX_VALUE) {
+			newTable = new Object[this.table.length << 1];
+			for (int i = 0; i < this.table.length; i += 2) {
+				if (this.table[i] != null) {
+					doPut(newTable, (String) this.table[i], this.table[i + 1]);
 				}
 			}
 		} else {
-			newTable = new Object[table.length];
-			System.arraycopy(table, 0, newTable, 0, table.length);
+			newTable = new Object[this.table.length];
+			System.arraycopy(this.table, 0, newTable, 0, this.table.length);
 		}
 		doPut(newTable, key, new SubstringMap.SubstringMatch<>(key, value));
 		this.table = newTable;
-		size++;
+		this.size++;
 	}
 
 	public synchronized V remove(String key) {
@@ -121,13 +121,13 @@ public class SubstringMap<V> {
 		//for this maps intended use cases as a path matcher it won't be called when
 		//the value is not present anyway
 		V value = null;
-		Object[] newTable = new Object[table.length];
-		for (int i = 0; i < table.length; i += 2) {
-			if (table[i] != null && !table[i].equals(key)) {
-				doPut(newTable, (String) table[i], table[i + 1]);
-			} else if (table[i] != null) {
-				value = (V) table[i + 1];
-				size--;
+		Object[] newTable = new Object[this.table.length];
+		for (int i = 0; i < this.table.length; i += 2) {
+			if (this.table[i] != null && !this.table[i].equals(key)) {
+				doPut(newTable, (String) this.table[i], this.table[i + 1]);
+			} else if (this.table[i] != null) {
+				value = (V) this.table[i + 1];
+				this.size--;
 			}
 		}
 		this.table = newTable;
@@ -162,8 +162,8 @@ public class SubstringMap<V> {
 	}
 
 	public synchronized void clear() {
-		size = 0;
-		table = new Object[16];
+		this.size = 0;
+		this.table = new Object[16];
 	}
 
 	private static int hash(String value, int length) {
@@ -182,9 +182,9 @@ public class SubstringMap<V> {
 			@Nonnull
 			@Override
 			public Iterator<String> iterator() {
-				final Object[] tMap = table;
+				final Object[] tMap = SubstringMap.this.table;
 				int i = 0;
-				while (i < table.length && tMap[i] == null) {
+				while (i < SubstringMap.this.table.length && tMap[i] == null) {
 					i += 2;
 				}
 				final int startPos = i;
@@ -197,7 +197,7 @@ public class SubstringMap<V> {
 
 					@Override
 					public boolean hasNext() {
-						return pos < table.length;
+						return this.pos < SubstringMap.this.table.length;
 					}
 
 					@Override
@@ -205,11 +205,11 @@ public class SubstringMap<V> {
 						if (!hasNext()) {
 							throw new NoSuchElementException();
 						}
-						String ret = (String) map[pos];
+						String ret = (String) this.map[this.pos];
 
-						pos += 2;
-						while (pos < table.length && tMap[pos] == null) {
-							pos += 2;
+						this.pos += 2;
+						while (this.pos < SubstringMap.this.table.length && tMap[this.pos] == null) {
+							this.pos += 2;
 						}
 						return ret;
 					}
@@ -234,11 +234,11 @@ public class SubstringMap<V> {
 		}
 
 		public String getKey() {
-			return key;
+			return this.key;
 		}
 
 		public V getValue() {
-			return value;
+			return this.value;
 		}
 	}
 }

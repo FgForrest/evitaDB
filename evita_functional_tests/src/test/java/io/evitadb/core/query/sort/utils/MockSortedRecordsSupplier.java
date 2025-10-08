@@ -55,7 +55,7 @@ public class MockSortedRecordsSupplier implements SortedRecordsProvider {
 
 	@Override
 	public int getRecordCount() {
-		return sortedRecordIds.length;
+		return this.sortedRecordIds.length;
 	}
 
 	@Nonnull

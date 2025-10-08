@@ -61,7 +61,7 @@ public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentS
 		output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
 
 		serializeKeys(object.compressedKeys(), output, kryo);
-		kryo.writeObjectOrNull(output, object.globalEntityIndexId(), Integer.class);
+		kryo.writeObjectOrNull(output, object.globalEntityIndexPrimaryKey(), Integer.class);
 		serializeEntityIndexIds(output, object);
 	}
 
@@ -99,10 +99,10 @@ public class EntityCollectionHeaderSerializer_2024_5 extends AbstractPersistentS
 	}
 
 	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
-		final int entityIndexCount = catalogEntityHeader.usedEntityIndexIds().size();
+		final int entityIndexCount = catalogEntityHeader.usedEntityIndexPrimaryKeys().size();
 		output.writeVarInt(entityIndexCount, true);
 		output.writeInts(
-			catalogEntityHeader.usedEntityIndexIds()
+			catalogEntityHeader.usedEntityIndexPrimaryKeys()
 				.stream()
 				.mapToInt(it -> it)
 				.toArray(),

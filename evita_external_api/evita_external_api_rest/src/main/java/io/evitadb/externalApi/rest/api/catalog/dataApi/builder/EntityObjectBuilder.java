@@ -31,6 +31,9 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
@@ -79,7 +82,7 @@ public class EntityObjectBuilder {
 
 	public void buildCommonTypes() {
 		this.buildingContext.registerType(PriceDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(RestEntityDescriptor.THIS_REFERENCE.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(this.objectBuilderTransformer).build());
 		buildEntityAccompanyingPricesObject();
 	}
 
@@ -114,15 +117,15 @@ public class EntityObjectBuilder {
 		final String objectName = constructEntityObjectName(entitySchema, localized);
 
 		// build specific entity object
-		final OpenApiObject.Builder entityObject = RestEntityDescriptor.THIS
+		final OpenApiObject.Builder entityObject = EntityDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
 			.description(entitySchema.getDescription());
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
-			entityObject.property(RestEntityDescriptor.LOCALES.to(this.propertyBuilderTransformer));
-			entityObject.property(RestEntityDescriptor.ALL_LOCALES.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.LOCALES.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.ALL_LOCALES.to(this.propertyBuilderTransformer));
 		}
 
 		// build hierarchy placement field
@@ -134,11 +137,11 @@ public class EntityObjectBuilder {
 
 		// build price fields
 		if (!entitySchema.getCurrencies().isEmpty()) {
-			entityObject.property(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(this.propertyBuilderTransformer));
-			entityObject.property(RestEntityDescriptor.PRICE_FOR_SALE.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICE_FOR_SALE.to(this.propertyBuilderTransformer));
 			entityObject.property(buildEntityAccompanyingPricesProperty());
-			entityObject.property(RestEntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.to(this.propertyBuilderTransformer));
-			entityObject.property(RestEntityDescriptor.PRICES.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.to(this.propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICES.to(this.propertyBuilderTransformer));
 		}
 
 		// build attributes
@@ -171,7 +174,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildEntityAttributesProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                      boolean localized) {
 		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(entitySchema, localized);
-		return RestEntityDescriptor.ATTRIBUTES
+		return AttributesProviderDescriptor.ATTRIBUTES
 			.to(this.propertyBuilderTransformer)
 			.type(attributesObject)
 			.build();
@@ -285,7 +288,7 @@ public class EntityObjectBuilder {
 			distinguishLocalizedData
 		);
 
-		return RestEntityDescriptor.ASSOCIATED_DATA
+		return EntityDescriptor.ASSOCIATED_DATA
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(associatedDataObject))
 			.build();
@@ -405,25 +408,24 @@ public class EntityObjectBuilder {
 				final OpenApiTypeReference referenceObject = buildReferenceObject(entitySchema, referenceSchema, localized);
 
 				final Cardinality referenceCardinality = referenceSchema.getCardinality();
-				final boolean referenceIsList = Cardinality.ZERO_OR_MORE.equals(referenceCardinality) ||
-					Cardinality.ONE_OR_MORE.equals(referenceCardinality);
+				final boolean referenceIsList = referenceCardinality.getMax() > 1;
 
 				{ // base reference field
-					final OpenApiProperty.Builder referencePropertyBuilder = RestEntityDescriptor.REFERENCE
+					final OpenApiProperty.Builder referencePropertyBuilder = EntityDescriptor.REFERENCE
 						.to(this.propertyBuilderTransformer)
-						.name(RestEntityDescriptor.REFERENCE.name(referenceSchema))
+						.name(EntityDescriptor.REFERENCE.name(referenceSchema))
 						.description(referenceSchema.getDescription())
 						.deprecationNotice(referenceSchema.getDeprecationNotice());
 
 					if (referenceIsList) {
 						referencePropertyBuilder.type(
-							referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE
+							referenceSchema.getCardinality().getMin() == 1
 								? nonNull(arrayOf(referenceObject))
 								: arrayOf(referenceObject)
 						);
 					} else {
 						referencePropertyBuilder.type(
-							referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE
+							referenceSchema.getCardinality().getMin() == 1
 								? nonNull(referenceObject)
 								: referenceObject
 						);
@@ -435,9 +437,9 @@ public class EntityObjectBuilder {
 				{ // chunked reference fields
 					if (referenceIsList) {
 						properties.add(
-							RestEntityDescriptor.REFERENCE_PAGE
+							EntityDescriptor.REFERENCE_PAGE
 								.to(this.propertyBuilderTransformer)
-								.name(RestEntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+								.name(EntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
 								.description(referenceSchema.getDescription())
 								.deprecationNotice(referenceSchema.getDeprecationNotice())
 								.type(buildReferencePageObject(entitySchema, referenceSchema, localized))
@@ -445,9 +447,9 @@ public class EntityObjectBuilder {
 						);
 
 						properties.add(
-							RestEntityDescriptor.REFERENCE_STRIP
+							EntityDescriptor.REFERENCE_STRIP
 								.to(this.propertyBuilderTransformer)
-								.name(RestEntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+								.name(EntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
 								.description(referenceSchema.getDescription())
 								.deprecationNotice(referenceSchema.getDeprecationNotice())
 								.type(buildReferenceStripObject(entitySchema, referenceSchema, localized))
@@ -504,7 +506,7 @@ public class EntityObjectBuilder {
 			final var entityName = constructEntityObjectName(referencedEntitySchema, localized);
 			referencedEntityObject = typeRefTo(entityName);
 		} else {
-			referencedEntityObject = typeRefTo(RestEntityDescriptor.THIS_REFERENCE.name());
+			referencedEntityObject = typeRefTo(EntityDescriptor.THIS_REFERENCE.name());
 		}
 
 		return referencedEntityObject;
@@ -537,7 +539,7 @@ public class EntityObjectBuilder {
 			final var groupType = constructEntityObjectName(referencedGroupSchema, localized);
 			groupEntityObject = typeRefTo(groupType);
 		} else {
-			groupEntityObject = typeRefTo(RestEntityDescriptor.THIS_REFERENCE.name());
+			groupEntityObject = typeRefTo(EntityDescriptor.THIS_REFERENCE.name());
 		}
 
 		return groupEntityObject;
@@ -552,7 +554,7 @@ public class EntityObjectBuilder {
 			referenceSchema,
 			localized
 		);
-		return ReferenceDescriptor.ATTRIBUTES
+		return AttributesProviderDescriptor.ATTRIBUTES
 			.to(this.propertyBuilderTransformer)
 			.type(nonNull(referenceAttributesObject))
 			.build();
@@ -588,7 +590,7 @@ public class EntityObjectBuilder {
 				.to(this.objectBuilderTransformer)
 				.name(constructReferencePageObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())
-				.property(ReferencePageDescriptor.DATA
+				.property(DataChunkDescriptor.DATA
 					.to(this.propertyBuilderTransformer)
 					.type(nonNull(arrayOf(typeRefTo(constructReferenceObjectName(entitySchema, referenceSchema, localized))))))
 				.build()
@@ -604,7 +606,7 @@ public class EntityObjectBuilder {
 				.to(this.objectBuilderTransformer)
 				.name(constructReferenceStripObjectName(entitySchema, referenceSchema, localized))
 				.description(referenceSchema.getDescription())
-				.property(ReferencePageDescriptor.DATA
+				.property(DataChunkDescriptor.DATA
 					.to(this.propertyBuilderTransformer)
 					.type(nonNull(arrayOf(typeRefTo(constructReferenceObjectName(entitySchema, referenceSchema, localized))))))
 				.build()

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * This class aggregates similar functionality for all types of attribute indexes.
@@ -43,7 +44,12 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	 * Method computes unique part id as long, that composes of integer primary key of the {@link io.evitadb.index.EntityIndex}
 	 * attributes belong to and compressed attribute key integer that is assigned as soon as attribute is first stored.
 	 */
-	static long computeUniquePartId(@Nonnull Integer entityIndexPrimaryKey, @Nonnull AttributeIndexType indexType, @Nonnull AttributeKey attributeKey, @Nonnull KeyCompressor keyCompressor) {
+	static long computeUniquePartId(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexType indexType,
+		@Nonnull AttributeIndexKey attributeKey,
+		@Nonnull KeyCompressor keyCompressor
+	) {
 		final int id = keyCompressor.getId(new AttributeKeyWithIndexType(attributeKey, indexType));
 		return NumberUtils.join(entityIndexPrimaryKey, id);
 	}
@@ -51,23 +57,26 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	/**
 	 * Returns {@link EntityIndex#getPrimaryKey()}
 	 */
+	@Nonnull
 	Integer getEntityIndexPrimaryKey();
 
 	/**
 	 * Returns {@link AttributeKey} of the attribute which information is stored in this index.
 	 */
-	AttributeKey getAttributeKey();
+	@Nonnull
+	AttributeIndexKey getAttributeIndexKey();
 
 	/**
 	 * Returns type of the index that is represented by this part - multiple parts/indexes may target same attribute
 	 * and this enum is used to distinguish these indexes among themselves by type.
 	 */
+	@Nonnull
 	AttributeIndexType getIndexType();
 
 	/**
 	 * Allows setting computed `uniquePartId` to the container so that it is computed only once.
 	 */
-	void setStoragePartPK(Long storagePartPK);
+	void setStoragePartPK(@Nullable Long storagePartPK);
 
 	/**
 	 * Method computes `uniquePartId` for the current container using {@link KeyCompressor} in the parameter and sets
@@ -75,7 +84,7 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	 */
 	@Override
 	default long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = computeUniquePartId(getEntityIndexPrimaryKey(), getIndexType(), getAttributeKey(), keyCompressor);
+		final long computedUniquePartId = computeUniquePartId(getEntityIndexPrimaryKey(), getIndexType(), getAttributeIndexKey(), keyCompressor);
 		final Long uniquePartId = getStoragePartPK();
 		if (uniquePartId == null) {
 			setStoragePartPK(computedUniquePartId);

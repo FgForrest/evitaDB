@@ -863,18 +863,18 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	public void execute() throws Throwable {
 		final Query theQuery;
 		try {
-			theQuery = DefaultQueryParser.getInstance().parseQueryUnsafe(sourceContent);
+			theQuery = DefaultQueryParser.getInstance().parseQueryUnsafe(this.sourceContent);
 		} catch (Exception ex) {
 			fail(
 				"Failed to parse query " +
-					ofNullable(resource).map(it -> "from resource " + it).orElse("") + ": \n" +
-					sourceContent,
+					ofNullable(this.resource).map(it -> "from resource " + it).orElse("") + ": \n" +
+					this.sourceContent,
 				ex
 			);
 			return;
 		}
 
-		final EvitaContract evitaContract = testContextAccessor.get().getEvitaContract();
+		final EvitaContract evitaContract = this.testContextAccessor.get().getEvitaContract();
 		final EvitaResponse<SealedEntity> theResult = evitaContract.queryCatalog(
 			"evita",
 			session -> {
@@ -889,40 +889,40 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 			}
 		);
 
-		if (resource != null) {
+		if (this.resource != null) {
 			final List<String> markdownSnippets = evitaContract.queryCatalog(
 				"evita",
 				session -> {
-					return outputSnippet.stream()
+					return this.outputSnippet.stream()
 						.map(snippet -> generateMarkdownSnippet(session, theQuery, theResult, snippet))
 						.toList();
 				}
 			);
 
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.JAVA)) {
+			if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.JAVA)) {
 				final String javaSnippet = generateJavaSnippet(theQuery);
-				writeFile(resource, "java", javaSnippet);
+				writeFile(this.resource, "java", javaSnippet);
 			}
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.GRAPHQL)) {
+			if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.GRAPHQL)) {
 				final String graphQLSnippet = generateGraphQLSnippet(theQuery);
-				writeFile(resource, "graphql", graphQLSnippet);
+				writeFile(this.resource, "graphql", graphQLSnippet);
 			}
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.REST)) {
+			if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.REST)) {
 				final String restSnippet = generateRestSnippet(theQuery);
-				writeFile(resource, "rest", restSnippet);
+				writeFile(this.resource, "rest", restSnippet);
 			}
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.CSHARP)) {
+			if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.CSHARP)) {
 				final String csharpSnippet = generateCsharpSnippet(theQuery);
-				writeFile(resource, "cs", csharpSnippet);
+				writeFile(this.resource, "cs", csharpSnippet);
 			}
 			// generate Markdown snippet from the result if required
-			for (int i = 0; i < outputSnippet.size(); i++) {
-				final OutputSnippet snippet = outputSnippet.get(i);
+			for (int i = 0; i < this.outputSnippet.size(); i++) {
+				final OutputSnippet snippet = this.outputSnippet.get(i);
 				final String markdownSnippet = markdownSnippets.get(i);
 				final String outputFormat = ofNullable(snippet).map(OutputSnippet::forFormat).orElse("md");
-				if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
+				if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
 					if (snippet == null) {
-						writeFile(resource, outputFormat, markdownSnippet);
+						writeFile(this.resource, outputFormat, markdownSnippet);
 					} else {
 						writeFile(snippet.path(), markdownSnippet);
 					}
@@ -930,7 +930,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 
 				// assert MarkDown file contents
 				final Optional<String> markDownFile = snippet == null ?
-					readFile(resource, outputFormat) : readFile(snippet.path());
+					readFile(this.resource, outputFormat) : readFile(snippet.path());
 				markDownFile.ifPresent(
 					content -> {
 						assertEquals(
@@ -939,10 +939,10 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 						);
 
 						final Path assertSource = snippet == null ?
-							resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+							resolveSiblingWithDifferentExtension(this.resource, outputFormat).normalize() :
 							snippet.path().normalize();
 
-						final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+						final String relativePath = assertSource.toString().substring(this.rootDirectory.normalize().toString().length());
 						System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
 					}
 				);
@@ -955,7 +955,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	 */
 	@Nonnull
 	private String generateGraphQLSnippet(@Nonnull Query theQuery) {
-		return testContextAccessor.get().getGraphQLQueryConverter().convert(theQuery);
+		return this.testContextAccessor.get().getGraphQLQueryConverter().convert(theQuery);
 	}
 
 	/**
@@ -963,7 +963,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	 */
 	@Nonnull
 	private String generateRestSnippet(@Nonnull Query theQuery) {
-		return testContextAccessor.get().getRestQueryConverter().convert(theQuery);
+		return this.testContextAccessor.get().getRestQueryConverter().convert(theQuery);
 	}
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,9 +55,12 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode(callSuper = true)
 public final class GlobalAttributeSchema extends AttributeSchema implements GlobalAttributeSchemaContract {
 	@Serial private static final long serialVersionUID = -6027390261318420826L;
-
+	/**
+	 * A mapping of {@link Scope} to their corresponding {@link GlobalAttributeUniquenessType}.
+	 * This map specifies the global uniqueness constraints for attributes within given scopes.
+	 * Each entry in the map defines the type of global uniqueness enforced for a particular scope.
+	 */
 	@Getter private final Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes;
-	@Getter private final boolean representative;
 
 	/**
 	 * Converts an array of ScopedGlobalAttributeUniquenessType objects into an EnumMap linking Scope to GlobalAttributeUniquenessType.
@@ -313,7 +316,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		super(
 			name, nameVariants, description, deprecationNotice,
 			verifyAndAlterUniquenessTypes(uniqueInScopes, globalUniquenessTypeInScopes),
-			filterableInScopes, sortableInScopes, localized, nullable,
+			filterableInScopes, sortableInScopes, localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces
 		);
 		if (globalUniquenessTypeInScopes == null || globalUniquenessTypeInScopes.isEmpty()) {
@@ -323,7 +326,6 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		} else {
 			this.globalUniquenessTypeInScopes = CollectionUtils.toUnmodifiableMap(globalUniquenessTypeInScopes);
 		}
-		this.representative = representative;
 	}
 
 	@Nullable

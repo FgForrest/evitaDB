@@ -27,14 +27,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.websocket.WebSocketService;
 import graphql.GraphQL;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import io.evitadb.externalApi.graphql.io.web.GraphQLWebHandler;
+import io.evitadb.externalApi.graphql.io.webSocket.GraphQLWebSocketHandler;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
+import io.evitadb.externalApi.http.RoutableWebSocket;
+import io.evitadb.externalApi.http.WebSocketHandler;
 import io.evitadb.externalApi.utils.UriPath;
 import io.evitadb.externalApi.utils.path.PathHandlingService;
 import io.evitadb.externalApi.utils.path.RoutingHandlerService;
@@ -44,9 +50,12 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -57,7 +66,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-public class GraphQLRouter implements HttpService {
+public class GraphQLRouter implements HttpService, WebSocketHandler {
 
 	public static final String SYSTEM_PREFIX = "system";
 	private static final UriPath SYSTEM_PATH = UriPath.of("/", SYSTEM_PREFIX);
@@ -87,7 +96,13 @@ public class GraphQLRouter implements HttpService {
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-		return delegateRouter.serve(ctx, req);
+		return this.delegateRouter.serve(ctx, req);
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		return this.delegateRouter.handle(ctx, in);
 	}
 
 	/**
@@ -108,18 +123,18 @@ public class GraphQLRouter implements HttpService {
 				new AtomicReference<>(systemApi)
 			)
 		);
-		delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
+		this.delegateRouter.addPrefixPath(SYSTEM_PATH.toString(), apiRouter);
 
-		systemApiRegistered = true;
+		this.systemApiRegistered = true;
 	}
 
 	/**
 	 * Registers new endpoints for defined catalog.
 	 */
 	public void registerCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL api) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.computeIfAbsent(catalogName, k -> {
+		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.computeIfAbsent(catalogName, k -> {
 			final RoutingHandlerService apiRouter = new RoutingHandlerService();
-			delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
+			this.delegateRouter.addPrefixPath(constructCatalogPath(catalogName).toString(), apiRouter);
 			return new RegisteredCatalog(apiRouter);
 		});
 
@@ -136,7 +151,7 @@ public class GraphQLRouter implements HttpService {
 	 * Swaps GraphQL instance for already registered API for defined catalog
 	 */
 	public void refreshCatalogApi(@Nonnull String catalogName, @Nonnull GraphQLInstanceType instanceType, @Nonnull GraphQL newApi) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.get(catalogName);
+		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.get(catalogName);
 		if (registeredCatalog == null) {
 			throw new GraphQLInternalError("No catalog APIs registered for `" + catalogName + "`. Cannot refresh.");
 		}
@@ -148,9 +163,9 @@ public class GraphQLRouter implements HttpService {
 	 * Unregisters all APIs associated with the defined catalog.
 	 */
 	public void unregisterCatalogApis(@Nonnull String catalogName) {
-		final RegisteredCatalog registeredCatalog = registeredCatalogs.remove(catalogName);
+		final RegisteredCatalog registeredCatalog = this.registeredCatalogs.remove(catalogName);
 		if (registeredCatalog != null) {
-			delegateRouter.removePrefixPath(constructCatalogPath(catalogName).toString());
+			this.delegateRouter.removePrefixPath(constructCatalogPath(catalogName).toString());
 		}
 	}
 
@@ -161,27 +176,32 @@ public class GraphQLRouter implements HttpService {
 		final CorsEndpoint corsEndpoint = new CorsEndpoint(this.headers);
 		corsEndpoint.addMetadata(Set.of(HttpMethod.GET, HttpMethod.POST), true, true);
 
-		// actual GraphQL query handler
-		apiRouter.add(
-			HttpMethod.POST,
-			registeredApi.path().toString(),
-			CorsService.standaloneFilter(
-				new GraphQLHandler(this.evita, this.headers, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
-					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
-			)
-		);
-		// GraphQL schema handler
+		// GET method supports both subscriptions via WebSockets (GET method is used to upgrade the connection to WebSocket connection)
+		// or fetching GQL schema via standard HTTP
 		apiRouter.add(
 			HttpMethod.GET,
 			registeredApi.path().toString(),
 			CorsService.standaloneFilter(
-				new GraphQLSchemaHandler(
-					this.evita,
-					registeredApi.graphQLReference()
+				new GraphQLWebSocketHandler(
+					registeredApi.graphQLReference(),
+					new GraphQLSchemaHandler(
+						this.evita,
+						registeredApi.graphQLReference()
+					)
+						.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 				)
+			)
+		);
+		// POST method supports only querying
+		apiRouter.add(
+			HttpMethod.POST,
+			registeredApi.path().toString(),
+			CorsService.standaloneFilter(
+				new GraphQLWebHandler(this.evita, this.headers, this.objectMapper, registeredApi.instanceType(), registeredApi.graphQLReference())
 					.decorate(service -> new GraphQLExceptionHandler(this.objectMapper, service))
 			)
 		);
+
 		// CORS pre-flight handler for the GraphQL handler
 		apiRouter.add(
 			HttpMethod.OPTIONS,
@@ -213,14 +233,14 @@ public class GraphQLRouter implements HttpService {
 				() -> new GraphQLInternalError("API `" + instanceType.name() + "` is not allowed for catalog.")
 			);
 			Assert.isPremiseValid(
-				!apis.containsKey(instanceType),
+				!this.apis.containsKey(instanceType),
 				() -> new GraphQLInternalError("`" + instanceType.name() + "` API has been already registered.")
 			);
-			apis.put(instanceType, api);
+			this.apis.put(instanceType, api);
 		}
 
 		public RegisteredApi getApi(@Nonnull GraphQLInstanceType instanceType) {
-			final RegisteredApi api = apis.get(instanceType);
+			final RegisteredApi api = this.apis.get(instanceType);
 			Assert.isPremiseValid(
 				api != null,
 				() -> new GraphQLInternalError("API `" + instanceType.name() + "` has not been registered yet.")

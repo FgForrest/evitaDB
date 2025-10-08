@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -138,10 +139,10 @@ public class ConstraintCreator {
 	 */
 	public Constraint<?> instantiateConstraint(@Nonnull Object[] args, @Nonnull String parsedName) {
 		try {
-			instantiator.trySetAccessible();
-			if (instantiator instanceof Constructor<?> constructor) {
+			this.instantiator.trySetAccessible();
+			if (this.instantiator instanceof Constructor<?> constructor) {
 				return (Constraint<?>) constructor.newInstance(args);
-			} else if (instantiator instanceof Method method) {
+			} else if (this.instantiator instanceof Method method) {
 				return (Constraint<?>) method.invoke(null, args);
 			} else {
 				throw new GenericEvitaInternalError("Unsupported creator.");
@@ -152,7 +153,7 @@ public class ConstraintCreator {
 				throw invalidUsageException;
 			}
 			throw new GenericEvitaInternalError(
-				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + instantiator.getDeclaringClass().getName() + "`: " + e.getMessage(),
+				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + this.instantiator.getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",
 				e
 			);
@@ -165,34 +166,34 @@ public class ConstraintCreator {
 	 */
 	@Nonnull
 	public Optional<String> suffix() {
-		return Optional.ofNullable(suffix);
+		return Optional.ofNullable(this.suffix);
 	}
 
 	/**
 	 * Whether constraint has implicit classifier instead of classifier parameter.
 	 */
 	public boolean hasImplicitClassifier() {
-		return implicitClassifier != null;
+		return this.implicitClassifier != null;
 	}
 
 	@Nonnull
 	public Optional<ImplicitClassifier> implicitClassifier() {
-		return Optional.ofNullable(implicitClassifier);
+		return Optional.ofNullable(this.implicitClassifier);
 	}
 
 	/**
 	 * Whether there is classifier parameter in {@link #parameters()}.
 	 */
 	public boolean hasClassifierParameter() {
-		if (hasClassifierParameter == null) {
-			classifierParameter = parameters().stream()
+		if (this.hasClassifierParameter == null) {
+			this.classifierParameter = parameters().stream()
 				.filter(ClassifierParameterDescriptor.class::isInstance)
 				.map(ClassifierParameterDescriptor.class::cast)
 				.findFirst()
 				.orElse(null);
-			hasClassifierParameter = classifierParameter != null;
+			this.hasClassifierParameter = this.classifierParameter != null;
 		}
-		return hasClassifierParameter;
+		return this.hasClassifierParameter;
 	}
 
 	/**
@@ -204,7 +205,7 @@ public class ConstraintCreator {
 
 	@Nonnull
 	public List<ParameterDescriptor> parameters() {
-		return parameters;
+		return this.parameters;
 	}
 
 	/**
@@ -212,10 +213,10 @@ public class ConstraintCreator {
 	 */
 	@Nonnull
 	public Optional<ClassifierParameterDescriptor> classifierParameter() {
-		if (hasClassifierParameter == null) {
+		if (this.hasClassifierParameter == null) {
 			hasClassifierParameter();
 		}
-		return Optional.ofNullable(classifierParameter);
+		return Optional.ofNullable(this.classifierParameter);
 	}
 
 	/**
@@ -223,14 +224,14 @@ public class ConstraintCreator {
 	 */
 	@Nonnull
 	public List<ValueParameterDescriptor> valueParameters() {
-		if (hasValueParameters == null) {
-			valueParameters = parameters().stream()
+		if (this.hasValueParameters == null) {
+			this.valueParameters = parameters().stream()
 				.filter(ValueParameterDescriptor.class::isInstance)
 				.map(ValueParameterDescriptor.class::cast)
 				.toList();
-			hasValueParameters = !valueParameters.isEmpty();
+			this.hasValueParameters = !this.valueParameters.isEmpty();
 		}
-		return valueParameters;
+		return Objects.requireNonNull(this.valueParameters);
 	}
 
 	/**
@@ -238,14 +239,14 @@ public class ConstraintCreator {
 	 */
 	@Nonnull
 	public List<ChildParameterDescriptor> childParameters() {
-		if (hasChildParameters == null) {
-			childParameters = parameters().stream()
+		if (this.hasChildParameters == null) {
+			this.childParameters = parameters().stream()
 				.filter(ChildParameterDescriptor.class::isInstance)
 				.map(ChildParameterDescriptor.class::cast)
 				.toList();
-			hasChildParameters = !childParameters.isEmpty();
+			this.hasChildParameters = !this.childParameters.isEmpty();
 		}
-		return childParameters;
+		return Objects.requireNonNull(this.childParameters);
 	}
 
 	/**
@@ -253,14 +254,14 @@ public class ConstraintCreator {
 	 */
 	@Nonnull
 	public List<AdditionalChildParameterDescriptor> additionalChildParameters() {
-		if (hasAdditionalChildParameters == null) {
-			additionalChildParameters = parameters().stream()
+		if (this.hasAdditionalChildParameters == null) {
+			this.additionalChildParameters = parameters().stream()
 				.filter(AdditionalChildParameterDescriptor.class::isInstance)
 				.map(AdditionalChildParameterDescriptor.class::cast)
 				.toList();
-			hasAdditionalChildParameters = !additionalChildParameters.isEmpty();
+			this.hasAdditionalChildParameters = !this.additionalChildParameters.isEmpty();
 		}
-		return additionalChildParameters;
+		return Objects.requireNonNull(this.additionalChildParameters);
 	}
 
 	/**
@@ -268,15 +269,15 @@ public class ConstraintCreator {
 	 */
 	@Nonnull
 	public ConstraintValueStructure valueStructure() {
-		if (valueStructure == null) {
+		if (this.valueStructure == null) {
 			final List<ValueParameterDescriptor> valueParameters = valueParameters();
 			final List<ChildParameterDescriptor> childParameters = childParameters();
 			final List<AdditionalChildParameterDescriptor> additionalChildParameters = additionalChildParameters();
 
 			if (valueParameters.isEmpty() && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
-				valueStructure = ConstraintValueStructure.NONE;
+				this.valueStructure = ConstraintValueStructure.NONE;
 			} else if (valueParameters.size() == 1 && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
-				valueStructure = ConstraintValueStructure.PRIMITIVE;
+				this.valueStructure = ConstraintValueStructure.PRIMITIVE;
 			} else if (
 				valueParameters.size() == RANGE_PARAMETERS_COUNT &&
 				childParameters.isEmpty() &&
@@ -284,37 +285,37 @@ public class ConstraintCreator {
 				valueParameters.stream().filter(p -> p.name().equals(RANGE_FROM_VALUE_PARAMETER) || p.name().equals(RANGE_TO_VALUE_PARAMETER)).count() == RANGE_PARAMETERS_COUNT &&
 				valueParameters.get(0).type().equals(valueParameters.get(1).type())
 			) {
-				valueStructure = ConstraintValueStructure.RANGE;
+				this.valueStructure = ConstraintValueStructure.RANGE;
 			} else if (
 				valueParameters.isEmpty() &&
 				childParameters.size() == 1 &&
 				ClassUtils.isAbstract(childParameters.get(0).type()) &&
 				additionalChildParameters.isEmpty()
 			) {
-				valueStructure = ConstraintValueStructure.CONTAINER;
+				this.valueStructure = ConstraintValueStructure.CONTAINER;
 			} else {
-				valueStructure = ConstraintValueStructure.COMPLEX;
+				this.valueStructure = ConstraintValueStructure.COMPLEX;
 			}
 		}
-		return valueStructure;
+		return this.valueStructure;
 	}
 
 	@Override
 	public String toString() {
 		return "ConstraintCreator{" +
-			"instantiator=" + instantiator +
-			", suffix='" + suffix + '\'' +
-			", parameters=" + parameters +
-			", implicitClassifier=" + implicitClassifier +
-			", hasClassifierParameter=" + hasClassifierParameter +
-			", classifierParameter=" + classifierParameter +
-			", hasValueParameters=" + hasValueParameters +
-			", valueParameters=" + valueParameters +
-			", hasChildParameters=" + hasChildParameters +
-			", childParameters=" + childParameters +
-			", hasAdditionalChildParameters=" + hasAdditionalChildParameters +
-			", additionalChildParameters=" + additionalChildParameters +
-			", valueStructure=" + valueStructure +
+			"instantiator=" + this.instantiator +
+			", suffix='" + this.suffix + '\'' +
+			", parameters=" + this.parameters +
+			", implicitClassifier=" + this.implicitClassifier +
+			", hasClassifierParameter=" + this.hasClassifierParameter +
+			", classifierParameter=" + this.classifierParameter +
+			", hasValueParameters=" + this.hasValueParameters +
+			", valueParameters=" + this.valueParameters +
+			", hasChildParameters=" + this.hasChildParameters +
+			", childParameters=" + this.childParameters +
+			", hasAdditionalChildParameters=" + this.hasAdditionalChildParameters +
+			", additionalChildParameters=" + this.additionalChildParameters +
+			", valueStructure=" + this.valueStructure +
 			'}';
 	}
 

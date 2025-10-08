@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
 import java.util.Optional;
 
@@ -57,6 +58,7 @@ public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Ob
 	 * @param reflectionLookup reflection lookup
 	 * @return attribute name derived from the annotation if found
 	 */
+	@Nullable
 	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 	 * Function allowing to pseudo randomly pick referenced entity for the product.
 	 */
 	protected final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
-		final Integer entityCount = generatedEntities.computeIfAbsent(entityType, serializable -> 0);
+		final Integer entityCount = this.generatedEntities.computeIfAbsent(entityType, serializable -> 0);
 		final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 		return primaryKey == 0 ? null : primaryKey;
 	};
@@ -136,9 +136,9 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 	 * Creates new product stream for the iteration.
 	 */
 	protected Stream<EntityBuilder> getProductStream() {
-		return dataGenerator.generateEntities(
-			productSchema,
-			randomEntityPicker,
+		return this.dataGenerator.generateEntities(
+			this.productSchema,
+			this.randomEntityPicker,
 			SEED
 		);
 	}

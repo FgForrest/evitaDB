@@ -60,6 +60,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -123,6 +124,10 @@ public final class ReferenceSchemaBuilder
 				)
 			);
 		} else {
+			Assert.isPremiseValid(
+				existingSchema != null,
+				"When not creating new reference schema, the existing schema must be provided!"
+			);
 			if (referencedEntityTypeManaged != existingSchema.isReferencedEntityTypeManaged() || !entityType.equals(existingSchema.getReferencedEntityType())) {
 				this.mutations.add(
 					new ModifyReferenceSchemaRelatedEntityMutation(
@@ -149,6 +154,16 @@ public final class ReferenceSchemaBuilder
 						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
 			)
 			.forEach(this.mutations::add);
+	}
+
+	public ReferenceSchemaBuilder(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract existingSchema
+	) {
+		this.catalogSchema = catalogSchema;
+		this.entitySchema = entitySchema;
+		this.baseSchema = existingSchema;
 	}
 
 	@Override
@@ -397,7 +412,7 @@ public final class ReferenceSchemaBuilder
 					attributeSchemaBuilder
 						.toReferenceMutation(getName())
 						.stream()
-						.map(it -> (LocalEntitySchemaMutation) it)
+						.map(LocalEntitySchemaMutation.class::cast)
 						.toArray(LocalEntitySchemaMutation[]::new)
 				)
 			);
@@ -504,7 +519,7 @@ public final class ReferenceSchemaBuilder
 					schemaBuilder
 						.toReferenceMutation(getName())
 						.stream()
-						.map(it -> (LocalEntitySchemaMutation) it)
+						.map(LocalEntitySchemaMutation.class::cast)
 						.toArray(LocalEntitySchemaMutation[]::new)
 				)
 			);
@@ -538,7 +553,9 @@ public final class ReferenceSchemaBuilder
 		// and now rebuild the schema from scratch including consistency checks
 		ReferenceSchemaContract currentSchema = this.baseSchema;
 		for (LocalEntitySchemaMutation mutation : mutations) {
-			currentSchema = ((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema);
+			currentSchema = Objects.requireNonNull(
+				((ReferenceSchemaMutation) mutation).mutate(this.entitySchema, currentSchema)
+			);
 		}
 		return new ReferenceSchemaBuilderResult(currentSchema, mutations);
 	}

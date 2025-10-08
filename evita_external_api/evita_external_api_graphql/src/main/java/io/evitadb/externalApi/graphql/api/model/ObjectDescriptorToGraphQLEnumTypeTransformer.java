@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ public class ObjectDescriptorToGraphQLEnumTypeTransformer implements ObjectDescr
 	@Nonnull private final Set<Map.Entry<String, ?>> enumValues;
 
 	@Override
-	public GraphQLEnumType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLEnumType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLEnumType.Builder enumBuilder = GraphQLEnumType.newEnum();
 
 		if (objectDescriptor.isNameStatic()) {
@@ -54,7 +54,7 @@ public class ObjectDescriptorToGraphQLEnumTypeTransformer implements ObjectDescr
 		}
 		enumBuilder.description(objectDescriptor.description());
 
-		enumValues.forEach(v -> enumBuilder.value(v.getKey(), v.getValue()));
+		this.enumValues.forEach(v -> enumBuilder.value(v.getKey(), v.getValue()));
 
 		return enumBuilder;
 	}

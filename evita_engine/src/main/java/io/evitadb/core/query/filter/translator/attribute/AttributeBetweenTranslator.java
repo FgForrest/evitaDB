@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -48,6 +49,8 @@ import io.evitadb.dataType.NumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.Index;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 
 import javax.annotation.Nonnull;
@@ -270,7 +273,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	 * @param filterByVisitor     The visitor used to apply filter indexes.
 	 * @param from                The starting value of the range.
 	 * @param to                  The ending value of the range.
-	 * @param attributeDefinition The schema definition of the attribute.
+	 * @param attributeSchema The schema definition of the attribute.
 	 * @param attributeKey        The key of the attribute being filtered.
 	 * @return The constructed {@link AttributeFormula}.
 	 */
@@ -279,20 +282,20 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nullable Serializable from,
 		@Nullable Serializable to,
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeKey attributeKey
 	) {
 		final Predicate<BigDecimal> requestedPredicate;
 		final long comparableFrom;
 		final long comparableTo;
 
-		final Class<? extends Serializable> attributeType = attributeDefinition.getPlainType();
+		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 		if (NumberRange.class.isAssignableFrom(attributeType)) {
 			final BigDecimal fromBigDecimal = EvitaDataTypes.toTargetType(from, BigDecimal.class);
 			final BigDecimal toBigDecimal = EvitaDataTypes.toTargetType(to, BigDecimal.class);
-			if (attributeDefinition.getIndexedDecimalPlaces() > 0) {
-				comparableFrom = getBigDecimalComparable(fromBigDecimal, attributeDefinition.getIndexedDecimalPlaces(), Long.MIN_VALUE);
-				comparableTo = getBigDecimalComparable(toBigDecimal, attributeDefinition.getIndexedDecimalPlaces(), Long.MAX_VALUE);
+			if (attributeSchema.getIndexedDecimalPlaces() > 0) {
+				comparableFrom = getBigDecimalComparable(fromBigDecimal, attributeSchema.getIndexedDecimalPlaces(), Long.MIN_VALUE);
+				comparableTo = getBigDecimalComparable(toBigDecimal, attributeSchema.getIndexedDecimalPlaces(), Long.MAX_VALUE);
 			} else {
 				comparableFrom = getLongComparable(toTargetType(from, Long.class), Long.MIN_VALUE);
 				comparableTo = getLongComparable(toTargetType(to, Long.class), Long.MAX_VALUE);
@@ -305,11 +308,14 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		} else {
 			throw new GenericEvitaInternalError("Unexpected Range type!");
 		}
+		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeFormula(
-			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			filterByVisitor.applyOnFilterIndexes(
-				attributeDefinition, index -> index.getRecordsOverlappingFormula(comparableFrom, comparableTo)
+				processingScope.getReferenceSchema(),
+				attributeSchema,
+				index -> index.getRecordsOverlappingFormula(comparableFrom, comparableTo)
 			),
 			requestedPredicate
 		);
@@ -339,10 +345,14 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {
 				final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
+				final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
 				//noinspection rawtypes
 				final Comparator comparator = FilterIndex.getComparator(
-					attributeSchema.isLocalized() ?
-						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+					AttributeIndex.createAttributeKey(
+						referenceSchema,
+						attributeSchema,
+						filterByVisitor.getLocale()
+					),
 					attributeType
 				);
 				final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(attributeType);
@@ -416,17 +426,17 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
-			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
+			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
-			final Class<? extends Serializable> attributeType = attributeDefinition.getPlainType();
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
+			final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 
 			final AttributeFormula filteringFormula;
 			final Predicate<BigDecimal> requestedPredicate;
 			if (Range.class.isAssignableFrom(attributeType)) {
 				filteringFormula = createRangeAttributeFormula(
-					filterByVisitor, from, to, attributeDefinition, attributeKey
+					filterByVisitor, from, to, attributeSchema, attributeKey
 				);
 			} else {
 				if (Number.class.isAssignableFrom(attributeType)) {
@@ -437,13 +447,15 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 					requestedPredicate = null;
 				}
 
+				final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 				final Serializable convertedFrom = EvitaDataTypes.toTargetType(from, attributeType);
 				final Serializable convertedTo = EvitaDataTypes.toTargetType(to, attributeType);
 				filteringFormula = new AttributeFormula(
-					attributeDefinition instanceof GlobalAttributeSchemaContract,
+					attributeSchema instanceof GlobalAttributeSchemaContract,
 					attributeKey,
 					filterByVisitor.applyOnFilterIndexes(
-						attributeDefinition,
+						processingScope.getReferenceSchema(),
+						attributeSchema,
 						index -> {
 							if (convertedFrom != null && convertedTo != null) {
 								return index.getRecordsBetweenFormula(convertedFrom, convertedTo);

@@ -69,7 +69,7 @@ public class GuiHandler implements HttpService {
 	@Nonnull private final String serverName;
 	@Nonnull private final ObjectMapper objectMapper;
 
-	private List<EvitaDBConnection> preconfiguredConnections;
+	private List<EvitaDBConnection> defaultConnections;
 
 	@Nonnull
 	public static GuiHandler create(
@@ -249,7 +249,7 @@ public class GuiHandler implements HttpService {
 	 * Passes a {@link #EVITALAB_SERVER_NAME_PARAM_NAME} param to the evitaLab as system property to specify source server.
 	 */
 	private void passServerName(@Nonnull QueryParamsBuilder params) {
-		passEncodedParam(params, EVITALAB_SERVER_NAME_PARAM_NAME, serverName);
+		passEncodedParam(params, EVITALAB_SERVER_NAME_PARAM_NAME, this.serverName);
 	}
 
 	/**
@@ -258,7 +258,7 @@ public class GuiHandler implements HttpService {
 	 * If true, the evitaLab GUI will be in read-only mode.
 	 */
 	private void passReadOnlyFlag(@Nonnull QueryParamsBuilder params) {
-		passEncodedParam(params, EVITALAB_READONLY_PARAM_NAME, String.valueOf(labConfig.getGui().isReadOnly()));
+		passEncodedParam(params, EVITALAB_READONLY_PARAM_NAME, String.valueOf(this.labConfig.getGui().isReadOnly()));
 	}
 
 	/**
@@ -266,41 +266,36 @@ public class GuiHandler implements HttpService {
 	 * evitaDB connections.
 	 */
 	private void passPreconfiguredEvitaDBConnections(@Nonnull QueryParamsBuilder params, @Nullable String incomingRequestHostAndPort) throws IOException {
-		final List<EvitaDBConnection> preconfiguredConnections = resolvePreconfiguredEvitaDBConnections(incomingRequestHostAndPort);
-		final String serializedSelfConnection = objectMapper.writeValueAsString(preconfiguredConnections);
+		final List<EvitaDBConnection> connections = resolvePreconfiguredEvitaDBConnections(incomingRequestHostAndPort);
+		final String serializedSelfConnection = this.objectMapper.writeValueAsString(connections);
 
 		passEncodedParam(params, EVITALAB_PRECONFIGURED_CONNECTIONS_PARAM_NAME, serializedSelfConnection);
 	}
 
 	@Nonnull
 	private List<EvitaDBConnection> resolvePreconfiguredEvitaDBConnections(@Nullable String incomingRequestHostAndPort) {
-		final List<EvitaDBConnection> customPreconfiguredConnections = this.labConfig.getGui().getPreconfiguredConnections();
-		if (customPreconfiguredConnections != null) {
-			return customPreconfiguredConnections;
-		} else {
-			if (
-				// connections not cached
-				this.preconfiguredConnections == null ||
-				// or cached with different URL than incoming
-				(incomingRequestHostAndPort != null && !Objects.equals(incomingRequestHostAndPort, this.preconfiguredConnections.get(0).serverUrl()))
-			) {
-				// generate self-connection
-				final String serverUrl;
-				if (this.labConfig.getGui().isPreferIncomingHostAndPort() && incomingRequestHostAndPort != null) {
-					serverUrl = incomingRequestHostAndPort;
-				} else {
-					serverUrl = this.labConfig.getResolvedExposeOnUrl();
-				}
-				// and cache
-				this.preconfiguredConnections = List.of(
-					new EvitaDBConnection(
-						null,
-						this.serverName,
-						serverUrl
-					)
-				);
+		if (
+			// connections not cached
+			this.defaultConnections == null ||
+			// or cached with different URL than incoming
+			(incomingRequestHostAndPort != null && !Objects.equals(incomingRequestHostAndPort, this.defaultConnections.get(0).serverUrl()))
+		) {
+			// generate self-connection
+			final String serverUrl;
+			if (this.labConfig.getGui().isPreferIncomingHostAndPort() && incomingRequestHostAndPort != null) {
+				serverUrl = incomingRequestHostAndPort;
+			} else {
+				serverUrl = this.labConfig.getResolvedExposeOnUrl();
 			}
-			return this.preconfiguredConnections;
+			// and cache
+			this.defaultConnections = List.of(
+				new EvitaDBConnection(
+					null,
+					this.serverName,
+					serverUrl
+				)
+			);
 		}
+		return this.defaultConnections;
 	}
 }

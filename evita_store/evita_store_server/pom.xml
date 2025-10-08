@@ -31,7 +31,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_store</artifactId>
-		<version>2025.6-SNAPSHOT</version>
+		<version>2025.7-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -75,7 +75,7 @@
 						<configuration>
 							<transformations>
 								<transformation>
-									<plugin>io.evitadb.core.async.InterruptionTransformer</plugin>
+									<plugin>io.evitadb.core.executor.InterruptionTransformer</plugin>
 								</transformation>
 							</transformations>
 						</configuration>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,21 +45,21 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 
 	@Override
 	public void initializeIfNotAlreadyInitialized(@Nonnull QueryExecutionContext executionContext) {
-		filteringFormula.initialize(executionContext);
+		this.filteringFormula.initialize(executionContext);
 	}
 
 	@Override
 	public long getHash() {
-		return filteringFormula.getHash();
+		return this.filteringFormula.getHash();
 	}
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		return filteringFormula.compute().contains(hierarchyNodeId);
+		return this.filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
 	@Override
 	public String toString() {
-		return "BASED ON LOCALE: " + filteringFormula;
+		return "BASED ON LOCALE: " + this.filteringFormula;
 	}
 }

@@ -37,7 +37,7 @@ import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.exception.PersistenceServiceClosed;
@@ -88,7 +88,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	/**
 	 * Memory manager for off-heap memory.
 	 */
-	@Nonnull protected final OffHeapMemoryManager offHeapMemoryManager;
+	@Nonnull protected final CatalogOffHeapMemoryManager offHeapMemoryManager;
 	/**
 	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
 	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
@@ -111,7 +111,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		@Nonnull FileType fileType,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
@@ -145,7 +145,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public <T extends StoragePart> T getStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.get(catalogVersion, storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -155,7 +155,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nullable
 	@Override
 	public <T extends StoragePart> byte[] getStoragePartAsBinary(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.getBinary(catalogVersion, storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -164,7 +164,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public <T extends StoragePart> long putStoragePart(long catalogVersion, @Nonnull T container) {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.put(catalogVersion, container);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -173,8 +173,8 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public <T extends StoragePart> boolean removeStoragePart(long catalogVersion, long storagePartPk, @Nonnull Class<T> containerType) {
-		if (offsetIndex.isOperative()) {
-			return offsetIndex.remove(catalogVersion, storagePartPk, containerType);
+		if (this.offsetIndex.isOperative()) {
+			return this.offsetIndex.remove(catalogVersion, storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -182,8 +182,8 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public <T extends StoragePart> boolean containsStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		if (offsetIndex.isOperative()) {
-			return offsetIndex.contains(catalogVersion, primaryKey, containerType);
+		if (this.offsetIndex.isOperative()) {
+			return this.offsetIndex.contains(catalogVersion, primaryKey, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -192,13 +192,13 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull
 	@Override
 	public <T extends StoragePart> Stream<T> getEntryStream(@Nonnull Class<T> containerType) {
-		if (offsetIndex.isOperative()) {
-			final byte recType = offsetIndex.getIdForRecordType(containerType);
-			return offsetIndex
+		if (this.offsetIndex.isOperative()) {
+			final byte recType = this.offsetIndex.getIdForRecordType(containerType);
+			return this.offsetIndex
 				.getEntries()
 				.stream()
 				.filter(it -> it.getKey().recordType() == recType)
-				.map(it -> offsetIndex.get(it.getValue(), containerType))
+				.map(it -> this.offsetIndex.get(it.getValue(), containerType))
 				.filter(Objects::nonNull);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -216,7 +216,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public <T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType) {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.count(catalogVersion, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -226,7 +226,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull
 	@Override
 	public <T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart) {
-		return offsetIndex.executeWithKryo(
+		return this.offsetIndex.executeWithKryo(
 			kryo -> {
 				final ByteBufferOutput output = new ByteBufferOutput(8192, -1);
 				kryo.writeObject(output, storagePart);
@@ -238,7 +238,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull
 	@Override
 	public <T extends StoragePart> T deserializeStoragePart(@Nonnull byte[] storagePart, @Nonnull Class<T> containerType) {
-		return offsetIndex.executeWithKryo(
+		return this.offsetIndex.executeWithKryo(
 			kryo -> kryo.readObject(
 				new Input(storagePart), containerType
 			)
@@ -248,7 +248,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	@Nonnull
 	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.getReadOnlyKeyCompressor();
 		} else {
 			throw new PersistenceServiceClosed();
@@ -257,8 +257,8 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public long getVersion() {
-		if (offsetIndex.isOperative()) {
-			return offsetIndex.getVersion();
+		if (this.offsetIndex.isOperative()) {
+			return this.offsetIndex.getVersion();
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -266,7 +266,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public void forgetVolatileData() {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			this.offsetIndex.forgetVolatileData();
 		} else {
 			throw new PersistenceServiceClosed();
@@ -333,7 +333,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		@Nullable IntConsumer progressConsumer,
 		@Nullable StoragePart... updatedStorageParts
 	) {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.copySnapshotTo(outputStream, progressConsumer, catalogVersion, updatedStorageParts);
 		} else {
 			throw new PersistenceServiceClosed();
@@ -342,7 +342,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	@Override
 	public boolean isNew() {
-		if (offsetIndex.isOperative()) {
+		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.getFileOffsetIndexLocation() == FileLocation.EMPTY;
 		} else {
 			throw new PersistenceServiceClosed();

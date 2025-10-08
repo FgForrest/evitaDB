@@ -59,8 +59,8 @@ class DiskRingBufferTest {
 
 	@BeforeEach
 	void setup() throws Exception {
-		tempFile = Files.createTempFile("DiskRingBufferTest", ".tmp");
-		diskRingBuffer = new DiskRingBuffer(tempFile, 1000);
+		this.tempFile = Files.createTempFile("DiskRingBufferTest", ".tmp");
+		this.diskRingBuffer = new DiskRingBuffer(this.tempFile, 1000);
 	}
 
 	@Test
@@ -90,16 +90,16 @@ class DiskRingBufferTest {
 			buffer.put((byte) i);
 		}
 		buffer.flip(); // Reset buffer position to 0 before writing
-		final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize, theFilledSize);
-		diskRingBuffer.append(buffer);
-		diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
-		assertEquals(theFilledSize + LEAD_DESCRIPTOR_BYTE_SIZE, diskRingBuffer.getRingBufferTail());
+		final SessionLocation sessionLocation = this.diskRingBuffer.appendSession(theFilledSize, theFilledSize);
+		this.diskRingBuffer.append(buffer);
+		this.diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
+		assertEquals(theFilledSize + LEAD_DESCRIPTOR_BYTE_SIZE, this.diskRingBuffer.getRingBufferTail());
 
-		final int totalSpace = (int) tempFile.toFile().length();
+		final int totalSpace = (int) this.tempFile.toFile().length();
 		assertEquals(1000, totalSpace);
 
 		// verify the content on the disk
-		final byte[] allContent = Files.readAllBytes(tempFile);
+		final byte[] allContent = Files.readAllBytes(this.tempFile);
 		byte[] payloadContent = Arrays.copyOfRange(allContent, LEAD_DESCRIPTOR_BYTE_SIZE, LEAD_DESCRIPTOR_BYTE_SIZE + totalSpace);
 		for (int i = 0; i < theFilledSize; i++) {
 			assertEquals((byte) i, payloadContent[i]);
@@ -120,8 +120,8 @@ class DiskRingBufferTest {
 					buffer.put((byte) i);
 				}
 				buffer.flip(); // Reset buffer position to 0 before writing
-				final SessionLocation sessionLocation = diskRingBuffer.appendSession(theFilledSize, theFilledSize);
-				diskRingBuffer.append(buffer);
+				final SessionLocation sessionLocation = this.diskRingBuffer.appendSession(theFilledSize, theFilledSize);
+				this.diskRingBuffer.append(buffer);
 			}
 		);
 	}
@@ -138,9 +138,9 @@ class DiskRingBufferTest {
 		ByteBuffer bufferWithDescriptors = ByteBuffer.allocate(theFilledSize + 5 * LEAD_DESCRIPTOR_BYTE_SIZE);
 
 		BiConsumer<Integer, Integer> writer = (index, length) -> {
-			final SessionLocation sessionLocation = diskRingBuffer.appendSession(0, length);
-			diskRingBuffer.append(buffer.slice(index, length));
-			diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
+			final SessionLocation sessionLocation = this.diskRingBuffer.appendSession(0, length);
+			this.diskRingBuffer.append(buffer.slice(index, length));
+			this.diskRingBuffer.sessionWritten(sessionLocation, UUID.randomUUID(), OffsetDateTime.now(), 0, Set.of(), Set.of(), 0, 0);
 
 			bufferWithDescriptors.putLong(sessionLocation.sequenceOrder());
 			bufferWithDescriptors.putInt(0);
@@ -155,19 +155,19 @@ class DiskRingBufferTest {
 		writer.accept(900, 300);
 		writer.accept(1200, 300);
 
-		assertEquals(500 + 5 * LEAD_DESCRIPTOR_BYTE_SIZE, diskRingBuffer.getRingBufferTail());
+		assertEquals(500 + 5 * LEAD_DESCRIPTOR_BYTE_SIZE, this.diskRingBuffer.getRingBufferTail());
 
-		final long totalSpace = tempFile.toFile().length();
+		final long totalSpace = this.tempFile.toFile().length();
 		assertEquals(1000, totalSpace);
 
 		// verify the content on the disk
-		byte[] fileContent = Files.readAllBytes(tempFile);
-		for (int i = 0; i < diskRingBuffer.getRingBufferTail(); i++) {
+		byte[] fileContent = Files.readAllBytes(this.tempFile);
+		for (int i = 0; i < this.diskRingBuffer.getRingBufferTail(); i++) {
 			final int index = (int) (theFilledSize - (theFilledSize % totalSpace)) + i;
 			final byte expectedByte = bufferWithDescriptors.get(index);
 			assertEquals(expectedByte, fileContent[i]);
 		}
-		final long theStart = diskRingBuffer.getRingBufferTail();
+		final long theStart = this.diskRingBuffer.getRingBufferTail();
 		for (int i = (int) theStart; i < totalSpace; i++) {
 			final byte expectedByte = bufferWithDescriptors.get(i);
 			assertEquals(expectedByte, fileContent[i]);
@@ -176,8 +176,8 @@ class DiskRingBufferTest {
 
     @AfterEach
     void teardown() throws Exception {
-        diskRingBuffer.close(FileUtils::deleteFileIfExists);
-        Files.deleteIfExists(tempFile);
+	    this.diskRingBuffer.close(FileUtils::deleteFileIfExists);
+        Files.deleteIfExists(this.tempFile);
     }
 
 }

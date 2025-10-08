@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,27 +64,27 @@ public class Table extends MarkdownElement {
 		private int rowLimit;
 
 		public Builder() {
-			table = new Table();
+			this.table = new Table();
 		}
 
 		public Table.Builder withRows(List<TableRow> tableRows) {
-			table.setRows(tableRows);
+			this.table.setRows(tableRows);
 			return this;
 		}
 
 		public Table.Builder addRow(TableRow tableRow) {
-			table.getRows().add(tableRow);
+			this.table.getRows().add(tableRow);
 			return this;
 		}
 
 		public Table.Builder addRow(Object... objects) {
 			TableRow tableRow = new TableRow(Arrays.asList(objects));
-			table.getRows().add(tableRow);
+			this.table.getRows().add(tableRow);
 			return this;
 		}
 
 		public Table.Builder withAlignments(List<Integer> alignments) {
-			table.setAlignments(alignments);
+			this.table.setAlignments(alignments);
 			return this;
 		}
 
@@ -102,15 +102,15 @@ public class Table extends MarkdownElement {
 		}
 
 		public Table.Builder withTrimmingIndicator(String trimmingIndicator) {
-			table.setTrimmingIndicator(trimmingIndicator);
+			this.table.setTrimmingIndicator(trimmingIndicator);
 			return this;
 		}
 
 		public Table build() {
-			if (rowLimit > 0) {
-				table.trim(rowLimit);
+			if (this.rowLimit > 0) {
+				this.table.trim(this.rowLimit);
 			}
-			return table;
+			return this.table;
 		}
 
 	}
@@ -118,7 +118,7 @@ public class Table extends MarkdownElement {
 	public Table() {
 		this.rows = new ArrayList<>();
 		this.alignments = new ArrayList<>();
-		firstRowIsHeader = true;
+		this.firstRowIsHeader = true;
 	}
 
 	public Table(List<TableRow> rows) {
@@ -133,17 +133,17 @@ public class Table extends MarkdownElement {
 
 	@Override
 	public String serialize() {
-		Map<Integer, Integer> columnWidths = getColumnWidths(rows, minimumColumnWidth);
+		Map<Integer, Integer> columnWidths = getColumnWidths(this.rows, this.minimumColumnWidth);
 
 		StringBuilder sb = new StringBuilder();
 
-		String headerSeparator = generateHeaderSeparator(columnWidths, alignments);
-		boolean headerSeperatorAdded = !firstRowIsHeader;
-		if (!firstRowIsHeader) {
+		String headerSeparator = generateHeaderSeparator(columnWidths, this.alignments);
+		boolean headerSeperatorAdded = !this.firstRowIsHeader;
+		if (!this.firstRowIsHeader) {
 			sb.append(headerSeparator).append("\n");
 		}
 
-		for (TableRow row : rows) {
+		for (TableRow row : this.rows) {
 			for (int columnIndex = 0; columnIndex < columnWidths.size(); columnIndex++) {
 				sb.append(SEPARATOR);
 
@@ -155,11 +155,11 @@ public class Table extends MarkdownElement {
 					}
 				}
 
-				if (value.equals(trimmingIndicator)) {
-					value = StringUtil.fillUpLeftAligned(value, trimmingIndicator, columnWidths.get(columnIndex));
+				if (value.equals(this.trimmingIndicator)) {
+					value = StringUtil.fillUpLeftAligned(value, this.trimmingIndicator, columnWidths.get(columnIndex));
 					value = surroundValueWith(value, WHITESPACE);
 				} else {
-					int alignment = getAlignment(alignments, columnIndex);
+					int alignment = getAlignment(this.alignments, columnIndex);
 					value = surroundValueWith(value, WHITESPACE);
 					value = StringUtil.fillUpAligned(value, WHITESPACE, columnWidths.get(columnIndex) + 2, alignment);
 				}
@@ -171,7 +171,7 @@ public class Table extends MarkdownElement {
 				}
 			}
 
-			if (rows.indexOf(row) < rows.size() - 1 || rows.size() == 1) {
+			if (this.rows.indexOf(row) < this.rows.size() - 1 || this.rows.size() == 1) {
 				sb.append("\n");
 			}
 
@@ -191,7 +191,7 @@ public class Table extends MarkdownElement {
 	 * @return the trimmed table
 	 */
 	public Table trim(int rowsToKeep) {
-		rows = trim(this, rowsToKeep, trimmingIndicator).getRows();
+		this.rows = trim(this, rowsToKeep, this.trimmingIndicator).getRows();
 		return this;
 	}
 
@@ -297,7 +297,7 @@ public class Table extends MarkdownElement {
 	}
 
 	public List<TableRow> getRows() {
-		return rows;
+		return this.rows;
 	}
 
 	public void setRows(List<TableRow> rows) {
@@ -306,7 +306,7 @@ public class Table extends MarkdownElement {
 	}
 
 	public List<Integer> getAlignments() {
-		return alignments;
+		return this.alignments;
 	}
 
 	public void setAlignments(List<Integer> alignments) {
@@ -315,7 +315,7 @@ public class Table extends MarkdownElement {
 	}
 
 	public boolean isFirstRowHeader() {
-		return firstRowIsHeader;
+		return this.firstRowIsHeader;
 	}
 
 	public void useFirstRowAsHeader(boolean firstRowIsHeader) {
@@ -324,7 +324,7 @@ public class Table extends MarkdownElement {
 	}
 
 	public int getMinimumColumnWidth() {
-		return minimumColumnWidth;
+		return this.minimumColumnWidth;
 	}
 
 	public void setMinimumColumnWidth(int minimumColumnWidth) {
@@ -333,7 +333,7 @@ public class Table extends MarkdownElement {
 	}
 
 	public String getTrimmingIndicator() {
-		return trimmingIndicator;
+		return this.trimmingIndicator;
 	}
 
 	public void setTrimmingIndicator(String trimmingIndicator) {

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Finds and returns concrete {@link AttributeSchemaContract} from current parent {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract}
@@ -45,10 +46,10 @@ public class AttributeSchemaDataFetcher implements DataFetcher<AttributeSchemaCo
 
 	@Nonnull
 	@Override
-	public AttributeSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = environment.getSource();
+	public AttributeSchemaContract get(DataFetchingEnvironment environment) throws Exception {
+		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = Objects.requireNonNull(environment.getSource());
 		return attributeSchemaProvider
-			.getAttribute(name)
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find attribute schema for name `" + name + "`."));
+			.getAttribute(this.name)
+			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find attribute schema for name `" + this.name + "`."));
 	}
 }

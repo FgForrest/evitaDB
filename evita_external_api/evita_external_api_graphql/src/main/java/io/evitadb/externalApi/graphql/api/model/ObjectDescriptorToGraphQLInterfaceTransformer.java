@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,13 +44,13 @@ public class ObjectDescriptorToGraphQLInterfaceTransformer implements ObjectDesc
 	private final PropertyDescriptorTransformer<GraphQLFieldDefinition.Builder> fieldBuilderTransformer;
 
 	@Override
-	public GraphQLInterfaceType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+	public GraphQLInterfaceType.Builder apply(ObjectDescriptor objectDescriptor) {
 		final GraphQLInterfaceType.Builder interfaceBuilder = GraphQLInterfaceType.newInterface()
 			.name(objectDescriptor.name())
 			.description(objectDescriptor.description());
 
 		objectDescriptor.staticFields().stream()
-			.map(fieldBuilderTransformer)
+			.map(this.fieldBuilderTransformer)
 			.forEach(interfaceBuilder::field);
 
 		return interfaceBuilder;

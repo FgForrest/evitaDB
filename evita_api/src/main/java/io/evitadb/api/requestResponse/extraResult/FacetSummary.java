@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 										(o, o2) -> {
 											throw new GenericEvitaInternalError(
 												"There is already facet group for reference `" + it.getKey() +
-													"` with id `" + o.getGroupEntity().getPrimaryKey() + "`."
+													"` with id `" + Objects.requireNonNull(o.getGroupEntity()).getPrimaryKeyOrThrowException() + "`."
 											);
 										},
 										LinkedHashMap::new
@@ -159,7 +159,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 	 */
 	@Nullable
 	public FacetGroupStatistics getFacetGroupStatistics(@Nonnull String referencedEntityType) {
-		return ofNullable(referenceStatistics.get(referencedEntityType))
+		return ofNullable(this.referenceStatistics.get(referencedEntityType))
 			.map(ReferenceStatistics::nonGroupedStatistics)
 			.orElse(null);
 	}
@@ -169,7 +169,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 	 */
 	@Nullable
 	public FacetGroupStatistics getFacetGroupStatistics(@Nonnull String referencedEntityType, int groupId) {
-		return ofNullable(referenceStatistics.get(referencedEntityType))
+		return ofNullable(this.referenceStatistics.get(referencedEntityType))
 			.map(it -> it.getFacetGroupStatistics(groupId))
 			.orElse(null);
 	}
@@ -179,7 +179,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 	 */
 	@Nonnull
 	public Collection<FacetGroupStatistics> getReferenceStatistics() {
-		return referenceStatistics.values()
+		return this.referenceStatistics.values()
 			.stream()
 			.flatMap(
 				it -> Stream.concat(
@@ -192,7 +192,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(referenceStatistics);
+		return Objects.hash(this.referenceStatistics);
 	}
 
 	@Override
@@ -201,7 +201,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		if (o == null || getClass() != o.getClass()) return false;
 		FacetSummary that = (FacetSummary) o;
 
-		for (Entry<String, ReferenceStatistics> referenceEntry : referenceStatistics.entrySet()) {
+		for (Entry<String, ReferenceStatistics> referenceEntry : this.referenceStatistics.entrySet()) {
 			final ReferenceStatistics statistics = referenceEntry.getValue();
 			final ReferenceStatistics thatStatistics = that.referenceStatistics.get(referenceEntry.getKey());
 
@@ -251,7 +251,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		if (set.isEmpty()) {
 			final Set<String> representativeAttributes = context.getRepresentativeAttribute(entity.getSchema());
 			return representativeAttributes.stream()
-				.map(attribute -> EvitaDataTypes.formatValue(entity.getAttribute(attribute).toString()))
+				.map(attribute -> Objects.requireNonNull(EvitaDataTypes.formatValue(entity.getAttribute(attribute))))
 				.collect(Collectors.joining(", "));
 		} else if (set.size() == 1) {
 			return EvitaDataTypes.formatValue(entity.getAttribute(set.iterator().next()));
@@ -259,7 +259,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			final Set<String> representativeAttributes = context.getRepresentativeAttribute(entity.getSchema());
 			return set.stream()
 				.filter(representativeAttributes::contains)
-				.map(attribute -> EvitaDataTypes.formatValue(entity.getAttribute(attribute).toString()))
+				.map(attribute -> Objects.requireNonNull(EvitaDataTypes.formatValue(entity.getAttribute(attribute))))
 				.collect(Collectors.joining(", "));
 		}
 	}
@@ -269,7 +269,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
 		return "Facet summary:\n" +
-			referenceStatistics
+			this.referenceStatistics
 				.entrySet()
 				.stream()
 				.sorted(Entry.comparingByKey())
@@ -323,7 +323,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 			ReferenceStatistics that = (ReferenceStatistics) o;
 
-			if (!Objects.equals(nonGroupedStatistics, that.nonGroupedStatistics))
+			if (!Objects.equals(this.nonGroupedStatistics, that.nonGroupedStatistics))
 				return false;
 
 			final Map<Integer, FacetGroupStatistics> statistics = groupedStatistics();
@@ -347,8 +347,8 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 		@Override
 		public int hashCode() {
-			int result = nonGroupedStatistics != null ? nonGroupedStatistics.hashCode() : 0;
-			result = 31 * result + groupedStatistics.hashCode();
+			int result = this.nonGroupedStatistics != null ? this.nonGroupedStatistics.hashCode() : 0;
+			result = 31 * result + this.groupedStatistics.hashCode();
 			return result;
 		}
 	}
@@ -374,7 +374,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		 */
 		@Override
 		public int difference() {
-			return difference;
+			return this.difference;
 		}
 
 		@Override
@@ -389,12 +389,13 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			return Objects.hash(difference(), matchCount(), hasSense());
 		}
 
+		@Nonnull
 		@Override
 		public String toString() {
-			if (difference > 0) {
-				return "+" + difference;
-			} else if (difference < 0) {
-				return String.valueOf(difference);
+			if (this.difference > 0) {
+				return "+" + this.difference;
+			} else if (this.difference < 0) {
+				return String.valueOf(this.difference);
 			} else {
 				return "0";
 			}
@@ -446,7 +447,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(facetEntity, requested, count, impact);
+			return Objects.hash(this.facetEntity, this.requested, this.count, this.impact);
 		}
 
 		@Override
@@ -455,18 +456,18 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			if (o == null || getClass() != o.getClass()) return false;
 			final FacetStatistics that = (FacetStatistics) o;
 			return Objects.equals(getFacetEntity(), that.getFacetEntity()) &&
-				requested == that.requested &&
-				count == that.count &&
-				Objects.equals(impact, that.impact);
+				this.requested == that.requested &&
+				this.count == that.count &&
+				Objects.equals(this.impact, that.impact);
 		}
 
 		@Override
 		public String toString() {
 			return "FacetStatistics[" +
-				"facetEntity=" + facetEntity + ", " +
-				"requested=" + requested + ", " +
-				"count=" + count + ", " +
-				"impact=" + impact + ']';
+				"facetEntity=" + this.facetEntity + ", " +
+				"requested=" + this.requested + ", " +
+				"count=" + this.count + ", " +
+				"impact=" + this.impact + ']';
 		}
 
 	}
@@ -571,7 +572,7 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		 */
 		@Nullable
 		public FacetStatistics getFacetStatistics(int facetId) {
-			return facetStatistics.get(facetId);
+			return this.facetStatistics.get(facetId);
 		}
 
 		/**
@@ -579,18 +580,18 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 		 */
 		@Nonnull
 		public Collection<FacetStatistics> getFacetStatistics() {
-			return Collections.unmodifiableCollection(facetStatistics.values());
+			return Collections.unmodifiableCollection(this.facetStatistics.values());
 		}
 
 		@Override
 		public int hashCode() {
 			return Objects.hash(
-				referenceName,
-				ofNullable(groupEntity)
+				this.referenceName,
+				ofNullable(this.groupEntity)
 					.map(EntityClassifier::getPrimaryKey)
 					.orElse(null),
-				count,
-				facetStatistics
+				this.count,
+				this.facetStatistics
 			);
 		}
 
@@ -599,14 +600,14 @@ public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			final FacetGroupStatistics that = (FacetGroupStatistics) o;
-			if (!referenceName.equals(that.referenceName) ||
-				count != that.count ||
-				!Objects.equals(groupEntity, that.getGroupEntity()) ||
-				facetStatistics.size() != that.facetStatistics.size()) {
+			if (!this.referenceName.equals(that.referenceName) ||
+				this.count != that.count ||
+				!Objects.equals(this.groupEntity, that.getGroupEntity()) ||
+				this.facetStatistics.size() != that.facetStatistics.size()) {
 				return false;
 			}
 
-			final Iterator<Entry<Integer, FacetStatistics>> it = facetStatistics.entrySet().iterator();
+			final Iterator<Entry<Integer, FacetStatistics>> it = this.facetStatistics.entrySet().iterator();
 			final Iterator<Entry<Integer, FacetStatistics>> thatIt = that.facetStatistics.entrySet().iterator();
 			while (it.hasNext()) {
 				final Entry<Integer, FacetStatistics> entry = it.next();

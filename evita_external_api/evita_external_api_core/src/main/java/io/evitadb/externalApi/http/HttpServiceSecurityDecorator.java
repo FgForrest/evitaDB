@@ -28,9 +28,11 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.websocket.WebSocket;
 import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import com.linecorp.armeria.server.SimpleDecoratingHttpService;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -68,7 +70,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFunction {
+public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService implements WebSocketHandler {
 	public static final String SCHEME_HTTPS = "https";
 	public static final String SCHEME_HTTP = "http";
 	/**
@@ -94,7 +96,8 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		.status(HttpStatus.FORBIDDEN)
 		.content(MediaType.PLAIN_TEXT, "Client certificate not allowed.");
 
-	public HttpServiceSecurityDecorator(@Nonnull ApiOptions apiOptions, @Nonnull AbstractApiOptions... configurations) {
+	public HttpServiceSecurityDecorator(@Nonnull HttpService delegate, @Nonnull ApiOptions apiOptions, @Nonnull AbstractApiOptions... configurations) {
+		super(delegate);
 		final int hostsConfigs = Arrays.stream(configurations)
 			.mapToInt(config -> config.getHost().length)
 			.sum();
@@ -131,9 +134,9 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		}
 	}
 
-	@Nonnull
 	@Override
-	public HttpResponse serve(@Nonnull HttpService delegate, @Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+	@Nonnull
+	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
 		final URI uri = ctx.uri();
 		final String scheme = uri.getScheme();
 		final InetSocketAddress address = ctx.localAddress();
@@ -148,7 +151,7 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 							return response;
 						}
 					}
-					return delegate.serve(ctx, req);
+					return this.unwrap().serve(ctx, req);
 				} else {
 					hostAndPortMatching = true;
 				}
@@ -159,6 +162,13 @@ public class HttpServiceSecurityDecorator implements DecoratingHttpServiceFuncti
 		} else {
 			return HttpResponse.of(HttpStatus.NOT_FOUND, MediaType.PLAIN_TEXT, "Service not available.");
 		}
+	}
+
+	@Nonnull
+	@Override
+	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
+		// todo lho impl
+		return Objects.requireNonNull(this.unwrap().as(WebSocketHandler.class)).handle(ctx, in);
 	}
 
 	/**

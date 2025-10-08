@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.associatedData;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ArrayUtils;
 
@@ -63,6 +64,11 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 		this.value = value;
 	}
 
+	private UpsertAssociatedDataMutation(@Nonnull AssociatedDataKey associatedDataKey, @Nonnull Serializable value, long decisiveTimestamp) {
+		super(associatedDataKey, decisiveTimestamp);
+		this.value = value;
+	}
+
 	@Override
 	public long getPriority() {
 		return PRIORITY_UPSERT;
@@ -71,7 +77,7 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 	@Nonnull
 	@Override
 	public Serializable getAssociatedDataValue() {
-		return value;
+		return this.value;
 	}
 
 	@Nonnull
@@ -79,10 +85,10 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 	public AssociatedDataValue mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable AssociatedDataValue existingValue) {
 		if (existingValue == null) {
 			// create new associatedData value
-			return new AssociatedDataValue(associatedDataKey, value);
+			return new AssociatedDataValue(this.associatedDataKey, this.value);
 		} else if (!Objects.equals(existingValue.value(), this.value) || existingValue.dropped()) {
 			// update associatedData version (we changed it) and return mutated value
-			return new AssociatedDataValue(existingValue.version() + 1, associatedDataKey, this.value);
+			return new AssociatedDataValue(existingValue.version() + 1, this.associatedDataKey, this.value);
 		} else {
 			return existingValue;
 		}
@@ -94,6 +100,12 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 		return Operation.UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new UpsertAssociatedDataMutation(this.associatedDataKey, this.value, newDecisiveTimestamp);
+	}
+
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
@@ -102,21 +114,21 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 
 		UpsertAssociatedDataMutation that = (UpsertAssociatedDataMutation) o;
 
-		return value.getClass().isArray() ?
-			that.value.getClass().isArray() && ArrayUtils.equals(value, that.value) : value.equals(that.value);
+		return this.value.getClass().isArray() ?
+			that.value.getClass().isArray() && ArrayUtils.equals(this.value, that.value) : this.value.equals(that.value);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = super.hashCode();
 		result = 31 * result +
-			(value.getClass().isArray() ? ArrayUtils.hashCode(value) : value.hashCode());
+			(this.value.getClass().isArray() ? ArrayUtils.hashCode(this.value) : this.value.hashCode());
 		return result;
 	}
 
 	@Override
 	public String toString() {
-		return "upsert associated data: `" + associatedDataKey + "`";
+		return "upsert associated data: `" + this.associatedDataKey + "`";
 	}
 
 }

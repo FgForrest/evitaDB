@@ -28,12 +28,12 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +59,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		final Long uniquePartId = sortIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(keyCompressor.getId(sortIndex.getAttributeKey()), true);
+		output.writeVarInt(this.keyCompressor.getId(sortIndex.getAttributeIndexKey()), true);
 
 		final ComparatorSource[] comparatorBase = sortIndex.getComparatorBase();
 		output.writeVarInt(comparatorBase.length, true);
@@ -108,7 +108,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 	public SortIndexStoragePart read(Kryo kryo, Input input, Class<? extends SortIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
 		final int comparatorBaseLength = input.readVarInt(true);
 		final ComparatorSource[] comparatorBase = new ComparatorSource[comparatorBaseLength];
@@ -160,7 +160,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		}
 
 		return new SortIndexStoragePart(
-			entityIndexPrimaryKey, attributeKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
+			entityIndexPrimaryKey, attributeIndexKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
 		);
 	}
 

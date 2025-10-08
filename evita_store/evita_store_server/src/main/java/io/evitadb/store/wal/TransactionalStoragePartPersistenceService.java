@@ -36,7 +36,7 @@ import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
@@ -86,7 +86,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		@Nonnull StoragePartPersistenceService delegate,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
@@ -177,14 +177,14 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	@Override
 	public <T extends StoragePart> boolean containsStoragePart(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
 		return this.offsetIndex.contains(catalogVersion, primaryKey, containerType) ||
-			(!this.removedStoragePartKeys.contains(new RecordKey(offsetIndex.getIdForRecordType(containerType), primaryKey))
+			(!this.removedStoragePartKeys.contains(new RecordKey(this.offsetIndex.getIdForRecordType(containerType), primaryKey))
 				&& this.delegate.containsStoragePart(catalogVersion, primaryKey, containerType));
 	}
 
 	@Nonnull
 	@Override
 	public <T extends StoragePart> Stream<T> getEntryStream(@Nonnull Class<T> containerType) {
-		final byte recType = offsetIndex.getIdForRecordType(containerType);
+		final byte recType = this.offsetIndex.getIdForRecordType(containerType);
 		final Set<Long> returnedPks = new HashSet<>(64);
 		// this is going to be slow, but it's not used in production scenarios
 		return Stream.concat(
@@ -193,7 +193,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 				.stream()
 				.filter(it -> it.getKey().recordType() == recType)
 				.peek(it -> returnedPks.add(it.getKey().primaryKey()))
-				.map(it -> offsetIndex.get(it.getValue(), containerType))
+				.map(it -> this.offsetIndex.get(it.getValue(), containerType))
 				.filter(Objects::nonNull),
 			this.delegate.getEntryStream(containerType)
 				.filter(it -> it.getStoragePartPK() != null)
@@ -211,7 +211,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Override
 	public <T extends StoragePart> int countStorageParts(long catalogVersion, @Nonnull Class<T> containerType) {
-		final byte recType = offsetIndex.getIdForRecordType(containerType);
+		final byte recType = this.offsetIndex.getIdForRecordType(containerType);
 		// this is going to be slow, but it's not used in production scenarios
 		return this.offsetIndex.count(catalogVersion, containerType) + this.delegate.countStorageParts(catalogVersion, containerType) -
 			((int) this.removedStoragePartKeys.stream().filter(it -> it.recordType() == recType).count());
@@ -226,7 +226,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	@Nonnull
 	@Override
 	public <T extends StoragePart> T deserializeStoragePart(@Nonnull byte[] storagePart, @Nonnull Class<T> containerType) {
-		return delegate.deserializeStoragePart(storagePart, containerType);
+		return this.delegate.deserializeStoragePart(storagePart, containerType);
 	}
 
 	@Nonnull
@@ -240,7 +240,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Override
 	public long getVersion() {
-		return delegate.getVersion() + 1;
+		return this.delegate.getVersion() + 1;
 	}
 
 	@Nonnull
@@ -299,6 +299,6 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Override
 	public String toString() {
-		return "TransactionalStoragePartPersistenceService: `" + targetFile + '`';
+		return "TransactionalStoragePartPersistenceService: `" + this.targetFile + '`';
 	}
 }

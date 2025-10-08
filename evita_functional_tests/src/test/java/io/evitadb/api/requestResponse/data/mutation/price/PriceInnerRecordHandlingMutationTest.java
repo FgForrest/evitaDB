@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class PriceInnerRecordHandlingMutationTest extends AbstractMutationTest {
 		final SetPriceInnerRecordHandlingMutation mutation = new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.LOWEST_PRICE);
 		assertEquals(
 			PriceInnerRecordHandling.LOWEST_PRICE,
-			mutation.mutateLocal(productSchema, new Prices(productSchema, PriceInnerRecordHandling.NONE))
+			mutation.mutateLocal(this.productSchema, new Prices(this.productSchema, PriceInnerRecordHandling.NONE))
 				.getPriceInnerRecordHandling()
 		);
 	}

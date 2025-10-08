@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,17 +29,20 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.ListBuilder.list;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.ListBuilder.list;
+import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,7 +57,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 
 	@BeforeEach
 	void init() {
-		converter = new SetAttributeSchemaGloballyUniqueMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		this.converter = new SetAttributeSchemaGloballyUniqueMutationConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -66,23 +69,23 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 			}
 		);
 
-		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convert(
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE)
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)))
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAttributeSchemaGloballyUniqueMutation convertedMutation2 = converter.convert(
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation2 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
 					.i(map()
-						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), Scope.LIVE.name())
+						.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 						.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
 				.build()
 		);
@@ -90,13 +93,13 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 	}
 
 	@Test
-	void shouldResolveInputToLocalMutationOnlyWithRequiredData() {
+	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final SetAttributeSchemaGloballyUniqueMutation expectedMutation = new SetAttributeSchemaGloballyUniqueMutation(
 			"code",
 			(ScopedGlobalAttributeUniquenessType[]) null
 		);
 
-		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convert(
+		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = this.converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -106,7 +109,40 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> this.converter.convertFromInput(
+				map()
+					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), true)
+					.build()
+			)
+		);
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldSerializeLocalMutationToOutput() {
+		final SetAttributeSchemaGloballyUniqueMutation inputMutation = new SetAttributeSchemaGloballyUniqueMutation(
+			"code",
+			new ScopedGlobalAttributeUniquenessType[] {
+				new ScopedGlobalAttributeUniquenessType(Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
+			}
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation = (Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		assertThat(serializedMutation)
+			.usingRecursiveComparison()
+			.isEqualTo(
+				map()
+					.e(MutationDescriptor.MUTATION_TYPE.name(), SetAttributeSchemaGloballyUniqueMutation.class.getSimpleName())
+					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
+					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY_IN_SCOPES.name(), list()
+						.i(map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
+							.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())))
+					.build()
+			);
 	}
 }

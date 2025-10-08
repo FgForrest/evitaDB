@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ package io.evitadb.api.proxy.impl.entityBuilder;
 
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
@@ -124,15 +123,13 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	/**
 	 * Returns method implementation that sets the parent entity and return no result.
 	 *
-	 * @param entityType the parent entity type
 	 * @return the method implementation
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setParentEntityWithVoidResult(
-		@Nonnull String entityType
-	) {
+		) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			setParentEntity(entityType, args, theState);
+			setParentEntity(args, theState);
 			return null;
 		};
 	}
@@ -141,15 +138,13 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 * Returns method implementation that sets the parent entity and return the reference to the proxy to allow
 	 * chaining (builder pattern).
 	 *
-	 * @param entityType the parent entity type
 	 * @return the method implementation
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setParentEntityWithBuilderResult(
-		@Nonnull String entityType
-	) {
+		) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			setParentEntity(entityType, args, theState);
+			setParentEntity(args, theState);
 			return proxy;
 		};
 	}
@@ -157,12 +152,10 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	/**
 	 * Sets the parent entity and register the reference to the proxy state.
 	 *
-	 * @param entityType the type of the parent entity
 	 * @param args       the arguments passed to the method
 	 * @param theState   the proxy state
 	 */
 	private static void setParentEntity(
-		@Nonnull String entityType,
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
@@ -171,8 +164,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		if (parent == null) {
 			entityBuilder.removeParent();
 		} else {
-			entityBuilder.setParent(parent.getPrimaryKey());
-			theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
+			final int pk = parent.getPrimaryKeyOrThrowException();
+			entityBuilder.setParent(pk);
+			theState.registerReferencedParentObject(pk, parent);
 		}
 	}
 
@@ -224,10 +218,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	) {
 		final EntityBuilder entityBuilder = theState.entityBuilder();
 		//noinspection unchecked
-		final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
+		final Serializable referencedEntityInstance = theState.getOrCreateParentEntityProxyWithCallback(
 			theState.getEntitySchema(),
 			(Class<? extends Serializable>) expectedType,
-			ProxyType.PARENT,
 			entityReference -> entityBuilder.setParent(entityReference.getPrimaryKey())
 		);
 		//noinspection unchecked
@@ -290,10 +283,10 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull SealedEntityProxyState theState
 	) {
 		final EntityBuilder entityBuilder = theState.entityBuilder();
-		final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
+		final int parentId = Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class));
 		//noinspection unchecked
-		final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-			theState.getEntitySchema(), (Class<? extends Serializable>) expectedType, ProxyType.PARENT, parentId
+		final Serializable referencedEntityInstance = theState.getOrCreateParentEntityProxy(
+			theState.getEntitySchema(), (Class<? extends Serializable>) expectedType, parentId
 		);
 		entityBuilder.setParent(parentId);
 		//noinspection unchecked
@@ -386,11 +379,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
 			if (parentEntity.isPresent()) {
 				entityBuilder.removeParent();
-				final Optional<Object> referencedEntityObject = theState.getReferencedEntityObjectIfPresent(
-					theState.getType(),
-					parentEntity.get().getPrimaryKey(),
+				final Optional<Object> referencedEntityObject = theState.getParentEntityProxyIfPresent(
 					expectedType,
-					ProxyType.PARENT
+					parentEntity.get().getPrimaryKeyOrThrowException()
 				);
 				return referencedEntityObject
 					.orElseGet(() -> {
@@ -430,8 +421,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 							" but the parameter object refers to `" + parent.getType() + "` entity type!"
 					)
 				);
-				entityBuilder.setParent(parent.getPrimaryKey());
-				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
+				final int pk = parent.getPrimaryKeyOrThrowException();
+				entityBuilder.setParent(pk);
+				theState.registerReferencedParentObject(pk, parent);
 			}
 			return null;
 		};
@@ -462,8 +454,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 							" but the parameter object refers to `" + parent.getType() + "` entity type!"
 					)
 				);
-				entityBuilder.setParent(parent.getPrimaryKey());
-				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
+				final int pk = parent.getPrimaryKeyOrThrowException();
+				entityBuilder.setParent(pk);
+				theState.registerReferencedParentObject(pk, parent);
 			}
 			return proxy;
 		};
@@ -483,7 +476,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				entityBuilder.removeParent();
 			} else {
 				entityBuilder.setParent(
-					EvitaDataTypes.toTargetType(parent, int.class)
+					Objects.requireNonNull(EvitaDataTypes.toTargetType(parent, int.class))
 				);
 			}
 			return null;
@@ -505,7 +498,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				entityBuilder.removeParent();
 			} else {
 				entityBuilder.setParent(
-					EvitaDataTypes.toTargetType(parent, int.class)
+					Objects.requireNonNull(EvitaDataTypes.toTargetType(parent, int.class))
 				);
 			}
 			return proxy;
@@ -596,29 +589,35 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 					}
 				} else if (parameterCount == 1 && parsedArguments.entityRecognizedIn().map(EntityRecognizedIn.PARAMETER::equals).orElse(false)) {
 					if (returnType.equals(proxyState.getProxyClass())) {
-						return setParentEntityWithBuilderResult(parsedArguments.entityType());
+						return setParentEntityWithBuilderResult();
 					} else {
-						return setParentEntityWithVoidResult(parsedArguments.entityType());
+						return setParentEntityWithVoidResult();
 					}
 				} else if (parameterCount == 1 && parsedArguments.entityRecognizedIn().map(EntityRecognizedIn.CONSUMER::equals).orElse(false)) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return createParentEntityWithEntityBuilderResult(parsedArguments.consumerType().orElse(null));
-					} else {
-						return createParentEntityWithVoidResult(parsedArguments.consumerType().orElse(null));
+					if (parsedArguments.consumerType().isPresent()) {
+						final Class<?> expectedType = parsedArguments.consumerType().get();
+						if (returnType.equals(proxyState.getProxyClass())) {
+							return createParentEntityWithEntityBuilderResult(expectedType);
+						} else {
+							return createParentEntityWithVoidResult(expectedType);
+						}
 					}
 				} else if (parameterCount == 2 && parsedArguments.entityRecognizedIn().map(EntityRecognizedIn.CONSUMER::equals).orElse(false) && parsedArguments.parentIdIndex().isPresent()) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						//noinspection OptionalGetWithoutIsPresent
-						return createParentEntityByIdWithEntityBuilderResult(
-							parsedArguments.consumerType().orElse(null),
-							parsedArguments.parentIdIndex().getAsInt(), parsedArguments.consumerIndex().getAsInt()
-						);
-					} else {
-						//noinspection OptionalGetWithoutIsPresent
-						return createParentEntityByIdWithVoidResult(
-							parsedArguments.consumerType().orElse(null),
-							parsedArguments.parentIdIndex().getAsInt(), parsedArguments.consumerIndex().getAsInt()
-						);
+					if (parsedArguments.consumerType().isPresent()) {
+						final Class<?> expectedType = parsedArguments.consumerType().get();
+						if (returnType.equals(proxyState.getProxyClass())) {
+							//noinspection OptionalGetWithoutIsPresent
+							return createParentEntityByIdWithEntityBuilderResult(
+								expectedType,
+								parsedArguments.parentIdIndex().getAsInt(), parsedArguments.consumerIndex().getAsInt()
+							);
+						} else {
+							//noinspection OptionalGetWithoutIsPresent
+							return createParentEntityByIdWithVoidResult(
+								expectedType,
+								parsedArguments.parentIdIndex().getAsInt(), parsedArguments.consumerIndex().getAsInt()
+							);
+						}
 					}
 				}
 				return null;

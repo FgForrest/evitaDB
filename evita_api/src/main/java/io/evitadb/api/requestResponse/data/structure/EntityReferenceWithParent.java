@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -63,19 +63,19 @@ public record EntityReferenceWithParent(
 	@Nonnull
 	@Override
 	public String getType() {
-		return type;
+		return this.type;
 	}
 
 	@Nonnull
 	@Override
 	public Integer getPrimaryKey() {
-		return primaryKey;
+		return this.primaryKey;
 	}
 
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
-		return Optional.ofNullable(parentEntity);
+		return Optional.ofNullable(this.parentEntity);
 	}
 
 	@Override
@@ -88,17 +88,18 @@ public record EntityReferenceWithParent(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		EntityReferenceWithParent that = (EntityReferenceWithParent) o;
-		return primaryKey == that.primaryKey && Objects.equals(type, that.type) && Objects.equals(parentEntity, that.parentEntity);
+		return this.primaryKey == that.primaryKey && Objects.equals(this.type, that.type) && Objects.equals(this.parentEntity, that.parentEntity);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(type, primaryKey, parentEntity);
+		return Objects.hash(this.type, this.primaryKey, this.parentEntity);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return type + ": " + primaryKey + (parentEntity != null ? " (↰ " + parentEntity.getPrimaryKey() + ")" : "");
+		return this.type + ": " + this.primaryKey + (this.parentEntity != null ? " (↰ " + this.parentEntity.getPrimaryKey() + ")" : "");
 	}
 
 	/**
@@ -108,7 +109,7 @@ public record EntityReferenceWithParent(
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			// type
-			EvitaDataTypes.estimateSize(type) +
+			EvitaDataTypes.estimateSize(this.type) +
 			// primary key
 			MemoryMeasuringConstants.INT_SIZE +
 			// parent

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,21 +64,31 @@ public class EntityStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(
 			EntityBodyStoragePart.class,
-			new SerialVersionBasedSerializer<>(new EntityBodyStoragePartSerializer(keyCompressor), EntityBodyStoragePart.class)
-				.addBackwardCompatibleSerializer(34998825794290379L, new EntityBodyStoragePartSerializer_2024_11(keyCompressor)),
+			new SerialVersionBasedSerializer<>(new EntityBodyStoragePartSerializer(this.keyCompressor), EntityBodyStoragePart.class)
+				.addBackwardCompatibleSerializer(34998825794290379L, new EntityBodyStoragePartSerializer_2024_11(this.keyCompressor)),
 			index++
 		);
 		kryo.register(PricesStoragePart.class, new SerialVersionBasedSerializer<>(new PricesStoragePartSerializer(), PricesStoragePart.class), index++);
-		kryo.register(ReferencesStoragePart.class, new SerialVersionBasedSerializer<>(new ReferencesStoragePartSerializer(), ReferencesStoragePart.class), index++);
-		kryo.register(AttributesStoragePart.class, new SerialVersionBasedSerializer<>(new AttributesStoragePartSerializer(keyCompressor), AttributesStoragePart.class), index++);
+		kryo.register(
+			ReferencesStoragePart.class,
+			new SerialVersionBasedSerializer<>(new ReferencesStoragePartSerializer(), ReferencesStoragePart.class)
+				.addBackwardCompatibleSerializer(-4113353795728768940L, new ReferencesStoragePartSerializer_2025_6()),
+			index++
+		);
+		kryo.register(AttributesStoragePart.class, new SerialVersionBasedSerializer<>(new AttributesStoragePartSerializer(this.keyCompressor), AttributesStoragePart.class), index++);
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
-		kryo.register(AssociatedDataStoragePart.class, new SerialVersionBasedSerializer<>(new AssociatedDataStoragePartSerializer(keyCompressor), AssociatedDataStoragePart.class), index++);
+		kryo.register(AssociatedDataStoragePart.class, new SerialVersionBasedSerializer<>(new AssociatedDataStoragePartSerializer(this.keyCompressor), AssociatedDataStoragePart.class), index++);
 
-		kryo.register(AttributeValue.class, new SerialVersionBasedSerializer<>(new AttributeValueSerializer(keyCompressor), AttributeValue.class), index++);
-		kryo.register(AssociatedDataValue.class, new SerialVersionBasedSerializer<>(new AssociatedDataValueSerializer(keyCompressor), AssociatedDataValue.class), index++);
-		kryo.register(Reference.class, new SerialVersionBasedSerializer<>(new ReferenceSerializer(), Reference.class), index++);
+		kryo.register(AttributeValue.class, new SerialVersionBasedSerializer<>(new AttributeValueSerializer(this.keyCompressor), AttributeValue.class), index++);
+		kryo.register(AssociatedDataValue.class, new SerialVersionBasedSerializer<>(new AssociatedDataValueSerializer(this.keyCompressor), AssociatedDataValue.class), index++);
+		kryo.register(
+			Reference.class,
+			new SerialVersionBasedSerializer<>(new ReferenceSerializer(), Reference.class)
+				.addBackwardCompatibleSerializer(-2624502273901281240L, new ReferenceSerializer_2025_6()),
+			index++
+		);
 		kryo.register(Prices.class, new SerialVersionBasedSerializer<>(new PricesSerializer(), Prices.class), index++);
-		kryo.register(Price.class, new SerialVersionBasedSerializer<>(new PriceSerializer(keyCompressor), Price.class), index++);
+		kryo.register(Price.class, new SerialVersionBasedSerializer<>(new PriceSerializer(this.keyCompressor), Price.class), index++);
 		kryo.register(EntityReference.class, new SerialVersionBasedSerializer<>(new EntityReferenceSerializer(), EntityReference.class), index++);
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);

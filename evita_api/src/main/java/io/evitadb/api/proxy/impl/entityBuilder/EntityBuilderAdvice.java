@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,13 +25,13 @@ package io.evitadb.api.proxy.impl.entityBuilder;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
 import io.evitadb.api.proxy.WithScopeEditor;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.Scope;
 import one.edee.oss.proxycian.MethodClassification;
 import one.edee.oss.proxycian.PredicateMethodClassification;
@@ -168,16 +168,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "upsertVia".equals(method.getName()),
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				proxyState.propagateReferenceMutations();
-				final EntityReference entityReference = proxyState.getEntityBuilderWithCallback()
-					.map(it -> {
-						final EntityReference resultReference = ((EvitaSessionContract) args[0]).upsertEntity(it.builder());
-						it.updateEntityReference(resultReference);
-						return resultReference;
-					})
-					.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()));
-				proxyState.setEntityReference(entityReference);
-				return entityReference;
+				return ((EvitaSessionContract)args[0]).upsertEntity((Serializable) proxy);
 			}
 		);
 	}
@@ -188,10 +179,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			"upsertDeeplyVia",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "upsertDeeplyVia".equals(method.getName()),
 			(method, proxyState) -> method,
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				proxyState.propagateReferenceMutations();
-				return ((EvitaSessionContract)args[0]).upsertEntityDeeply((Serializable) proxy);
-			}
+			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
+				((EvitaSessionContract)args[0]).upsertEntityDeeply((Serializable) proxy)
 		);
 	}
 
@@ -202,7 +191,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toInstance".equals(method.getName()),
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				proxyState.propagateReferenceMutations();
+				proxyState.propagateReferenceMutations(Propagation.SHALLOW);
 				return proxyState.entityBuilderIfPresent()
 					.map(InstanceEditor::toInstance)
 					.map(EntityContract.class::cast)
@@ -219,7 +208,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toMutation".equals(method.getName()),
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				proxyState.propagateReferenceMutations();
+				proxyState.propagateReferenceMutations(Propagation.SHALLOW);
 				return proxyState.entityBuilderIfPresent()
 					.flatMap(InstanceEditor::toMutation);
 			}

@@ -98,7 +98,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 		final OpenApiObject.Builder containerBuilder = newObject().name(containerName);
 		final OpenApiTypeReference containerPointer = typeRefTo(containerName);
 		// cache new container for reuse
-		sharedContext.cacheContainer(containerKey, containerPointer);
+		this.sharedContext.cacheContainer(containerKey, containerPointer);
 
 		final List<OpenApiProperty> children = new LinkedList<>();
 		children.addAll(buildGenericChildren(buildContext, allowedChildrenPredicate));
@@ -113,7 +113,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 		// abort container creation and use boolean value instead as this container would be empty which wouldn't be user-friendly
 		if (children.isEmpty()) {
-			sharedContext.removeCachedContainer(containerKey);
+			this.sharedContext.removeCachedContainer(containerKey);
 			return buildNoneConstraintValue();
 		}
 
@@ -127,7 +127,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			containerBuilder.property(property);
 		});
 
-		sharedContext.addNewType(containerBuilder.build());
+		this.sharedContext.addNewType(containerBuilder.build());
 		return containerPointer;
 	}
 
@@ -219,7 +219,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			//noinspection unchecked
 			ConstraintDescriptorProvider.getConstraints((Class<? extends Constraint<?>>) childParameterType)
 				.forEach(childConstraintDescriptor -> {
-					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
+					final String key = this.keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
 					// we need to switch child domain again manually based on the property type of the child constraint because there
 					// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
@@ -338,7 +338,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			// no fields (no usable parameters), there is nothing specific to specify, but we still want to be able to use
 			// the constraint without parameters
 			final OpenApiSimpleType emptyWrapperObject = buildNoneConstraintValue();
-			sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
+			this.sharedContext.cacheWrapperObject(wrapperObjectKey, emptyWrapperObject);
 			return emptyWrapperObject;
 		}
 
@@ -347,9 +347,9 @@ public abstract class OpenApiConstraintSchemaBuilder
 		wrapperObjectFields.forEach(wrapperObjectBuilder::property);
 		final OpenApiTypeReference wrapperObjectPointer = typeRefTo(wrapperObjectName);
 		// cache wrapper object for reuse
-		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
+		this.sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
-		sharedContext.addNewType(wrapperObjectBuilder.build());
+		this.sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;
 	}
 
@@ -363,7 +363,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 				valueType,
 				nonNull
 			);
-			sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
+			this.sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
 			return convertedEnum.resultType();
 		} else {
 			return DataTypesConverter.getOpenApiScalar(valueType, nonNull);
@@ -385,7 +385,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 				replacementComponentType,
 				nonNull
 			);
-			sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
+			this.sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
 			return convertedEnum.resultType();
 		} else {
 			return DataTypesConverter.getOpenApiScalar(valueType, replacementComponentType, nonNull);

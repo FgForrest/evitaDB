@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 public record CumulatedPrice(
 	int version,
 	@Nonnull PriceKey priceKey,
-	@Nullable Map<Integer, PriceContract> innerRecordPrices,
+	@Nonnull Map<Integer, PriceContract> innerRecordPrices,
 	@Nonnull BigDecimal priceWithoutTax,
 	@Nonnull BigDecimal taxRate,
 	@Nonnull BigDecimal priceWithTax
@@ -55,19 +55,19 @@ public record CumulatedPrice(
 
 	@Override
 	public int priceId() {
-		return priceKey.priceId();
+		return this.priceKey.priceId();
 	}
 
 	@Nonnull
 	@Override
 	public String priceList() {
-		return priceKey.priceList();
+		return this.priceKey.priceList();
 	}
 
 	@Nonnull
 	@Override
 	public Currency currency() {
-		return priceKey.currency();
+		return this.priceKey.currency();
 	}
 
 	@Nullable
@@ -111,7 +111,7 @@ public record CumulatedPrice(
 			// price id
 			MemoryMeasuringConstants.INT_SIZE +
 			// price list
-			EvitaDataTypes.estimateSize(priceKey.priceList()) +
+			EvitaDataTypes.estimateSize(this.priceKey.priceList()) +
 			// currency
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// inner record id
@@ -127,22 +127,23 @@ public record CumulatedPrice(
 
 		CumulatedPrice price = (CumulatedPrice) o;
 
-		if (version != price.version) return false;
-		return priceKey.equals(price.priceKey);
+		if (this.version != price.version) return false;
+		return this.priceKey.equals(price.priceKey);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = version;
-		result = 31 * result + priceKey.hashCode();
+		int result = this.version;
+		result = 31 * result + this.priceKey.hashCode();
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return "\uD83D\uDCB0 \uD83D\uDCB5 " + priceWithTax + " " + priceKey.currency() + " (" + taxRate + "%)" +
-			", price list " + priceKey.priceList() +
-			", external id " + priceKey.priceId() +
+		return "\uD83D\uDCB0 \uD83D\uDCB5 " + this.priceWithTax + " " + this.priceKey.currency() + " (" + this.taxRate + "%)" +
+			", price list " + this.priceKey.priceList() +
+			", external id " + this.priceKey.priceId() +
 			", SUM of inner record ids: [" + innerRecordPrices().keySet().stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
 	}
 

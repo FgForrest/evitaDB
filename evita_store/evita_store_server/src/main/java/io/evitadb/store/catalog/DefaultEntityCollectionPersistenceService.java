@@ -36,11 +36,10 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
-import io.evitadb.api.requestResponse.data.structure.Entity.ChunkTransformerAccessor;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
@@ -101,7 +100,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -383,23 +382,23 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
-		@Nonnull Map<AttributeKey, SortIndex> sortIndexes,
-		@Nullable ReferenceKey referenceKey,
-		@Nonnull AttributeIndexStorageKey attributeIndexKey
+		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndexes,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
 	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
 		final SortIndexStoragePart sortIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, SortIndexStoragePart.class);
 		isPremiseValid(
 			sortIndexCnt != null,
-			"Sort index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+			"Sort index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in mem table!"
 		);
-		final AttributeKey attributeKey = sortIndexCnt.getAttributeKey();
+		final AttributeIndexKey attributeIndexKey = sortIndexCnt.getAttributeIndexKey();
 		sortIndexes.put(
-			attributeKey,
+			attributeIndexKey,
 			new SortIndex(
 				sortIndexCnt.getComparatorBase(),
 				referenceKey,
-				sortIndexCnt.getAttributeKey(),
+				sortIndexCnt.getAttributeIndexKey(),
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),
 				sortIndexCnt.getValueCardinalities()
@@ -414,22 +413,22 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
-		@Nonnull Map<AttributeKey, ChainIndex> chainIndexes,
-		@Nullable ReferenceKey referenceKey,
-		@Nonnull AttributeIndexStorageKey attributeIndexKey
+		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndexes,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
 	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
 		final ChainIndexStoragePart chainIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, ChainIndexStoragePart.class);
 		isPremiseValid(
 			chainIndexCnt != null,
-			"Chain index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+			"Chain index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in mem table!"
 		);
-		final AttributeKey attributeKey = chainIndexCnt.getAttributeKey();
+		final AttributeIndexKey attributeIndexKey = chainIndexCnt.getAttributeIndexKey();
 		chainIndexes.put(
-			attributeKey,
+			attributeIndexKey,
 			new ChainIndex(
 				referenceKey,
-				chainIndexCnt.getAttributeKey(),
+				chainIndexCnt.getAttributeIndexKey(),
 				chainIndexCnt.getChains(),
 				chainIndexCnt.getElementStates()
 			)
@@ -443,18 +442,18 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
-		@Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexKey
+		@Nonnull Map<AttributeIndexKey, CardinalityIndex> cardinalityIndexes,
+		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
 	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
 		final CardinalityIndexStoragePart cardinalityIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, CardinalityIndexStoragePart.class);
 		isPremiseValid(
 			cardinalityIndexCnt != null,
-			"Cardinality index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+			"Cardinality index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in mem table!"
 		);
-		final AttributeKey attributeKey = cardinalityIndexCnt.getAttributeKey();
+		final AttributeIndexKey attributeIndexKey = cardinalityIndexCnt.getAttributeIndexKey();
 		cardinalityIndexes.put(
-			attributeKey,
+			attributeIndexKey,
 			cardinalityIndexCnt.getCardinalityIndex()
 		);
 	}
@@ -466,26 +465,26 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService persistenceService,
-		@Nonnull Map<AttributeKey, FilterIndex> filterIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexKey,
+		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
+		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey,
 		@SuppressWarnings("rawtypes")
-		@Nonnull Function<AttributeKey, Class> attributeTypeSupplier
+		@Nonnull Function<AttributeIndexKey, Class> attributeTypeSupplier
 	) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexStorageKey.attribute(), persistenceService.getReadOnlyKeyCompressor());
 		final FilterIndexStoragePart filterIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, FilterIndexStoragePart.class);
 		isPremiseValid(
 			filterIndexCnt != null,
-			"Filter index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+			"Filter index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in mem table!"
 		);
-		final AttributeKey attributeKey = filterIndexCnt.getAttributeKey();
+		final AttributeIndexKey attributeIndexKey = filterIndexCnt.getAttributeIndexKey();
 		/* TOBEDONE #538 - remove with new versions */
 		//noinspection unchecked
 		final Class<?> attributeType = ofNullable(filterIndexCnt.getAttributeType())
-			.orElseGet(() -> attributeTypeSupplier.apply(attributeKey));
+			.orElseGet(() -> attributeTypeSupplier.apply(attributeIndexKey));
 		filterIndexes.put(
-			attributeKey,
+			attributeIndexKey,
 			new FilterIndex(
-				filterIndexCnt.getAttributeKey(),
+				filterIndexCnt.getAttributeIndexKey(),
 				filterIndexCnt.getHistogramPoints(),
 				filterIndexCnt.getRangeIndex(),
 				attributeType,
@@ -502,25 +501,26 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityIndexId,
 		@Nonnull String entityType,
 		@Nonnull StoragePartPersistenceService persistenceService,
-		@Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes,
-		@Nonnull AttributeIndexStorageKey attributeIndexKey
+		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndexes,
+		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
 			entityIndexId,
 			AttributeIndexType.UNIQUE,
-			attributeIndexKey.attribute(),
+			attributeIndexStorageKey.attribute(),
 			persistenceService.getReadOnlyKeyCompressor()
 		);
 		final UniqueIndexStoragePart uniqueIndexCnt = persistenceService.getStoragePart(catalogVersion, primaryKey, UniqueIndexStoragePart.class);
 		isPremiseValid(
 			uniqueIndexCnt != null,
-			"Unique index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+			"Unique index with id " + entityIndexId + " with key " + attributeIndexStorageKey.attribute() + " was not found in mem table!"
 		);
-		final AttributeKey attributeKey = uniqueIndexCnt.getAttributeKey();
+		final AttributeIndexKey attributeIndexKey = uniqueIndexCnt.getAttributeIndexKey();
 		uniqueIndexes.put(
-			attributeKey,
+			attributeIndexKey,
 			new UniqueIndex(
-				entityType, attributeKey,
+				entityType,
+				attributeIndexKey,
 				uniqueIndexCnt.getType(),
 				uniqueIndexCnt.getUniqueValueToRecordId(),
 				uniqueIndexCnt.getRecordIds()
@@ -736,7 +736,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityCollectionHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
 	) {
@@ -810,7 +810,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			entityTypeHeader.entityTypeFileIndex(),
 			entityTypeHeader.fileLocation()
 		);
-		this.entityCollectionFile = entityCollectionFileReference.toFilePath(catalogStoragePath);
+		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
 		this.entityCollectionHeader = entityTypeHeader;
 		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = previous.observableOutputKeeper;
@@ -1114,6 +1114,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		);
 	}
 
+	@Nonnull
 	@Override
 	public EntityIndex readEntityIndex(long catalogVersion, int entityIndexId, @Nonnull EntitySchema entitySchema) {
 		final EntityIndexStoragePart entityIndexCnt = this.storagePartPersistenceService.getStoragePart(catalogVersion, entityIndexId, EntityIndexStoragePart.class);
@@ -1122,17 +1123,33 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
 		);
 
-		final Map<AttributeKey, UniqueIndex> uniqueIndexes = new HashMap<>();
-		final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
-		final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
-		final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
-		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
+		int uniqueIndexCount = 0;
+		int filterIndexCount = 0;
+		int sortIndexCount = 0;
+		int chainIndexCount = 0;
+		int cardinalityIndexCount = 0;
+		for (AttributeIndexStorageKey attributeIndex : entityIndexCnt.getAttributeIndexes()) {
+			switch (attributeIndex.indexType()) {
+				case UNIQUE -> uniqueIndexCount++;
+				case FILTER -> filterIndexCount++;
+				case SORT -> sortIndexCount++;
+				case CHAIN -> chainIndexCount++;
+				case CARDINALITY -> cardinalityIndexCount++;
+				default -> throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndex.indexType());
+			}
+		}
+
+		final Map<AttributeIndexKey, UniqueIndex> uniqueIndexes = CollectionUtils.createHashMap(uniqueIndexCount);
+		final Map<AttributeIndexKey, FilterIndex> filterIndexes = CollectionUtils.createHashMap(filterIndexCount);
+		final Map<AttributeIndexKey, SortIndex> sortIndexes = CollectionUtils.createHashMap(sortIndexCount);
+		final Map<AttributeIndexKey, ChainIndex> chainIndexes = CollectionUtils.createHashMap(chainIndexCount);
+		final Map<AttributeIndexKey, CardinalityIndex> cardinalityIndexes = CollectionUtils.createHashMap(cardinalityIndexCount);
 
 		/* TOBEDONE #538 - REMOVE IN FUTURE VERSIONS */
 		//noinspection rawtypes
-		final Function<AttributeKey, Class> attributeTypeFetcher;
+		final Function<AttributeIndexKey, Class> attributeTypeFetcher;
 		final EntityIndexKey entityIndexKey = entityIndexCnt.getEntityIndexKey();
-		final ReferenceKey referenceKey;
+		final RepresentativeReferenceKey referenceKey;
 		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			referenceKey = null;
 			attributeTypeFetcher = attributeKey -> entitySchema
@@ -1145,7 +1162,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				referenceKey = null;
 				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
-				referenceKey = Objects.requireNonNull((ReferenceKey) entityIndexKey.discriminator());
+				referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) entityIndexKey.discriminator());
 				referenceName = referenceKey.referenceName();
 			}
 			final ReferenceSchema referenceSchema = entitySchema
@@ -1160,28 +1177,28 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 			switch (attributeIndexKey.indexType()) {
 				case UNIQUE ->
-					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
+					fetchUniqueIndex(catalogVersion, entityIndexId, entitySchema.getName(), this.storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
 				case FILTER ->
-					fetchFilterIndex(catalogVersion, entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
+					fetchFilterIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, filterIndexes, attributeIndexKey, attributeTypeFetcher);
 				case SORT ->
-					fetchSortIndex(catalogVersion, entityIndexId, storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
+					fetchSortIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, sortIndexes, referenceKey, attributeIndexKey);
 				case CHAIN ->
-					fetchChainIndex(catalogVersion, entityIndexId, storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
+					fetchChainIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, chainIndexes, referenceKey, attributeIndexKey);
 				case CARDINALITY ->
-					fetchCardinalityIndex(catalogVersion, entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
+					fetchCardinalityIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
 				default ->
 					throw new GenericEvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 			}
 		}
 
-		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
-		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, storagePartPersistenceService, entityIndexCnt);
+		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
+		final FacetIndex facetIndex = fetchFacetIndex(catalogVersion, entityIndexId, this.storagePartPersistenceService, entityIndexCnt);
 
 		final EntityIndexType entityIndexType = entityIndexKey.type();
 		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
 		if (entityIndexType == EntityIndexType.GLOBAL) {
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
-				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
 			);
 			return new GlobalEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1211,13 +1228,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				),
 				hierarchyIndex,
 				facetIndex,
-				entityIndexCnt.getPrimaryKeyCardinality(),
-				cardinalityIndexes
+				entityIndexCnt.getIndexPrimaryKeyCardinality(),
+				cardinalityIndexes,
+				entityIndexCnt.getReferencedPrimaryKeysIndex()
 			);
 		} else {
 			final Scope scope = entityIndexKey.scope();
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+				catalogVersion, entityIndexId, scope, entityIndexCnt.getPriceIndexes(), this.storagePartPersistenceService
 			);
 			return new ReducedEntityIndex(
 				entityIndexCnt.getPrimaryKey(),
@@ -1422,9 +1440,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			headerInfoSupplier.getLastAssignedInternalPriceId(),
 			getStoragePartPersistenceService().offsetIndex.getActiveRecordShare(collectionFileReference.toFilePath(catalogStoragePath).toFile().length()),
 			newDescriptor,
-			headerInfoSupplier.getGlobalIndexKey().isPresent() ?
-				headerInfoSupplier.getGlobalIndexKey().getAsInt() : null,
-			headerInfoSupplier.getIndexKeys()
+			headerInfoSupplier.getGlobalIndexPrimaryKey().isPresent() ?
+				headerInfoSupplier.getGlobalIndexPrimaryKey().getAsInt() : null,
+			headerInfoSupplier.getIndexPrimaryKeys()
 		);
 	}
 
@@ -1531,7 +1549,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 					return Stream.concat(
 						ofNullable(entityFetch)
 							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedIds(referenceName))
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedIds(referenceName))
 									.mapToObj(
 										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedEntityType())
 											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedEntityType(), entityFetch), session)
@@ -1541,7 +1559,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 							.orElse(Stream.empty()),
 						ofNullable(entityGroupFetch)
 							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedGroupIds(referenceName))
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getDistinctReferencedGroupIds(referenceName))
 									.mapToObj(
 										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedGroupType())
 											.fetchBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedGroupType(), entityGroupFetch), session)
@@ -1624,30 +1642,30 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 		@Override
 		public int getLastAssignedPrimaryKey() {
-			return currentHeader.lastPrimaryKey();
+			return this.currentHeader.lastPrimaryKey();
 		}
 
 		@Override
 		public int getLastAssignedIndexKey() {
-			return currentHeader.lastEntityIndexPrimaryKey();
+			return this.currentHeader.lastEntityIndexPrimaryKey();
 		}
 
 		@Override
 		public int getLastAssignedInternalPriceId() {
-			return currentHeader.lastInternalPriceId();
+			return this.currentHeader.lastInternalPriceId();
 		}
 
 		@Nonnull
 		@Override
-		public OptionalInt getGlobalIndexKey() {
-			return currentHeader.globalEntityIndexId() == null ?
-				OptionalInt.empty() : OptionalInt.of(currentHeader.globalEntityIndexId());
+		public OptionalInt getGlobalIndexPrimaryKey() {
+			return this.currentHeader.globalEntityIndexPrimaryKey() == null ?
+				OptionalInt.empty() : OptionalInt.of(this.currentHeader.globalEntityIndexPrimaryKey());
 		}
 
 		@Nonnull
 		@Override
-		public List<Integer> getIndexKeys() {
-			return currentHeader.usedEntityIndexIds();
+		public List<Integer> getIndexPrimaryKeys() {
+			return this.currentHeader.usedEntityIndexPrimaryKeys();
 		}
 	}
 }

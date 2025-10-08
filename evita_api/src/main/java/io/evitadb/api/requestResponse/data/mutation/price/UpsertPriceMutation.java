@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.price;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
@@ -131,21 +132,40 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		this.indexed = price.indexed();
 	}
 
+	private UpsertPriceMutation(
+		@Nonnull PriceKey priceKey,
+		@Nullable Integer innerRecordId,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity,
+		boolean indexed,
+		long decisiveTimestamp
+	) {
+		super(priceKey, decisiveTimestamp);
+		this.innerRecordId = innerRecordId;
+		this.priceWithoutTax = priceWithoutTax;
+		this.taxRate = taxRate;
+		this.priceWithTax = priceWithTax;
+		this.validity = validity;
+		this.indexed = indexed;
+	}
+
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return priceKey.currency();
+		return this.priceKey.currency();
 	}
 
 	@Override
 	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
 		if (!entitySchemaBuilder.isWithPrice()) {
 			if (entitySchemaBuilder.allows(EvolutionMode.ADDING_PRICES)) {
-				if (entitySchemaBuilder.supportsCurrency(priceKey.currency()) || entitySchemaBuilder.allows(EvolutionMode.ADDING_CURRENCIES)) {
-					entitySchemaBuilder.withPriceInCurrency(priceKey.currency());
+				if (entitySchemaBuilder.supportsCurrency(this.priceKey.currency()) || entitySchemaBuilder.allows(EvolutionMode.ADDING_CURRENCIES)) {
+					entitySchemaBuilder.withPriceInCurrency(this.priceKey.currency());
 				} else {
 					throw new InvalidMutationException(
-						"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + priceKey.currency() + "`), " +
+						"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + this.priceKey.currency() + "`), " +
 							"you need to change the schema definition for it first."
 					);
 				}
@@ -155,12 +175,12 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 						"you need to change the schema definition for it first."
 				);
 			}
-		} else if (!entitySchemaBuilder.supportsCurrency(priceKey.currency())) {
+		} else if (!entitySchemaBuilder.supportsCurrency(this.priceKey.currency())) {
 			if (entitySchemaBuilder.allows(EvolutionMode.ADDING_CURRENCIES)) {
-				entitySchemaBuilder.withPriceInCurrency(priceKey.currency());
+				entitySchemaBuilder.withPriceInCurrency(this.priceKey.currency());
 			} else {
 				throw new InvalidMutationException(
-					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + priceKey.currency() + "`), " +
+					"Entity `" + entitySchemaBuilder.getName() + "` doesn't support adding new price currency (`" + this.priceKey.currency() + "`), " +
 						"you need to change the schema definition for it first."
 				);
 			}
@@ -172,32 +192,32 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 	public PriceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable PriceContract existingValue) {
 		if (existingValue == null) {
 			return new Price(
-				priceKey,
-				innerRecordId,
-				priceWithoutTax,
-				taxRate,
-				priceWithTax,
-				validity,
-				indexed
+				this.priceKey,
+				this.innerRecordId,
+				this.priceWithoutTax,
+				this.taxRate,
+				this.priceWithTax,
+				this.validity,
+				this.indexed
 			);
 		} else if (
-			!Objects.equals(existingValue.innerRecordId(), innerRecordId) ||
-			!Objects.equals(existingValue.priceWithoutTax(), priceWithoutTax) ||
-			!Objects.equals(existingValue.taxRate(), taxRate) ||
-			!Objects.equals(existingValue.priceWithTax(), priceWithTax) ||
-			!Objects.equals(existingValue.validity(), validity) ||
-				existingValue.indexed() != indexed ||
+			!Objects.equals(existingValue.innerRecordId(), this.innerRecordId) ||
+			!Objects.equals(existingValue.priceWithoutTax(), this.priceWithoutTax) ||
+			!Objects.equals(existingValue.taxRate(), this.taxRate) ||
+			!Objects.equals(existingValue.priceWithTax(), this.priceWithTax) ||
+			!Objects.equals(existingValue.validity(), this.validity) ||
+				existingValue.indexed() != this.indexed ||
 				existingValue.dropped()
 		) {
 			return new Price(
 				existingValue.version() + 1,
 				existingValue.priceKey(),
-				innerRecordId,
-				priceWithoutTax,
-				taxRate,
-				priceWithTax,
-				validity,
-				indexed
+				this.innerRecordId,
+				this.priceWithoutTax,
+				this.taxRate,
+				this.priceWithTax,
+				this.validity,
+				this.indexed
 			);
 		} else {
 			return existingValue;
@@ -215,9 +235,19 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		return Operation.UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new UpsertPriceMutation(
+			this.priceKey, this.innerRecordId,
+			this.priceWithoutTax, this.taxRate, this.priceWithTax,
+			this.validity, this.indexed, newDecisiveTimestamp
+		);
+	}
+
 	@Override
 	public String toString() {
-		return "upsert price `" + priceKey + "`";
+		return "upsert price `" + this.priceKey + "`";
 	}
 
 }

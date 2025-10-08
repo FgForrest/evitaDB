@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.function.IntBinaryOperator;
+import java.util.function.ToIntBiFunction;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -624,6 +625,93 @@ class ArrayUtilsTest {
 		position = computeInsertPositionOfObjInOrderedArray("cde", sortedArray, comparator);
 		assertEquals(2, position.position());
 		assertTrue(position.alreadyPresent());
+	}
+
+	@Test
+	void shouldReturnZeroForEqualArrays() {
+		Integer[] array1 = {1, 2, 3};
+		Integer[] array2 = {1, 2, 3};
+
+		assertEquals(0, ArrayUtils.compare(array1, array2));
+	}
+
+	@Test
+	void shouldReturnZeroForEmptyArrays() {
+		Integer[] array1 = {};
+		Integer[] array2 = {};
+
+		assertEquals(0, ArrayUtils.compare(array1, array2));
+	}
+
+	@Test
+	void shouldReturnNegativeForFirstArrayLesser() {
+		Integer[] array1 = {1, 2, 3};
+		Integer[] array2 = {1, 2, 4};
+
+		assertTrue(ArrayUtils.compare(array1, array2) < 0);
+	}
+
+	@Test
+	void shouldReturnPositiveForSecondArrayLesser() {
+		Integer[] array1 = {1, 2, 4};
+		Integer[] array2 = {1, 2, 3};
+
+		assertTrue(ArrayUtils.compare(array1, array2) > 0);
+	}
+
+	@Test
+	void shouldCompareByLengthForArraysWithSameBeginning() {
+		Integer[] array1 = {1, 2, 3};
+		Integer[] array2 = {1, 2, 3, 4};
+
+		assertTrue(ArrayUtils.compare(array1, array2) < 0);
+	}
+
+	@Test
+	void shouldComputeInsertPositionWithToIntBiFunction() {
+		// Setup an array of integers
+		Integer[] sortedArray = {10, 20, 30, 40, 50};
+
+		// Test with a string value that needs to be converted to int for comparison
+		// The ToIntBiFunction compares the Integer from the array with the String value
+		ToIntBiFunction<Integer, String> comparator = (arrayValue, searchValue) ->
+			Integer.compare(arrayValue, Integer.parseInt(searchValue));
+
+		// Test finding an existing value
+		InsertionPosition position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			"30", sortedArray, 0, sortedArray.length, comparator);
+		assertEquals(2, position.position());
+		assertTrue(position.alreadyPresent());
+
+		// Test finding insertion point for a value not in the array
+		position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			"25", sortedArray, 0, sortedArray.length, comparator);
+		assertEquals(2, position.position());
+		assertFalse(position.alreadyPresent());
+
+		// Test with a limited range where the value exists but is outside the range
+		position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			"40", sortedArray, 0, 3, comparator);
+		assertEquals(3, position.position());
+		assertFalse(position.alreadyPresent());
+
+		// Test with a value that would be inserted at the beginning
+		position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			"5", sortedArray, 0, sortedArray.length, comparator);
+		assertEquals(0, position.position());
+		assertFalse(position.alreadyPresent());
+
+		// Test with a value that would be inserted at the end
+		position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			"60", sortedArray, 0, sortedArray.length, comparator);
+		assertEquals(5, position.position());
+		assertFalse(position.alreadyPresent());
+
+		// Test with an empty range
+		position = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+			"30", sortedArray, 2, 2, comparator);
+		assertEquals(2, position.position());
+		assertFalse(position.alreadyPresent());
 	}
 
 }

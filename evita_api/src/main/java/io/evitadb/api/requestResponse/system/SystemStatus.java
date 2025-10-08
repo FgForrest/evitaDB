@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,18 +33,25 @@ import java.time.OffsetDateTime;
  *
  * @param version version of evitaDB server taken from the MANIFEST.MF file
  * @param startedAt date and time when the server was started
+ * @param engineVersion version of the current evitaDB server engine state (change in engine state)
+ * @param introducedAt date and time when the current engine version was introduced (last change occurred)
  * @param uptime duration of time since the server was started
  * @param instanceId unique identifier of the server instance
  * @param catalogsCorrupted number of corrupted catalogs
- * @param catalogsOk number of catalogs that are ok
+ * @param catalogsActive number of catalogs that are active and has been successfully opened
+ *                       (i.e. not corrupted)
+ * @param catalogsInactive number of catalogs that are inactive and has not been deliberately opened
  */
 public record SystemStatus(
 	@Nonnull String version,
 	@Nonnull OffsetDateTime startedAt,
+	long engineVersion,
+	@Nonnull OffsetDateTime introducedAt,
 	@Nonnull Duration uptime,
 	@Nonnull String instanceId,
 	int catalogsCorrupted,
-	int catalogsOk
+	int catalogsActive,
+	int catalogsInactive
 ) implements Serializable {
 
 }

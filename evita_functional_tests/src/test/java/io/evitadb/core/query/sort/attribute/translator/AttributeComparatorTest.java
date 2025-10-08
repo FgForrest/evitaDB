@@ -49,8 +49,8 @@ class AttributeComparatorTest {
 
 	@BeforeEach
 	void setUp() {
-		comparator.prepareFor(100);
-		reverseComparator.prepareFor(100);
+		this.comparator.prepareFor(100);
+		this.reverseComparator.prepareFor(100);
 	}
 
 	@Test
@@ -61,9 +61,9 @@ class AttributeComparatorTest {
 		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
 		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
 		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn("B");
-		assertEquals(-1, comparator.compare(entity1, entity2));
-		assertEquals(1, comparator.compare(entity2, entity1));
-		assertEquals(0, comparator.compare(entity1, entity1));
+		assertEquals(-1, this.comparator.compare(entity1, entity2));
+		assertEquals(1, this.comparator.compare(entity2, entity1));
+		assertEquals(0, this.comparator.compare(entity1, entity1));
 	}
 
 	@Test
@@ -74,9 +74,9 @@ class AttributeComparatorTest {
 		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
 		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
 		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn("B");
-		assertEquals(1, reverseComparator.compare(entity1, entity2));
-		assertEquals(-1, reverseComparator.compare(entity2, entity1));
-		assertEquals(0, reverseComparator.compare(entity1, entity1));
+		assertEquals(1, this.reverseComparator.compare(entity1, entity2));
+		assertEquals(-1, this.reverseComparator.compare(entity2, entity1));
+		assertEquals(0, this.reverseComparator.compare(entity1, entity1));
 	}
 
 	@Test
@@ -87,9 +87,9 @@ class AttributeComparatorTest {
 		final SealedEntity entity2 = Mockito.mock(SealedEntity.class);
 		Mockito.when(entity2.getPrimaryKeyOrThrowException()).thenReturn(2);
 		Mockito.when(entity2.getAttribute(ATTRIBUTE_NAME)).thenReturn(null);
-		assertEquals(-1, comparator.compare(entity1, entity2));
-		assertEquals(1, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).getSize());
-		assertEquals(entity2, ((CompositeObjectArray<EntityContract>)comparator.getNonSortedEntities()).get(0));
+		assertEquals(-1, this.comparator.compare(entity1, entity2));
+		assertEquals(1, ((CompositeObjectArray<EntityContract>) this.comparator.getNonSortedEntities()).getSize());
+		assertEquals(entity2, ((CompositeObjectArray<EntityContract>) this.comparator.getNonSortedEntities()).get(0));
 	}
 
 }

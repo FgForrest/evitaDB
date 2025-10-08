@@ -47,27 +47,27 @@ import static java.util.Optional.ofNullable;
  * Catalog header contains crucial information to read data from a single data storage file. The catalog header needs
  * to be stored in catalog file and maps the data maintained by {@link EntityCollection} objects.
  *
- * @param entityType                Type of the entity - {@link EntitySchema#getName()}.
- * @param entityTypePrimaryKey      Contains a unique identifier of the entity type that is assigned on entity
- *                                  collection creation and never changes.
- *                                  The primary key can be used interchangeably to
- *                                  {@link EntitySchema#getName() String entity type}.
- * @param entityTypeFileIndex       Contains index of an entity collection file where the collection contents are stored.
- * @param recordCount               Contains information about the number of entities in the collection. Servers for
- *                                  informational purposes.
- * @param globalEntityIndexId       Contains {@link io.evitadb.index.EntityIndex} id that belongs to the
- *                                  {@link EntityIndexType#GLOBAL} and is stored in file offset index.
- * @param usedEntityIndexIds        Contains list of unique {@link io.evitadb.index.EntityIndex} ids that are stored in
- *                                  file offset index.
- * @param lastPrimaryKey            Contains last primary key used by {@link EntityCollection} - but only in case that
- *                                  Evita assign new primary keys to the entities. New entity will obtain
- *                                  PK = `lastPrimaryKey` + 1.
- * @param lastEntityIndexPrimaryKey Contains last primary key used by {@link io.evitadb.index.EntityIndex}. New entity
- *                                  indexes will obtain PK = `lastPrimaryKey` + 1.
- * @param storageDescriptor         Contains {@link PersistentStorageDescriptor} that is used to bootstrap
- *                                  {@link io.evitadb.store.service.KeyCompressor} for file offset index deserialization.
- * @param lastKeyId                 Contains last assigned id in {@link PersistentStorageDescriptor#compressedKeys()}.
- *                                  Newly registered key will obtain ID = `lastKeyId` + 1.
+ * @param entityType                  Type of the entity - {@link EntitySchema#getName()}.
+ * @param entityTypePrimaryKey        Contains a unique identifier of the entity type that is assigned on entity
+ *                                    collection creation and never changes.
+ *                                    The primary key can be used interchangeably to
+ *                                    {@link EntitySchema#getName() String entity type}.
+ * @param entityTypeFileIndex         Contains index of an entity collection file where the collection contents are stored.
+ * @param recordCount                 Contains information about the number of entities in the collection. Servers for
+ *                                    informational purposes.
+ * @param globalEntityIndexPrimaryKey Contains {@link io.evitadb.index.EntityIndex} id that belongs to the
+ *                                    {@link EntityIndexType#GLOBAL} and is stored in file offset index.
+ * @param usedEntityIndexPrimaryKeys  Contains list of unique {@link io.evitadb.index.EntityIndex} ids that are stored in
+ *                                    file offset index.
+ * @param lastPrimaryKey              Contains last primary key used by {@link EntityCollection} - but only in case that
+ *                                    Evita assign new primary keys to the entities. New entity will obtain
+ *                                    PK = `lastPrimaryKey` + 1.
+ * @param lastEntityIndexPrimaryKey   Contains last primary key used by {@link io.evitadb.index.EntityIndex}. New entity
+ *                                    indexes will obtain PK = `lastPrimaryKey` + 1.
+ * @param storageDescriptor           Contains {@link PersistentStorageDescriptor} that is used to bootstrap
+ *                                    {@link io.evitadb.store.service.KeyCompressor} for file offset index deserialization.
+ * @param lastKeyId                   Contains last assigned id in {@link PersistentStorageDescriptor#compressedKeys()}.
+ *                                    Newly registered key will obtain ID = `lastKeyId` + 1.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @see PersistentStorageHeader
  */
@@ -83,8 +83,8 @@ public record EntityCollectionHeader(
 	int lastEntityIndexPrimaryKey,
 	int lastInternalPriceId,
 	@Nullable PersistentStorageDescriptor storageDescriptor,
-	@Nullable Integer globalEntityIndexId,
-	@Nonnull List<Integer> usedEntityIndexIds,
+	@Nullable Integer globalEntityIndexPrimaryKey,
+	@Nonnull List<Integer> usedEntityIndexPrimaryKeys,
 	int lastKeyId,
 	double activeRecordShare
 ) implements PersistentStorageDescriptor, StoragePart, Serializable {
@@ -131,10 +131,10 @@ public record EntityCollectionHeader(
 			storageDescriptor == null ?
 				1 :
 				storageDescriptor.compressedKeys()
-					.keySet()
-					.stream()
-					.max(Comparator.comparingInt(o -> o))
-					.orElse(1),
+				                 .keySet()
+				                 .stream()
+				                 .max(Comparator.comparingInt(o -> o))
+				                 .orElse(1),
 			activeRecordShare
 		);
 	}
@@ -164,8 +164,8 @@ public record EntityCollectionHeader(
 			this.lastEntityIndexPrimaryKey == that.lastEntityIndexPrimaryKey &&
 			this.entityType.equals(that.entityType) &&
 			this.fileLocation.equals(that.fileLocation) &&
-			Objects.equals(this.globalEntityIndexId, that.globalEntityIndexId) &&
-			this.usedEntityIndexIds.equals(that.usedEntityIndexIds) &&
+			Objects.equals(this.globalEntityIndexPrimaryKey, that.globalEntityIndexPrimaryKey) &&
+			this.usedEntityIndexPrimaryKeys.equals(that.usedEntityIndexPrimaryKeys) &&
 			this.compressedKeys.equals(that.compressedKeys) &&
 			Objects.equals(this.storageDescriptor, that.storageDescriptor);
 	}
@@ -183,8 +183,8 @@ public record EntityCollectionHeader(
 		result = 31 * result + this.lastEntityIndexPrimaryKey;
 		result = 31 * result + this.lastInternalPriceId;
 		result = 31 * result + Objects.hashCode(this.storageDescriptor);
-		result = 31 * result + Objects.hashCode(this.globalEntityIndexId);
-		result = 31 * result + this.usedEntityIndexIds.hashCode();
+		result = 31 * result + Objects.hashCode(this.globalEntityIndexPrimaryKey);
+		result = 31 * result + this.usedEntityIndexPrimaryKeys.hashCode();
 		result = 31 * result + this.lastKeyId;
 		return result;
 	}

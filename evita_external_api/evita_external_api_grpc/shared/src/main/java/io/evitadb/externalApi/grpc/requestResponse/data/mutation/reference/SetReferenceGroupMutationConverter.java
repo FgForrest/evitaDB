@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,7 +49,8 @@ public class SetReferenceGroupMutationConverter implements LocalMutationConverte
 		return new SetReferenceGroupMutation(
 			new ReferenceKey(
 				mutation.getReferenceName(),
-				mutation.getReferencePrimaryKey()
+				mutation.getReferencePrimaryKey(),
+				mutation.getInternalPrimaryKey()
 			),
 			mutation.hasGroupType() ? mutation.getGroupType().getValue() : null,
 			mutation.getGroupPrimaryKey()
@@ -59,9 +60,12 @@ public class SetReferenceGroupMutationConverter implements LocalMutationConverte
 	@Nonnull
 	@Override
 	public GrpcSetReferenceGroupMutation convert(@Nonnull SetReferenceGroupMutation mutation) {
-		final GrpcSetReferenceGroupMutation.Builder builder = GrpcSetReferenceGroupMutation.newBuilder()
-			.setReferenceName(mutation.getComparableKey().referenceName())
-			.setReferencePrimaryKey(mutation.getComparableKey().primaryKey())
+		final ReferenceKey referenceKey = mutation.getReferenceKey();
+		final GrpcSetReferenceGroupMutation.Builder builder = GrpcSetReferenceGroupMutation
+			.newBuilder()
+			.setReferenceName(referenceKey.referenceName())
+			.setReferencePrimaryKey(referenceKey.primaryKey())
+			.setInternalPrimaryKey(referenceKey.internalPrimaryKey())
 			.setGroupPrimaryKey(mutation.getGroupPrimaryKey());
 
 		if (mutation.getGroupType() != null) {

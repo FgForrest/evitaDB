@@ -57,12 +57,12 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 	void setUp() throws IOException {
 		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
 		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration(false)
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 		/* first update the catalog the standard way */
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
@@ -75,53 +75,54 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 				session.goLiveAndClose();
 			}
 		);
-		evita.close();
+		this.evita.close();
 
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration(true)
 		);
+		this.evita.waitUntilFullyInitialized();
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
 		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
 	}
 
 	@Test
 	void shouldFailToCreateCatalog() {
-		assertThrows(ReadOnlyException.class, () -> evita.defineCatalog("differentCatalog"));
+		assertThrows(ReadOnlyException.class, () -> this.evita.defineCatalog("differentCatalog"));
 	}
 
 	@Test
 	void shouldFailToDropExistingCatalog() {
-		assertThrows(ReadOnlyException.class, () -> evita.deleteCatalogIfExists(TEST_CATALOG));
+		assertThrows(ReadOnlyException.class, () -> this.evita.deleteCatalogIfExists(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldFailToRenameExistingCatalog() {
-		assertThrows(ReadOnlyException.class, () -> evita.renameCatalog(TEST_CATALOG, "differentCatalog"));
+		assertThrows(ReadOnlyException.class, () -> this.evita.renameCatalog(TEST_CATALOG, "differentCatalog"));
 	}
 
 	@Test
 	void shouldFailToUpdateExistingCatalog() {
-		assertThrows(ReadOnlyException.class, () -> evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));
+		assertThrows(ReadOnlyException.class, () -> this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));
 	}
 
 	@Test
 	void shouldFailToCreateReadWriteSessionToExistingCatalog() {
-		assertThrows(ReadOnlyException.class, () -> evita.createReadWriteSession(TEST_CATALOG));
+		assertThrows(ReadOnlyException.class, () -> this.evita.createReadWriteSession(TEST_CATALOG));
 	}
 
 	@Test
 	void shouldFailToCreateReadWriteSessionViaTraitsToExistingCatalog() {
-		assertThrows(ReadOnlyException.class, () -> evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE)));
+		assertThrows(ReadOnlyException.class, () -> this.evita.createSession(new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE)));
 	}
 
 	@Test
 	void shouldAllowToQueryExistingCatalog() {
-		assertNotNull(evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));
+		assertNotNull(this.evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema));
 	}
 
 	@Nonnull

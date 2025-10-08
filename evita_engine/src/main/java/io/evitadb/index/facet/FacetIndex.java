@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
@@ -140,7 +141,12 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	}
 
 	@Override
-	public void addFacet(@Nonnull ReferenceKey referenceKey, @Nullable Integer groupId, int entityPrimaryKey) {
+	public void addFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	) {
 		// we need to keep track of created internal transactional memory related data structures
 		final FacetIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity type
@@ -160,7 +166,12 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	}
 
 	@Override
-	public void removeFacet(@Nonnull ReferenceKey referenceKey, @Nullable Integer groupId, int entityPrimaryKey) {
+	public void removeFacet(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Integer groupId,
+		int entityPrimaryKey
+	) {
 		// fetch index for referenced entity type
 		final FacetReferenceIndex facetEntityTypeIndex = this.facetingEntities.get(referenceKey.referenceName());
 		Assert.notNull(facetEntityTypeIndex, "No facet found for reference `" + referenceKey.referenceName() + "`!");
@@ -186,7 +197,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Override
 	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull String referenceName, @Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
 		// fetch index for referenced entity type
-		final FacetReferenceIndex facetEntityTypeIndex = facetingEntities.get(referenceName);
+		final FacetReferenceIndex facetEntityTypeIndex = this.facetingEntities.get(referenceName);
 		// if not found or empty, or input parameter is empty - return empty result
 		if (facetEntityTypeIndex == null || facetEntityTypeIndex.isEmpty()) {
 			return Collections.emptyList();
@@ -197,7 +208,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 
 	@Override
 	public boolean isFacetInGroup(@Nonnull String referenceName, int groupId, int facetId) {
-		return ofNullable(facetingEntities.get(referenceName))
+		return ofNullable(this.facetingEntities.get(referenceName))
 			.map(it -> it.isFacetInGroup(groupId, facetId))
 			.orElse(false);
 	}
@@ -307,19 +318,19 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		private final TransactionalContainerChanges<FacetEntityTypeIndexChanges, FacetReferenceIndex, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetReferenceIndex index) {
-			facetGroupIndexChanges.addCreatedItem(index);
+			this.facetGroupIndexChanges.addCreatedItem(index);
 		}
 
 		public void addRemovedItem(@Nonnull FacetReferenceIndex index) {
-			facetGroupIndexChanges.addRemovedItem(index);
+			this.facetGroupIndexChanges.addRemovedItem(index);
 		}
 
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			facetGroupIndexChanges.clean(transactionalLayer);
+			this.facetGroupIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			facetGroupIndexChanges.cleanAll(transactionalLayer);
+			this.facetGroupIndexChanges.cleanAll(transactionalLayer);
 		}
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.hierarchy;
 
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
@@ -44,7 +45,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class HierarchyFormula extends AbstractFormula {
+public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
 	private static final long CLASS_ID = -7910610363796304904L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 
@@ -67,16 +68,16 @@ public class HierarchyFormula extends AbstractFormula {
 
 	@Override
 	public int getEstimatedCardinality() {
-		return innerFormulas[0].getEstimatedCardinality();
+		return this.innerFormulas[0].getEstimatedCardinality();
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		if (innerFormulas.length == 0) {
+		if (this.innerFormulas.length == 0) {
 			return EmptyBitmap.INSTANCE;
-		} else if (innerFormulas.length == 1) {
-			return innerFormulas[0].compute();
+		} else if (this.innerFormulas.length == 1) {
+			return this.innerFormulas[0].compute();
 		} else {
 			throw new GenericEvitaInternalError(ERROR_SINGLE_FORMULA_EXPECTED);
 		}

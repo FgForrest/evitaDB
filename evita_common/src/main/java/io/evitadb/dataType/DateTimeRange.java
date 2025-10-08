@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -166,30 +166,30 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 
 	@Override
 	public long getFrom() {
-		return fromToCompare;
+		return this.fromToCompare;
 	}
 
 	@Override
 	public long getTo() {
-		return toToCompare;
+		return this.toToCompare;
 	}
 
 	@Nullable
 	@Override
 	public OffsetDateTime getPreciseFrom() {
-		return from;
+		return this.from;
 	}
 
 	@Nullable
 	@Override
 	public OffsetDateTime getPreciseTo() {
-		return to;
+		return this.to;
 	}
 
 	@Override
 	public boolean isWithin(@Nonnull OffsetDateTime valueToCheck) {
 		final long comparedValue = DateTimeRange.toComparableLong(valueToCheck);
-		return fromToCompare <= comparedValue && comparedValue <= toToCompare;
+		return this.fromToCompare <= comparedValue && comparedValue <= this.toToCompare;
 	}
 
 	@Nonnull
@@ -204,7 +204,7 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 	 */
 	public boolean isValidFor(@Nonnull OffsetDateTime theMoment) {
 		final long comparedValue = theMoment.toEpochSecond();
-		return fromToCompare <= comparedValue && toToCompare >= comparedValue;
+		return this.fromToCompare <= comparedValue && this.toToCompare >= comparedValue;
 	}
 
 	@Override
@@ -224,8 +224,8 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 	@Nonnull
 	@Override
 	public String toString() {
-		return OPEN_CHAR + ofNullable(from).map(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format).orElse("") +
-			INTERVAL_JOIN + ofNullable(to).map(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format).orElse("") + CLOSE_CHAR;
+		return OPEN_CHAR + ofNullable(this.from).map(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format).orElse("") +
+			INTERVAL_JOIN + ofNullable(this.to).map(DateTimeFormatter.ISO_OFFSET_DATE_TIME::format).orElse("") + CLOSE_CHAR;
 	}
 
 	private static void assertEitherBoundaryNotNull(@Nullable OffsetDateTime from, @Nullable OffsetDateTime to) {

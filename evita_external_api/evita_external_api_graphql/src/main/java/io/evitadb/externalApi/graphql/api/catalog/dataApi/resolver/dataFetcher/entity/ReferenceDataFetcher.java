@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -35,7 +34,9 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Finds single reference in parent entity that conforms to specified name.
@@ -52,29 +53,29 @@ public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
     @Nonnull
     private final ReferenceSchemaContract referenceSchema;
 
-    @Nonnull
+    @Nullable
     @Override
-    public ReferenceContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final EntityDecorator entity = environment.getSource();
+    public ReferenceContract get(DataFetchingEnvironment environment) throws Exception {
+        final EntityDecorator entity = Objects.requireNonNull(environment.getSource());
         Assert.isPremiseValid(
-            referenceSchema.getCardinality() == Cardinality.ZERO_OR_ONE || referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE,
+	        this.referenceSchema.getCardinality().getMax() == 1,
             () -> new GraphQLQueryResolvingInternalError(
-                "Reference `" + referenceSchema.getName() + "` doesn't have cardinality of single reference but single reference were requested."
+                "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of single reference but single reference were requested."
             )
         );
 
-        final Collection<ReferenceContract> references = entity.getReferences(referenceSchema.getName());
+        final Collection<ReferenceContract> references = entity.getReferences(this.referenceSchema.getName());
         Assert.isPremiseValid(
             references.size() <= 1,
             () -> new GraphQLQueryResolvingInternalError(
-                "Reference `" + referenceSchema.getName() + "` is expected to be single reference but multiple found."
+                "Reference `" + this.referenceSchema.getName() + "` is expected to be single reference but multiple found."
             )
         );
 
         final ReferenceContract reference = references.isEmpty() ? null : references.iterator().next();
-        if (referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE && reference == null) {
+        if (this.referenceSchema.getCardinality().getMin() == 1 && reference == null) {
             throw new GraphQLInternalError(
-                "evitaDB should returned exactly one reference for name `" + referenceSchema.getName() + "` but zero found."
+                "evitaDB should returned exactly one reference for name `" + this.referenceSchema.getName() + "` but zero found."
             );
         }
 

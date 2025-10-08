@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
@@ -39,7 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 
 /**
  * Ancestor for tests for GraphQL catalog endpoint.
@@ -52,7 +53,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	protected static List<Map<String, Object>> createAttributeUniquenessTypeDto(@Nonnull AttributeSchemaContract schema) {
 		return Arrays.stream(Scope.values())
 			.map(scope -> map()
-				.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+				.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 				.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), schema.getUniquenessType(scope).name())
 				.build())
 			.toList();
@@ -64,7 +65,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 			.map(scope -> {
 				final AttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : AttributeUniquenessType.NOT_UNIQUE;
 				return map()
-					.e(ScopedAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 					.e(ScopedAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
 					.build();
 			})
@@ -75,7 +76,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	protected static List<Map<String, Object>> createGlobalAttributeUniquenessTypeDto(@Nonnull GlobalAttributeSchemaContract schema) {
 		return Arrays.stream(Scope.values())
 			.map(scope -> map()
-				.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+				.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 				.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), schema.getGlobalUniquenessType(scope).name())
 				.build())
 			.toList();
@@ -87,7 +88,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 			.map(scope -> {
 				final GlobalAttributeUniquenessType finalUniquenessType = (scope == Scope.LIVE) ? uniquenessType : GlobalAttributeUniquenessType.NOT_UNIQUE;
 				return map()
-					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.SCOPE.name(), scope.name())
+					.e(ScopedDataDescriptor.SCOPE.name(), scope.name())
 					.e(ScopedGlobalAttributeUniquenessTypeDescriptor.UNIQUENESS_TYPE.name(), finalUniquenessType.name())
 					.build();
 			})

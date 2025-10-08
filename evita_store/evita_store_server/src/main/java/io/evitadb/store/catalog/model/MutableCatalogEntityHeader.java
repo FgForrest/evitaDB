@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -90,14 +90,14 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	@Nonnull
 	@Override
 	public Map<Integer, Object> getKeys() {
-		return idToKeyIndex;
+		return this.idToKeyIndex;
 	}
 
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) {
-		return keyToIdIndex.computeIfAbsent(key, o -> {
-			final int id = keySequence.incrementAndGet();
-			idToKeyIndex.put(id, o);
+		return this.keyToIdIndex.computeIfAbsent(key, o -> {
+			final int id = this.keySequence.incrementAndGet();
+			this.idToKeyIndex.put(id, o);
 			return id;
 		});
 	}
@@ -105,7 +105,7 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	@Nonnull
 	@Override
 	public <T extends Comparable<T>> OptionalInt getIdIfExists(@Nonnull T key) {
-		return Optional.ofNullable(keyToIdIndex.get(key))
+		return Optional.ofNullable(this.keyToIdIndex.get(key))
 			.map(OptionalInt::of)
 			.orElseGet(OptionalInt::empty);
 	}
@@ -113,7 +113,7 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	@Nonnull
 	@Override
 	public <T extends Comparable<T>> T getKeyForId(int id) {
-		final Object key = idToKeyIndex.get(id);
+		final Object key = this.idToKeyIndex.get(id);
 		Assert.notNull(key, "There is no key for id " + id + "!");
 		//noinspection unchecked
 		return (T) key;
@@ -122,17 +122,17 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	@Nullable
 	@Override
 	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
-		final Object key = idToKeyIndex.get(id);
+		final Object key = this.idToKeyIndex.get(id);
 		//noinspection unchecked
 		return (T) key;
 	}
 
 	@Override
 	public int hashCode() {
-		int result = entityType.hashCode();
-		result = 31 * result + idToKeyIndex.hashCode();
-		result = 31 * result + keyToIdIndex.hashCode();
-		result = 31 * result + Integer.hashCode(keySequence.get());
+		int result = this.entityType.hashCode();
+		result = 31 * result + this.idToKeyIndex.hashCode();
+		result = 31 * result + this.keyToIdIndex.hashCode();
+		result = 31 * result + Integer.hashCode(this.keySequence.get());
 		return result;
 	}
 
@@ -143,9 +143,9 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 
 		MutableCatalogEntityHeader that = (MutableCatalogEntityHeader) o;
 
-		if (!entityType.equals(that.entityType)) return false;
-		if (!idToKeyIndex.equals(that.idToKeyIndex)) return false;
-		if (!keyToIdIndex.equals(that.keyToIdIndex)) return false;
-		return keySequence.get() == that.keySequence.get();
+		if (!this.entityType.equals(that.entityType)) return false;
+		if (!this.idToKeyIndex.equals(that.idToKeyIndex)) return false;
+		if (!this.keyToIdIndex.equals(that.keyToIdIndex)) return false;
+		return this.keySequence.get() == that.keySequence.get();
 	}
 }

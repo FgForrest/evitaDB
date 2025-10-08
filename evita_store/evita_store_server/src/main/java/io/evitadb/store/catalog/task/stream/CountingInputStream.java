@@ -25,6 +25,7 @@ package io.evitadb.store.catalog.task.stream;
 
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -52,7 +53,7 @@ public class CountingInputStream extends InputStream {
 	}
 
 	@Override
-	public int read(byte[] b) throws IOException {
+	public int read(@Nonnull byte[] b) throws IOException {
 		int result = this.delegate.read(b);
 		if (result != -1) {
 			this.count += result;
@@ -61,7 +62,7 @@ public class CountingInputStream extends InputStream {
 	}
 
 	@Override
-	public int read(byte[] b, int off, int len) throws IOException {
+	public int read(@Nonnull byte[] b, int off, int len) throws IOException {
 		int result = this.delegate.read(b, off, len);
 		if (result != -1) {
 			this.count += result;
@@ -101,6 +102,7 @@ public class CountingInputStream extends InputStream {
 		return this.delegate.markSupported();
 	}
 
+	@Nonnull
 	@Override
 	public byte[] readAllBytes() throws IOException {
 		byte[] result = this.delegate.readAllBytes();
@@ -108,6 +110,7 @@ public class CountingInputStream extends InputStream {
 		return result;
 	}
 
+	@Nonnull
 	@Override
 	public byte[] readNBytes(int len) throws IOException {
 		byte[] result = this.delegate.readNBytes(len);
@@ -132,7 +135,7 @@ public class CountingInputStream extends InputStream {
 
 	@Override
 	public long transferTo(OutputStream out) throws IOException {
-		final long transferredBytes = delegate.transferTo(out);
+		final long transferredBytes = this.delegate.transferTo(out);
 		this.count += transferredBytes;
 		return transferredBytes;
 	}

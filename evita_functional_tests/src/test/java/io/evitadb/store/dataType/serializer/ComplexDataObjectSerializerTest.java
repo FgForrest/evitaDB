@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -83,7 +83,7 @@ class ComplexDataObjectSerializerTest {
 		try (final ByteBufferInput input = new ByteBufferInput(serializedSchema)) {
 			deserializedForm = kryo.readObject(input, ComplexDataObject.class);
 		}
-		final SomeDto deserializedDto = ComplexDataObjectConverter.getOriginalForm(deserializedForm, SomeDto.class, reflectionLookup);
+		final SomeDto deserializedDto = ComplexDataObjectConverter.getOriginalForm(deserializedForm, SomeDto.class, this.reflectionLookup);
 
 		assertEquals(dtoToStore, deserializedDto);
 	}
@@ -115,7 +115,7 @@ class ComplexDataObjectSerializerTest {
 		try (final ByteBufferInput input = new ByteBufferInput(serializedSchema)) {
 			deserializedForm = kryo.readObject(input, ComplexDataObject.class);
 		}
-		final SomeDtoRecord deserializedDto = ComplexDataObjectConverter.getOriginalForm(deserializedForm, SomeDtoRecord.class, reflectionLookup);
+		final SomeDtoRecord deserializedDto = ComplexDataObjectConverter.getOriginalForm(deserializedForm, SomeDtoRecord.class, this.reflectionLookup);
 
 		assertEquals(dtoToStore, deserializedDto);
 	}
@@ -140,23 +140,23 @@ class ComplexDataObjectSerializerTest {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			SomeDtoRecord that = (SomeDtoRecord) o;
-			return id == that.id && Objects.equals(name, that.name) && Objects.equals(counts, that.counts) && Arrays.equals(numbers, that.numbers);
+			return this.id == that.id && Objects.equals(this.name, that.name) && Objects.equals(this.counts, that.counts) && Arrays.equals(this.numbers, that.numbers);
 		}
 
 		@Override
 		public int hashCode() {
-			int result = Objects.hash(id, name, counts);
-			result = 31 * result + Arrays.hashCode(numbers);
+			int result = Objects.hash(this.id, this.name, this.counts);
+			result = 31 * result + Arrays.hashCode(this.numbers);
 			return result;
 		}
 
 		@Override
 		public String toString() {
 			return "SomeDtoRecord{" +
-				"id=" + id +
-				", name=" + name +
-				", counts=" + counts +
-				", numbers=" + Arrays.toString(numbers) +
+				"id=" + this.id +
+				", name=" + this.name +
+				", counts=" + this.counts +
+				", numbers=" + Arrays.toString(this.numbers) +
 				'}';
 		}
 	}

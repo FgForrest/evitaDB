@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public QueryTelemetry finish(@Nonnull String... arguments) {
-		this.spentTime += (System.nanoTime() - start);
+		this.spentTime += (System.nanoTime() - this.start);
 		Assert.isTrue(ArrayUtils.isEmpty(this.arguments), "Arguments have been already set!");
 		this.arguments = arguments;
 		return this;
@@ -124,7 +124,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Nonnull
 	public QueryTelemetry finish() {
-		this.spentTime += (System.nanoTime() - start);
+		this.spentTime += (System.nanoTime() - this.start);
 		return this;
 	}
 
@@ -141,15 +141,15 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	public String toString(int indent) {
 		final StringBuilder sb = new StringBuilder(" ".repeat(indent));
-		sb.append(operation);
-		if (arguments.length > 0) {
+		sb.append(this.operation);
+		if (this.arguments.length > 0) {
 			sb.append("(")
-				.append(Arrays.stream(arguments).map(Object::toString).collect(Collectors.joining(", ")))
+				.append(Arrays.stream(this.arguments).map(Object::toString).collect(Collectors.joining(", ")))
 				.append(") ");
 		}
-		sb.append(": ").append(StringUtils.formatNano(spentTime)).append("\n");
-		if (!steps.isEmpty()) {
-			for (QueryTelemetry step : steps) {
+		sb.append(": ").append(StringUtils.formatNano(this.spentTime)).append("\n");
+		if (!this.steps.isEmpty()) {
+			for (QueryTelemetry step : this.steps) {
 				sb.append(step.toString(indent + 5));
 			}
 		}

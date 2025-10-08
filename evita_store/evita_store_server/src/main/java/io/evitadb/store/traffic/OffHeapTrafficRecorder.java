@@ -45,8 +45,8 @@ import io.evitadb.api.requestResponse.trafficRecording.SessionStartContainer;
 import io.evitadb.api.requestResponse.trafficRecording.SourceQueryContainer;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.kryo.ObservableInput;
@@ -62,6 +62,7 @@ import io.evitadb.store.traffic.stream.RingBufferInputStream;
 import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -464,6 +465,10 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 		this.freeMemory();
 		this.memoryBlock.set(null);
 		this.trackedSessionsIndex.clear();
+		IOUtils.closeQuietly(
+			this.freeMemoryTask::close,
+			this.indexTask::close
+		);
 		this.diskBuffer.close(filePath -> this.exportFileService.purgeManagedTempFile(filePath));
 	}
 
@@ -706,7 +711,7 @@ public class OffHeapTrafficRecorder implements TrafficRecorder, TrafficRecording
 			return new NumberedByteBuffer(
 				freeBlockId,
 				this.memoryBlock.get()
-					.slice(freeBlockId * blockSizeBytes, blockSizeBytes)
+					.slice(freeBlockId * this.blockSizeBytes, this.blockSizeBytes)
 			);
 		}
 	}

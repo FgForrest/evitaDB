@@ -31,9 +31,9 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMut
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -78,7 +78,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 		new UpsertAttributeMutation("name", Locale.ENGLISH, "New name")
 	);
 	private final UUID transactionId = UUID.randomUUID();
-	private final Path walFile = getTestDirectory().resolve(transactionId.toString());
+	private final Path walFile = getTestDirectory().resolve(this.transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
 		TEST_CATALOG,
@@ -86,22 +86,22 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 		Mockito.mock(Scheduler.class)
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-		getTestDirectory().resolve(transactionId.toString()),
+		getTestDirectory().resolve(this.transactionId.toString()),
 		StorageOptions.temporary(),
-		observableOutputKeeper,
-		new OffHeapMemoryManager(TEST_CATALOG, 512, 1)
+		this.observableOutputKeeper,
+		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
-		transactionId,
-		kryo,
-		writeHandle
+		this.transactionId,
+		this.kryo,
+		this.writeHandle
 	);
 
 	@AfterEach
 	void tearDown() {
-		tested.close();
-		observableOutputKeeper.close();
-		final File file = walFile.toFile();
+		this.tested.close();
+		this.observableOutputKeeper.close();
+		final File file = this.walFile.toFile();
 		if (file.exists()) {
 			fail("File " + file + " should not exist after close!");
 		}
@@ -109,22 +109,22 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 
 	@Test
 	void shouldWriteSmallNumberOfMutationsAndReadThem() {
-		tested.write(1L, DATA_MUTATION_EXAMPLE);
-		tested.write(1L, SCHEMA_MUTATION_EXAMPLE);
+		this.tested.write(1L, DATA_MUTATION_EXAMPLE);
+		this.tested.write(1L, SCHEMA_MUTATION_EXAMPLE);
 
-		assertEquals(2, tested.getMutationCount());
-		assertTrue(tested.getMutationSizeInBytes() > 0);
+		assertEquals(2, this.tested.getMutationCount());
+		assertTrue(this.tested.getMutationSizeInBytes() > 0);
 
-		final OffHeapWithFileBackupReference walReference = tested.getWalReference();
+		final OffHeapWithFileBackupReference walReference = this.tested.getWalReference();
 		final Optional<ByteBuffer> buffer = walReference.getBuffer();
 		assertTrue(buffer.isPresent());
 
-		final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle();
+		final ReadOnlyHandle readOnlyHandle = this.writeHandle.toReadOnlyHandle();
 		readOnlyHandle.execute(
 			input -> {
-				final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+				final Mutation firstMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 				assertEquals(DATA_MUTATION_EXAMPLE, firstMutation);
-				final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+				final Mutation secondMutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 				assertEquals(SCHEMA_MUTATION_EXAMPLE, secondMutation);
 				return null;
 			}
@@ -134,22 +134,22 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	@Test
 	void shouldWriteLargeNumberOfMutationsAndReadThem() {
 		for (int i = 0; i < 10; i++) {
-			tested.write(1L, DATA_MUTATION_EXAMPLE);
+			this.tested.write(1L, DATA_MUTATION_EXAMPLE);
 		}
 
-		assertEquals(10, tested.getMutationCount());
-		assertTrue(tested.getMutationSizeInBytes() > 0);
+		assertEquals(10, this.tested.getMutationCount());
+		assertTrue(this.tested.getMutationSizeInBytes() > 0);
 
-		final OffHeapWithFileBackupReference walReference = tested.getWalReference();
+		final OffHeapWithFileBackupReference walReference = this.tested.getWalReference();
 		final Optional<ByteBuffer> buffer = walReference.getBuffer();
 		assertFalse(buffer.isPresent());
 		assertTrue(walReference.getFilePath().isPresent());
 
-		try (final ReadOnlyHandle readOnlyHandle = writeHandle.toReadOnlyHandle()) {
+		try (final ReadOnlyHandle readOnlyHandle = this.writeHandle.toReadOnlyHandle()) {
 			readOnlyHandle.execute(
 				input -> {
 					for (int i = 0; i < 10; i++) {
-						final Mutation mutation = (Mutation) StorageRecord.read(input, (stream, length) -> kryo.readClassAndObject(stream)).payload();
+						final Mutation mutation = (Mutation) StorageRecord.read(input, (stream, length) -> this.kryo.readClassAndObject(stream)).payload();
 						assertEquals(DATA_MUTATION_EXAMPLE, mutation);
 					}
 					return null;

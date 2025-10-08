@@ -65,6 +65,7 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			AttributeSchema.class,
 			new SerialVersionBasedSerializer<>(new AttributeSchemaSerializer(), AttributeSchema.class)
+				.addBackwardCompatibleSerializer(-4646684142378649904L, new AttributeSchemaSerializer_2025_6())
 				.addBackwardCompatibleSerializer(1340876688998990217L, new AttributeSchemaSerializer_2024_11()),
 			index++
 		);

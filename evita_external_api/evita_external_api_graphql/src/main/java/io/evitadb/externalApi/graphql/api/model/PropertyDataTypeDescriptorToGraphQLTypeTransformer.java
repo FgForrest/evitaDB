@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ public class PropertyDataTypeDescriptorToGraphQLTypeTransformer implements Prope
 	private final GraphQLSchemaBuildingContext graphQLSchemaBuildingContext;
 
 	@Override
-	public GraphQLType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
+	public GraphQLType apply(PropertyDataTypeDescriptor typeDescriptor) {
 		if (typeDescriptor instanceof PrimitivePropertyDataTypeDescriptor primitiveType) {
 			if (primitiveType.javaType().isEnum() ||
 				(primitiveType.javaType().isArray() && primitiveType.javaType().componentType().isEnum())) {
@@ -64,7 +64,7 @@ public class PropertyDataTypeDescriptorToGraphQLTypeTransformer implements Prope
 					primitiveType.javaType(),
 					primitiveType.nonNull()
 				);
-				graphQLSchemaBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
+				this.graphQLSchemaBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
 				return enumType.resultType();
 			} else {
 				return DataTypesConverter.getGraphQLScalarType(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,8 +36,10 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Finds single associated data from entity by name and possibly locale. The internal {@link ComplexDataObject} is
@@ -58,21 +60,21 @@ public class AssociatedDataValueDataFetcher<T extends Serializable> implements D
     @Nonnull
     private final AssociatedDataSchemaContract associatedDataSchema;
 
-    @Nonnull
+    @Nullable
     @Override
-    public T get(@Nonnull DataFetchingEnvironment environment) {
-        final AssociatedDataContract associatedData = environment.getSource();
-        final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
+    public T get(DataFetchingEnvironment environment) {
+        final AssociatedDataContract associatedData = Objects.requireNonNull(environment.getSource());
+        final Locale locale = Objects.requireNonNull((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
 
         final Serializable associatedDataValue;
-        if (locale == null && associatedDataSchema.isLocalized()) {
+        if (locale == null && this.associatedDataSchema.isLocalized()) {
             throw new GraphQLInvalidArgumentException(
-                "Associated data '" + associatedDataSchema.getName() + "' is localized, yet no locale for associated data was specified."
+                "Associated data '" + this.associatedDataSchema.getName() + "' is localized, yet no locale for associated data was specified."
             );
         } else if (locale == null) {
-            associatedDataValue = associatedData.getAssociatedData(associatedDataSchema.getName());
+            associatedDataValue = associatedData.getAssociatedData(this.associatedDataSchema.getName());
         } else {
-            associatedDataValue = associatedData.getAssociatedData(associatedDataSchema.getName(), locale);
+            associatedDataValue = associatedData.getAssociatedData(this.associatedDataSchema.getName(), locale);
         }
 
         if (associatedDataValue == null) {
@@ -88,7 +90,7 @@ public class AssociatedDataValueDataFetcher<T extends Serializable> implements D
     }
 
     private JsonNode convertComplexDataObjectToJson(@Nonnull ComplexDataObject associatedDataValue) {
-        final ComplexDataObjectToJsonConverter converter = new ComplexDataObjectToJsonConverter(objectMapper);
+        final ComplexDataObjectToJsonConverter converter = new ComplexDataObjectToJsonConverter(this.objectMapper);
         associatedDataValue.accept(converter);
         return converter.getRootNode();
     }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public class ModifyAssociatedDataSchemaNameMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyAssociatedDataSchemaNameMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyAssociatedDataSchemaNameMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -85,7 +85,7 @@ public class ModifyAssociatedDataSchemaNameMutation
 	public AssociatedDataSchemaContract mutate(@Nullable AssociatedDataSchemaContract associatedDataSchema) {
 		Assert.isPremiseValid(associatedDataSchema != null, "Associated data schema is mandatory!");
 		return AssociatedDataSchema._internalBuild(
-			newName,
+			this.newName,
 			associatedDataSchema.getDescription(),
 			associatedDataSchema.getDeprecationNotice(),
 			associatedDataSchema.getType(),
@@ -98,11 +98,11 @@ public class ModifyAssociatedDataSchemaNameMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(name);
+		final Optional<AssociatedDataSchemaContract> existingAssociatedDataSchema = entitySchema.getAssociatedData(this.name);
 		if (existingAssociatedDataSchema.isEmpty()) {
 			// ups, the associated data is missing
 			throw new InvalidSchemaMutationException(
-				"The associated data `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
+				"The associated data `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			);
 		} else {
 			final AssociatedDataSchemaContract theSchema = existingAssociatedDataSchema.get();
@@ -113,7 +113,7 @@ public class ModifyAssociatedDataSchemaNameMutation
 
 	@Override
 	public String toString() {
-		return "Modify associated data `" + name + "`: " +
-			"newName='" + newName + '\'';
+		return "Modify associated data `" + this.name + "`: " +
+			"newName='" + this.newName + '\'';
 	}
 }

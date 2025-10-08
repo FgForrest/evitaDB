@@ -136,8 +136,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 								   "startedAt": "%s",
 								   "uptime": %d,
 								   "uptimeForHuman": "%s",
+								   "engineVersion": %s,
+								   "introducedAt": "%s",
 								   "catalogsCorrupted": %d,
-								   "catalogsOk": %d,
+								   "catalogsActive": %d,
+								   "catalogsInactive": %d,
 								   "healthProblems": [%s],
 								   "apis": [
 								%s
@@ -148,8 +151,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 							DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.startedAt()),
 							systemStatus.uptime().toSeconds(),
 							StringUtils.formatDuration(systemStatus.uptime()),
+				            systemStatus.engineVersion(),
+		                    DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(systemStatus.introducedAt()),
 							systemStatus.catalogsCorrupted(),
-							systemStatus.catalogsOk(),
+							systemStatus.catalogsActive(),
+							systemStatus.catalogsInactive(),
 							healthProblems.stream()
 								.sorted()
 								.map(it -> "\"" + it.name() + "\"")
@@ -197,7 +203,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						.map(it -> it.getReadiness(evita, externalApiServer, enabledEndPoints))
 						.findFirst();
 
-					if (readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
+					if (evita.isFullyInitialized() && readiness.map(it -> it.state() == ReadinessState.READY).orElse(false)) {
 						builder.status(HttpStatus.OK);
 						return printApiStatus(builder, readiness.get());
 					} else if (readiness.isPresent()) {

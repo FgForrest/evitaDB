@@ -30,14 +30,13 @@ import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
@@ -48,6 +47,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -71,11 +71,6 @@ import java.util.Set;
 public class HierarchyOfReferenceTranslator
 	extends AbstractHierarchyTranslator
 	implements RequireConstraintTranslator<HierarchyOfReference>, SelfTraversingTranslator {
-
-	@Nonnull
-	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, @Nonnull Scope scope, int hierarchyNodeId) {
-		return new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, new ReferenceKey(referenceName, hierarchyNodeId));
-	}
 
 	@Nullable
 	@Override
@@ -148,42 +143,50 @@ public class HierarchyOfReferenceTranslator
 					// entity primary keys that are referencing the hierarchy entity
 					(nodeId, statisticsBase) -> {
 						final FilterBy filter = extraResultPlanner.getFilterByForStatisticsBase(statisticsBase, referenceSchema);
-						return extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, scope, nodeId), ReducedEntityIndex.class)
-							.map(reducedIndex -> {
-								if (filter == null || !filter.isApplicable()) {
-									return reducedIndex.getAllPrimaryKeysFormula();
-								} else {
-									if (referenceSchema.getReferenceIndexType(reducedIndex.getIndexKey().scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
-										// if the reduced index contains partitioned data, we can take advantage of it
-										return createFilterFormula(
-											extraResultPlanner.getQueryContext(),
-											filter,
-											ReducedEntityIndex.class,
-											entitySchema,
-											reducedIndex,
-											extraResultPlanner.getAttributeSchemaAccessor()
-										);
+						return FormulaFactory.or(
+							extraResultPlanner
+								.getQueryContext()
+								.getReducedEntityIndexes(
+									scope, nodeId, entitySchema, referenceSchema, Functions.noOpBiFunction()
+								)
+								.map(reducedIndex -> {
+									if (filter == null || !filter.isApplicable()) {
+										return reducedIndex.getAllPrimaryKeysFormula();
 									} else {
-										// else we need to compute the formula from the global index
-										return FormulaFactory.and(
-											reducedIndex.getAllPrimaryKeysFormula(),
-											extraResultPlanner.computeOnlyOnce(
-												List.of(globalIndex),
+										if (referenceSchema.getReferenceIndexType(
+											reducedIndex.getIndexKey()
+											            .scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING) {
+											// if the reduced index contains partitioned data, we can take advantage of it
+											return createFilterFormula(
+												extraResultPlanner.getQueryContext(),
 												filter,
-												() -> createFilterFormula(
-													extraResultPlanner.getQueryContext(),
+												ReducedEntityIndex.class,
+												entitySchema,
+												reducedIndex,
+												extraResultPlanner.getAttributeSchemaAccessor()
+											);
+										} else {
+											// else we need to compute the formula from the global index
+											return FormulaFactory.and(
+												reducedIndex.getAllPrimaryKeysFormula(),
+												extraResultPlanner.computeOnlyOnce(
+													List.of(globalIndex),
 													filter,
-													GlobalEntityIndex.class,
-													entitySchema,
-													extraResultPlanner.getGlobalEntityIndex(scope),
-													extraResultPlanner.getAttributeSchemaAccessor()
+													() -> createFilterFormula(
+														extraResultPlanner.getQueryContext(),
+														filter,
+														GlobalEntityIndex.class,
+														entitySchema,
+														extraResultPlanner.getGlobalEntityIndex(scope),
+														extraResultPlanner.getAttributeSchemaAccessor()
+													)
 												)
-											)
-										);
+											);
+										}
 									}
-								}
-							})
-							.orElse(EmptyFormula.INSTANCE);
+								})
+								.toArray(Formula[]::new)
+						);
 					},
 					null,
 					hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 
 	@Override
 	public void execute() throws Throwable {
-		final String theQuery = sourceContent;
+		final String theQuery = this.sourceContent;
 
 		final String instancePath;
 		if (SYSTEM_INSTANCE_KEYWORDS_PATTERN.matcher(theQuery).find()) {
@@ -222,7 +222,7 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 			instancePath = "/gql/evita";
 		}
 
-		final GraphQLClient graphQLClient = testContextAccessor.get().getGraphQLClient();
+		final GraphQLClient graphQLClient = this.testContextAccessor.get().getGraphQLClient();
 		final JsonNode theResult;
 		try {
 			theResult = graphQLClient.call(instancePath, theQuery).orElseThrow();
@@ -231,20 +231,20 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 			return;
 		}
 
-		if (resource != null) {
-			final List<String> markdownSnippets = outputSnippet.stream()
+		if (this.resource != null) {
+			final List<String> markdownSnippets = this.outputSnippet.stream()
 				.map(snippet -> generateMarkdownSnippet(theResult, snippet))
 				.toList();
 
 			// generate Markdown snippet from the result if required
-			for (int i = 0; i < outputSnippet.size(); i++) {
-				final OutputSnippet snippet = outputSnippet.get(i);
+			for (int i = 0; i < this.outputSnippet.size(); i++) {
+				final OutputSnippet snippet = this.outputSnippet.get(i);
 				final String markdownSnippet = markdownSnippets.get(i);
 
 				final String outputFormat = ofNullable(snippet).map(OutputSnippet::forFormat).orElse("json");
-				if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
+				if (Arrays.stream(this.createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
 					if (snippet == null) {
-						writeFile(resource, outputFormat, markdownSnippet);
+						writeFile(this.resource, outputFormat, markdownSnippet);
 					} else {
 						writeFile(snippet.path(), markdownSnippet);
 					}
@@ -252,7 +252,7 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 
 				// assert MarkDown file contents
 				final Optional<String> markDownFile = snippet == null ?
-					readFile(resource, outputFormat) : readFile(snippet.path());
+					readFile(this.resource, outputFormat) : readFile(snippet.path());
 				markDownFile.ifPresent(
 					content -> {
 						assertEquals(
@@ -261,10 +261,10 @@ public class GraphQLExecutable extends JsonExecutable implements Executable, Evi
 						);
 
 						final Path assertSource = snippet == null ?
-							resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+							resolveSiblingWithDifferentExtension(this.resource, outputFormat).normalize() :
 							snippet.path().normalize();
 
-						final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+						final String relativePath = assertSource.toString().substring(this.rootDirectory.normalize().toString().length());
 						System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
 					}
 				);

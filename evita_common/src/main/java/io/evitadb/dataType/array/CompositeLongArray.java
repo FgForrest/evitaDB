@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.dataType.array;
 
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -102,14 +103,14 @@ public class CompositeLongArray {
 	 * Returns true if the instance is empty and contains no numbers.
 	 */
 	public boolean isEmpty() {
-		return chunkPeek == -1;
+		return this.chunkPeek == -1;
 	}
 
 	/**
 	 * Returns last number written to the composite array.
 	 */
 	public long getLast() {
-		return currentChunk[chunkPeek];
+		return this.currentChunk[this.chunkPeek];
 	}
 
 	/**
@@ -118,8 +119,8 @@ public class CompositeLongArray {
 	public long get(int index) {
 		final int chunkIndex = index / CHUNK_SIZE;
 		final int indexInChunk = index % CHUNK_SIZE;
-		Assert.isTrue(chunkIndex < chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + chunks.size() + ").");
-		return chunks.get(chunkIndex)[indexInChunk];
+		Assert.isTrue(chunkIndex < this.chunks.size(), "Chunk index " + chunkIndex + " exceeds chunks size (" + this.chunks.size() + ").");
+		return this.chunks.get(chunkIndex)[indexInChunk];
 	}
 
 	/**
@@ -133,14 +134,14 @@ public class CompositeLongArray {
 		int resultPeek = 0;
 		final long[] result = new long[bytesToCopy];
 		do {
-			boolean lastChunk = chunkIndex == chunks.size() - 1;
-			if (lastChunk && bytesToCopy > chunkPeek + 1 - startIndex) {
+			boolean lastChunk = chunkIndex == this.chunks.size() - 1;
+			if (lastChunk && bytesToCopy > this.chunkPeek + 1 - startIndex) {
 				throw new ArrayIndexOutOfBoundsException(
-					"Index: " + chunkPeek + ", Size: " + getSize()
+					"Index: " + this.chunkPeek + ", Size: " + getSize()
 				);
 			}
 			final int copiedSize = Math.min(bytesToCopy, CHUNK_SIZE - startIndex);
-			System.arraycopy(chunks.get(chunkIndex), startIndex, result, resultPeek, copiedSize);
+			System.arraycopy(this.chunks.get(chunkIndex), startIndex, result, resultPeek, copiedSize);
 			bytesToCopy -= copiedSize;
 			resultPeek += copiedSize;
 			startIndex = 0;
@@ -154,8 +155,8 @@ public class CompositeLongArray {
 	 * Returns true if the specified record is already part of the array.
 	 */
 	public boolean contains(long recordId) {
-		for (long[] chunk : chunks) {
-			if (monotonic) {
+		for (long[] chunk : this.chunks) {
+			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
 				if (Arrays.binarySearch(chunk, recordId) >= 0) {
 					return true;
@@ -176,10 +177,10 @@ public class CompositeLongArray {
 	 * Returns index of the recordId in the array.
 	 */
 	public int indexOf(long recordId) {
-		for (int i = 0; i < chunks.size(); i++) {
-			final long[] chunk = chunks.get(i);
+		for (int i = 0; i < this.chunks.size(); i++) {
+			final long[] chunk = this.chunks.get(i);
 			int index;
-			if (monotonic) {
+			if (this.monotonic) {
 				// use fast binary search if array contains only monotonic record ids
 				index = Arrays.binarySearch(chunk, recordId);
 			} else {
@@ -208,7 +209,7 @@ public class CompositeLongArray {
 	 * Returns the size of the array.
 	 */
 	public int getSize() {
-		return ((chunks.size() - 1) * CHUNK_SIZE) + chunkPeek + 1;
+		return ((this.chunks.size() - 1) * CHUNK_SIZE) + this.chunkPeek + 1;
 	}
 
 	/**
@@ -216,7 +217,7 @@ public class CompositeLongArray {
 	 */
 	public void set(int recordId, int index) {
 		Assert.isTrue(index < getSize(), "Index out of bounds!");
-		chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
+		this.chunks.get(index / CHUNK_SIZE)[index % CHUNK_SIZE] = recordId;
 	}
 
 	/**
@@ -224,18 +225,18 @@ public class CompositeLongArray {
 	 */
 	public void add(long number) {
 		// keep eye on monotonic row
-		if (monotonic && chunkPeek != -1 && number <= currentChunk[chunkPeek]) {
-			monotonic = false;
+		if (this.monotonic && this.chunkPeek != -1 && number <= this.currentChunk[this.chunkPeek]) {
+			this.monotonic = false;
 		}
 
 		// if last chunk was depleted obtain another one
-		if (++chunkPeek == CHUNK_SIZE) {
-			chunkPeek = 0;
-			currentChunk = new long[CHUNK_SIZE];
-			chunks.add(currentChunk);
+		if (++this.chunkPeek == CHUNK_SIZE) {
+			this.chunkPeek = 0;
+			this.currentChunk = new long[CHUNK_SIZE];
+			this.chunks.add(this.currentChunk);
 		}
 
-		currentChunk[chunkPeek] = number;
+		this.currentChunk[this.chunkPeek] = number;
 	}
 
 	/**
@@ -252,14 +253,14 @@ public class CompositeLongArray {
 		}
 
 		// reset monotonic flag if added numbers violate monotonic row
-		if (monotonic) {
-			if (chunkPeek != -1 && currentChunk[chunkPeek] >= numbers[srcPosition]) {
-				monotonic = false;
+		if (this.monotonic) {
+			if (this.chunkPeek != -1 && this.currentChunk[this.chunkPeek] >= numbers[srcPosition]) {
+				this.monotonic = false;
 			} else {
 				long lastNumber = numbers[srcPosition];
 				for (int i = srcPosition + 1; i < length; i++) {
 					if (lastNumber >= numbers[i]) {
-						monotonic = false;
+						this.monotonic = false;
 						break;
 					}
 					lastNumber = numbers[i];
@@ -275,19 +276,19 @@ public class CompositeLongArray {
 			final int copyPosition;
 
 			// if the current chunk is depleted borrow another one
-			if (chunkPeek + 1 == CHUNK_SIZE) {
-				chunkPeek = -1;
-				currentChunk = new long[CHUNK_SIZE];
-				chunks.add(currentChunk);
+			if (this.chunkPeek + 1 == CHUNK_SIZE) {
+				this.chunkPeek = -1;
+				this.currentChunk = new long[CHUNK_SIZE];
+				this.chunks.add(this.currentChunk);
 			}
-			copyPosition = chunkPeek + 1;
+			copyPosition = this.chunkPeek + 1;
 
 			final int availableSizeInChunk = CHUNK_SIZE - copyPosition;
 			final int copyLength = Math.min(availableSizeInChunk, restLength);
 
-			System.arraycopy(numbers, currentSrcPos, currentChunk, copyPosition, copyLength);
+			System.arraycopy(numbers, currentSrcPos, this.currentChunk, copyPosition, copyLength);
 
-			chunkPeek += copyLength;
+			this.chunkPeek += copyLength;
 			currentSrcPos += copyLength;
 			restLength -= copyLength;
 		}
@@ -300,7 +301,7 @@ public class CompositeLongArray {
 	public long[] toArray() {
 		final int size = getSize();
 		final long[] result = new long[size];
-		final Iterator<long[]> it = chunks.iterator();
+		final Iterator<long[]> it = this.chunks.iterator();
 		int copied = 0;
 		while (copied < size) {
 			final long[] chunk = it.next();
@@ -365,27 +366,27 @@ public class CompositeLongArray {
 		CompositeLongArrayOfLong() {
 			this.index = -1;
 			this.chunkIndex = CHUNK_SIZE;
-			this.currentChunk = null;
+			this.currentChunk = ArrayUtils.EMPTY_LONG_ARRAY;
 			this.size = CompositeLongArray.this.getSize();
 			this.chunkIterator = CompositeLongArray.this.chunks.iterator();
 		}
 
 		@Override
 		public long nextLong() {
-			if (this.index == size) {
+			if (this.index == this.size) {
 				throw new NoSuchElementException("End of the array reached - max number of elements is " + getSize());
 			}
 			if (this.chunkIndex + 1 >= CHUNK_SIZE) {
 				this.chunkIndex = -1;
-				this.currentChunk = chunkIterator.next();
+				this.currentChunk = this.chunkIterator.next();
 			}
 			this.index++;
-			return this.currentChunk[++chunkIndex];
+			return this.currentChunk[++this.chunkIndex];
 		}
 
 		@Override
 		public boolean hasNext() {
-			return size > index + 1;
+			return this.size > this.index + 1;
 		}
 	}
 }

@@ -811,14 +811,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nonnull
 		public <S extends TestContext, T extends TestContextFactory<S>> Supplier<S> get(@Nonnull Environment profile, @Nonnull Class<T> factoryClass) {
 			//noinspection unchecked
-			return (Supplier<S>) contexts.computeIfAbsent(
+			return (Supplier<S>) this.contexts.computeIfAbsent(
 				new ContextKey(profile, factoryClass),
 				contextKey -> {
 					try {
 						final Class<?> theFactoryClass = contextKey.factoryClass();
 						@SuppressWarnings("unchecked") final TestContextFactory<S> factory = (TestContextFactory<S>) theFactoryClass.getConstructor().newInstance();
-						ofNullable(factory.getInitTest(profile)).ifPresent(initTests::add);
-						ofNullable(factory.getTearDownTest(profile)).ifPresent(tearDownTests::add);
+						ofNullable(factory.getInitTest(profile)).ifPresent(this.initTests::add);
+						ofNullable(factory.getTearDownTest(profile)).ifPresent(this.tearDownTests::add);
 						return factory::getContext;
 					} catch (Exception e) {
 						Assertions.fail(e);
@@ -895,7 +895,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 */
 		@Nullable
 		public Path[] getSetupScripts(@Nonnull Path rootDirectory) {
-			return ofNullable(attributes.get(SETUP_SCRIPTS))
+			return ofNullable(this.attributes.get(SETUP_SCRIPTS))
 				.map(String::trim)
 				.map(Attributes::removeQuotes)
 				.map(
@@ -914,7 +914,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 */
 		@Nullable
 		public Path[] getRequiredScripts(@Nonnull Path rootDirectory) {
-			return ofNullable(attributes.get(REQUIRED_SCRIPTS))
+			return ofNullable(this.attributes.get(REQUIRED_SCRIPTS))
 				.map(String::trim)
 				.map(Attributes::removeQuotes)
 				.map(
@@ -932,7 +932,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 * @return true if the example is specific to the language
 		 */
 		public boolean isLanguageSpecific() {
-			return attributes.containsKey(LANGUAGE_SPECIFIC);
+			return this.attributes.containsKey(LANGUAGE_SPECIFIC);
 		}
 
 		/**
@@ -941,7 +941,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 * @return true if the example is always run on local environment
 		 */
 		public boolean isLocal() {
-			return attributes.containsKey(LOCAL);
+			return this.attributes.containsKey(LOCAL);
 		}
 
 		/**
@@ -950,7 +950,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 * @return true if the example is temporarily disabled
 		 */
 		public boolean isIgnoreTest() {
-			return attributes.containsKey(IGNORE_TEST);
+			return this.attributes.containsKey(IGNORE_TEST);
 		}
 
 		/**
@@ -960,7 +960,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 */
 		@Nullable
 		public String[] getVariants() {
-			return ofNullable(attributes.get(VARIANTS))
+			return ofNullable(this.attributes.get(VARIANTS))
 				.map(String::trim)
 				.map(Attributes::removeQuotes)
 				.map(it -> it.split("\\|"))

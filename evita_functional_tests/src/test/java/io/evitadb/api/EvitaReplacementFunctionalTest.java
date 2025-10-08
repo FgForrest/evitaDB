@@ -71,15 +71,15 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST_EXPORT);
-		evita = new Evita(
+		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
-		evita.defineCatalog(TEST_CATALOG);
+		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
 	void tearDown() {
-		evita.close();
+		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST);
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST_EXPORT);
 	}
@@ -91,9 +91,9 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 		final String catalogWithHundredEntities = "catalogWithHundredEntities";
 
 		// create a catalog with a single entity
-		evita.defineCatalog(catalogWithSingleEntity)
-			.updateViaNewSession(evita);
-		evita.updateCatalog(
+		this.evita.defineCatalog(catalogWithSingleEntity)
+			.updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
 			catalogWithSingleEntity,
 			session -> {
 				session.createNewEntity("Brand", 1)
@@ -104,9 +104,9 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 		);
 
 		// create a catalog with a hundred entities
-		evita.defineCatalog(catalogWithHundredEntities)
-			.updateViaNewSession(evita);
-		evita.updateCatalog(
+		this.evita.defineCatalog(catalogWithHundredEntities)
+			.updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
 			catalogWithHundredEntities,
 			session -> {
 				for (int i = 1; i <= 100; i++) {
@@ -133,7 +133,7 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 					try {
 						for (int j = 0; j < iterations; j++) {
 							try {
-								evita.queryCatalog(
+								this.evita.queryCatalog(
 									catalogWithSingleEntity,
 									session -> {
 										final String brand = session.getEntity("Brand", 1, attributeContentAll(), dataInLocales(Locale.ENGLISH))
@@ -171,7 +171,7 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 		}
 
 		// now replace the catalog with a hundred entities
-		evita.replaceCatalog(
+		this.evita.replaceCatalog(
 			catalogWithHundredEntities,
 			catalogWithSingleEntity
 		);

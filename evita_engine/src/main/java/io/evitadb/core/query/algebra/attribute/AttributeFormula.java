@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
+import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -54,7 +55,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeFormula extends AbstractFormula implements RequirementsDefiner {
+public class AttributeFormula extends AbstractFormula implements ChildrenDependentFormula, RequirementsDefiner {
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
@@ -94,7 +95,7 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(targetsGlobalAttribute, attributeKey, innerFormulas[0], requestedPredicate);
+		return new AttributeFormula(this.targetsGlobalAttribute, this.attributeKey, innerFormulas[0], this.requestedPredicate);
 	}
 
 	/**
@@ -102,14 +103,14 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	 */
 	@Nonnull
 	public String getAttributeName() {
-		return attributeKey.attributeName();
+		return this.attributeKey.attributeName();
 	}
 
 	/**
 	 * Returns true if the attribute formula relates to localized attribute.
 	 */
 	public boolean isLocalized() {
-		return attributeKey.localized();
+		return this.attributeKey.localized();
 	}
 
 	@Override
@@ -119,21 +120,21 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 
 	@Override
 	public int getEstimatedCardinality() {
-		return innerFormulas[0].getEstimatedCardinality();
+		return this.innerFormulas[0].getEstimatedCardinality();
 	}
 
 	@Override
 	public String toString() {
-		return "ATTRIBUTE FILTER `" + attributeKey + "`";
+		return "ATTRIBUTE FILTER `" + this.attributeKey + "`";
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		if (innerFormulas.length == 0) {
+		if (this.innerFormulas.length == 0) {
 			return EmptyBitmap.INSTANCE;
-		} else if (innerFormulas.length == 1) {
-			return innerFormulas[0].compute();
+		} else if (this.innerFormulas.length == 1) {
+			return this.innerFormulas[0].compute();
 		} else {
 			throw new GenericEvitaInternalError(ERROR_SINGLE_FORMULA_EXPECTED);
 		}
@@ -141,13 +142,13 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (attributeKey.locale() == null) {
-			return hashFunction.hashChars(attributeKey.attributeName());
+		if (this.attributeKey.locale() == null) {
+			return hashFunction.hashChars(this.attributeKey.attributeName());
 		} else {
 			return hashFunction.hashLongs(
 				new long[] {
-					hashFunction.hashChars(attributeKey.attributeName()),
-					hashFunction.hashChars(attributeKey.locale().toLanguageTag())
+					hashFunction.hashChars(this.attributeKey.attributeName()),
+					hashFunction.hashChars(this.attributeKey.locale().toLanguageTag())
 				}
 			);
 		}
@@ -161,7 +162,7 @@ public class AttributeFormula extends AbstractFormula implements RequirementsDef
 	@Nullable
 	@Override
 	public EntityFetchRequire getEntityRequire() {
-		return entityFetch(attributeContent(attributeKey.attributeName()));
+		return entityFetch(attributeContent(this.attributeKey.attributeName()));
 	}
 
 }

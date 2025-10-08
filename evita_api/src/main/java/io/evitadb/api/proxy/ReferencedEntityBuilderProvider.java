@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.proxy.SealedEntityProxy.EntityBuilderWithCallback;
+import io.evitadb.api.proxy.SealedEntityProxy.Propagation;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -48,6 +49,6 @@ public interface ReferencedEntityBuilderProvider {
 	 * no mutations were made or mutations were made only to the internally wrapped entity
 	 */
 	@Nonnull
-	Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback();
+	Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback(@Nonnull Propagation propagation);
 
 }

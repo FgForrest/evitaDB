@@ -335,8 +335,7 @@ public class OffsetIndexSerializationService {
 			catalogVersion,
 			nonFlushedValues,
 			FileLocation.EMPTY,
-			offsetIndex.getStorageOptions(),
-			"Snapshot copy."
+			offsetIndex.getStorageOptions()
 		);
 	}
 
@@ -349,11 +348,8 @@ public class OffsetIndexSerializationService {
 		long catalogVersion,
 		@Nonnull Collection<VersionedValue> nonFlushedEntries,
 		@Nonnull FileLocation lastFileOffsetIndexLocation,
-		@Nonnull StorageOptions storageOptions,
-		/* TODO JNO - remove when debugging finished */
-		@Nonnull String debugInfo
+		@Nonnull StorageOptions storageOptions
 	) {
-		final StringBuilder debugInfoBuilder = new StringBuilder(debugInfo);
 		final Iterator<VersionedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
@@ -361,10 +357,6 @@ public class OffsetIndexSerializationService {
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
 		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
-
-		debugInfoBuilder.append(" - fragments: ").append(fileOffsetIndexRecordCount.fragments())
-			.append(", max records in fragment: ").append(fileOffsetIndexRecordCount.recordsInFragment())
-			.append(", total records: ").append(nonFlushedEntries.size());
 
 		if (fileOffsetIndexRecordCount.fragments() == 0 && lastFileOffsetIndexLocation == FileLocation.EMPTY) {
 			// no previous offset index fragment and no new entries - serialize empty record at least
@@ -437,8 +429,7 @@ public class OffsetIndexSerializationService {
 		Assert.isPremiseValid(fileLocation != null, "No file location was stored!");
 		return new FileLocationAndWrittenBytes(
 			fileLocation,
-			output.getWrittenBytesSinceReset(),
-			debugInfoBuilder.toString()
+			output.getWrittenBytesSinceReset()
 		);
 	}
 
@@ -581,9 +572,7 @@ public class OffsetIndexSerializationService {
 	 */
 	public record FileLocationAndWrittenBytes(
 		@Nonnull FileLocation fileLocation,
-		long writtenBytes,
-		/* TODO JNO - remove when debugging finished */
-		@Nonnull String debugInfo
+		long writtenBytes
 	) {
 	}
 

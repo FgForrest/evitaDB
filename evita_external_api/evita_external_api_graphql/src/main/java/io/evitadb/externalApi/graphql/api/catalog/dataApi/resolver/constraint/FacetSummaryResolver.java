@@ -103,8 +103,8 @@ public class FacetSummaryResolver {
 	@Nonnull
 	private Entry<String, RequireConstraint> resolveFacetSummaryOfReference(@Nonnull SelectedField field,
 	                                                                        @Nullable Locale desiredLocale) {
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + entitySchema.getName() + "`."));
+		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
+			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + this.entitySchema.getName() + "`."));
 		final String referenceName = referenceSchema.getName();
 
 		final FacetStatisticsDepth depth = resolveStatisticsDepth(field);
@@ -167,26 +167,26 @@ public class FacetSummaryResolver {
 	@Nonnull
 	private Optional<FilterGroupBy> resolveGroupFilterBy(@Nonnull SelectedField field, @Nonnull DataLocator groupEntityDataLocator) {
 		return Optional.ofNullable(field.getArguments().get(FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name()))
-			.map(it -> (FilterGroupBy) filterConstraintResolver.resolve(groupEntityDataLocator, FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name(), it));
+			.map(it -> (FilterGroupBy) this.filterConstraintResolver.resolve(groupEntityDataLocator, FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY.name(), it));
 	}
 
 	@Nonnull
 	private Optional<OrderGroupBy> resolveGroupOrderBy(@Nonnull SelectedField field, @Nonnull DataLocator groupEntityDataLocator) {
 		return Optional.ofNullable(field.getArguments().get(FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name()))
-			.map(it -> (OrderGroupBy) orderConstraintResolver.resolve(groupEntityDataLocator, FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name(), it));
+			.map(it -> (OrderGroupBy) this.orderConstraintResolver.resolve(groupEntityDataLocator, FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY.name(), it));
 	}
 
 
 	@Nonnull
 	private Optional<FilterBy> resolveFacetFilterBy(@Nonnull SelectedField field, @Nonnull DataLocator facetEntityDataLocator) {
 		return Optional.ofNullable(field.getArguments().get(FacetStatisticsHeaderDescriptor.FILTER_BY.name()))
-			.map(it -> (FilterBy) filterConstraintResolver.resolve(facetEntityDataLocator, FacetStatisticsHeaderDescriptor.FILTER_BY.name(), it));
+			.map(it -> (FilterBy) this.filterConstraintResolver.resolve(facetEntityDataLocator, FacetStatisticsHeaderDescriptor.FILTER_BY.name(), it));
 	}
 
 	@Nonnull
 	private Optional<OrderBy> resolveFacetOrderBy(@Nonnull SelectedField field, @Nonnull DataLocator facetEntityDataLocator) {
 		return Optional.ofNullable(field.getArguments().get(FacetStatisticsHeaderDescriptor.ORDER_BY.name()))
-			.map(it -> (OrderBy) orderConstraintResolver.resolve(facetEntityDataLocator, FacetStatisticsHeaderDescriptor.ORDER_BY.name(), it));
+			.map(it -> (OrderBy) this.orderConstraintResolver.resolve(facetEntityDataLocator, FacetStatisticsHeaderDescriptor.ORDER_BY.name(), it));
 	}
 
 	@Nonnull
@@ -210,10 +210,10 @@ public class FacetSummaryResolver {
 
 				return facetEntityFields.stream()
 					.findFirst() // we support only one facet entity field
-					.flatMap(facetEntityField -> entityFetchRequireResolver.resolveEntityFetch(
+					.flatMap(facetEntityField -> this.entityFetchRequireResolver.resolveEntityFetch(
 						SelectionSetAggregator.from(facetEntityField.getSelectionSet()),
 						desiredLocale,
-						referencedEntitySchemas.get(referenceName)
+						this.referencedEntitySchemas.get(referenceName)
 					));
 			});
 	}
@@ -230,10 +230,10 @@ public class FacetSummaryResolver {
 
 		return groupEntityFields.stream()
 			.findFirst() // we support only one group entity field
-			.flatMap(groupEntityField -> entityFetchRequireResolver.resolveGroupFetch(
+			.flatMap(groupEntityField -> this.entityFetchRequireResolver.resolveGroupFetch(
 				SelectionSetAggregator.from(groupEntityField.getSelectionSet()),
 				desiredLocale,
-				referencedGroupEntitySchemas.get(referenceName)
+				this.referencedGroupEntitySchemas.get(referenceName)
 			));
 	}
 }

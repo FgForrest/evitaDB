@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -117,33 +117,33 @@ public class Value {
 
 	@Nonnull
 	public Serializable asSerializable() {
-		return asSpecificType(actualValue, Serializable.class);
+		return asSpecificType(this.actualValue, Serializable.class);
 	}
 
 	@Nonnull
 	public Comparable<?> asComparable() {
-		return asSpecificType(actualValue, Comparable.class);
+		return asSpecificType(this.actualValue, Comparable.class);
 	}
 
 	@Nonnull
 	public <T extends Serializable & Comparable<?>> T asSerializableAndComparable() {
-		assertValueIsOfType(actualValue, Serializable.class);
-		assertValueIsOfType(actualValue, Comparable.class);
+		assertValueIsOfType(this.actualValue, Serializable.class);
+		assertValueIsOfType(this.actualValue, Comparable.class);
 		//noinspection unchecked
-		return (T) actualValue;
+		return (T) this.actualValue;
 	}
 
 	@Nonnull
 	public String asString() {
-		if (actualValue instanceof final Character characterValue) {
+		if (this.actualValue instanceof final Character characterValue) {
 			return characterValue.toString();
 		}
-		return asSpecificType(actualValue, String.class);
+		return asSpecificType(this.actualValue, String.class);
 	}
 
 	@Nonnull
 	public Number asNumber() {
-		return asSpecificType(actualValue, Number.class);
+		return asSpecificType(this.actualValue, Number.class);
 	}
 
 	/**
@@ -155,12 +155,12 @@ public class Value {
 	}
 
 	public int asInt() {
-		if (actualValue instanceof final Long longNumber) {
+		if (this.actualValue instanceof final Long longNumber) {
 			try {
 				return Math.toIntExact(longNumber);
 			} catch (ArithmeticException e) {
 				throw new EvitaInvalidUsageException(
-					"`Long` number was passed when `Integer` desired but `" + actualValue + "` value is to big for `Integer`."
+					"`Long` number was passed when `Integer` desired but `" + this.actualValue + "` value is to big for `Integer`."
 				);
 			}
 		}
@@ -172,52 +172,52 @@ public class Value {
 	}
 
 	public boolean asBoolean() {
-		return asSpecificType(actualValue, Boolean.class);
+		return asSpecificType(this.actualValue, Boolean.class);
 	}
 
 	@Nonnull
 	public BigDecimal asBigDecimal() {
-		return asSpecificType(actualValue, BigDecimal.class);
+		return asSpecificType(this.actualValue, BigDecimal.class);
 	}
 
 	@Nonnull
 	public OffsetDateTime asOffsetDateTime() {
-		return asSpecificType(actualValue, OffsetDateTime.class);
+		return asSpecificType(this.actualValue, OffsetDateTime.class);
 	}
 
 	@Nonnull
 	public LocalDateTime asLocalDateTime() {
-		return asSpecificType(actualValue, LocalDateTime.class);
+		return asSpecificType(this.actualValue, LocalDateTime.class);
 	}
 
 	@Nonnull
 	public LocalDate asLocalDate() {
-		return asSpecificType(actualValue, LocalDate.class);
+		return asSpecificType(this.actualValue, LocalDate.class);
 	}
 
 	@Nonnull
 	public LocalTime asLocalTime() {
-		return asSpecificType(actualValue, LocalTime.class);
+		return asSpecificType(this.actualValue, LocalTime.class);
 	}
 
 	@Nonnull
 	public DateTimeRange asDateTimeRange() {
-		return asSpecificType(actualValue, DateTimeRange.class);
+		return asSpecificType(this.actualValue, DateTimeRange.class);
 	}
 
 	@Nonnull
 	public BigDecimalNumberRange asBigDecimalNumberRange() {
-		return asSpecificType(actualValue, BigDecimalNumberRange.class);
+		return asSpecificType(this.actualValue, BigDecimalNumberRange.class);
 	}
 
 	@Nonnull
 	public LongNumberRange asLongNumberRange() {
-		return asSpecificType(actualValue, LongNumberRange.class);
+		return asSpecificType(this.actualValue, LongNumberRange.class);
 	}
 
 	@Nonnull
 	public <T extends Enum<T>> T asEnum(@Nonnull Class<T> enumType) {
-		return valueAsEnum(actualValue, enumType);
+		return valueAsEnum(this.actualValue, enumType);
 	}
 
 	@Nonnull
@@ -228,42 +228,42 @@ public class Value {
 				enumType
 			);
 		} catch (ClassCastException e) {
-			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
 	@Nonnull
 	public Locale asLocale() {
-		if (actualValue instanceof Locale) {
-			return asSpecificType(actualValue, Locale.class);
-		} else if (actualValue instanceof String) {
-			return EvitaDataTypes.toTargetType(asSpecificType(actualValue, String.class), Locale.class);
+		if (this.actualValue instanceof Locale) {
+			return asSpecificType(this.actualValue, Locale.class);
+		} else if (this.actualValue instanceof String) {
+			return EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), Locale.class);
 		} else {
 			// correct passed type from client should be checked at visitor level, here should be should correct checked type
 			// if everything is correct on parser side
-			throw new EvitaInvalidUsageException("Expected locale or string value but got `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Expected locale or string value but got `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
 	@Nonnull
 	public Currency asCurrency() {
-		if (actualValue instanceof Currency) {
-			return asSpecificType(actualValue, Currency.class);
-		} else if (actualValue instanceof String) {
-			return EvitaDataTypes.toTargetType(asSpecificType(actualValue, String.class), Currency.class);
+		if (this.actualValue instanceof Currency) {
+			return asSpecificType(this.actualValue, Currency.class);
+		} else if (this.actualValue instanceof String) {
+			return EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), Currency.class);
 		} else {
-			throw new EvitaInvalidUsageException("Expected currency or string value but got `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Expected currency or string value but got `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
 	@Nonnull
 	public UUID asUuid() {
-		if (actualValue instanceof UUID) {
-			return asSpecificType(actualValue, UUID.class);
-		} else if (actualValue instanceof String) {
-			return EvitaDataTypes.toTargetType(asSpecificType(actualValue, String.class), UUID.class);
+		if (this.actualValue instanceof UUID) {
+			return asSpecificType(this.actualValue, UUID.class);
+		} else if (this.actualValue instanceof String) {
+			return EvitaDataTypes.toTargetType(asSpecificType(this.actualValue, String.class), UUID.class);
 		} else {
-			throw new EvitaInvalidUsageException("Expected UUID or string value but got `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Expected UUID or string value but got `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
@@ -275,16 +275,16 @@ public class Value {
 				String.class
 			);
 		} catch (ClassCastException e) {
-			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
 	@Nonnull
 	public Serializable[] asSerializableArray() {
 		try {
-			return asArray(v -> (Serializable) v, Serializable.class);
+			return asArray(Serializable.class::cast, Serializable.class);
 		} catch (ClassCastException e) {
-			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
@@ -298,7 +298,7 @@ public class Value {
 							return Math.toIntExact(longNumber);
 						} catch (ArithmeticException e) {
 							throw new EvitaInvalidUsageException(
-								"`Long` number was passed when `Integer` desired but `" + actualValue + "` value is to big for `Integer`."
+								"`Long` number was passed when `Integer` desired but `" + this.actualValue + "` value is to big for `Integer`."
 							);
 						}
 					}
@@ -309,7 +309,7 @@ public class Value {
 		} catch (ClassCastException e) {
 			// correct passed type from client should be checked at visitor level, here should be should correct checked type
 			// if everything is correct on parser side
-			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
@@ -329,13 +329,13 @@ public class Value {
 				Locale.class
 			);
 		} catch (ClassCastException e) {
-			throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Unexpected type of value array `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 
 	@Nonnull
 	private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nonnull Class<T> expectedItemType) {
-		final Object values = actualValue;
+		final Object values = this.actualValue;
 		if (values instanceof Iterable<?> iterableValues) {
 			if (!iterableValues.iterator().hasNext()) {
 				//noinspection unchecked
@@ -364,7 +364,7 @@ public class Value {
 				.map(itemTransformer)
 				.toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
 		} else {
-			throw new EvitaInvalidUsageException("Expected value of iterable type or array but got `" + actualValue.getClass().getName() + "`.");
+			throw new EvitaInvalidUsageException("Expected value of iterable type or array but got `" + this.actualValue.getClass().getName() + "`.");
 		}
 	}
 }

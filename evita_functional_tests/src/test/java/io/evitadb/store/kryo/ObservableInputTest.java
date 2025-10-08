@@ -133,7 +133,7 @@ class ObservableInputTest extends AbstractObservableInputOutputTest {
 
 		final List<Integer> sizes = new ArrayList<>(count);
 		for (int i = 0; i < count; i++) {
-			final int rndSize = random.nextInt(9999) + 1;
+			final int rndSize = this.random.nextInt(9999) + 1;
 			writeRandomRecord(output, rndSize);
 			sizes.add(rndSize);
 		}

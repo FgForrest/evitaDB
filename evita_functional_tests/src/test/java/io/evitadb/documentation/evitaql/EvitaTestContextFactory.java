@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class EvitaTestContextFactory implements TestContextFactory<EvitaTestCont
 	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Init Evita EvitaQL connection (" + profile + ")",
-			() -> testContextRef.set(new EvitaTestContext(profile))
+			() -> this.testContextRef.set(new EvitaTestContext(profile))
 		);
 	}
 
@@ -65,6 +65,6 @@ public class EvitaTestContextFactory implements TestContextFactory<EvitaTestCont
 	@Nonnull
 	@Override
 	public EvitaTestContext getContext() {
-		return Objects.requireNonNull(testContextRef.get());
+		return Objects.requireNonNull(this.testContextRef.get());
 	}
 }

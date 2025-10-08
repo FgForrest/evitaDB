@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,16 +55,16 @@ public class EndpointDescriptorToGraphQLFieldTransformer implements EndpointDesc
 	}
 
 	@Override
-	public GraphQLFieldDefinition.Builder apply(@Nonnull EndpointDescriptor endpointDescriptor) {
+	public GraphQLFieldDefinition.Builder apply(EndpointDescriptor endpointDescriptor) {
 		final String fieldName;
 		if (endpointDescriptor.hasClassifier()) {
 			Assert.isPremiseValid(
-				entitySchema == null,
+				this.entitySchema == null,
 				() -> new GraphQLSchemaBuildingError("Classifier in endpoint `" + endpointDescriptor + "` has static classifier but dynamic one was provided.")
 			);
 			fieldName = endpointDescriptor.operation();
-		} else if (entitySchema != null) {
-			fieldName = endpointDescriptor.operation(entitySchema);
+		} else if (this.entitySchema != null) {
+			fieldName = endpointDescriptor.operation(this.entitySchema);
 		} else {
 			fieldName = endpointDescriptor.operation();
 		}
@@ -73,12 +73,12 @@ public class EndpointDescriptorToGraphQLFieldTransformer implements EndpointDesc
 			.name(fieldName)
 			.description(endpointDescriptor.description());
 
-		if (entitySchema != null) {
-			fieldBuilder.deprecate(entitySchema.getDeprecationNotice());
+		if (this.entitySchema != null) {
+			fieldBuilder.deprecate(this.entitySchema.getDeprecationNotice());
 		}
 
 		if (endpointDescriptor.type() != null) {
-			final GraphQLOutputType graphQLType = (GraphQLOutputType) propertyDataTypeTransformer.apply(endpointDescriptor.type());
+			final GraphQLOutputType graphQLType = (GraphQLOutputType) this.propertyDataTypeTransformer.apply(endpointDescriptor.type());
 			fieldBuilder.type(graphQLType);
 		}
 

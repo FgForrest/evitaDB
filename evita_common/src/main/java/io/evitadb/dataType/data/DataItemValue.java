@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public record DataItemValue(
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
 			2 * MemoryMeasuringConstants.REFERENCE_SIZE +
-			EvitaDataTypes.estimateSize(value);
+			EvitaDataTypes.estimateSize(this.value);
 	}
 
 	@Override
@@ -66,16 +66,17 @@ public record DataItemValue(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		DataItemValue value1 = (DataItemValue) o;
-		return Objects.equals(value, value1.value);
+		return Objects.equals(this.value, value1.value);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(value);
+		return Objects.hash(this.value);
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
-		return value.toString();
+		return this.value == null ? "NULL" : this.value.toString();
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,9 +41,10 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode
+@EqualsAndHashCode(exclude = "decisiveTimestamp")
 public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Serial private static final long serialVersionUID = -8465670492875977978L;
+	@Getter private final long decisiveTimestamp;
 	/**
 	 * Scope to be set in the target entity.
 	 */
@@ -51,12 +52,18 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 
 	public SetEntityScopeMutation(@Nonnull Scope scope) {
 		this.scope = scope;
+		this.decisiveTimestamp = System.nanoTime();
+	}
+
+	private SetEntityScopeMutation(@Nonnull Scope scope, long decisiveTimestamp) {
+		this.scope = scope;
+		this.decisiveTimestamp = decisiveTimestamp;
 	}
 
 	@Nonnull
 	@Override
 	public Scope mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable Scope existingValue) {
-		return scope;
+		return this.scope;
 	}
 
 	@Override
@@ -64,9 +71,10 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 		return 1L;
 	}
 
+	@Nonnull
 	@Override
 	public Scope getComparableKey() {
-		return scope;
+		return this.scope;
 	}
 
 	@Nonnull
@@ -81,9 +89,15 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 		return Operation.UPSERT;
 	}
 
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new SetEntityScopeMutation(this.scope, newDecisiveTimestamp);
+	}
+
 	@Override
 	public String toString() {
-		return "Marking entity as `" + scope + "`";
+		return "Marking entity as `" + this.scope + "`";
 	}
 
 }

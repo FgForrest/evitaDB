@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ public class AttributeKeyWithIndexTypeSerializer extends Serializer<AttributeKey
 
 	@Override
 	public void write(Kryo kryo, Output output, AttributeKeyWithIndexType attributeKeyWithIndexType) {
+		output.writeString(attributeKeyWithIndexType.getReferenceName());
 		output.writeString(attributeKeyWithIndexType.getAttributeName());
 		kryo.writeObjectOrNull(output, attributeKeyWithIndexType.getLocale(), Locale.class);
 		output.writeString(attributeKeyWithIndexType.getIndexType().name());
@@ -48,10 +49,11 @@ public class AttributeKeyWithIndexTypeSerializer extends Serializer<AttributeKey
 
 	@Override
 	public AttributeKeyWithIndexType read(Kryo kryo, Input input, Class<? extends AttributeKeyWithIndexType> type) {
+		final String referenceName = input.readString();
 		final String attributeName = input.readString();
 		final Locale locale = kryo.readObjectOrNull(input, Locale.class);
 		final AttributeIndexType indexType = AttributeIndexType.valueOf(input.readString());
-		return new AttributeKeyWithIndexType(attributeName, locale, indexType);
+		return new AttributeKeyWithIndexType(referenceName, attributeName, locale, indexType);
 	}
 
 }

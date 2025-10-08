@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -64,12 +64,12 @@ public record CumulatedVirtualPriceRecord(
 
 	@Override
 	public int priceWithTax() {
-		return priceMode == QueryPriceMode.WITH_TAX ? price : 0;
+		return this.priceMode == QueryPriceMode.WITH_TAX ? this.price : 0;
 	}
 
 	@Override
 	public int priceWithoutTax() {
-		return priceMode == QueryPriceMode.WITHOUT_TAX ? price : 0;
+		return this.priceMode == QueryPriceMode.WITHOUT_TAX ? this.price : 0;
 	}
 
 	@Override
@@ -97,16 +97,17 @@ public record CumulatedVirtualPriceRecord(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		CumulatedVirtualPriceRecord that = (CumulatedVirtualPriceRecord) o;
-		return entityPrimaryKey == that.entityPrimaryKey && price == that.price && priceMode == that.priceMode;
+		return this.entityPrimaryKey == that.entityPrimaryKey && this.price == that.price && this.priceMode == that.priceMode;
 	}
 
+	@Nonnull
 	@Override
 	public String toString() {
 		return "CumulatedVirtualPriceRecord{" +
-			"entityPrimaryKey=" + entityPrimaryKey +
-			", price=" + price +
-			", priceMode=" + priceMode +
-			", innerRecordPrices=[" + innerRecordPrices + "]" +
+			"entityPrimaryKey=" + this.entityPrimaryKey +
+			", price=" + this.price +
+			", priceMode=" + this.priceMode +
+			", innerRecordPrices=[" + this.innerRecordPrices + "]" +
 			'}';
 	}
 }

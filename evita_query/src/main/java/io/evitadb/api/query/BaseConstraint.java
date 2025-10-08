@@ -34,6 +34,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -71,7 +72,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 
 	@Nonnull
 	protected String getDefaultName() {
-		return StringUtils.uncapitalize(this.getClass().getSimpleName());
+		return Objects.requireNonNull(StringUtils.uncapitalize(this.getClass().getSimpleName()));
 	}
 
 	protected BaseConstraint(@Nullable String name, @Nonnull Serializable... arguments) {
@@ -92,7 +93,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	@Nonnull
 	@Override
 	public String getName() {
-		return name + (this instanceof ConstraintWithSuffix cws ?
+		return this.name + (this instanceof ConstraintWithSuffix cws ?
 			cws.getSuffixIfApplied().map(StringUtils::capitalize).orElse("") : "");
 	}
 
@@ -102,7 +103,7 @@ public abstract class BaseConstraint<T extends Constraint<T>> implements Constra
 	@Nonnull
 	@Override
 	public Serializable[] getArguments() {
-		return arguments;
+		return this.arguments;
 	}
 
 	/**

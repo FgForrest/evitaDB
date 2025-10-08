@@ -130,7 +130,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 		super(
 			ArrayUtils.mergeArrays(
 				Arrays.stream(referenceNames)
-					.map(it -> (Serializable) it)
+					.map(Serializable.class::cast)
 					.toArray(Serializable[]::new),
 				new Serializable[] {emptyHierarchicalEntityBehaviour}
 			),
@@ -163,7 +163,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 		super(
 			ArrayUtils.mergeArrays(
 				Arrays.stream(referenceNames)
-					.map(it -> (Serializable) it)
+					.map(Serializable.class::cast)
 					.toArray(Serializable[]::new),
 				new Serializable[] {emptyHierarchicalEntityBehaviour}
 			),
@@ -209,10 +209,10 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	/**
 	 * Returns requirement constraints for the loaded entities.
 	 */
-	@Nullable
+	@Nonnull
 	public HierarchyRequireConstraint[] getRequirements() {
 		return Arrays.stream(getChildren())
-			.map(it -> (HierarchyRequireConstraint) it)
+			.map(HierarchyRequireConstraint.class::cast)
 			.toArray(HierarchyRequireConstraint[]::new);
 	}
 

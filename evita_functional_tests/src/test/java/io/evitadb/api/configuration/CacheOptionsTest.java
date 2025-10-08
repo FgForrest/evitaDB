@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ class CacheOptionsTest {
 		assertEquals(0, options.minimalUsageThreshold());
 		assertEquals(0, options.anteroomRecordCount());
 		assertEquals(0, options.reevaluateEachSeconds());
-		assertTrue( options.cacheSizeInBytes() != null && options.cacheSizeInBytes() > 0);
+		assertTrue( options.cacheSizeInBytes() > 0);
 	}
 
 }

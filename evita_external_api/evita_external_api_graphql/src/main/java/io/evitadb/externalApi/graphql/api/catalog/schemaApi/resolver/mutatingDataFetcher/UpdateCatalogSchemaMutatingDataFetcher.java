@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
@@ -67,20 +67,20 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<Catal
 
 	@Nonnull
 	private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
-		new PassThroughMutationObjectParser(),
-		new GraphQLMutationResolvingExceptionFactory()
+		PassThroughMutationObjectMapper.INSTANCE,
+		GraphQLMutationResolvingExceptionFactory.INSTANCE
 	);
 
 	@Nonnull
 	@Override
-	public CatalogSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public CatalogSchemaContract get(DataFetchingEnvironment environment) throws Exception {
 		final ExecutedEvent requestExecutedEvent = environment.getGraphQlContext().get(GraphQLContextKey.METRIC_EXECUTED_EVENT);
 		final Arguments arguments = Arguments.from(environment);
 
 		final LocalCatalogSchemaMutation[] schemaMutations = requestExecutedEvent.measureInternalEvitaDBInputReconstruction(() ->
 			arguments.mutations()
 				.stream()
-				.flatMap(m -> mutationAggregateResolver.convert(m).stream())
+				.flatMap(m -> this.mutationAggregateResolver.convertFromInput(m).stream())
 				.toArray(LocalCatalogSchemaMutation[]::new));
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);

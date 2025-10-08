@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.certificate;
 
 import com.linecorp.armeria.common.TlsKeyPair;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -101,7 +101,7 @@ public class CertificateService {
 			.distinct()
 			.collect(Collectors.toList());
 		this.certificatesLoader = new CertificatesLoader(apiOptions, allowedClientCertificatePaths, getCertificateFactory(), certificatePath);
-		this.loadedCertificates.set(certificatesLoader.reinitialize());
+		this.loadedCertificates.set(this.certificatesLoader.reinitialize());
 		if (shouldStartCertificateChangedWatcher) {
 			serviceExecutor.scheduleAtFixedRate(this::reloadCertificatesIfAnyModified, 0, 1, TimeUnit.MINUTES);
 		}

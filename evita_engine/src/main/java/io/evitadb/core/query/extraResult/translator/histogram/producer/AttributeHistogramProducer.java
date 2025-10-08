@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -366,9 +366,9 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 
 	@Nullable
 	@Override
-	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
+	public EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
 		// create optimized formula that offers best memoized intermediate results reuse
-		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(filterFormula, histogramRequests.keySet());
+		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(this.filterFormula, this.histogramRequests.keySet());
 
 		// create clone of the optimized formula without user filter contents
 		final Map<String, Predicate<BigDecimal>> userFilterFormulaPredicates = new HashMap<>();
@@ -377,8 +377,6 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			formula -> {
 				if (formula instanceof UserFilterFormula) {
 					FormulaFinder.find(formula, AttributeFormula.class, LookUp.DEEP)
-						.stream()
-						.map(AttributeFormula.class::cast)
 						.forEach(attributeFormula -> ofNullable(attributeFormula.getRequestedPredicate())
 							.ifPresent(it -> userFilterFormulaPredicates.put(attributeFormula.getAttributeName(), it)));
 					return null;
@@ -391,7 +389,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 		// compute attribute histogram
 		return new AttributeHistogram(
 			// for each histogram request
-			histogramRequests.entrySet()
+			this.histogramRequests.entrySet()
 				.stream()
 				// check whether it produces any results with mandatory filter, and if not skip its production
 				.filter(entry -> hasSenseWithMandatoryFilter(baseFormulaWithoutUserFilter, entry.getValue()))
@@ -399,7 +397,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 					final AttributeHistogramRequest histogramRequest = entry.getValue();
 					final AttributeHistogramComputer computer = new AttributeHistogramComputer(
 						histogramRequest.getAttributeName(),
-						optimizedFormula, bucketCount, behavior, histogramRequest
+						optimizedFormula, this.bucketCount, this.behavior, histogramRequest
 					);
 					final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
@@ -428,10 +426,10 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	@Nonnull
 	@Override
 	public String getDescription() {
-		if (histogramRequests.size() == 1) {
-			return "attribute `" + histogramRequests.keySet().iterator().next() + "` histogram";
+		if (this.histogramRequests.size() == 1) {
+			return "attribute `" + this.histogramRequests.keySet().iterator().next() + "` histogram";
 		} else {
-			return "attributes " + histogramRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " histogram";
+			return "attributes " + this.histogramRequests.keySet().stream().map(it -> '`' + it + '`').collect(Collectors.joining(" ,")) + " histogram";
 		}
 	}
 
@@ -454,14 +452,14 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 		 */
 		@Nonnull
 		public String getAttributeName() {
-			return attributeSchema.getName();
+			return this.attributeSchema.getName();
 		}
 
 		/**
 		 * Returns number of maximum decimal places allowed for this attribute.
 		 */
 		public int getDecimalPlaces() {
-			return attributeSchema.getIndexedDecimalPlaces();
+			return this.attributeSchema.getIndexedDecimalPlaces();
 		}
 
 	}

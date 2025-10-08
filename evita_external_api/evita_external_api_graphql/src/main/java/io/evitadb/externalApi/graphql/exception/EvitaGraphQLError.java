@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,5 +59,13 @@ public class EvitaGraphQLError implements GraphQLError {
 		this.errorType = ErrorType.DataFetchingException;
 		this.path = path;
 		this.extensions = extensions;
+	}
+
+	public EvitaGraphQLError(@Nonnull String message) {
+		this.message = message;
+		this.locations = List.of(SourceLocation.EMPTY);
+		this.errorType = ErrorType.DataFetchingException;
+		this.path = null;
+		this.extensions = null;
 	}
 }

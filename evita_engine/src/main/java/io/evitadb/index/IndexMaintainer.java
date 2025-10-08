@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,15 +37,30 @@ public interface IndexMaintainer<K extends IndexKey, T extends Index<K>> {
 	/**
 	 * Returns existing index for passed `entityIndexKey` or uses `creatorFct` to create new index instance and associate
 	 * it with the passed `entityIndexKey`.
+	 *
+	 * @param entityIndexKey the key of the index to be retrieved or created
+	 * @return the index associated with the provided key
 	 */
 	@Nonnull
 	T getOrCreateIndex(@Nonnull K entityIndexKey);
 
 	/**
 	 * Returns existing index for passed `entityIndexKey` or returns null.
+	 *
+	 * @param entityIndexKey the key of the index to be retrieved
+	 * @return the index associated with the provided key, or null if no index exists
 	 */
 	@Nullable
 	T getIndexIfExists(@Nonnull K entityIndexKey);
+
+	/**
+	 * Retrieves an existing index by its unique primary key.
+	 *
+	 * @param indexPrimaryKey the unique primary key of the index to be retrieved
+	 * @return the index associated with the provided primary key
+	 */
+	@Nonnull
+	T getIndexByPrimaryKey(int indexPrimaryKey);
 
 	/**
 	 * Removes existing index with passed `entityIndexKey`.
@@ -53,5 +68,4 @@ public interface IndexMaintainer<K extends IndexKey, T extends Index<K>> {
 	 * @throws IllegalArgumentException if no index for passed key exists
 	 */
 	void removeIndex(@Nonnull K entityIndexKey);
-
 }

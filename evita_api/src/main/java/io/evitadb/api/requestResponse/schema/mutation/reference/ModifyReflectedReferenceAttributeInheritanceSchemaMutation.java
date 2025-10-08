@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 	/**
 	 * Behavior of the attribute inheritance.
 	 */
-	@Nonnull @Getter private final AttributeInheritanceBehavior attributesInheritanceBehavior;
+	@Nonnull @Getter private final AttributeInheritanceBehavior attributeInheritanceBehavior;
 	/**
 	 * Filter of the attributes that should be inherited.
 	 */
@@ -75,11 +75,11 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 
 	public ModifyReflectedReferenceAttributeInheritanceSchemaMutation(
 		@Nonnull String name,
-		@Nonnull AttributeInheritanceBehavior attributesInheritanceBehavior,
+		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nonnull String... attributeInheritanceFilter
 	) {
 		super(name);
-		this.attributesInheritanceBehavior = attributesInheritanceBehavior;
+		this.attributeInheritanceBehavior = attributeInheritanceBehavior;
 		this.attributeInheritanceFilter = attributeInheritanceFilter;
 	}
 
@@ -90,7 +90,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
+		if (existingMutation instanceof ModifyReflectedReferenceAttributeInheritanceSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
@@ -107,7 +107,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 				"the reflected one! Cannot be mutated by this mutation!"
 		);
 		return ((ReflectedReferenceSchema) referenceSchema).withAttributeInheritance(
-			this.attributesInheritanceBehavior, this.attributeInheritanceFilter
+			this.attributeInheritanceBehavior, this.attributeInheritanceFilter
 		);
 	}
 
@@ -131,7 +131,7 @@ public class ModifyReflectedReferenceAttributeInheritanceSchemaMutation
 	@Override
 	public String toString() {
 		return "Modify entity reflected reference `" + this.name + "` schema: " +
-			"attributes inherited: " + this.attributesInheritanceBehavior +
+			"attributes inherited: " + this.attributeInheritanceBehavior +
 			(
 				ArrayUtils.isEmpty(this.attributeInheritanceFilter) ?
 					"" : (", excluding: " + Arrays.toString(this.attributeInheritanceFilter))

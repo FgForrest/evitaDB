@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class GraphQLArtificialHierarchyBenchmarkState extends GraphQLArtificialF
 			this.productSchema = schema;
 		} else {
 			if (schema.isWithHierarchy()) {
-				hierarchicalEntities.add(schema.getName());
+				this.hierarchicalEntities.add(schema.getName());
 			}
 		}
 		return schema;
@@ -67,8 +67,8 @@ public class GraphQLArtificialHierarchyBenchmarkState extends GraphQLArtificialF
 	@Override
 	protected void processCreatedEntityReference(EntityReference entity) {
 		super.processCreatedEntityReference(entity);
-		if (entity.getType().equals(Entities.PRODUCT) && entity.getPrimaryKey() > maxProductId) {
-			maxProductId = entity.getPrimaryKey();
+		if (entity.getType().equals(Entities.PRODUCT) && entity.getPrimaryKey() > this.maxProductId) {
+			this.maxProductId = entity.getPrimaryKey();
 		}
 	}
 }

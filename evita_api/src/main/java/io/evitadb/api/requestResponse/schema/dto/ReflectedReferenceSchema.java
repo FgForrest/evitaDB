@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -249,7 +250,7 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 		@Nullable String deprecationNotice,
 		@Nonnull String entityType,
 		@Nonnull Map<NamingConvention, String> entityTypeVariants,
-		@Nonnull String referencedGroupType,
+		@Nullable String referencedGroupType,
 		@Nonnull Map<NamingConvention, String> groupTypeVariants,
 		boolean referencedGroupManaged,
 		@Nonnull String reflectedReferenceName,
@@ -758,6 +759,44 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 										"which is used for reflected reference `" + this.getName() + "` in `" + entitySchema.getName() + "`!")
 							);
 						}
+					}
+				}
+				if (this.reflectedReference.getCardinality().allowsDuplicates()) {
+					if (!this.getCardinality().allowsDuplicates()) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Reflected reference `" + this.getName() + "` cannot disallow duplicates, " +
+									"because the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "` allows them!"
+							)
+						);
+					}
+					final Set<String> representativeAttributes;
+					if (this.reflectedReference instanceof ReferenceSchema rs) {
+						representativeAttributes = new HashSet<>(
+							rs.getRepresentativeAttributeDefinition().getAttributeNames()
+						);
+					} else {
+						representativeAttributes = this.reflectedReference
+							.getAttributes()
+							.values()
+							.stream()
+							.filter(AttributeSchemaContract::isRepresentative)
+							.map(NamedSchemaContract::getName)
+							.collect(Collectors.toSet());
+					}
+					this.getAttributes().keySet().forEach(
+						representativeAttributes::remove
+					);
+					if (!representativeAttributes.isEmpty()) {
+						referenceErrors = Stream.concat(
+							referenceErrors,
+							Stream.of(
+								"Reflected reference `" + this.getName() + "` must contain all representative attributes " +
+									"of the original reflected reference `" + this.reflectedReferenceName + "` in entity `" + referencedEntityType + "`! " +
+									"Missing representative attributes: " + String.join(", ", representativeAttributes)
+							)
+						);
 					}
 				}
 			}
@@ -1541,6 +1580,20 @@ public final class ReflectedReferenceSchema extends ReferenceSchema implements R
 	@Nonnull
 	public Set<String> getInheritedAttributes() {
 		return this.inheritedAttributes;
+	}
+
+	/**
+	 * We validate only attributes that are not inherited from the original reference. When attributes are inherited,
+	 * we don't control their indexing / faceting settings - they are controlled by the original reference schema.
+	 * But we still allow the reference to be non-indexed and then the index is not present on the reflected reference
+	 * either. We enforce reference to be indexed only when there is new explicitly defined attribute that needs indexing.
+	 *
+	 * @param attributeSchema the attribute schema contract to be checked for validation
+	 * @return true if the attribute should be validated, false otherwise
+	 */
+	@Override
+	protected boolean shouldValidate(@Nonnull AttributeSchemaContract attributeSchema) {
+		return !this.inheritedAttributes.contains(attributeSchema.getName());
 	}
 
 	/**

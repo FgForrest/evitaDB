@@ -26,8 +26,8 @@ package io.evitadb.core.file;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.core.async.DelayedAsyncTask;
-import io.evitadb.core.async.Scheduler;
+import io.evitadb.core.executor.DelayedAsyncTask;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.InvalidFileNameException;
@@ -241,13 +241,13 @@ public class ExportFileService implements Closeable {
 	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = storageOptions.exportDirectory().resolve(finalFileName);
+		final Path finalFilePath = this.storageOptions.exportDirectory().resolve(finalFileName);
 		try {
-			if (!storageOptions.exportDirectory().toFile().exists()) {
+			if (!this.storageOptions.exportDirectory().toFile().exists()) {
 				Assert.isPremiseValid(
-					storageOptions.exportDirectory().toFile().mkdirs(),
+					this.storageOptions.exportDirectory().toFile().mkdirs(),
 					() -> new UnexpectedIOException(
-						"Failed to create directory: " + storageOptions.exportDirectory(),
+						"Failed to create directory: " + this.storageOptions.exportDirectory(),
 						"Failed to create directory."
 					)
 				);
@@ -312,7 +312,7 @@ public class ExportFileService implements Closeable {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			return Files.newInputStream(file.path(storageOptions.exportDirectory()), StandardOpenOption.READ);
+			return Files.newInputStream(file.path(this.storageOptions.exportDirectory()), StandardOpenOption.READ);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to open the designated file: " + e.getMessage(),
@@ -334,8 +334,8 @@ public class ExportFileService implements Closeable {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 			if (this.files.remove(file)) {
-				Files.deleteIfExists(file.metadataPath(storageOptions.exportDirectory()));
-				Files.deleteIfExists(file.path(storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.metadataPath(this.storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.path(this.storageOptions.exportDirectory()));
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -523,7 +523,7 @@ public class ExportFileService implements Closeable {
 	 */
 	private void writeFileMetadata(@Nonnull FileForFetch fileForFetch, @Nonnull OpenOption... options) throws IOException {
 		Files.write(
-			storageOptions.exportDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
+			this.storageOptions.exportDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
 			fileForFetch.toLines(),
 			StandardCharsets.UTF_8,
 			options

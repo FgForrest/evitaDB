@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -60,7 +59,7 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 		final ExecutedEvent requestExecutedEvent = executionContext.requestExecutedEvent();
 		return resolveQuery(executionContext)
 			.thenApply(query -> {
-				log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
+				log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", this.restHandlingContext.getEntitySchema(), query);
 
 				final List<EntityClassifier> entities = requestExecutedEvent.measureInternalEvitaDBExecution(() ->
 					executionContext.session().queryList(query, EntityClassifier.class));
@@ -81,8 +80,8 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")
 		);
 		//noinspection unchecked
-		return entityJsonSerializer.serialize(
-			new EntitySerializationContext(restHandlingContext.getCatalogSchema()),
+		return this.entityJsonSerializer.serialize(
+			new EntitySerializationContext(this.restHandlingContext.getCatalogSchema()),
 			(List<EntityClassifier>) entities
 		);
 	}

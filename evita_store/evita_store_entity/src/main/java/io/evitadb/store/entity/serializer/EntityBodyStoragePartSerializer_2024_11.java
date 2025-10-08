@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ public class EntityBodyStoragePartSerializer_2024_11 extends Serializer<EntityBo
 		// the associated data are always sorted to ensure the same order of attributes in the serialized form
 		// the attribute locales are always sorted to ensure the same order of attributes in the serialized form
 		associatedDataKeys.stream().sorted()
-			.forEach(associatedDataKey -> output.writeVarInt(keyCompressor.getId(associatedDataKey), true));
+			.forEach(associatedDataKey -> output.writeVarInt(this.keyCompressor.getId(associatedDataKey), true));
 	}
 
 	@Override
@@ -94,7 +94,7 @@ public class EntityBodyStoragePartSerializer_2024_11 extends Serializer<EntityBo
 		final int associatedDataKeyCount = input.readVarInt(true);
 		final Set<AssociatedDataKey> associatedDataKeys = new LinkedHashSet<>(associatedDataKeyCount);
 		for (int i = 0; i < associatedDataKeyCount; i++) {
-			associatedDataKeys.add(keyCompressor.getKeyForId(input.readVarInt(true)));
+			associatedDataKeys.add(this.keyCompressor.getKeyForId(input.readVarInt(true)));
 		}
 		return new EntityBodyStoragePart(
 			version, entityPrimaryKey, Scope.LIVE, hierarchicalPlacement,

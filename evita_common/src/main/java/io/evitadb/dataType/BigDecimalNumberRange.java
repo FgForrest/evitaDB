@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -224,8 +224,8 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	@Override
 	public boolean isWithin(@Nonnull BigDecimal valueToCheck) {
 		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
-		final long valueToCompare = toComparableLong(valueToCheck, ofNullable(retainedDecimalPlaces).orElse(0), 0L);
-		return fromToCompare <= valueToCompare && valueToCompare <= toToCompare;
+		final long valueToCompare = toComparableLong(valueToCheck, ofNullable(this.retainedDecimalPlaces).orElse(0), 0L);
+		return this.fromToCompare <= valueToCompare && valueToCompare <= this.toToCompare;
 	}
 
 	@Nonnull
@@ -286,9 +286,9 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 */
 	@Nonnull
 	public BigDecimalNumberRange inverse(int precision) {
-		if (this == BigDecimalNumberRange.INFINITE || this.from != null && this.to != null) {
+		if (this == BigDecimalNumberRange.INFINITE || (this.from != null && this.to != null) || (this.from == null && this.to == null)) {
 			return BigDecimalNumberRange.INFINITE;
-		} else if (this.from == null) {
+		} else if (this.to != null) {
 			return BigDecimalNumberRange.from(this.to.add(BigDecimal.ONE.movePointLeft(precision)));
 		} else {
 			return BigDecimalNumberRange.to(this.from.subtract(BigDecimal.ONE.movePointLeft(precision)));
@@ -297,7 +297,7 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 
 	@Override
 	protected long toComparableLong(@Nullable BigDecimal valueToCheck, long defaultValue) {
-		return toComparableLong(valueToCheck, ofNullable(retainedDecimalPlaces).orElse(0), defaultValue);
+		return toComparableLong(valueToCheck, ofNullable(this.retainedDecimalPlaces).orElse(0), defaultValue);
 	}
 
 	@Override

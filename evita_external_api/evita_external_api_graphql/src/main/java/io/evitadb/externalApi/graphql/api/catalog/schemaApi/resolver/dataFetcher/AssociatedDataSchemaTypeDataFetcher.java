@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Translates Java {@link AssociatedDataSchema#getType()} to GraphQL equivalent.
@@ -53,7 +54,7 @@ public class AssociatedDataSchemaTypeDataFetcher extends SchemaTypeDataFetcher {
 	@Nonnull
 	@Override
 	protected Class<?> getJavaType(@Nonnull DataFetchingEnvironment environment) {
-		final AssociatedDataSchema associatedDataSchema = environment.getSource();
+		final AssociatedDataSchema associatedDataSchema = Objects.requireNonNull(environment.getSource());
 		return associatedDataSchema.getType();
 	}
 }

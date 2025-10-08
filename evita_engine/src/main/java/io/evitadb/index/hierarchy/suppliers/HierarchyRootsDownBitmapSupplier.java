@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,32 +55,32 @@ public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSup
 
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
-		excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
+		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			new long[]{CLASS_ID, excludedNodeTrees.getHash()}
+			new long[]{CLASS_ID, this.excludedNodeTrees.getHash()}
 		);
 	}
 
 	@Nonnull
 	@Override
 	protected Bitmap getInternal() {
-		return hierarchyIndex.listHierarchyNodesFromRoot(excludedNodeTrees);
+		return this.hierarchyIndex.listHierarchyNodesFromRoot(this.excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
 		/* we don't use excluded node trees here, because it would trigger the formula computation */
-		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+		return this.hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	@Override
 	public String toString() {
-		return "HIERARCHY FOR ROOTS " + excludedNodeTrees + " DOWN";
+		return "HIERARCHY FOR ROOTS " + this.excludedNodeTrees + " DOWN";
 	}
 
 }

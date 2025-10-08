@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -37,13 +38,16 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
@@ -98,7 +102,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	 * Creates an {@link AttributeFormula} that targets a unique attribute schema.
 	 *
 	 * @param filterByVisitor     The filter visitor that applies filtering logic on unique indexes.
-	 * @param attributeDefinition The schema defining the attributes.
+	 * @param referenceSchema     The reference schema that holds the attribute - might be null for entity level attributes
+	 * @param attributeSchema     The attribute schema to find the index for
 	 * @param attributeKey        The key representing the specific attribute.
 	 * @param comparedValue       The value to be compared against in the unique index.
 	 * @return An {@link AttributeFormula} targeting the unique attribute.
@@ -106,16 +111,19 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	@Nonnull
 	private static AttributeFormula createUniqueAttributeFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable comparedValue
 	) {
 		// if attribute is unique prefer O(1) hash map lookup over histogram
 		return new AttributeFormula(
-			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			filterByVisitor.applyOnFirstUniqueIndex(
-				attributeDefinition, index -> {
+				referenceSchema,
+				attributeSchema,
+				index -> {
 					final Integer recordId = index.getRecordIdByUniqueValue(comparedValue);
 					return ofNullable(recordId)
 						.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(recordId)))
@@ -129,7 +137,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	 * Creates an {@link AttributeFormula} that is filterable based on the provided parameters.
 	 *
 	 * @param filterByVisitor     The filter visitor that applies filtering logic on attribute indexes.
-	 * @param attributeDefinition The schema defining the attributes.
+	 * @param referenceSchema     The reference schema that holds the attribute - might be null for entity level attributes
+	 * @param attributeSchema     The attribute schema to find the index for
 	 * @param attributeKey        The key representing the specific attribute.
 	 * @param comparedValue       The value to be compared against in the attribute index.
 	 * @return An {@link AttributeFormula} representing the filterable attribute logic.
@@ -137,16 +146,19 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 	@Nonnull
 	private static AttributeFormula createFilterableAttributeFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable comparedValue
 	) {
 		// use histogram lookup
 		return new AttributeFormula(
-			attributeDefinition instanceof GlobalAttributeSchemaContract,
+			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			filterByVisitor.applyOnFilterIndexes(
-				attributeDefinition, index -> index.getRecordsEqualToFormula(comparedValue)
+				referenceSchema,
+				attributeSchema,
+				index -> index.getRecordsEqualToFormula(comparedValue)
 			)
 		);
 	}
@@ -159,28 +171,29 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
 		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
-			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
-			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
+			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
+			final Set<Scope> scopes = processingScope.getScopes();
+			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
-			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
+			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
-			final Class<? extends Serializable> plainType = attributeDefinition.getPlainType();
+			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType);
 			final Serializable comparedValue = normalizer.apply(EvitaDataTypes.toTargetType(attributeValue, plainType));
 
-			if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
+			if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema &&
 				scopes.stream().anyMatch(globalAttributeSchema::isUniqueGloballyInScope)) {
 				return createGloballyUniqueAttributeFormula(
 					filterByVisitor, globalAttributeSchema, attributeKey, comparedValue
 				);
-			} else if (scopes.stream().anyMatch(attributeDefinition::isUniqueInScope)) {
+			} else if (scopes.stream().anyMatch(attributeSchema::isUniqueInScope)) {
 				return createUniqueAttributeFormula(
-					filterByVisitor, attributeDefinition, attributeKey, comparedValue
+					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey, comparedValue
 				);
 			} else {
 				return createFilterableAttributeFormula(
-					filterByVisitor, attributeDefinition, attributeKey, comparedValue
+					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey, comparedValue
 				);
 			}
 		} else {

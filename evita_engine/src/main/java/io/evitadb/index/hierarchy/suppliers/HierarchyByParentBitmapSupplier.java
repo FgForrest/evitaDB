@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupp
 
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
-		excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
+		this.excludedNodeTrees.initializeIfNotAlreadyInitialized(executionContext);
 		super.initialize(executionContext);
 	}
 
@@ -68,8 +68,8 @@ public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupp
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
-				hashFunction.hashInts(new int[]{CLASS_ID, parentNode}),
-				excludedNodeTrees.getHash()
+				hashFunction.hashInts(new int[]{CLASS_ID, this.parentNode}),
+				this.excludedNodeTrees.getHash()
 			}
 		);
 	}
@@ -77,17 +77,17 @@ public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupp
 	@Nonnull
 	@Override
 	protected Bitmap getInternal() {
-		return hierarchyIndex.listHierarchyNodesFromParent(parentNode, excludedNodeTrees);
+		return this.hierarchyIndex.listHierarchyNodesFromParent(this.parentNode, this.excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
 		/* we don't use excluded node trees here, because it would trigger the formula computation */
-		return hierarchyIndex.getHierarchyNodeCountFromParent(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+		return this.hierarchyIndex.getHierarchyNodeCountFromParent(this.parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	@Override
 	public String toString() {
-		return "HIERARCHY FROM PARENT: " + parentNode + " " + excludedNodeTrees;
+		return "HIERARCHY FROM PARENT: " + this.parentNode + " " + this.excludedNodeTrees;
 	}
 }

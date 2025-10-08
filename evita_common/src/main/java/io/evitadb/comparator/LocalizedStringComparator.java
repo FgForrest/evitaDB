@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ public class LocalizedStringComparator implements Comparator<String>, Serializab
 
 	@Override
 	public int compare(String o1, String o2) {
-		return collator.compare(o1, o2);
+		return this.collator.compare(o1, o2);
 	}
 
 }

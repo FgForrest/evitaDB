@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ public abstract class ClientFacetFilteringState extends ClientDataFullDatabaseSt
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.query = generateRandomFacetQuery(random, productSchema, facetedReferences);
+		this.query = generateRandomFacetQuery(this.random, this.productSchema, this.facetedReferences);
 	}
 
 	@Override
@@ -85,8 +85,8 @@ public abstract class ClientFacetFilteringState extends ClientDataFullDatabaseSt
 				.values()
 				.forEach(it -> {
 					if (it.isFaceted()) {
-						facetedReferences.put(it.getReferencedEntityType(), new HashSet<>());
-						facetGroupsIndex.put(it.getReferencedEntityType(), new HashMap<>());
+						this.facetedReferences.put(it.getReferencedEntityType(), new HashSet<>());
+						this.facetGroupsIndex.put(it.getReferencedEntityType(), new HashMap<>());
 					}
 				});
 		}
@@ -95,7 +95,7 @@ public abstract class ClientFacetFilteringState extends ClientDataFullDatabaseSt
 	@Override
 	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(PRODUCT_ENTITY_TYPE)) {
-			updateFacetStatistics(entity, facetedReferences, facetGroupsIndex);
+			updateFacetStatistics(entity, this.facetedReferences, this.facetGroupsIndex);
 		}
 	}
 

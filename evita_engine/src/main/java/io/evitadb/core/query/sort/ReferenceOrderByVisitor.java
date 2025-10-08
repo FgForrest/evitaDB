@@ -42,11 +42,13 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.query.AttributeSchemaAccessor;
@@ -65,10 +67,12 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 
@@ -80,6 +84,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static java.util.Optional.ofNullable;
@@ -116,7 +121,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	/**
 	 * Reference schema of the reference being fetched and sorted.
 	 */
-	private final ReferenceSchemaContract referenceSchema;
+	@Getter private final ReferenceSchema referenceSchema;
 	/**
 	 * Provides access to the attribute schema or sortable attribute compound based on the attribute name.
 	 */
@@ -155,8 +160,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull FetchRequirementCollector fetchRequirementCollector,
 		@Nonnull OrderConstraint orderBy,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull ReferenceSchema referenceSchema
 		) {
 		final ReferenceOrderByVisitor orderVisitor = new ReferenceOrderByVisitor(
 			queryContext,
@@ -220,7 +225,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		);
 		this.fetchRequirementCollector.addRequirementsToPrefetch(
 			new ReferenceContent(
-				referenceSchema.getName(),
+				this.referenceSchema.getName(),
 				attributeContent
 			)
 		);
@@ -239,8 +244,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	@Nonnull
 	public OrderingDescriptor getComparator() {
 		return new OrderingDescriptor(
-			ofNullable(comparator).orElse(ReferenceComparator.DEFAULT),
-			nestedQueryComparator
+			ofNullable(this.comparator).orElse(ReferenceComparator.DEFAULT),
+			this.nestedQueryComparator
 		);
 	}
 
@@ -281,7 +286,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	public NamedSchemaContract getAttributeSchemaOrSortableAttributeCompound(
 		@Nonnull String attributeName
 	) {
-		return attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
+		return this.attributeSchemaAccessor.getAttributeSchemaOrSortableAttributeCompound(
 			attributeName, this.scope.isEmpty() ? this.getScopes() : this.scope.peek()
 		);
 	}
@@ -301,7 +306,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		@Nonnull String attributeName,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		return attributeSchemaAccessor.getAttributeSchema(
+		return this.attributeSchemaAccessor.getAttributeSchema(
 			attributeName, this.getScopes(), requiredTrait
 		);
 	}
@@ -323,7 +328,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	@Nonnull
 	public Optional<ChainIndex> getChainIndex(
 		@Nullable Integer entityPrimaryKey,
-		@Nonnull ReferenceKey referenceKey,
+		@Nonnull RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey
 	) {
 		if (this.referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReferenceSchema) {
@@ -337,19 +342,46 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 			} else {
 				// else we have to retrieve the chain and cache it
 				Assert.notNull(entityPrimaryKey, "Entity primary key must not be null for reflected reference schema.");
-				final ReferenceKey theLookupReferenceKey = new ReferenceKey(reflectedReferenceSchema.getReflectedReferenceName(), entityPrimaryKey);
+				final RepresentativeReferenceKey theLookupReferenceKey = new RepresentativeReferenceKey(
+					new ReferenceKey(
+						reflectedReferenceSchema.getReflectedReferenceName(),
+						entityPrimaryKey
+					),
+					referenceKey.representativeAttributeValues()
+				);
+				final Set<Scope> scopes = this.getScopes();
+				Assert.isTrue(
+					scopes.isEmpty() || scopes.size() == 1,
+					() -> "Chain sort cannot be executed in multiple scopes (" +
+						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
+				);
+				// resolve target schema
+				final ReferenceSchemaContract targetReferenceSchema = this.queryContext.getSchema(
+						this.referenceSchema.getReferencedEntityType()
+					).getReferenceOrThrowException(reflectedReferenceSchema.getReflectedReferenceName());
 				// get the index from the referenced entity collection using inverted key specification
-				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
+				final Optional<ChainIndex> chainIndex = this.queryContext.getEntityIndex(
 					this.referenceSchema.getReferencedEntityType(),
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
+						scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
 						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
 						theLookupReferenceKey
 					),
 					EntityIndex.class
-				).map(it -> it.getChainIndex(attributeKey));
+				).map(
+					it -> it.getChainIndex(
+						targetReferenceSchema,
+						targetReferenceSchema.getAttribute(attributeKey.attributeName())
+							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
+						attributeKey.locale()
+					)
+				);
 				// cache the result for future use
-				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(theLookupReferenceKey, attributeKey);
+				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(
+					theLookupReferenceKey,
+					attributeKey
+				);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);
 				return chainIndex;
 			}
@@ -361,14 +393,29 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				this.lastRetrievedChainIndexKey.attributeKey().equals(attributeKey)) {
 				return Optional.ofNullable(this.lastRetrievedChainIndex);
 			} else {
+				final Set<Scope> scopes = this.getScopes();
+				Assert.isTrue(
+					scopes.isEmpty() || scopes.size() == 1,
+					() -> "Chain sort cannot be executed in multiple scopes (" +
+						scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
+				);
 				// else we have to retrieve the chain and cache it
 				// get the index from this entity collection using the reference key
-				final Optional<ChainIndex> chainIndex = this.queryContext.getIndex(
+				final Optional<ChainIndex> chainIndex = this.queryContext.getIndexIfExists(
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY,
+						scopes.isEmpty() ? Scope.DEFAULT_SCOPE : scopes.iterator().next(),
 						referenceKey
+					),
+					ReducedEntityIndex.class
+				).map(
+					it -> it.getChainIndex(
+						this.referenceSchema,
+						this.referenceSchema.getAttribute(attributeKey.attributeName())
+							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
+						attributeKey.locale()
 					)
-				).map(it -> ((EntityIndex) it).getChainIndex(attributeKey));
+				);
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(referenceKey, attributeKey);
 				this.lastRetrievedChainIndex = chainIndex.orElse(null);
@@ -427,7 +474,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @param attributeKey The attribute key represents a unique identifier of an attribute, which may also be locale-specific.
 	 */
 	private record LastRetrievedChainIndexKey(
-		@Nonnull ReferenceKey referenceKey,
+		@Nonnull RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey
 	) {}
 

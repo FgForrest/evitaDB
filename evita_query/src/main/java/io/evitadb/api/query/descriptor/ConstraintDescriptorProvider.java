@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
+import io.evitadb.api.query.descriptor.ConstraintDescriptor.SupportedValues;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -59,6 +60,7 @@ public class ConstraintDescriptorProvider {
 	private static final Set<ConstraintDescriptor> CONSTRAINT_DESCRIPTORS;
 	private static final Map<Class<?>, Set<ConstraintDescriptor>> CONSTRAINT_DESCRIPTORS_TO_CLASS;
 	private static final Map<ConstraintReconstructionLookupKey, Set<ConstraintDescriptor>> CONSTRAINT_DESCRIPTOR_RECONSTRUCTION_LOOKUP_INDEX;
+
 	static {
 		CONSTRAINT_DESCRIPTORS = new ConstraintProcessor().process(ConstraintRegistry.REGISTERED_CONSTRAINTS);
 
@@ -143,12 +145,12 @@ public class ConstraintDescriptorProvider {
 	                                                 @Nullable String suffix) {
 		return getConstraints(constraintClass)
 			.stream()
-			.filter(it -> {
-				return it.creator()
+			.filter(
+				it -> it.creator()
 					.suffix()
 					.map(it2 -> it2.equals(suffix))
-					.orElse(suffix == null);
-			})
+					.orElse(suffix == null)
+			)
 			.findFirst()
 			.orElseThrow(() ->
 				new GenericEvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
@@ -192,20 +194,29 @@ public class ConstraintDescriptorProvider {
 	 * @return descriptors of all correctly registered constraints conforming to all the passed arguments
 	 */
 	@Nonnull
-	public static Set<ConstraintDescriptor> getConstraints(@Nonnull ConstraintType requiredType,
-	                                                       @Nonnull ConstraintPropertyType requiredPropertyType,
-														   @Nonnull ConstraintDomain requiredSupportedDomain,
-                                                           @Nonnull Class<?> requiredSupportedValueType,
-                                                           boolean arraySupportRequired,
-	                                                       boolean nullableData) {
+	public static Set<ConstraintDescriptor> getConstraints(
+		@Nonnull ConstraintType requiredType,
+		@Nonnull ConstraintPropertyType requiredPropertyType,
+		@Nonnull ConstraintDomain requiredSupportedDomain,
+		@Nonnull Class<?> requiredSupportedValueType,
+		boolean arraySupportRequired,
+		boolean nullableData
+	) {
 		return CONSTRAINT_DESCRIPTORS.stream()
-			.filter(cd -> cd.type().equals(requiredType) &&
-				cd.propertyType().equals(requiredPropertyType) &&
-				cd.supportedIn().contains(requiredSupportedDomain) &&
-				cd.supportedValues() != null &&
-				cd.supportedValues().dataTypes().contains(requiredSupportedValueType.isPrimitive() ? EvitaDataTypes.getWrappingPrimitiveClass(requiredSupportedValueType) : requiredSupportedValueType) &&
-				verifyNullabilitySupport(cd.supportedValues().nullability(), nullableData) &&
-				(!arraySupportRequired || cd.supportedValues().supportsArrays()))
+			.filter(cd -> {
+				final SupportedValues supportedValues = cd.supportedValues();
+				return cd.type().equals(requiredType) &&
+					cd.propertyType().equals(requiredPropertyType) &&
+					cd.supportedIn().contains(requiredSupportedDomain) &&
+					supportedValues != null &&
+					supportedValues.dataTypes().contains(
+						requiredSupportedValueType.isPrimitive() ?
+							EvitaDataTypes.getWrappingPrimitiveClass(requiredSupportedValueType) :
+							requiredSupportedValueType
+					) &&
+					verifyNullabilitySupport(supportedValues.nullability(), nullableData) &&
+					(!arraySupportRequired || supportedValues.supportsArrays());
+			})
 			.collect(Collectors.toUnmodifiableSet());
 	}
 
@@ -226,6 +237,13 @@ public class ConstraintDescriptorProvider {
 	}
 
 	/**
+	 * Checks if specified constraint is known to Evita.
+	 */
+	public static boolean isKnownConstraint(@Nonnull Class<?> constraintClass) {
+		return CONSTRAINT_DESCRIPTORS_TO_CLASS.containsKey(constraintClass);
+	}
+
+	/**
 	 * Verifies if nullability support of constraint matches nullability setting of data.
 	 */
 	private static boolean verifyNullabilitySupport(@Nonnull ConstraintNullabilitySupport nullabilitySupport, boolean nullableData) {
@@ -239,19 +257,13 @@ public class ConstraintDescriptorProvider {
 	}
 
 	/**
-	 * Checks if specified constraint is known to Evita.
-	 */
-	public static boolean isKnownConstraint(@Nonnull Class<?> constraintClass) {
-		return CONSTRAINT_DESCRIPTORS_TO_CLASS.containsKey(constraintClass);
-	}
-
-	/**
 	 * Key for quick lookup of specific query descriptor during query reconstruction.
 	 * These properties match uniqueness properties of descriptors plus suffixes of single creator.
 	 */
 	private record ConstraintReconstructionLookupKey(@Nonnull ConstraintType type,
 	                                                 @Nonnull ConstraintPropertyType propertyType,
-	                                                 @Nonnull String fullName) {}
+	                                                 @Nonnull String fullName) {
+	}
 
 	/**
 	 * Primarily for sorting constraint descriptors by classifier definitions.
