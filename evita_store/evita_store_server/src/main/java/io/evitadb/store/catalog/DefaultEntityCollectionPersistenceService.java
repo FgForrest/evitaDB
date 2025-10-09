@@ -1230,7 +1230,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				facetIndex,
 				entityIndexCnt.getIndexPrimaryKeyCardinality(),
 				cardinalityIndexes,
-				entityIndexCnt.getReferencedPrimaryKeysIndex()
+				ofNullable(entityIndexCnt.getReferencedPrimaryKeysIndex())
+					.orElseGet(Collections::emptyMap)
 			);
 		} else {
 			final Scope scope = entityIndexKey.scope();
