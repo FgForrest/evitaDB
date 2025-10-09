@@ -288,7 +288,9 @@ public final class Evita implements EvitaContract {
 		this.tracingContext = TracingContextProvider.getContext();
 
 		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
-			EnginePersistenceServiceFactory.class);
+			EnginePersistenceServiceFactory.class
+		);
+
 		final EnginePersistenceService enginePersistenceService = svcLoader
 			.findFirst()
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
