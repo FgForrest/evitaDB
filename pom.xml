@@ -522,6 +522,7 @@
 					<execution>
 						<id>attach-javadocs</id>
 						<phase>package</phase>
+						<inherited>false</inherited>
 						<goals>
 							<goal>jar</goal>
 						</goals>
@@ -582,6 +583,7 @@
 				<executions>
 					<execution>
 						<id>attach-sources</id>
+						<inherited>false</inherited>
 						<phase>package</phase>
 						<goals>
 							<goal>jar-no-fork</goal>
