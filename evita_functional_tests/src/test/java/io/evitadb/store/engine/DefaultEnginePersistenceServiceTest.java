@@ -35,10 +35,12 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.spi.model.EngineState;
 import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -51,6 +53,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.EnginePersistenceService.STORAGE_PROTOCOL_VERSION;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mockStatic;
 
 /**
  * This test verifies the behavior of {@link DefaultEnginePersistenceService}.
@@ -180,6 +183,33 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		// try to restart the service to ensure the state is persisted
 		this.service.close();
 
+
+		// mock FileUtils.listDirectories to return expected catalog folders
+		try (MockedStatic<FileUtils> fileUtilsMock = mockStatic(FileUtils.class)){
+			fileUtilsMock.when(() -> FileUtils.listDirectories(this.storageOptions.storageDirectory()))
+				.thenReturn(new Path[]{
+					this.storageOptions.storageDirectory().resolve("catalog1"),
+					this.storageOptions.storageDirectory().resolve("catalog2"),
+					this.storageOptions.storageDirectory().resolve("catalog3"),
+					this.storageOptions.storageDirectory().resolve("inactiveCatalog")
+				});
+
+			this.service = new DefaultEnginePersistenceService(
+				this.storageOptions,
+				this.transactionOptions,
+				this.scheduler
+			);
+
+			// Verify the engine state is still persisted after restart
+			EngineState restartedState = this.service.getEngineState();
+			assertEquals(2L, restartedState.version());
+			assertEquals(3, restartedState.activeCatalogs().length);
+			assertEquals(1, restartedState.inactiveCatalogs().length);
+
+			this.service.close();
+		}
+
+		// try again without folders
 		this.service = new DefaultEnginePersistenceService(
 			this.storageOptions,
 			this.transactionOptions,
@@ -188,9 +218,9 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 
 		// Verify the engine state is still persisted after restart
 		EngineState restartedState = this.service.getEngineState();
-		assertEquals(2L, restartedState.version());
-		assertEquals(3, restartedState.activeCatalogs().length);
-		assertEquals(1, restartedState.inactiveCatalogs().length);
+		assertEquals(3L, restartedState.version());
+		assertEquals(0, restartedState.activeCatalogs().length);
+		assertEquals(0, restartedState.inactiveCatalogs().length);
 	}
 
 	@Test

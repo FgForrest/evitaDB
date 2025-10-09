@@ -200,8 +200,9 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Either read existing engine state or create a new one
 		if (bootstrapFileExists) {
-			this.engineState = readEngineState(storageOptions);
+			this.engineState = readEngineState();
 			this.created = false;
+			this.engineState = syncEngineStateByFolderContents(storageOptions, this.engineState);
 		} else {
 			this.engineState = createNewEngineState(storageOptions);
 			this.created = true;
@@ -481,7 +482,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * @return the engine state read from storage
 	 */
 	@Nonnull
-	private EngineState readEngineState(@Nonnull StorageOptions storageOptions) {
+	private EngineState readEngineState() {
 		final EngineState engineState;
 		try (
 			final ReadOnlyFileHandle readOnlyFileHandle = new ReadOnlyFileHandle(
@@ -510,6 +511,24 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			);
 		}
 
+		return engineState;
+	}
+
+	/**
+	 * Synchronizes the current engine state with the actual contents on disk by analyzing the specified storage directory.
+	 * It identifies catalogs present on disk, updates the active and inactive catalog lists in the current engine state,
+	 * adds newly discovered catalogs as inactive, and persists any changes to storage.
+	 *
+	 * @param storageOptions configuration options for persistent storage, including the storage directory
+	 * @param engineState the current engine state to be synchronized with the storage directory contents
+	 * @return a new {@link EngineState} instance with updated active and inactive catalog lists,
+	 *         or the original engine state if no changes are detected
+	 */
+	@Nonnull
+	private EngineState syncEngineStateByFolderContents(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull EngineState engineState
+	) {
 		// Detect catalogs present on disk and reduce to only previously unknown ones
 		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
 		final LinkedHashSet<String> catalogsOnDisk = new LinkedHashSet<>(directories.length << 1);
@@ -560,6 +579,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Create new engine state with updated catalogs
 		final EngineState newEngineState = EngineState.builder(engineState)
+			.version(this.engineState.version() + 1)
 			.activeCatalogs(newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 			.inactiveCatalogs(newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 			.build();
