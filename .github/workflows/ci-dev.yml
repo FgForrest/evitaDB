@@ -58,14 +58,14 @@ jobs:
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
     - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       if: success() || failure()
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-canary.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       if: success()
       with:
         name: evita-server.jar
