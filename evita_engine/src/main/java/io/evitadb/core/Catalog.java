@@ -1129,7 +1129,7 @@ public final class Catalog implements CatalogContract, CatalogConsumersListener,
 
 							@Override
 							public void accept(long txId) {
-								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 / nonProcessedTxCount);
+								int percentDone = (int) ((txId - firstNonProcessedTxVersion) * 100 / Math.max(nonProcessedTxCount, 1));
 								if (percentDone > this.lastPercent) {
 									this.lastPercent = percentDone;
 									if (System.currentTimeMillis() - this.lastLoggedTime >= 5000) {
