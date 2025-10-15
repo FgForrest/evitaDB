@@ -27,7 +27,7 @@ package io.evitadb.store.spi.model.storageParts.index;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.cardinality.CardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import lombok.Getter;
@@ -44,7 +44,7 @@ import java.util.Set;
  * @deprecated This class is deprecated and will be removed in the future. Use {@link EntityIndexStoragePart} instead.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@Deprecated(since = "2024.11", forRemoval = true)
+@Deprecated(since = "2025.7", forRemoval = true)
 public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 	@Serial private static final long serialVersionUID = 3455486364434181265L;
 
@@ -53,6 +53,10 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 	 * a newly encountered prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it.
 	 */
 	@Getter private final Integer internalPriceIdSequence;
+	/**
+	 * Incorrect / old / deprecated data structure for storing reference type cardinalities.
+	 */
+	@Getter private final AttributeCardinalityIndex referenceTypeCardinality;
 
 	public EntityIndexStoragePartDeprecated(
 		int primaryKey,
@@ -64,15 +68,16 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		boolean hierarchyIndex,
 		@Nonnull Set<String> facetIndexes,
-		@Nonnull CardinalityIndex primaryKeyCardinality,
+		// incorrect data structure here
+		@Nonnull AttributeCardinalityIndex referenceTypeCardinality,
 		@Nonnull Integer internalPriceIdSequence
 	) {
 		super(
 			primaryKey, version, entityIndexKey,
-			entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes,
-			primaryKeyCardinality, null
+			entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes
 		);
 		this.internalPriceIdSequence = internalPriceIdSequence;
+		this.referenceTypeCardinality = referenceTypeCardinality;
 	}
 
 }

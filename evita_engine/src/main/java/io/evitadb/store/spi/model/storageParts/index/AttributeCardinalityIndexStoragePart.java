@@ -23,9 +23,7 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.index.cardinality.CardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.store.model.RecordWithCompressedId;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -37,17 +35,23 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Filter index container stores cardinality index for single {@link AttributeSchema} of the single
- * {@link EntitySchema}. This container object serves only as a storage carrier for
- * {@link io.evitadb.index.cardinality.CardinalityIndex} which is a live memory representation of the data stored in
- * this container.
+ * This storage part implementation maintains information about attribute value cardinality in the entity index. The cardinality
+ * represents how many times a specific attribute value appears in combination with an entity. This information is crucial for
+ * query optimization and statistics.
+ *
+ * The class stores references to the entity index, attribute details, and maintains a cardinality index that maps
+ * attribute value-entity combinations to their occurrence counts. It implements both {@link AttributeIndexStoragePart} and
+ * {@link RecordWithCompressedId} interfaces to support storage and retrieval operations.
+ *
+ * This storage part is related to the {@link AttributeCardinalityIndex} data structure and is created only for persistence
+ * purposes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 @AllArgsConstructor
 @ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
-public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
+public class AttributeCardinalityIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
 	@Serial private static final long serialVersionUID = -929865952179187357L;
 
 	/**
@@ -62,7 +66,7 @@ public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, R
 	 * This map contains cardinality of the attribute values. Key is the combination of attribute value and entity id.
 	 * Value is the number of occurrences of this combination in the index.
 	 */
-	@Getter private final CardinalityIndex cardinalityIndex;
+	@Getter private final AttributeCardinalityIndex cardinalityIndex;
 	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */

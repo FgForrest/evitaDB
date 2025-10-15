@@ -36,8 +36,8 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.cardinality.CardinalityIndex;
-import io.evitadb.index.cardinality.CardinalityIndex.CardinalityKey;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
@@ -127,19 +127,19 @@ public class EntityIndexStoragePartSerializer_2024_11 extends Serializer<EntityI
 		}
 
 		final int primaryKeyCardinalityCount = input.readInt();
-		final CardinalityIndex primaryKeyCardinality;
+		final AttributeCardinalityIndex primaryKeyCardinality;
 		if (primaryKeyCardinalityCount == -1) {
-			primaryKeyCardinality = new CardinalityIndex(Integer.class, Map.of());
+			primaryKeyCardinality = new AttributeCardinalityIndex(Integer.class, Map.of());
 		} else {
-			final Map<CardinalityKey, Integer> index = createHashMap(primaryKeyCardinalityCount);
+			final Map<AttributeCardinalityKey, Integer> index = createHashMap(primaryKeyCardinalityCount);
 			for (int i = 0; i < primaryKeyCardinalityCount; i++) {
 				final int cardinalityPrimaryKey = input.readVarInt(false);
 				index.put(
-					new CardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
+					new AttributeCardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
 					input.readVarInt(true)
 				);
 			}
-			primaryKeyCardinality = new CardinalityIndex(Integer.class, index);
+			primaryKeyCardinality = new AttributeCardinalityIndex(Integer.class, index);
 		}
 
 		return new EntityIndexStoragePartDeprecated(

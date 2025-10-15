@@ -44,10 +44,10 @@ import io.evitadb.index.mutation.index.EntitySchemaAttributeAndCompoundSchemaPro
 import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -613,7 +613,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case UNIQUE -> UniqueIndexStoragePart.class;
 			case SORT -> SortIndexStoragePart.class;
 			case CHAIN -> ChainIndexStoragePart.class;
-			case CARDINALITY -> CardinalityIndexStoragePart.class;
+			case CARDINALITY -> AttributeCardinalityIndexStoragePart.class;
 		};
 		final AttributeIndexKey checkedAttributeKey = new AttributeIndexKey(null, attributeName, locale);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
@@ -650,7 +650,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case UNIQUE -> UniqueIndexStoragePart.class;
 			case SORT -> SortIndexStoragePart.class;
 			case CHAIN -> ChainIndexStoragePart.class;
-			case CARDINALITY -> CardinalityIndexStoragePart.class;
+			case CARDINALITY -> AttributeCardinalityIndexStoragePart.class;
 		};
 		final AttributeIndexKey checkedAttributeKey = new AttributeIndexKey(null, attributeName, locale);
 		final Iterator<StoragePart> it = trappedChanges.getTrappedChangesIterator();
