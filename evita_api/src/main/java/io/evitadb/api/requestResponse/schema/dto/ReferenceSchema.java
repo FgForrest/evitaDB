@@ -56,7 +56,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema._internalGenerateNameVariantIndex;
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toReferenceAttributeSchema;
-import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toSortableAttributeCompoundSchema;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -849,6 +848,28 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	protected boolean shouldValidate(@Nonnull AttributeSchemaContract attributeSchema) {
 		return true;
+	}
+
+	/**
+	 * Method converts the "unknown" contract implementation and converts it to the "known"
+	 * {@link SortableAttributeCompoundSchema} so that the entity schema can access the internal API of it.
+	 */
+	@Nonnull
+	private static SortableAttributeCompoundSchema toSortableAttributeCompoundSchema(
+		@Nonnull SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchemaContract
+	) {
+		return sortableAttributeCompoundSchemaContract instanceof SortableAttributeCompoundSchema sortableAttributeCompoundSchema ?
+			sortableAttributeCompoundSchema :
+			SortableAttributeCompoundSchema._internalBuild(
+				sortableAttributeCompoundSchemaContract.getName(),
+				sortableAttributeCompoundSchemaContract.getNameVariants(),
+				sortableAttributeCompoundSchemaContract.getDescription(),
+				sortableAttributeCompoundSchemaContract.getDeprecationNotice(),
+				Arrays.stream(Scope.values())
+					.filter(sortableAttributeCompoundSchemaContract::isIndexedInScope)
+					.toArray(Scope[]::new),
+				sortableAttributeCompoundSchemaContract.getAttributeElements()
+			);
 	}
 
 	/**

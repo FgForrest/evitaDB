@@ -3184,11 +3184,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
-						.getSortIndex(productSchema, null, categoryCodeEanCompoundSchema, Locale.ENGLISH)
+						.getSortIndex(productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
 				);
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
-						.getSortIndex(productSchema, null, categoryCodeEanCompoundSchema, Locale.CANADA)
+						.getSortIndex(productSchema, brandReferenceSchema, brandCodeEanCompoundSchema, Locale.CANADA)
 				);
 			}
 		);

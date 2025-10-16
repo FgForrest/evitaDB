@@ -714,7 +714,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		@Nonnull AttributeElement[] attributeElements,
 		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
 	) {
-		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
+		final Optional<EntitySortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
 		final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
 		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
 			catalogSchema,

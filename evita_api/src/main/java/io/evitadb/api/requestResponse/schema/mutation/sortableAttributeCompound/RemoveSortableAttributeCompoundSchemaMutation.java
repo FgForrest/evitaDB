@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -90,12 +91,12 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 
 	@Nullable
 	@Override
-	public SortableAttributeCompoundSchemaContract mutate(
+	public <T extends SortableAttributeCompoundSchemaContract> T mutate(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
+		@Nullable T existingSchema
 	) {
-		Assert.isPremiseValid(sortableAttributeCompoundSchema != null, "Sortable attribute compound schema is mandatory!");
+		Assert.isPremiseValid(existingSchema != null, "Sortable attribute compound schema is mandatory!");
 		return null;
 	}
 
@@ -103,7 +104,7 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final Optional<SortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(this.name);
+		final Optional<EntitySortableAttributeCompoundSchemaContract> existingAttributeSchema = entitySchema.getSortableAttributeCompound(this.name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the sortable attribute compound schema was already removed - or just doesn't exist,
 			// so we can simply return current schema

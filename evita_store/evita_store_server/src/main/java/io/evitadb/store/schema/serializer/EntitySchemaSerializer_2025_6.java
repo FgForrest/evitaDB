@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -41,19 +42,25 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.store.schema.serializer.EntitySchemaSerializer.readScopeSet;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link EntitySchema} from/to binary format.
  *
+ * @deprecated when {@link EntitySortableAttributeCompoundSchema} were introduced in `2025.7` version, this class
+ *             became obsolete because {@link EntitySchema} now contains map of {@link EntitySortableAttributeCompoundSchemaContract}
+ *             instead of {@link SortableAttributeCompoundSchema} and the serialization mechanism
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated(since = "2024.11", forRemoval = true)
-public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
+@Deprecated(since = "2025.6", forRemoval = true)
+public class EntitySchemaSerializer_2025_6 extends Serializer<EntitySchema> {
 	private final HeterogeneousMapSerializer<Object, Object> heterogeneousSerializer = new HeterogeneousMapSerializer<>(LinkedHashMap::new);
 
 	@Override
@@ -75,7 +82,9 @@ public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
 		}
 		final boolean withGeneratedPrimaryKey = input.readBoolean();
 		final boolean withHierarchy = input.readBoolean();
+		final EnumSet<Scope> hierarchyIndexedInScopes = readScopeSet(kryo, input);
 		final boolean withPrice = input.readBoolean();
+		final EnumSet<Scope> priceIndexedInScopes = readScopeSet(kryo, input);
 		final int indexedPricePlaces = input.readInt(true);
 		@SuppressWarnings("unchecked") final Set<Locale> locales = kryo.readObject(input, LinkedHashSet.class);
 		@SuppressWarnings("unchecked") final Set<Currency> currencies = kryo.readObject(input, LinkedHashSet.class);
@@ -89,7 +98,7 @@ public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
 		final int sortableAttributeCompoundsCount = input.readVarInt(true);
 		final Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
 		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
-			final SortableAttributeCompoundSchema compoundSchemaContract = kryo.readObject(input, SortableAttributeCompoundSchema.class);
+			final SortableAttributeCompoundSchemaContract compoundSchemaContract = kryo.readObject(input, SortableAttributeCompoundSchemaContract.class);
 			sortableAttributeCompounds.put(
 				compoundSchemaContract.getName(),
 				EntitySortableAttributeCompoundSchema._internalBuild(
@@ -108,9 +117,9 @@ public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
 			entityName, nameVariants, description, deprecationNotice,
 			withGeneratedPrimaryKey,
 			withHierarchy,
-			withHierarchy ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
+			hierarchyIndexedInScopes,
 			withPrice,
-			withPrice ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE,
+			priceIndexedInScopes,
 			indexedPricePlaces,
 			locales,
 			currencies,

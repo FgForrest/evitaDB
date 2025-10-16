@@ -25,7 +25,7 @@ package io.evitadb.store.schema.serializer;
 
 import com.esotericsoftware.kryo.Serializer;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.NamingConvention;
 
@@ -36,25 +36,22 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link SortableAttributeCompoundSchema} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link EntitySortableAttributeCompoundSchema} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class SortableAttributeCompoundSchemaSerializer extends AbstractSortableAttributeCompoundSchemaSerializer<SortableAttributeCompoundSchema> {
+public class EntitySortableAttributeCompoundSchemaSerializer extends AbstractSortableAttributeCompoundSchemaSerializer<EntitySortableAttributeCompoundSchema> {
 
 	@Nonnull
 	@Override
-	protected SortableAttributeCompoundSchema createSchemaInstance(
+	protected EntitySortableAttributeCompoundSchema createSchemaInstance(
 		@Nonnull String name,
-		@Nonnull Map<NamingConvention, String> nameVariants,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nonnull EnumSet<Scope> indexedInScopes,
+		@Nonnull Map<NamingConvention, String> nameVariants, @Nullable String description,
+		@Nullable String deprecationNotice, @Nonnull EnumSet<Scope> indexedInScopes,
 		@Nonnull List<AttributeElement> attributeElements
 	) {
-		return SortableAttributeCompoundSchema._internalBuild(
+		return EntitySortableAttributeCompoundSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice, indexedInScopes, attributeElements
 		);
 	}
-
 }

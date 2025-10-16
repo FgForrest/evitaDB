@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,8 +73,9 @@ public interface InternalSchemaBuilderHelper {
 	 * @param existingMutations set of existing mutations in the pipeline
 	 * @param newMutations      array of new mutations we want to add to the pipeline
 	 * @param <T>               :) having Java more clever, we wouldn't need this
-	 * @return TRUE if the pipeline was modified and the cached schema needs te "recalculated"
+	 * @return mutation impact to signalize that the pipeline was modified and the cached schema needs te "recalculated"
 	 */
+	@Nonnull
 	@SafeVarargs
 	private static <T extends SchemaMutation> MutationImpact addMutations(
 		@Nonnull Class<T> mutationType,
@@ -169,7 +170,7 @@ public interface InternalSchemaBuilderHelper {
 	 * @return the new impact level if more significant than the existing one, otherwise the existing one
 	 */
 	@Nonnull
-	private static MutationImpact updateMutationImpactInternal(@Nonnull MutationImpact existingImpactLevel, MutationImpact newImpactLevel) {
+	private static MutationImpact updateMutationImpactInternal(@Nonnull MutationImpact existingImpactLevel, @Nonnull MutationImpact newImpactLevel) {
 		if (existingImpactLevel.ordinal() < newImpactLevel.ordinal()) {
 			existingImpactLevel = newImpactLevel;
 		}
@@ -180,6 +181,7 @@ public interface InternalSchemaBuilderHelper {
 	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
 	 * compute combination result with all previous mutations.
 	 */
+	@Nonnull
 	default MutationImpact addMutations(
 		@Nonnull CatalogSchemaContract currentCatalogSchema,
 		@Nonnull List<LocalCatalogSchemaMutation> existingMutations,
@@ -198,6 +200,7 @@ public interface InternalSchemaBuilderHelper {
 	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
 	 * compute combination result with all previous mutations.
 	 */
+	@Nonnull
 	default MutationImpact addMutations(
 		@Nonnull CatalogSchemaContract currentCatalogSchema,
 		@Nonnull EntitySchemaContract currentEntitySchema,
@@ -222,8 +225,14 @@ public interface InternalSchemaBuilderHelper {
 	 * @return the new impact level if more significant than the existing one, otherwise the existing one
 	 */
 	@Nonnull
-	default MutationImpact updateMutationImpact(@Nonnull MutationImpact existingImpactLevel, @Nullable MutationImpact newImpactLevel) {
-		return updateMutationImpactInternal(existingImpactLevel, newImpactLevel);
+	default MutationImpact updateMutationImpact(
+		@Nonnull MutationImpact existingImpactLevel,
+		@Nonnull MutationImpact newImpactLevel
+	) {
+		return updateMutationImpactInternal(
+			existingImpactLevel,
+			newImpactLevel
+		);
 	}
 
 	/**
@@ -267,7 +276,7 @@ public interface InternalSchemaBuilderHelper {
 				if (newSchema instanceof AttributeSchemaContract newAttributeSchema) {
 					if (conflict.conflictingAttributeSchema() == null) {
 						throw new AttributeAlreadyPresentInEntitySchemaException(
-							conflict.conflictingCompoundSchema(),
+							Objects.requireNonNull(conflict.conflictingCompoundSchema()),
 							newAttributeSchema,
 							conflict.convention(), conflict.conflictingName()
 						);
@@ -281,7 +290,7 @@ public interface InternalSchemaBuilderHelper {
 				} else if (newSchema instanceof SortableAttributeCompoundSchemaContract newCompoundSchema) {
 					if (conflict.conflictingAttributeSchema() == null) {
 						throw new AttributeAlreadyPresentInEntitySchemaException(
-							conflict.conflictingCompoundSchema(),
+							Objects.requireNonNull(conflict.conflictingCompoundSchema()),
 							newCompoundSchema,
 							conflict.convention(), conflict.conflictingName()
 						);
@@ -306,7 +315,7 @@ public interface InternalSchemaBuilderHelper {
 	 */
 	default void checkSortableAttributeCompoundsWithoutAttribute(
 		@Nonnull String attributeName,
-		@Nonnull Collection<SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
+		@Nonnull Collection<? extends SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
 		final SortableAttributeCompoundSchemaContract conflictingCompounds = sortableAttributeCompounds
 			.stream()
@@ -323,7 +332,7 @@ public interface InternalSchemaBuilderHelper {
 			() -> new SortableAttributeCompoundSchemaException(
 				"The attribute `" + attributeName + "` cannot be removed because there is sortable attribute compound" +
 					" relying on it! Please, remove the compound first. ",
-				conflictingCompounds
+				Objects.requireNonNull(conflictingCompounds)
 			)
 		);
 	}

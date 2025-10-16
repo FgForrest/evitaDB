@@ -32,6 +32,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Objects;
 
 /**
  * Finds and returns concrete {@link AttributeSchemaContract} from current parent {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract}
@@ -47,7 +48,7 @@ public class SortableAttributeCompoundSchemaDataFetcher implements DataFetcher<S
 	@Nonnull
 	@Override
 	public SortableAttributeCompoundSchemaContract get(DataFetchingEnvironment environment) throws Exception {
-		final SortableAttributeCompoundSchemaProvider<?> provider = environment.getSource();
+		final SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> provider = Objects.requireNonNull(environment.getSource());
 		return provider
 			.getSortableAttributeCompound(this.name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find sortable attribute compound schema for name `" + this.name + "`."));
