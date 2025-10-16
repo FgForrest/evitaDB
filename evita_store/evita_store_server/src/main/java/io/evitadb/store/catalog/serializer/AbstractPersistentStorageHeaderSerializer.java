@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.spi.model.PersistentStorageHeader;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -57,13 +57,12 @@ abstract class AbstractPersistentStorageHeaderSerializer<T> extends Serializer<T
 	 * Method is targeted to deserialize compressed keys to {@link PersistentStorageHeader#compressedKeys()}.
 	 */
 	protected Map<Integer, Object> deserializeKeys(@Nonnull Input input, @Nonnull Kryo kryo) {
-		final Map<Integer, Object> keys = new HashMap<>();
 		final int keyCount = input.readVarInt(true);
+		final Map<Integer, Object> keys = CollectionUtils.createHashMap(keyCount);
 		for (int i = 1; i <= keyCount; i++) {
-			keys.put(
-				input.readVarInt(true),
-				kryo.readClassAndObject(input)
-			);
+			final int key = input.readVarInt(true);
+			final Object value = kryo.readClassAndObject(input);
+			keys.put(key, value);
 		}
 		return keys;
 	}

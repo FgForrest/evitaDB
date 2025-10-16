@@ -30,7 +30,7 @@ import java.io.Closeable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-sealed interface PersistenceService
+sealed public interface PersistenceService
 	extends Closeable
 	permits EnginePersistenceService, RichPersistenceService {
 
@@ -41,7 +41,7 @@ sealed interface PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 3;
+	int STORAGE_PROTOCOL_VERSION = 4;
 	String BOOT_FILE_SUFFIX = ".boot";
 	String WAL_FILE_SUFFIX = ".wal";
 

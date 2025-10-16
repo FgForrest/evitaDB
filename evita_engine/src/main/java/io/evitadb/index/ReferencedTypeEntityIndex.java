@@ -84,7 +84,6 @@ import static java.util.Optional.ofNullable;
  * speed up queries that involve the references.
  *
  * This index doesn't maintain the prices of entities - only the attributes present on relations.
- * TODO JNO - write migration logic for old data that index referenced entity ids
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

@@ -54,7 +54,6 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -69,7 +68,6 @@ import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.BiIntConsumer;
-import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
@@ -81,7 +79,7 @@ import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
-import io.evitadb.store.kryo.ObservableInput;
+import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -93,7 +91,6 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
-import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.BootstrapWriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
@@ -101,7 +98,6 @@ import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.service.SharedClassesConfigurer;
@@ -111,6 +107,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.HeaderInfoSupplier;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.PersistenceService;
 import io.evitadb.store.spi.exception.BootstrapFileNotFound;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogHeader;
@@ -124,7 +121,6 @@ import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
-import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
@@ -132,12 +128,10 @@ import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
-import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.IOUtils.IOExceptionThrowingRunnable;
 import io.evitadb.utils.NamingConvention;
-import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -145,10 +139,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -157,7 +149,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -179,7 +170,6 @@ import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogBootstrap
 import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileName;
 import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileName;
 import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
-import static io.evitadb.store.wal.CatalogWriteAheadLog.WAL_TAIL_LENGTH;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -201,6 +191,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		SchemaKryoConfigurer.INSTANCE
 			.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
 			.andThen(SharedClassesConfigurer.INSTANCE)
+			.andThen(SharedIndexStoragePartConfigurer.INSTANCE)
 			.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
 	);
 
@@ -733,46 +724,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Internal method for reading the catalog bootstrap record from the file handle.
-	 *
-	 * @param fromPosition from which position to read the record
-	 * @param readHandle   the file handle to read the record from
-	 * @return the catalog bootstrap record
-	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
-	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
-	@Nonnull
-	private static CatalogBootstrap deserializeOldCatalogBootstrapRecord(
-		long fromPosition, @Nonnull ReadOnlyFileHandle readHandle) {
-		final StorageRecord<CatalogBootstrap> storageRecord = readHandle.execute(
-			input -> {
-				Assert.isPremiseValid(
-					!input.isCompressionEnabled(),
-					"Bootstrap record must not be compressed!"
-				);
-				return StorageRecord.readOldFormat(
-					input,
-					new FileLocation(fromPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
-					(theInput, recordLength, control) -> new CatalogBootstrap(
-						theInput.readLong(),
-						theInput.readInt(),
-						Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-						new FileLocation(
-							theInput.readLong(),
-							theInput.readInt()
-						)
-					)
-				);
-			}
-		);
-		Assert.isPremiseValid(
-			storageRecord != null && storageRecord.payload() != null,
-			"Bootstrap record is not expected to be NULL!"
-		);
-		return storageRecord.payload();
-	}
-
-	/**
 	 * Retrieves the instance of shared WAL service for a given catalog if the catalog is in transactional mode.
 	 *
 	 * BEWARE: work with {@link CatalogWriteAheadLog} is not thread safe and must be synchronized!
@@ -831,14 +782,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		return ofNullable(currentWalFileRef)
 			.map(
-				walFileReference -> {
-					return new CatalogWriteAheadLog(
-						catalogVersion, catalogName, walFileNameProvider,
-						catalogStoragePath, catalogKryoPool,
-						storageOptions, transactionOptions, scheduler,
-						bootstrapFileTrimFunction, onWalPurgeCallback.get()
-					);
-				}
+				walFileReference -> new CatalogWriteAheadLog(
+					catalogVersion, catalogName, walFileNameProvider,
+					catalogStoragePath, catalogKryoPool,
+					storageOptions, transactionOptions, scheduler,
+					bootstrapFileTrimFunction, onWalPurgeCallback.get()
+				)
 			)
 			.orElse(null);
 	}
@@ -924,24 +873,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final long length = bootstrapFile.length();
 			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
 			try {
-				final CatalogBootstrap catalogBootstrap = deserializeCatalogBootstrapRecord(
+				return deserializeCatalogBootstrapRecord(
 					bootstrapStorageOptions, bootstrapFilePath, lastMeaningfulPosition);
-				if (catalogBootstrap.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
-					throw new StoredProtocolVersionNotSupportedException(
-						catalogBootstrap.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
-					);
-				}
-				return catalogBootstrap;
 			} catch (CorruptedRecordException ex) {
 				// corruption may signalize old format
-				final long lastMeaningfulOldPosition = CatalogBootstrap.getOldLastMeaningfulPosition(length);
+				final long lastMeaningfulOldPosition = Migration_2025_1.getOldLastMeaningfulPosition(length);
 				// this will either read old bootstrap and verify CRC32C checksum or throw exception
 				final CatalogBootstrap oldBootstrap = deserializeCatalogBootstrapRecord(
 					bootstrapStorageOptions, bootstrapFilePath, lastMeaningfulOldPosition,
-					DefaultCatalogPersistenceService::deserializeOldCatalogBootstrapRecord
+					Migration_2025_1::deserializeOldCatalogBootstrapRecord
 				);
 				// upgrade the bootstrap file and all catalog files
-				upgradeCatalogFiles(
+				Migration_2025_1.upgradeCatalogFiles(
 					catalogName, bootstrapStorageOptions, storageOptions, catalogStoragePath, bootstrapFilePath,
 					exportFileService
 				);
@@ -963,196 +906,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * Performs automatic upgrade of the bootstrap file and all catalog files.
-	 *
-	 * @param catalogName             name of the catalog
-	 * @param bootstrapStorageOptions bootstrap storage options
-	 * @param catalogStoragePath      path to the catalog storage
-	 * @param bootstrapFilePath       path to the bootstrap file
-	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
-	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
-	private static void upgradeCatalogFiles(
-		@Nonnull String catalogName,
-		@Nonnull StorageOptions bootstrapStorageOptions,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull Path catalogStoragePath,
-		@Nonnull Path bootstrapFilePath,
-		@Nonnull ExportFileService exportFileService
-	) {
-		ConsoleWriter.writeLine(
-			"Catalog `" + catalogName + "` uses deprecated storage record format of storage protocol version 2.",
-			ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
-		);
-		ConsoleWriter.writeLine(
-			"Upgrading `" + catalogName + "` to storage record format of storage protocol version " + STORAGE_PROTOCOL_VERSION + ".",
-			ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
-		);
-		// first create backup of all catalog files
-		try (
-			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
-				catalogStoragePath.toFile().getName() + "_" + OffsetDateTime.now()
-				                                                            .format(
-					                                                            DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "_upgrade.zip",
-				"Catalog `" + catalogName + "` backup before storage protocol upgrade.",
-				"application/zip",
-				null
-			)
-		) {
-			ConsoleWriter.writeLine(
-				"Backing up catalog `" + catalogName + "` to `" + exportFileHandle.filePath() + "` before upgrade...",
-				ConsoleColor.DARK_BLUE
-			);
-			FileUtils.compressDirectory(catalogStoragePath, exportFileHandle.outputStream());
-		} catch (IOException e) {
-			// just log the error and continue
-			log.error("Failed to backup catalog `" + catalogName + "` before upgrade!", e);
-		}
-		// next migrate catalog bootstrap file
-		final int recordCount = CatalogBootstrap.getOldRecordCount(
-			bootstrapFilePath.toFile().length()
-		);
-		final Path targetPath = catalogStoragePath.resolve("../" + catalogStoragePath.toFile().getName() + "__upgrade")
-		                                          .normalize();
-		Assert.isPremiseValid(targetPath.toFile().mkdirs(), "Failed to create target directory for upgrade!");
-		try (
-			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, bootstrapStorageOptions);
-			final BootstrapWriteOnlyFileHandle targetBootstrapHandle = createBootstrapWriteOnlyHandle(
-				catalogName, bootstrapStorageOptions, targetPath
-			);
-		) {
-			targetBootstrapHandle.checkAndExecute(
-				"copy bootstrap record",
-				Functions.noOpRunnable(),
-				output -> {
-					for (int i = 0; i < recordCount; i++) {
-						final long startPosition = CatalogBootstrap.getOldPositionForRecord(i);
-						final CatalogBootstrap bootstrapRecord = deserializeOldCatalogBootstrapRecord(
-							startPosition, readHandle);
-						Assert.isPremiseValid(
-							bootstrapRecord != null,
-							() -> new GenericEvitaInternalError("Failed to read the bootstrap record from the file!")
-						);
-
-						// append to the new file
-						serializeBootstrapRecord(output, bootstrapRecord);
-					}
-					return null;
-				}
-			);
-		} catch (Exception e) {
-			throw new UnexpectedIOException(
-				"Failed to open catalog bootstrap file `" + bootstrapFilePath + "`!",
-				"Failed to open catalog bootstrap file!",
-				e
-			);
-		}
-		ConsoleWriter.writeLine("Migrated catalog `" + catalogName + "` bootstrap file.", ConsoleColor.DARK_BLUE);
-		// finally, migrate all data files in the folder
-		try (
-			final Stream<Path> streamWalker = Files.walk(catalogStoragePath);
-		) {
-			streamWalker
-				.filter(
-					filePath -> {
-						final String thePath = filePath.normalize().toString();
-						return thePath.endsWith(CATALOG_FILE_SUFFIX) ||
-							thePath.endsWith(ENTITY_COLLECTION_FILE_SUFFIX) ||
-							thePath.endsWith(WAL_FILE_SUFFIX);
-					}
-				)
-				.forEach(filePath -> {
-					final long sourceFileSize = filePath.toFile().length();
-					final String fileName = filePath.getFileName().toString();
-					try (
-						final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-							new RandomAccessFileInputStream(new RandomAccessFile(filePath.toFile(), "rw"), true)
-						);
-						final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-							new FileOutputStream(targetPath.resolve(fileName).toFile(), false),
-							storageOptions.outputBufferSize(),
-							sourceFileSize
-						)
-					) {
-						if (storageOptions.computeCRC32C()) {
-							input.computeCRC32();
-							output.computeCRC32();
-						}
-						if (fileName.endsWith(WAL_FILE_SUFFIX)) {
-							RawRecord rawRecord;
-							long endOfTransaction = 0L;
-							long readTotal = 0L;
-							do {
-								// each transaction is preceded by overall transaction length
-								if (endOfTransaction == -1 || readTotal >= endOfTransaction) {
-									final int txLength = input.simpleIntRead();
-									endOfTransaction += 4 + txLength;
-									output.writeInt(txLength);
-									readTotal += 4;
-								}
-								rawRecord = StorageRecord.readOldRaw(input);
-								StorageRecord.writeRaw(
-									output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
-								readTotal += rawRecord.location().recordLength();
-							} while (readTotal + WAL_TAIL_LENGTH < sourceFileSize);
-						} else {
-							try {
-								RawRecord rawRecord;
-								do {
-									rawRecord = StorageRecord.readOldRaw(input, sourceFileSize);
-									StorageRecord.writeRaw(
-										output, rawRecord.control(), rawRecord.generationId(), rawRecord.rawData());
-								} while (rawRecord.location().endPosition() < sourceFileSize);
-							} catch (PrematureEndOfFileException ex) {
-								ConsoleWriter.writeLine(
-									"There is a dangling record at the end of the file: " + filePath + ". Catalog might me corrupted after migration if the record is referenced in current indexes.",
-									ConsoleColor.BRIGHT_RED
-								);
-							}
-							ConsoleWriter.writeLine(
-								"Migrated catalog `" + catalogName + "` file: " + filePath, ConsoleColor.DARK_BLUE);
-						}
-					} catch (FileNotFoundException e) {
-						throw new UnexpectedIOException(
-							"Failed to open the catalog data file `" + filePath + "`!",
-							"Failed to open a catalog data file!",
-							e
-						);
-					} catch (RuntimeException e) {
-						log.error("Failed to migrate catalog `" + catalogName + "` file: " + filePath, e);
-						throw e;
-					}
-				});
-			// finally remove original directory and rename migrated one
-			ConsoleWriter.writeLine(
-				"Upgrade finished, removing old catalog `" + catalogStoragePath + "`", ConsoleColor.DARK_BLUE);
-			FileUtils.deleteDirectory(catalogStoragePath);
-			ConsoleWriter.writeLine(
-				"Upgrade finished, renaming upgraded folder `" + targetPath + "` to `" + catalogStoragePath + "`",
-				ConsoleColor.DARK_BLUE
-			);
-			FileUtils.renameFolder(targetPath, catalogStoragePath);
-			ConsoleWriter.writeLine(
-				"Upgrade of catalog `" + catalogName + "` successfully finished.", ConsoleColor.BRIGHT_BLUE,
-				ConsoleDecoration.BOLD
-			);
-		} catch (IOException e) {
-			ConsoleWriter.writeLine(
-				"Upgrade of catalog `" + catalogName + "` failed!", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
-			throw new UnexpectedIOException(
-				"Failed to migrate catalog `" + catalogName + "` data file!",
-				"Failed to migrate a catalog data file!",
-				e
-			);
-		} finally {
-			if (targetPath.toFile().exists()) {
-				ConsoleWriter.writeLine("Cleaning temporary directory `" + targetPath + "`.", ConsoleColor.DARK_BLUE);
-				FileUtils.deleteDirectory(targetPath);
-			}
-		}
-	}
-
-	/**
 	 * Creates a write-only file handle for the bootstrap catalog file.
 	 *
 	 * @param catalogName        the name of the catalog for which the bootstrap handle is to be created
@@ -1161,7 +914,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @return a new instance of {@code WriteOnlyFileHandle} configured for the catalog bootstrap file
 	 */
 	@Nonnull
-	private static BootstrapWriteOnlyFileHandle createBootstrapWriteOnlyHandle(
+	static BootstrapWriteOnlyFileHandle createBootstrapWriteOnlyHandle(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path catalogStoragePath
@@ -1180,14 +933,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * This method is based on the logic from RestoreTask.
 	 *
 	 * @param fileName            the original file name
-	 * @param originalCatalogName original catalog name
 	 * @param catalogName         the new catalog name
 	 * @return the file name with renaming
 	 */
 	@Nonnull
 	private static String getFileNameWithCatalogRename(
 		@Nonnull String fileName,
-		@Nonnull String originalCatalogName,
 		@Nonnull String catalogName
 	) {
 		if (fileName.endsWith(BOOT_FILE_SUFFIX)) {
@@ -1351,6 +1102,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			),
 			this.bootstrapUsed.catalogVersion()
 		);
+
+		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+			throw new StoredProtocolVersionNotSupportedException(
+				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
+			);
+		}
 
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
@@ -2538,7 +2295,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 						final Path sourceFile = fileInfo.path();
 						final String originalFileName = sourceFile.getFileName().toString();
 						final String targetFileName = getFileNameWithCatalogRename(
-							originalFileName, this.catalogName, targetCatalogName
+							originalFileName, targetCatalogName
 						);
 						final Path targetFile = targetFolder.resolve(targetFileName);
 
@@ -3096,85 +2853,49 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Supplier<CatalogOffsetIndexStoragePartPersistenceService> storagePartPersistenceFactory,
 		long catalogVersion
 	) throws ObsoleteStorageProtocolException {
-		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
-		final CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
-		if (catalogHeader.storageProtocolVersion() == CatalogPersistenceService.STORAGE_PROTOCOL_VERSION) {
+		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
+		CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		if (catalogHeader.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION) {
 			return storagePartPersistenceService;
 		} else {
-			if (catalogHeader.storageProtocolVersion() == 1) {
-				// upgrade from version 1 to version 2
-				ConsoleWriter.writeLine(
-					"Catalog `" + catalogHeader.catalogName() + "` uses deprecated entity collection data file names of storage protocol version 1.",
-					ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
-				);
-				upgradeFromStorageProtocolVersion_1_to_2(catalogHeader, storagePartPersistenceService);
-			} else if (catalogHeader.storageProtocolVersion() == 2) {
-				// upgrade storage protocol version 2 to 3
-				ConsoleWriter.writeLine(
-					"Catalog `" + catalogHeader.catalogName() + "` contains storage protocol version 2 in its header, updating.",
-					ConsoleColor.BRIGHT_BLUE
-				);
-				updateStorageProtocolInCatalogHeader(catalogHeader, storagePartPersistenceService);
-				ConsoleWriter.writeLine(
-					"Catalog `" + catalogHeader.catalogName() + "` catalog header updated.", ConsoleColor.BRIGHT_BLUE);
-			}
-			// try to initialize the persistence service again - it should now have the correct storage protocol version
-			final CatalogOffsetIndexStoragePartPersistenceService reinitializedService = storagePartPersistenceFactory.get();
-			Assert.isPremiseValid(
-				STORAGE_PROTOCOL_VERSION == reinitializedService.getCatalogHeader(catalogVersion)
-				                                                .storageProtocolVersion(),
-				() -> new ObsoleteStorageProtocolException(
-					"Failed to upgrade storage protocol from version: " + catalogHeader.storageProtocolVersion() + ", to: " + CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
-					"Failed to upgrade storage protocol."
-				)
-			);
-			return reinitializedService;
-		}
-	}
-
-	/**
-	 * Upgrades the storage protocol from version 1 to version 2. In the version 2 the entity collection files were
-	 * renamed and contains the primary key in their name.
-	 *
-	 * @param catalogHeader                 the catalog header
-	 * @param storagePartPersistenceService the storage part persistence service
-	 * @deprecated introduced with ##41 and could be removed later when no version prior to 2024.11 is used
-	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
-	private void upgradeFromStorageProtocolVersion_1_to_2(
-		@Nonnull CatalogHeader catalogHeader,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
-	) {
-		// in this version the files were renamed and contains the index in their filename
-		try {
-			for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-				Files.move(
-					this.catalogStoragePath.resolve(StringUtils.toCamelCase(
-						entityTypeFileIndex.entityType()) + '_' + entityTypeFileIndex.fileIndex() + ENTITY_COLLECTION_FILE_SUFFIX),
-					this.catalogStoragePath.resolve(
-						CatalogPersistenceService.getEntityCollectionDataStoreFileName(
-							entityTypeFileIndex.entityType(),
-							entityTypeFileIndex.entityTypePrimaryKey(),
-							entityTypeFileIndex.fileIndex()
+			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
+			do {
+				final int catalogStorageProtocolVersion = catalogHeader.storageProtocolVersion();
+				final CatalogHeader currentCatalogHeader = catalogHeader;
+				if (catalogStorageProtocolVersion == 1) {
+					Migration_2024_11.upgradeFromStorageProtocolVersion_1_to_2(
+						catalogHeader,
+						this.catalogStoragePath,
+						() -> updateStorageProtocolInCatalogHeader(
+							currentCatalogHeader, currentService, 2
 						)
-					),
-					StandardCopyOption.ATOMIC_MOVE
-				);
-			}
+					);
+				} else if (catalogStorageProtocolVersion == 2) {
+					// upgrade storage protocol version 2 to 3
+					ConsoleWriter.writeLine(
+						"Catalog `" + catalogHeader.catalogName() + "` contains storage protocol version 2 in its header, updating.",
+						ConsoleColor.BRIGHT_BLUE
+					);
+					updateStorageProtocolInCatalogHeader(catalogHeader, storagePartPersistenceService, 3);
+					ConsoleWriter.writeLine(
+						"Catalog `" + catalogHeader.catalogName() + "` catalog header updated.",
+						ConsoleColor.BRIGHT_BLUE
+					);
+				} else if (catalogStorageProtocolVersion == 3) {
+					Migration_2025_6.upgradeFromStorageProtocolVersion_3_to_4(
+						catalogHeader,
+						currentService,
+						this::createEntityCollectionPersistenceService,
+						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 4)
+					);
+				}
+				// try to initialize the persistence service again - it should now have the correct storage protocol version
+				storagePartPersistenceService = storagePartPersistenceFactory.get();
+				catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+				// rinse and repeat
+			} while (catalogHeader.storageProtocolVersion() < PersistenceService.STORAGE_PROTOCOL_VERSION);
 
-			// entity collection files contains also their primary key in the name
-			updateStorageProtocolInCatalogHeader(catalogHeader, storagePartPersistenceService);
-
-			ConsoleWriter.writeLine(
-				"Catalog `" + catalogHeader.catalogName() + "` successfully upgraded from storage protocol version 1 to version " + STORAGE_PROTOCOL_VERSION + ".",
-				ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
-			);
-		} catch (IOException e) {
-			throw new ObsoleteStorageProtocolException(
-				"Failed to upgrade storage protocol from the version: " + catalogHeader.storageProtocolVersion() + ", " +
-					"to: " + CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
-				"Failed to upgrade storage protocol."
-			);
+			return storagePartPersistenceService;
 		}
 	}
 
@@ -3186,13 +2907,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param catalogHeader                 The catalog header containing metadata about the catalog.
 	 * @param storagePartPersistenceService The service used to manage persistence of the catalog
 	 *                                      header and related storage parts.
+	 * @param storageProtocolVersion        The new storage protocol version to be set in the catalog header.
 	 */
 	private void updateStorageProtocolInCatalogHeader(
 		@Nonnull CatalogHeader catalogHeader,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		int storageProtocolVersion
 	) {
 		storagePartPersistenceService.writeCatalogHeader(
-			STORAGE_PROTOCOL_VERSION,
+			storageProtocolVersion,
 			catalogHeader.version(),
 			this.catalogStoragePath,
 			catalogHeader.walFileReference(),

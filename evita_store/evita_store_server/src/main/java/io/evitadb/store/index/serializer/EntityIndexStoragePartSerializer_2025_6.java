@@ -45,6 +45,7 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePartDeprecated;
+import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
@@ -121,8 +122,9 @@ public class EntityIndexStoragePartSerializer_2025_6 extends Serializer<EntityIn
 		final int facetIndexesCount = input.readVarInt(true);
 		final Set<String> facetIndexes = createHashSet(facetIndexesCount);
 		for (int i = 0; i < facetIndexesCount; i++) {
-			final String entityType = this.keyCompressor.getKeyForId(input.readVarInt(true));
-			facetIndexes.add(entityType);
+			final Object key = this.keyCompressor.getKeyForId(input.readVarInt(true));
+			final String referenceName = key instanceof ReferenceNameKey rnk ? rnk.referenceName() : (String) key;
+			facetIndexes.add(referenceName);
 		}
 
 		final int primaryKeyCardinalityCount = input.readInt();

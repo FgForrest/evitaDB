@@ -333,12 +333,12 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			facetIndex = new FacetIndex();
 		} else {
 			final List<FacetIndexStoragePart> facetIndexParts = new ArrayList<>(facetIndexes.size());
-			for (String referencedEntityType : facetIndexes) {
-				final long primaryKey = FacetIndexStoragePart.computeUniquePartId(entityIndexId, referencedEntityType, persistenceService.getReadOnlyKeyCompressor());
+			for (String referenceName : facetIndexes) {
+				final long primaryKey = FacetIndexStoragePart.computeUniquePartId(entityIndexId, referenceName, persistenceService.getReadOnlyKeyCompressor());
 				final FacetIndexStoragePart facetIndexStoragePart = persistenceService.getStoragePart(catalogVersion, primaryKey, FacetIndexStoragePart.class);
 				isPremiseValid(
 					facetIndexStoragePart != null,
-					"Facet index with id " + entityIndexId + " (id=" + primaryKey + ") and key " + referencedEntityType + " was not found in persistent storage!"
+					"Facet index with id " + entityIndexId + " (id=" + primaryKey + ") and key " + referenceName + " was not found in persistent storage!"
 				);
 				facetIndexParts.add(facetIndexStoragePart);
 			}
@@ -1323,7 +1323,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		// when versions are equal - nothing has changed, and we can reuse old header
 		if (newDescriptor.version() > previousVersion) {
 			final Path catalogStoragePath = this.entityCollectionFile.getParent();
-			this.entityCollectionHeader = createEntityCollectionHeader(newCatalogVersion, catalogStoragePath, newDescriptor, headerInfoSupplier, this.entityCollectionFileReference);
+			this.entityCollectionHeader = createEntityCollectionHeader(
+				newCatalogVersion,
+				catalogStoragePath,
+				newDescriptor,
+				headerInfoSupplier,
+				this.entityCollectionFileReference
+			);
 		}
 		return newDescriptor;
 	}

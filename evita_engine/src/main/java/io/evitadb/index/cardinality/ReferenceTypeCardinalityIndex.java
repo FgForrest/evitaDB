@@ -37,7 +37,6 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -251,7 +250,7 @@ public class ReferenceTypeCardinalityIndex
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
 	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull String referenceName) {
+	public ReferenceTypeCardinalityIndexStoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull String referenceName) {
 		if (this.dirty.isTrue()) {
 			return new ReferenceTypeCardinalityIndexStoragePart(
 				entityIndexPrimaryKey, referenceName, this

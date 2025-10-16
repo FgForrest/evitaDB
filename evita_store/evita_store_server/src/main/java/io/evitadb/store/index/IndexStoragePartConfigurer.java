@@ -145,7 +145,6 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(ComparableCurrency.class, new SerialVersionBasedSerializer<>(new ComparableCurrencySerializer(), ComparableCurrency.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 		kryo.register(RepresentativeReferenceKey.class, new SerialVersionBasedSerializer<>(new RepresentativeReferenceKeySerializer(), RepresentativeReferenceKey.class), index++);
-		kryo.register(AttributeIndexKey.class, new SerialVersionBasedSerializer<>(new AttributeIndexKeySerializer(), AttributeIndexKey.class), index++);
 
 		kryo.register(ReferenceTypeCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityIndexStoragePartSerializer(this.keyCompressor), ReferenceTypeCardinalityIndexStoragePart.class), index++);
 

@@ -81,12 +81,12 @@ public class ReferenceTypeCardinalityIndexStoragePart implements StoragePart, Re
 	 * index belong to and compressed reference name that is assigned as soon as index is first stored.
 	 */
 	public static long computeUniquePartId(@Nonnull Integer entityIndexPrimaryKey, @Nonnull String referenceName, @Nonnull KeyCompressor keyCompressor) {
-		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(referenceName));
+		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(referenceName)));
 	}
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		final long computedUniquePartId = NumberUtils.join(this.entityIndexPrimaryKey, keyCompressor.getId(this.referenceName));
+		final long computedUniquePartId = NumberUtils.join(this.entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(this.referenceName)));
 		Assert.isPremiseValid(
 			this.storagePartPK == null || this.storagePartPK == computedUniquePartId,
 			() -> "The storage part id was already set to different value!"

@@ -32,6 +32,7 @@ import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
 import io.evitadb.store.spi.model.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +56,7 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 		output.writeInt(storagePart.getEntityIndexPrimaryKey());
 		final long uniquePartId = ofNullable(storagePart.getStoragePartPK()).orElseGet(() -> storagePart.computeUniquePartIdAndSet(this.keyCompressor));
 		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(storagePart.getReferenceName()), true);
+		output.writeVarInt(this.keyCompressor.getId(new ReferenceNameKey(storagePart.getReferenceName())), true);
 
 		final ReferenceTypeCardinalityIndex cardinalityIndex = storagePart.getCardinalityIndex();
 		final Map<Long, Integer> cardinalities = cardinalityIndex.getCardinalities();
@@ -77,7 +78,7 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 	public ReferenceTypeCardinalityIndexStoragePart read(Kryo kryo, Input input, Class<? extends ReferenceTypeCardinalityIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
-		final String referenceName = this.keyCompressor.getKeyForId(input.readVarInt(true));
+		final ReferenceNameKey referenceNameKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
 		final int cardinalityCount = input.readVarInt(true);
 		final Map<Long, Integer> cardinalities = CollectionUtils.createHashMap(cardinalityCount);
@@ -98,7 +99,9 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 		final ReferenceTypeCardinalityIndex cardinalityIndex = new ReferenceTypeCardinalityIndex(
 			cardinalities, referencedPrimaryKeysIndex
 		);
-		return new ReferenceTypeCardinalityIndexStoragePart(entityIndexPrimaryKey, referenceName, cardinalityIndex, uniquePartId);
+		return new ReferenceTypeCardinalityIndexStoragePart(
+			entityIndexPrimaryKey, referenceNameKey.referenceName(), cardinalityIndex, uniquePartId
+		);
 	}
 
 }

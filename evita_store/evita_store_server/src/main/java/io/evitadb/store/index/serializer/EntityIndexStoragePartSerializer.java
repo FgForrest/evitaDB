@@ -41,6 +41,7 @@ import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
@@ -106,8 +107,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 
 		final Set<String> facetIndexes = entityIndex.getFacetIndexes();
 		output.writeVarInt(facetIndexes.size(), true);
-		for (String referencedEntity : facetIndexes) {
-			output.writeVarInt(this.keyCompressor.getId(referencedEntity), true);
+		for (String referenceName : facetIndexes) {
+			output.writeVarInt(this.keyCompressor.getId(new ReferenceNameKey(referenceName)), true);
 		}
 	}
 
@@ -157,8 +158,8 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final int facetIndexesCount = input.readVarInt(true);
 		final Set<String> facetIndexes = createHashSet(facetIndexesCount);
 		for (int i = 0; i < facetIndexesCount; i++) {
-			final String entityType = this.keyCompressor.getKeyForId(input.readVarInt(true));
-			facetIndexes.add(entityType);
+			final ReferenceNameKey key = this.keyCompressor.getKeyForId(input.readVarInt(true));
+			facetIndexes.add(key.referenceName());
 		}
 
 		return new EntityIndexStoragePart(

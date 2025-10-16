@@ -28,10 +28,15 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
+
+import java.io.Serializable;
+import java.util.Map;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeCardinalityIndex} from/to binary format.
@@ -56,7 +61,19 @@ public class AttributeCardinalityIndexStoragePartSerializer_2025_5 extends Seria
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
-		final AttributeCardinalityIndex cardinalityIndex = kryo.readObject(input, AttributeCardinalityIndex.class);
+		// skip serialUUID for removed CardinalityIndexSerializer
+		input.readLong();
+
+		@SuppressWarnings("unchecked") final Class<? extends Serializable> valueType = kryo.readClass(input).getType();
+		final int cardinalityCount = input.readVarInt(true);
+		final Map<AttributeCardinalityKey, Integer> cardinalities = CollectionUtils.createHashMap(cardinalityCount);
+		for (int i = 0; i < cardinalityCount; i++) {
+			final Serializable value = kryo.readObject(input, valueType);
+			final int recordId = input.readVarInt(false);
+			final int cardinality = input.readVarInt(true);
+			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);
+		}
+		final AttributeCardinalityIndex cardinalityIndex = new AttributeCardinalityIndex(valueType, cardinalities);
 		return new AttributeCardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);
 	}
 

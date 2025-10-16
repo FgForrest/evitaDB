@@ -56,7 +56,7 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 	/**
 	 * Incorrect / old / deprecated data structure for storing reference type cardinalities.
 	 */
-	@Getter private final AttributeCardinalityIndex referenceTypeCardinality;
+	@Getter private final AttributeCardinalityIndex referenceTypeCardinalityIndex;
 
 	public EntityIndexStoragePartDeprecated(
 		int primaryKey,
@@ -69,7 +69,7 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 		boolean hierarchyIndex,
 		@Nonnull Set<String> facetIndexes,
 		// incorrect data structure here
-		@Nonnull AttributeCardinalityIndex referenceTypeCardinality,
+		@Nonnull AttributeCardinalityIndex referenceTypeCardinalityIndex,
 		@Nonnull Integer internalPriceIdSequence
 	) {
 		super(
@@ -77,7 +77,7 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 			entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes
 		);
 		this.internalPriceIdSequence = internalPriceIdSequence;
-		this.referenceTypeCardinality = referenceTypeCardinality;
+		this.referenceTypeCardinalityIndex = referenceTypeCardinalityIndex;
 	}
 
 }
