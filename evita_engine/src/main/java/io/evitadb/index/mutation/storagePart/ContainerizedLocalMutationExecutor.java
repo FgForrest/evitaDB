@@ -24,6 +24,9 @@
 package io.evitadb.index.mutation.storagePart;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
@@ -2060,33 +2063,79 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nullable ReferencesStoragePart referencesStorageContainer
 	) throws ReferenceCardinalityViolatedException {
 		final EntitySchemaContract entitySchema = this.schemaAccessor.get();
-		/* TODO JNO - handle duplicate cardinality */
 		final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
 		if (references.isEmpty()) {
 			return;
 		}
-		final List<CardinalityViolation> violations = references
-			.values()
-			.stream()
-			.flatMap(it -> {
-				final int referenceCount = ofNullable(referencesStorageContainer)
-					.map(ref -> ref.getReferencedIds(it.getName()).length)
-					.orElse(0);
-				if (!(it instanceof ReflectedReferenceSchemaContract rrsc) || rrsc.isReflectedReferenceAvailable()) {
-					final Cardinality cardinality = it.getCardinality();
-					if (referenceCount < cardinality.getMin()) {
-						return Stream.of(new CardinalityViolation(it.getName(), cardinality, referenceCount));
-					} else if (referenceCount > cardinality.getMax()) {
-						return Stream.of(new CardinalityViolation(it.getName(), cardinality, referenceCount));
-					} else {
-						return Stream.empty();
+		ObjectIntMap<String> referencesFound = new ObjectIntHashMap<>(references.size());
+		ObjectIntMap<ReferenceKey> duplicatedReferenceFound = null;
+		if (referencesStorageContainer != null) {
+			ReferenceSchemaContract referenceSchema = null;
+			final Reference[] cntReferences = referencesStorageContainer.getReferences();
+			for (int i = 0; i < cntReferences.length; i++) {
+				final Reference reference = cntReferences[i];
+				if (reference.exists()) {
+					if (referenceSchema == null || !referenceSchema.getName().equals(reference.getReferenceName())) {
+						referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
 					}
-				} else {
-					return Stream.empty();
+					// skip reflected references that are not available
+					if (referenceSchema instanceof final ReflectedReferenceSchemaContract rrsc) {
+						if (!rrsc.isReflectedReferenceAvailable()) {
+							while (cntReferences.length > i + 1 && cntReferences[i + 1].getReferenceName().equals(
+								rrsc.getName())) {
+								i++;
+							}
+							continue;
+						}
+					}
+					referencesFound.putOrAdd(reference.getReferenceName(), 1, 1);
+					if (!referenceSchema.getCardinality().allowsDuplicates()) {
+						if (duplicatedReferenceFound == null) {
+							duplicatedReferenceFound = new ObjectIntHashMap<>();
+						}
+						duplicatedReferenceFound.putOrAdd(reference.getReferenceKey(), 1, 1);
+					}
 				}
-			})
-			.toList();
-		if (!violations.isEmpty()) {
+			}
+		}
+		List<CardinalityViolation> violations = null; // lazy to minimize allocations
+		for (ReferenceSchemaContract examinedSchema : entitySchema.getReferences().values()) {
+			final Cardinality cardinality = examinedSchema.getCardinality();
+			final String referenceName = examinedSchema.getName();
+			if (cardinality.getMin() > 0 && !referencesFound.containsKey(referenceName)) {
+				if (violations == null) {
+					violations = new LinkedList<>();
+				}
+				violations.add(
+					new CardinalityViolation(referenceName, cardinality, 0, false)
+				);
+			} else if (cardinality.getMax() <= 0 && referencesFound.get(referenceName) > 1) {
+				if (violations == null) {
+					violations = new LinkedList<>();
+				}
+				violations.add(
+					new CardinalityViolation(referenceName, cardinality, referencesFound.get(referenceName), false)
+				);
+			}
+		}
+		if (duplicatedReferenceFound != null) {
+			for (ObjectIntCursor<ReferenceKey> cursor : duplicatedReferenceFound) {
+				if (cursor.value > 1) {
+					if (violations == null) {
+						violations = new LinkedList<>();
+					}
+					violations.add(
+						new CardinalityViolation(
+							cursor.key.referenceName(),
+							entitySchema.getReferenceOrThrowException(cursor.key.referenceName()).getCardinality(),
+							cursor.value,
+							true
+						)
+					);
+				}
+			}
+		}
+		if (violations != null && !violations.isEmpty()) {
 			throw new ReferenceCardinalityViolatedException(entitySchema.getName(), violations);
 		}
 	}

@@ -1225,7 +1225,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					throw new ReferenceCardinalityViolatedException(
 						this.entitySchema.getName(),
 						List.of(
-							new CardinalityViolation(referenceName, schemaCardinality, existingRefCount + 1)
+							new CardinalityViolation(referenceName, schemaCardinality, existingRefCount + 1, false)
 						)
 					);
 				}

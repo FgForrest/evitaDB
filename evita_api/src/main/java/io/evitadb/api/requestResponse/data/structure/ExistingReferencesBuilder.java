@@ -1332,7 +1332,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				List.of(
 					new CardinalityViolation(
 						referenceName, referenceSchema.getCardinality(),
-						newCount
+						newCount, false
 					)
 				)
 			);
@@ -1418,7 +1418,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			if (!this.entitySchema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
 				throw new ReferenceCardinalityViolatedException(
 					this.entitySchema.getName(),
-					List.of(new CardinalityViolation(referenceName, schemaCardinality, currentReferenceCount))
+					List.of(new CardinalityViolation(referenceName, schemaCardinality, currentReferenceCount, duplicateMismatch))
 				);
 			} else {
 				// we need to promote the cardinality in all insert reference mutations
