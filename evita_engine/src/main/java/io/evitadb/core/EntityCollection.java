@@ -2181,39 +2181,6 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Method loads all indexes mentioned in {@link EntityCollectionHeader#globalEntityIndexPrimaryKey()} and
-	 * {@link EntityCollectionHeader#usedEntityIndexPrimaryKeys()} into a transactional map indexed by their
-	 * {@link EntityIndex#getIndexKey()}.
-	 */
-	private void loadIndexes(
-		long catalogVersion,
-		@Nonnull EntityCollectionHeader entityHeader,
-		@Nonnull Map<EntityIndexKey, EntityIndex> fetchedIndexes
-	) {
-		// we need to load the global index first, this is the only one index containing all data
-		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) this.persistenceService.readEntityIndex(
-			catalogVersion,
-			Objects.requireNonNull(entityHeader.globalEntityIndexPrimaryKey()),
-			this.initialSchema
-		);
-		Assert.isPremiseValid(
-			globalIndex != null,
-			() -> "Global index must never be null for the entity type `" + this.initialSchema.getName() + "`!"
-		);
-		for (Integer eid : entityHeader.usedEntityIndexPrimaryKeys()) {
-			final EntityIndex entityIndex = this.persistenceService.readEntityIndex(
-				catalogVersion, eid, this.initialSchema
-			);
-			fetchedIndexes.put(entityIndex.getIndexKey(), entityIndex);
-		}
-		// in older versions the global index was not included in the used indexes
-		final EntityIndexKey globalIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL);
-		if (!fetchedIndexes.containsKey(globalIndexKey)) {
-			fetchedIndexes.put(globalIndexKey, globalIndex);
-		}
-	}
-
-	/**
 	 * Method fetches the entity by its primary key from the I/O storage (taking advantage of modified parts in the
 	 * {@link TransactionalDataStoreMemoryBuffer}).
 	 */

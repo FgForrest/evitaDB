@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
@@ -59,6 +60,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 
 		final InvertedIndex invertedIndex = kryo.readObject(input, InvertedIndex.class);
 		final boolean hasRangeIndex = input.readBoolean();
+		final ValueToRecordBitmap[] valueToRecordBitmap = invertedIndex.getValueToRecordBitmap();
 		if (hasRangeIndex) {
 			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
 			return new FilterIndexStoragePart(
@@ -74,7 +76,7 @@ public class FilterIndexStoragePartSerializer_2024_5 extends Serializer<FilterIn
 				entityIndexPrimaryKey,
 				attributeKey,
 				null,
-				invertedIndex.getValueToRecordBitmap(),
+				valueToRecordBitmap,
 				null,
 				uniquePartId
 			);
