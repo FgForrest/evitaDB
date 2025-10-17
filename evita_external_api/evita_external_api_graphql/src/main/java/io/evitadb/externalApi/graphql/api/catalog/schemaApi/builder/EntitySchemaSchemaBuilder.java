@@ -36,8 +36,9 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -56,7 +57,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -907,6 +907,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
 			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

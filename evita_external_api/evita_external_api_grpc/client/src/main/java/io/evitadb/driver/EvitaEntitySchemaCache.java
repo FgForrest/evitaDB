@@ -156,7 +156,7 @@ class EvitaEntitySchemaCache {
 	public void analyzeMutations(@Nonnull SchemaMutation... schemaMutation) {
 		for (SchemaMutation mutation : schemaMutation) {
 			if (mutation instanceof ModifyEntitySchemaMutation entitySchemaMutation) {
-				removeLatestEntitySchema(entitySchemaMutation.getEntityType());
+				removeLatestEntitySchema(entitySchemaMutation.getName());
 			} else if (mutation instanceof ModifyCatalogSchemaMutation entityRelatedMutation) {
 				analyzeMutations(entityRelatedMutation.getSchemaMutations());
 			} else if (mutation instanceof CatalogSchemaMutation) {

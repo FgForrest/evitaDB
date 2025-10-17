@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,36 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.cdcApi.dto;
-
-import io.evitadb.api.requestResponse.cdc.CaptureSite;
-import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.cdc.SchemaSite;
-import io.evitadb.dataType.ContainerType;
+package io.evitadb.api.requestResponse.schema.mutation;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * REST API DTO for {@link io.evitadb.api.requestResponse.cdc.SchemaSite}.
+ * This type of mutation provides information about the name of the container that it is targeting.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record SchemaSiteDto(
-	@Nullable String entityType,
-	@Nullable Operation[] operation,
-	@Nullable ContainerType[] containerType,
-	@Nullable String[] containerName
-) implements CaptureSiteDto {
+public interface NamedSchemaMutation extends SchemaMutation {
 
+	/**
+	 * Returns the name of the container that this mutation is targeting.
+	 * @return the name of the container that this mutation is targeting
+	 */
 	@Nonnull
-	@Override
-	public CaptureSite<?> toSite() {
-		return new SchemaSite(
-			this.entityType,
-			this.operation,
-			this.containerType,
-			this.containerName
-		);
-	}
+	String containerName();
+
 }

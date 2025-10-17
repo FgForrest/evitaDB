@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
@@ -74,7 +75,8 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
+public class CreateReflectedReferenceSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -3833868605223655352L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -302,6 +304,12 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

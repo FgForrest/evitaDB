@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompound
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -59,7 +60,8 @@ import java.util.Objects;
 @Immutable
 @EqualsAndHashCode
 public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation,
+	NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
 	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final String deprecationNotice;
@@ -144,6 +146,12 @@ public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

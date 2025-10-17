@@ -812,7 +812,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		Mockito.doAnswer(invocation -> {
 			final ModifyCatalogSchemaMutation mutation = invocation.getArgument(0);
 			for (LocalCatalogSchemaMutation schemaMutation : mutation.getSchemaMutations()) {
-				if (schemaMutation instanceof ModifyEntitySchemaMutation mesm && mesm.getEntityType().equals(entityType)) {
+				if (schemaMutation instanceof ModifyEntitySchemaMutation mesm && mesm.getName().equals(entityType)) {
 					entityCollection.updateSchema(null, catalogSchemaContract, mesm.getSchemaMutations());
 				}
 			}

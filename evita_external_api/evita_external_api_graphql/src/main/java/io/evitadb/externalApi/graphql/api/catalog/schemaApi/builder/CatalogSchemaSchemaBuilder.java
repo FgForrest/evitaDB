@@ -311,6 +311,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

@@ -826,8 +826,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							this.getCatalogName()
 						);
 						updateSchemaInternal(catalog, session.getId(), schemaMutation);
-						return catalog.getEntitySchema(schemaMutation.getEntityType())
-							.orElseThrow(() -> new CollectionNotFoundException(schemaMutation.getEntityType()));
+						return catalog.getEntitySchema(schemaMutation.getName())
+							.orElseThrow(() -> new CollectionNotFoundException(schemaMutation.getName()));
 					}
 				)
 		);

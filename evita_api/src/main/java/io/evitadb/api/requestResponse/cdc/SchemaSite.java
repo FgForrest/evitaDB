@@ -42,9 +42,10 @@ import java.util.Arrays;
 public record SchemaSite(
 	@Nullable String entityType,
 	@Nullable Operation[] operation,
-	@Nullable ContainerType[] containerType
+	@Nullable ContainerType[] containerType,
+	@Nullable String[] containerName
 ) implements CaptureSite<SchemaSite> {
-	public static final SchemaSite ALL = new SchemaSite(null, null, null);
+	public static final SchemaSite ALL = new SchemaSite(null, null, null, null);
 
 	public SchemaSite {
 		if (operation != null) {
@@ -52,6 +53,9 @@ public record SchemaSite(
 		}
 		if (containerType != null) {
 			Arrays.sort(containerType);
+		}
+		if (containerName != null) {
+			java.util.Arrays.sort(containerName);
 		}
 	}
 
@@ -70,6 +74,11 @@ public record SchemaSite(
 			result = this.containerType == null ?
 				(other.containerType == null ? 0 : -1) :
 				(other.containerType == null ? 1 : ArrayUtils.compare(this.containerType, other.containerType));
+		}
+		if (result == 0) {
+			result = this.containerName == null ?
+				(other.containerName == null ? 0 : -1) :
+				(other.containerName == null ? 1 : ArrayUtils.compare(this.containerName, other.containerName));
 		}
 		return result;
 	}
@@ -91,6 +100,7 @@ public record SchemaSite(
 		@Nullable private String entityType;
 		@Nullable private Operation[] operation;
 		@Nullable private ContainerType[] containerType;
+		@Nullable private String[] containerName;
 
 		/**
 		 * Sets the entity type.
@@ -129,6 +139,18 @@ public record SchemaSite(
 		}
 
 		/**
+		 * Sets the container name.
+		 *
+		 * @param containerName the container name
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder containerName(@Nullable String... containerName) {
+			this.containerName = containerName;
+			return this;
+		}
+
+		/**
 		 * Builds the {@link DataSite} record.
 		 *
 		 * @return the {@link DataSite} record
@@ -138,7 +160,8 @@ public record SchemaSite(
 			return new SchemaSite(
 				this.entityType,
 				this.operation,
-				this.containerType
+				this.containerType,
+				this.containerName
 			);
 		}
 	}

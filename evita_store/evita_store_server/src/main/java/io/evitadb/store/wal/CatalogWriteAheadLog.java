@@ -231,7 +231,7 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 					} else {
 						if (nextMutation instanceof ModifyEntitySchemaMutation schemaMutation) {
 							aggregations
-								.computeIfAbsent(schemaMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
+								.computeIfAbsent(schemaMutation.getName(), s -> new EntityCollectionChangesTriple())
 								.recordSchemaChange();
 						} else if (nextMutation instanceof LocalCatalogSchemaMutation) {
 							catalogSchemaChanges++;

@@ -435,7 +435,8 @@ public class ChangeCaptureConverter {
 			schemaSite.getContainerTypeList()
 			          .stream()
 			          .map(EvitaEnumConverter::toContainerType)
-			          .toArray(ContainerType[]::new)
+			          .toArray(ContainerType[]::new),
+			schemaSite.getContainerNameList().toArray(new String[0])
 		);
 	}
 
@@ -458,6 +459,9 @@ public class ChangeCaptureConverter {
 		if (schemaSite.containerType() != null) {
 			Arrays.stream(schemaSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(
 				builder::addContainerType);
+		}
+		if (schemaSite.containerName() != null) {
+			builder.addAllContainerName(Arrays.asList(schemaSite.containerName()));
 		}
 		return builder.build();
 	}

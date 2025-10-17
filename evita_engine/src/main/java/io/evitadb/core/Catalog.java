@@ -795,7 +795,7 @@ public final class Catalog
 
 				// if the mutation implements entity schema mutation apply it on the appropriate schema
 				if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-					final String entityType = modifyEntitySchemaMutation.getEntityType();
+					final String entityType = modifyEntitySchemaMutation.getName();
 					// if the collection doesn't exist yet - create new one
 					EntityCollection entityCollection = this.entityCollections.get(entityType);
 					if (entityCollection == null) {
@@ -1867,7 +1867,7 @@ public final class Catalog
 		@Nullable Transaction transaction,
 		@Nonnull CatalogSchemaContract catalogSchema
 	) {
-		final String entityType = createEntitySchemaMutation.getEntityType();
+		final String entityType = createEntitySchemaMutation.getName();
 		this.persistenceService.verifyEntityType(
 			this.entityCollections.values(),
 			entityType

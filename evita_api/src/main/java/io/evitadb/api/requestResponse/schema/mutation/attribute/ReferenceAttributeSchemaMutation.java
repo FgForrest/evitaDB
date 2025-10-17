@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutator;
 import io.evitadb.utils.Assert;
 
@@ -45,7 +46,8 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface ReferenceAttributeSchemaMutation extends AttributeSchemaMutation, ReferenceSchemaMutator {
+public interface ReferenceAttributeSchemaMutation extends
+	AttributeSchemaMutation, ReferenceSchemaMutator, NamedSchemaMutation {
 
 	/**
 	 * Retrieves the attribute schema of a given attribute name from a reference schema.

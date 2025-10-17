@@ -2681,7 +2681,7 @@ class EntitySchemaBuilderTest {
 		// Verify that a mutation is returned since changes were made
 		assertTrue(mutation.isPresent());
 		// Verify that the mutation targets the correct entity type
-		assertEquals(this.productSchema.getName(), mutation.get().getEntityType());
+		assertEquals(this.productSchema.getName(), mutation.get().getName());
 	}
 
 	/**

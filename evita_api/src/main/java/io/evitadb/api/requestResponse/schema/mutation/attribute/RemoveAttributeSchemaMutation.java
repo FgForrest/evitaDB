@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
@@ -73,7 +74,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 public class RemoveAttributeSchemaMutation implements
 	GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, NamedSchemaMutation {
 
 	@Serial private static final long serialVersionUID = 6927903538683404070L;
 	@Getter @Nonnull private final String name;
@@ -253,6 +254,12 @@ public class RemoveAttributeSchemaMutation implements
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override
