@@ -67,6 +67,9 @@ public class ModifyEntitySchemaMutation
 	implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper,
 	CatalogSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 7843689721519035513L;
+	/**
+	 * Name of the entity type (i.e., the entity schema name) that is affected by this mutation.
+	 */
 	@Getter @Nonnull private final String name;
 	@Nonnull @Getter private final LocalEntitySchemaMutation[] schemaMutations;
 
