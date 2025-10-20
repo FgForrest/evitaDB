@@ -43,7 +43,7 @@ public interface CreateEntitySchemaMutationDescriptor extends MutationDescriptor
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
 		.description("""
-			Name of entity schema to remove.
+			Name of newly created entity schema.
 			""")
 		.type(nonNull(String.class))
 		.build();
