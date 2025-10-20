@@ -112,7 +112,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
@@ -146,6 +146,8 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -380,7 +382,8 @@ public final class Catalog
 					collectionByPk,
 					entitySchemaIndex,
 					catalog,
-					catalogHeader
+					catalogHeader,
+					CollectionUtils.createConcurrentHashMap(catalogHeader.getEntityTypeFileIndexes().size())
 				);
 			},
 			initBulk -> {
@@ -421,22 +424,6 @@ public final class Catalog
 									initBulk.collectionByPk().put(entityTypePrimaryKey, collection);
 									collection.attachToCatalog(null, catalog);
 									initBulk.entitySchemaIndex().put(entityType, collection.getSchema());
-
-									// we need to load the global index first, this is the only one index containing all data
-									final Integer globalEntityIndex = entityHeader.globalEntityIndexPrimaryKey();
-									if (globalEntityIndex != null) {
-										final GlobalEntityIndex globalIndex = (GlobalEntityIndex) entityCollectionPersistenceService.readEntityIndex(
-											catalogVersion,
-											globalEntityIndex,
-											collection.getInternalSchema()
-										);
-										Assert.isPremiseValid(
-											globalIndex != null,
-											() -> "Global index must never be null for the entity type `" + entityHeader.entityType() + "`!"
-										);
-										collection.addIndex(globalIndex);
-									}
-
 									return collection;
 								},
 								(entityCollection) -> entityHeader
@@ -444,14 +431,28 @@ public final class Catalog
 									.stream()
 									.map(eid -> new ProgressingFuture<EntityIndex>(
 										0,
-										theFuture -> entityCollectionPersistenceService.readEntityIndex(
-											catalogVersion, eid, entityCollection.getInternalSchema()
-										)
+										theFuture -> {
+											final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
+												catalogVersion, eid, entityCollection.getInternalSchema()
+											);
+											if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
+												initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
+											}
+											return loadedIndex;
+										}
 									))
 									.toList(),
 								(theFuture, entityCollection, loadedIndexes) -> {
-									for (EntityIndex entityIndex : loadedIndexes) {
+									// we need to add global indexes first, other indexes might look up in these indexes for data
+									// we pass them via init bulk to avoid duplicate collection iteration here (collection might be large)
+									for (EntityIndex entityIndex : initBulk.globalIndexes(entityCollection.getEntityType())) {
 										entityCollection.addIndex(entityIndex);
+									}
+									// then we add the rest of indexes
+									for (EntityIndex entityIndex : loadedIndexes) {
+										if (entityIndex.getIndexKey().type() != EntityIndexType.GLOBAL) {
+											entityCollection.addIndex(entityIndex);
+										}
 									}
 									return entityCollection;
 								},
@@ -2187,9 +2188,38 @@ public final class Catalog
 		@Nonnull Map<Integer, EntityCollection> collectionByPk,
 		@Nonnull Map<String, EntitySchemaContract> entitySchemaIndex,
 		@Nonnull Catalog catalog,
-		@Nonnull CatalogHeader catalogHeader
+		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull ConcurrentHashMap<String, List<EntityIndex>> globalIndexes
 	) {
 
+		/**
+		 * Adds a global index to the catalog initialization bulk for a specific entity type.
+		 * This method ensures that only global indexes are added and associates them with the specified entity type.
+		 * If no indexes are currently associated with the given entity type, a new list is created to store them.
+		 *
+		 * @param entityType the name of the entity type to which the global index should be added; must not be null
+		 * @param index the global index to be added; must not be null and must have a type of {@link EntityIndexType#GLOBAL}
+		 */
+		public void addGlobalIndex(@Nonnull String entityType, @Nonnull EntityIndex index) {
+			Assert.isPremiseValid(
+				index.getIndexKey().type() == EntityIndexType.GLOBAL,
+				"Only global indexes are allowed in catalog initialization bulk!"
+			);
+			this.globalIndexes.computeIfAbsent(entityType, it -> new CopyOnWriteArrayList<>()).add(index);
+		}
+
+		/**
+		 * Retrieves a list of global indexes associated with the specified entity type.
+		 * If no global indexes are found for the given entity type, an empty list is returned.
+		 *
+		 * @param entityType the name of the entity type for which global indexes are requested; must not be null
+		 * @return a list of {@link EntityIndex} objects that represent the global indexes for the specified entity type;
+		 *         an empty list if no global indexes are found
+		 */
+		@Nonnull
+		public List<EntityIndex> globalIndexes(@Nonnull String entityType) {
+			return this.globalIndexes.getOrDefault(entityType, Collections.emptyList());
+		}
 	}
 
 	/**
