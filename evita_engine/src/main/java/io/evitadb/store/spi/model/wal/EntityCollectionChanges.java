@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.wal.requestResponse;
+package io.evitadb.store.spi.model.wal;
 
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;

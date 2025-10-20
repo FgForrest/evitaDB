@@ -1271,11 +1271,13 @@ public final class Evita implements EvitaContract {
 	 * Emits the event about evita engine statistics in metrics.
 	 */
 	private void emitEvitaStatistics() {
-		// emit the event
-		new EvitaStatisticsEvent(
-			this.configuration,
-			this.management().getSystemStatus()
-		).commit();
+		if (this.engineState.get() != null) {
+			// emit the event
+			new EvitaStatisticsEvent(
+				this.configuration,
+				this.management().getSystemStatus()
+			).commit();
+		}
 	}
 
 	/**

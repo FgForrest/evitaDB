@@ -95,7 +95,7 @@ public class ModifyEntitySchemaMutationConverter
 				LocalEntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
-			input.getProperty(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
+			input.getProperty(ModifyEntitySchemaMutationDescriptor.NAME),
 			entitySchemaMutations
 		);
 	}

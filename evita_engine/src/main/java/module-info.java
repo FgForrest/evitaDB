@@ -35,6 +35,7 @@ module evita.engine {
 	exports io.evitadb.core.file;
 	exports io.evitadb.core.metric.event;
 	exports io.evitadb.core.metric.event.cache;
+	exports io.evitadb.core.metric.event.cdc;
 	exports io.evitadb.core.metric.event.query;
 	exports io.evitadb.core.metric.event.session;
 	exports io.evitadb.core.metric.event.storage;
@@ -49,6 +50,7 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.sequence;
+	exports io.evitadb.core.task;
 	exports io.evitadb.core.traffic;
 	exports io.evitadb.core.transaction;
 	exports io.evitadb.core.transaction.memory;
@@ -78,6 +80,7 @@ module evita.engine {
 	exports io.evitadb.store.spi.model.reference;
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
+	exports io.evitadb.store.spi.model.wal;
 
 	uses io.evitadb.store.spi.EnginePersistenceServiceFactory;
 	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -105,7 +108,5 @@ module evita.engine {
 	opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
-	exports io.evitadb.core.metric.event.cdc;
-	exports io.evitadb.core.task;
 
 }

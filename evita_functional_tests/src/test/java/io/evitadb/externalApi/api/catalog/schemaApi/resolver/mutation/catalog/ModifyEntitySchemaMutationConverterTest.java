@@ -66,7 +66,7 @@ class ModifyEntitySchemaMutationConverterTest {
 
 		final ModifyEntitySchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+				.e(ModifyEntitySchemaMutationDescriptor.NAME.name(), "product")
 				.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 					map()
 						.e(EntitySchemaMutationAggregateDescriptor.MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), map()
@@ -84,7 +84,7 @@ class ModifyEntitySchemaMutationConverterTest {
 
 		final ModifyEntitySchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+				.e(ModifyEntitySchemaMutationDescriptor.NAME.name(), "product")
 				.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of())
 				.build()
 		);
@@ -111,7 +111,7 @@ class ModifyEntitySchemaMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> this.converter.convertFromInput(
 				map()
-					.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.e(ModifyEntitySchemaMutationDescriptor.NAME.name(), "product")
 					.build()
 			)
 		);
@@ -133,7 +133,7 @@ class ModifyEntitySchemaMutationConverterTest {
 			.isEqualTo(
 				map()
 					.e(MutationDescriptor.MUTATION_TYPE.name(), ModifyEntitySchemaMutation.class.getSimpleName())
-					.e(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.e(ModifyEntitySchemaMutationDescriptor.NAME.name(), "product")
 					.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
 							.e(ModifyEntitySchemaDescriptionMutationDescriptor.MUTATION_TYPE.name(), ModifyEntitySchemaDescriptionMutation.class.getSimpleName())

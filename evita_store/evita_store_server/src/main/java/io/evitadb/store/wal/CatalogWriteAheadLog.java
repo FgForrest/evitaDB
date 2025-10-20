@@ -23,6 +23,7 @@
 
 package io.evitadb.store.wal;
 
+import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
@@ -34,6 +35,7 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -43,9 +45,8 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
-import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer;
-import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer.CatalogTransactionChanges;
-import io.evitadb.store.wal.requestResponse.EntityCollectionChanges;
+import io.evitadb.store.spi.model.wal.CatalogTransactionChanges;
+import io.evitadb.store.spi.model.wal.EntityCollectionChanges;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -56,8 +57,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -113,17 +115,19 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			catalogSchemaChanges,
 			txMutation.getMutationCount(),
 			txMutation.getWalSizeInBytes(),
-			aggregations.entrySet().stream()
-			            .map(
-				            it -> new EntityCollectionChanges(
-					            it.getKey(),
-					            it.getValue().getSchemaChanges(),
-					            it.getValue().getUpserted(),
-					            it.getValue().getRemoved()
-				            )
-			            )
-			            .sorted(Comparator.comparing(EntityCollectionChanges::entityName))
-			            .toArray(EntityCollectionChanges[]::new)
+			aggregations
+				.entrySet()
+				.stream()
+				.map(
+					it -> new EntityCollectionChanges(
+						it.getKey(),
+						it.getValue().getSchemaChanges(),
+						it.getValue().getUpserted(),
+						it.getValue().getRemoved()
+					)
+				)
+				.sorted(Comparator.comparing(EntityCollectionChanges::entityName))
+				.toArray(EntityCollectionChanges[]::new)
 		);
 	}
 
@@ -182,53 +186,47 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 		this.onWalPurgeCallback = null;
 	}
 
-	/**
-	 * Calculates descriptor for particular version in history.
-	 *
-	 * @param version              the catalog version to describe
-	 * @param previousKnownVersion the previous known catalog version (delimits transactions incorporated in
-	 *                             previous version of the catalog), -1 if there is no known previous version
-	 * @param introducedAt         the time when the version was introduced
-	 * @return the descriptor for the version in history or NULL if the version is not present in the WAL
-	 */
 	@Override
-	@Nullable
-	public WriteAheadLogVersionDescriptor getWriteAheadLogVersionDescriptor(
-		long version,
-		long previousKnownVersion,
-		@Nonnull OffsetDateTime introducedAt
+	@Nonnull
+	public List<WriteAheadLogVersionDescriptor> getWriteAheadLogVersionDescriptor(
+		@Nonnull LongSet lookedUpVersions,
+		@Nonnull MaterializedVersionBlock materializedVersionBlock
 	) {
 		try (
 			final MutationSupplier<?> supplier = createSupplier(
-				previousKnownVersion + 1, null
+				materializedVersionBlock.startVersion(), null
 			)
 		) {
 			TransactionMutation txMutation = (TransactionMutation) supplier.get();
 			if (txMutation == null) {
-				return null;
+				return Collections.emptyList();
 			} else {
-				final List<CatalogTransactionChanges> txChanges = new ArrayList<>(Math.toIntExact(version - previousKnownVersion));
 				final Map<String, EntityCollectionChangesTriple> aggregations = CollectionUtils.createHashMap(16);
 				int catalogSchemaChanges = 0;
-				while (txMutation != null) {
-					final Mutation nextMutation = supplier.get();
+				Mutation nextMutation;
+				final List<WriteAheadLogVersionDescriptor> result = new LinkedList<>();
+				do {
+					nextMutation = supplier.get();
 					if (nextMutation instanceof TransactionMutation anotherTxMutation) {
-						txChanges.add(
-							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
-						);
-						if (anotherTxMutation.getVersion() >= version + 1) {
-							txMutation = null;
-						} else {
-							txMutation = anotherTxMutation;
-							aggregations.clear();
-							catalogSchemaChanges = 0;
+						if (lookedUpVersions.contains(txMutation.getVersion())) {
+							result.add(
+								new WriteAheadLogVersionDescriptor(
+									txMutation.getVersion(),
+									txMutation.getTransactionId(),
+									materializedVersionBlock.introducedAt(),
+									createTransactionChanges(txMutation, catalogSchemaChanges, aggregations),
+									materializedVersionBlock.startVersion() == txMutation.getVersion()
+								)
+							);
 						}
-					} else if (nextMutation == null) {
-						txChanges.add(
-							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations)
-						);
-						txMutation = null;
-					} else {
+						txMutation = anotherTxMutation;
+						aggregations.clear();
+						catalogSchemaChanges = 0;
+						// materialized block was completely processed
+						if (anotherTxMutation.getVersion() > materializedVersionBlock.endVersion()) {
+							return result;
+						}
+					} else if (lookedUpVersions.contains(txMutation.getVersion())) {
 						if (nextMutation instanceof ModifyEntitySchemaMutation schemaMutation) {
 							aggregations
 								.computeIfAbsent(schemaMutation.getName(), s -> new EntityCollectionChangesTriple())
@@ -243,21 +241,30 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 							aggregations
 								.computeIfAbsent(entityMutation.getEntityType(), s -> new EntityCollectionChangesTriple())
 								.recordRemoval();
-						} else {
+						} else if (nextMutation != null) {
 							throw new InvalidMutationException(
 								"Unexpected mutation type: " + nextMutation.getClass().getName(),
 								"Unexpected mutation type."
 							);
 						}
 					}
+				} while (nextMutation != null);
+
+				// if we reach here, we have to process also the last transaction
+				if (lookedUpVersions.contains(txMutation.getVersion())) {
+					result.add(
+						new WriteAheadLogVersionDescriptor(
+							txMutation.getVersion(),
+							txMutation.getTransactionId(),
+							materializedVersionBlock.introducedAt(),
+							createTransactionChanges(txMutation, catalogSchemaChanges, aggregations),
+							materializedVersionBlock.startVersion() == txMutation.getVersion()
+						)
+					);
 				}
-				return new WriteAheadLogVersionDescriptor(
-					version,
-					introducedAt,
-					new CatalogTransactionChangesContainer(
-						txChanges.toArray(CatalogTransactionChanges[]::new)
-					)
-				);
+
+				// return collected transactions
+				return result;
 			}
 		}
 	}

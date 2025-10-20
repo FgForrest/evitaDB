@@ -29,16 +29,18 @@ import java.time.OffsetDateTime;
 
 /**
  * This record represents the particular version of the data structure and the date / time when such version was
- * introduced to the system. Introduction of the non-transactional version is the moment when the version was updated
- * for the last time.
+ * introduced to the system. Introduction of the non-transactional version is the moment when the version block was
+ * introduced in the visible catalog snapshot.
  *
- * @param version      the version of the data structure, which is incremented every time the data structure is changed
- * @param introducedAt the date / time when the version was introduced to the system
+ * @param startVersion first version number that is included in this block
+ * @param endVersion   last version number that is included in this block
+ * @param introducedAt the date / time when all the versions were introduced in the visible catalog snapshot
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public record StoredVersion(
-	long version,
+public record MaterializedVersionBlock(
+	long startVersion,
+	long endVersion,
 	@Nonnull OffsetDateTime introducedAt
 ) implements Serializable {
 }

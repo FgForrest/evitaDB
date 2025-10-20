@@ -333,7 +333,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 						mutations: [
 							{
 								createEntitySchemaMutation: {
-									entityType: "%s"
+									name: "%s"
 								}
 							}
 						]
@@ -420,10 +420,10 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 						mutations: [
 							{
 								createEntitySchemaMutation: {
-									entityType: "%s"
+									name: "%s"
 								},
 								modifyEntitySchemaMutation: {
-									entityType: "%s",
+									name: "%s",
 									schemaMutations: [
 										{
 											createAttributeSchemaMutation: {

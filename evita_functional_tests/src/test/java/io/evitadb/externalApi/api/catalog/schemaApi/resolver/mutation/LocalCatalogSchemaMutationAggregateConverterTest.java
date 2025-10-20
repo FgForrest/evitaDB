@@ -78,7 +78,7 @@ class LocalCatalogSchemaMutationAggregateConverterTest {
 					.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 					.build())
 				.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
-					.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product")
 					.build())
 				.e(LocalCatalogSchemaMutationAggregateDescriptor.ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), map()
 					.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of("ADDING_ENTITY_TYPES"))

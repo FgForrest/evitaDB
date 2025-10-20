@@ -33,7 +33,7 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -469,10 +469,10 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @param timeFlow the time flow used to filter the catalog versions
 	 * @param page     the page number of the paginated list
 	 * @param pageSize the number of versions per page
-	 * @return a paginated list of {@link StoredVersion} instances
+	 * @return a paginated list of {@link MaterializedVersionBlock} instances
 	 */
 	@Nonnull
-	PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+	PaginatedList<MaterializedVersionBlock> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
@@ -484,7 +484,7 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
 	 */
 	@Nonnull
-	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
@@ -496,7 +496,7 @@ public non-sealed interface CatalogPersistenceService extends RichPersistenceSer
 	 * @return a stream of {@link WriteAheadLogVersionDescriptor} instances
 	 */
 	@Nonnull
-	Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+	List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Method deletes all files in catalog folder which are not mentioned in the catalog header of currently used

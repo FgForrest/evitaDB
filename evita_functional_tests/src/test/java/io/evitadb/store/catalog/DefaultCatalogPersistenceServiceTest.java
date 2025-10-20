@@ -53,7 +53,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
@@ -94,6 +94,7 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -195,10 +196,10 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	) {
 		ioService.trimBootstrapFile(sinceCatalogVersion);
 
-		final PaginatedList<StoredVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-		final StoredVersion firstRecord = catalogVersions.getData().get(0);
-		assertEquals(sinceCatalogVersion, firstRecord.version());
-		assertEquals(expectedVersion, firstRecord.version());
+		final PaginatedList<MaterializedVersionBlock> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+		final MaterializedVersionBlock firstRecord = catalogVersions.getData().get(0);
+		assertEquals(sinceCatalogVersion, firstRecord.endVersion());
+		assertEquals(expectedVersion, firstRecord.endVersion());
 		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
 	}
 
@@ -549,7 +550,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldTraverseBootstrapRecordsFromOldestToNewest() {
+	void shouldTraverseBootstrapRecordsFromOldestToNewest() throws IOException {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 		final StorageOptions storageOptions = getStorageOptions();
 		final OffsetDateTime startTime = Instant.ofEpochMilli(System.currentTimeMillis() - 1_000_000_000L).atZone(ZoneId.systemDefault()).toOffsetDateTime();
@@ -562,29 +563,50 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				getTransactionOptions(),
 				Mockito.mock(Scheduler.class),
 				Mockito.mock(ExportFileService.class)
-			)
+			);
 		) {
-
+			ioService.storeHeader(
+				UUIDUtil.randomUUID(),
+				CatalogState.ALIVE,
+				0L,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
 			for (int i = 0; i < 12; i++) {
-				final int catalogVersion = i + 1;
+				final int catalogVersion = i + 2;
 				DefaultCatalogPersistenceService.CURRENT_TIME_MILLIS = () -> startTime.plusHours(catalogVersion).toInstant().toEpochMilli();
 				ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
+
+				final File tempFile = File.createTempFile("test", ".tmp");
+				final OffHeapWithFileBackupReference walReference = OffHeapWithFileBackupReference.withFilePath(tempFile.toPath(), 0, tempFile::delete);
+				ioService.appendWalAndDiscard(
+					catalogVersion,
+					new TransactionMutation(UUIDUtil.randomUUID(), catalogVersion, 0, 0, OffsetDateTime.now()),
+					walReference
+				);
 			}
 
-			final PaginatedList<StoredVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
+			final PaginatedList<MaterializedVersionBlock> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 5);
 			assertEquals(5, catalogVersions.getData().size());
-			assertEquals(13, catalogVersions.getTotalRecordCount());
+			// initial bootstrap, single header write and 12 recorded bootstraps
+			assertEquals(14, catalogVersions.getTotalRecordCount());
+			long startVersion = 0;
 			for (int i = 0; i <= 4; i++) {
-				final StoredVersion record = catalogVersions.getData().get(i);
-				assertEquals(i, record.version());
+				final MaterializedVersionBlock record = catalogVersions.getData().get(i);
+				assertEquals(startVersion, record.startVersion());
+				assertEquals(i, record.endVersion());
 				assertNotNull(record.introducedAt());
+				startVersion = record.endVersion() + 1;
 			}
 
-			final PaginatedList<StoredVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
-			assertEquals(3, catalogVersionsLastPage.getData().size());
-			for (int i = 0; i < 3; i++) {
-				final StoredVersion record = catalogVersionsLastPage.getData().get(i);
-				assertEquals(10 + i, record.version());
+			final PaginatedList<MaterializedVersionBlock> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 3, 5);
+			assertEquals(4, catalogVersionsLastPage.getData().size());
+			for (int i = 0; i < 4; i++) {
+				final MaterializedVersionBlock record = catalogVersionsLastPage.getData().get(i);
+				assertEquals(10 + i, record.startVersion());
+				assertEquals(10 + i, record.endVersion());
 				assertNotNull(record.introducedAt());
 			}
 
@@ -594,7 +616,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 			final CatalogBootstrap last = getLastCatalogBootstrap(catalogName, storageOptions);
 			assertNotNull(last);
-			assertEquals(12, last.catalogVersion());
+			assertEquals(13, last.catalogVersion());
 
 			final CatalogBootstrap m0 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime);
 			assertNotNull(m0);
@@ -606,20 +628,20 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 
 			final CatalogBootstrap m2 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).plusMinutes(1));
 			assertNotNull(m2);
-			assertEquals(5, m2.catalogVersion());
+			assertEquals(6, m2.catalogVersion());
 
 			final CatalogBootstrap m3 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(5).minusMinutes(1));
 			assertNotNull(m3);
-			assertEquals(4, m3.catalogVersion());
+			assertEquals(5, m3.catalogVersion());
 
 			final CatalogBootstrap m4 = getCatalogBootstrapForSpecificMoment(catalogName, storageOptions, startTime.plusHours(15));
 			assertNotNull(m4);
-			assertEquals(12, m4.catalogVersion());
+			assertEquals(13, m4.catalogVersion());
 		}
 	}
 
 	@Test
-	void shouldTraverseBootstrapRecordsFromNewestToOldest() {
+	void shouldTraverseBootstrapRecordsFromNewestToOldest() throws IOException {
 		final String catalogName = SEALED_CATALOG_SCHEMA.getName();
 		try (
 			final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
@@ -631,24 +653,45 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			)
 		) {
 
+			ioService.storeHeader(
+				UUIDUtil.randomUUID(),
+				CatalogState.ALIVE,
+				0L,
+				1,
+				null,
+				Collections.emptyList(),
+				new WarmUpDataStoreMemoryBuffer(ioService.getStoragePartPersistenceService(0L))
+			);
+
 			for (int i = 0; i < 12; i++) {
-				ioService.recordBootstrap(i + 1, catalogName, 0, null);
+				final int catalogVersion = i + 2;
+				ioService.recordBootstrap(catalogVersion, catalogName, 0, null);
+
+				final File tempFile = File.createTempFile("test", ".tmp");
+				final OffHeapWithFileBackupReference walReference = OffHeapWithFileBackupReference.withFilePath(tempFile.toPath(), 0, tempFile::delete);
+				ioService.appendWalAndDiscard(
+					catalogVersion,
+					new TransactionMutation(UUIDUtil.randomUUID(), catalogVersion, 0, 0, OffsetDateTime.now()),
+					walReference
+				);
 			}
 
-			final PaginatedList<StoredVersion> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
+			final PaginatedList<MaterializedVersionBlock> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5);
 			assertEquals(5, catalogVersions.getData().size());
-			assertEquals(13, catalogVersions.getTotalRecordCount());
+			assertEquals(14, catalogVersions.getTotalRecordCount());
 			for (int i = 0; i < 5; i++) {
-				final StoredVersion record = catalogVersions.getData().get(i);
-				assertEquals(13 - (i + 1), record.version());
+				final MaterializedVersionBlock record = catalogVersions.getData().get(i);
+				assertEquals(14 - (i + 1), record.startVersion());
+				assertEquals(14 - (i + 1), record.endVersion());
 				assertNotNull(record.introducedAt());
 			}
 
-			final PaginatedList<StoredVersion> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
-			assertEquals(3, catalogVersionsLastPage.getData().size());
+			final PaginatedList<MaterializedVersionBlock> catalogVersionsLastPage = ioService.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5);
+			assertEquals(4, catalogVersionsLastPage.getData().size());
 			for (int i = 0; i < 3; i++) {
-				final StoredVersion record = catalogVersionsLastPage.getData().get(i);
-				assertEquals(3 - (i + 1), record.version());
+				final MaterializedVersionBlock record = catalogVersionsLastPage.getData().get(i);
+				assertEquals(4 - (i + 1), record.startVersion());
+				assertEquals(4 - (i + 1), record.endVersion());
 				assertNotNull(record.introducedAt());
 			}
 		}
@@ -676,8 +719,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				);
 			}
 
-			final PaginatedList<StoredVersion> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-			assertEquals(0, catalogVersions0.getData().get(0).version());
+			final PaginatedList<MaterializedVersionBlock> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
+			assertEquals(0, catalogVersions0.getData().get(0).endVersion());
 			assertEquals(13, catalogVersions0.getTotalRecordCount());
 
 			trimAndCheck(ioService, 4, 4, 9);
@@ -756,7 +799,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			false, false, true, 1.0, 0L, false,
+			false, false, true, 0.01, 1_000_000L, false,
 			Long.MAX_VALUE, Long.MAX_VALUE
 		);
 	}

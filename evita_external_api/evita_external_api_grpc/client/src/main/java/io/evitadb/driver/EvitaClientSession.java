@@ -88,7 +88,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
@@ -1626,7 +1626,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
 		assertActive();
 		final GrpcCatalogVersionAtResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			session -> {
@@ -1639,8 +1639,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			}
 		);
-		return new StoredVersion(
-			grpcResponse.getVersion(),
+		return new MaterializedVersionBlock(
+			grpcResponse.getStartVersion(),
+			grpcResponse.getEndVersion(),
 			toOffsetDateTime(grpcResponse.getIntroducedAt())
 		);
 	}

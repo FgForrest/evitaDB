@@ -33,10 +33,12 @@ message GrpcCatalogVersionAtRequest {
 
 // Response to GrpcCatalogVersionAt request.
 message GrpcCatalogVersionAtResponse {
-  // The version of the catalog at the specified moment in time.
-  int64 version = 1;
-  // Exact moment when this version was stored (introduced).
-  GrpcOffsetDateTime introducedAt = 2;
+  // The first version of the materialized version block visible in the specified time
+  int64 startVersion = 1;
+  // The last version of the materialized version block visible in the specified time
+  int64 endVersion = 2;
+  // Exact moment when this materialized version block was introduced to the catalog snapshot
+  GrpcOffsetDateTime introducedAt = 3;
 }
 
 // Request to GetMutationsHistoryPage request.
@@ -91,6 +93,60 @@ message GrpcRegisterChangeCatalogCaptureRequest {
   repeated GrpcChangeCaptureCriteria criteria = 3;
   // The scope of the returned data - either header of the mutation, or the whole mutation
   GrpcChangeCaptureContent content = 4;
+}
+
+// Request to GetTransactionOverview request.
+message GetTransactionOverviewRequest {
+  // The catalog version for which the transaction overview should be returned
+  repeated int64 catalogVersion = 1;
+}
+
+// Response to GetTransactionOverview request.
+message GetTransactionOverviewResponse {
+  // The list of transaction overviews that match the requested catalog versions
+  repeated GrpcTransactionOverview transactionOverviews = 1;
+}
+
+// Structure that holds overview of a specific transaction.
+message GrpcTransactionOverview {
+  // The version of the catalog that the transaction moved to.
+  int64 catalogVersion = 1;
+  // The id of the transaction.
+  GrpcUuid transactionId = 2;
+  // The commit timestamp of the transaction.
+  GrpcOffsetDateTime commitTimestamp = 3;
+  // The timestamp when the transaction was processed.
+  GrpcOffsetDateTime processedTimestamp = 4;
+  // The processing lag of the transaction in milliseconds
+  // (i.e. duration between commit timestamp and the real shared view incorporation).
+  int64 processingLagInMillis = 5;
+  // The flag indicates whether point-in-time recovery to this version is possible.
+  bool reversible = 6;
+  // The collection of changes within the transaction.
+  repeated GrpcTransactionChanges transactionChanges = 7;
+}
+
+// Structure that holds changes within a transaction.
+message GrpcTransactionChanges {
+  // The number of catalog schema changes within the transaction.
+  int32 catalogSchemaChangeCount = 3;
+  // The number of mutations within the transaction.
+  int32 mutationCount = 4;
+  // The size of the write-ahead log (WAL) in bytes for the transaction.
+  int64 walSizeInBytes = 5;
+  // The collection of entity collection changes within the transaction.
+  repeated GrpcEntityCollectionChanges entityCollectionChanges = 6;
+}
+
+// Structure that holds changes in a specific entity collection within a transaction.
+message GrpcEntityCollectionChanges {
+  string entityName = 1;
+  // The number of schema altering mutations.
+  int32 schemaChanges = 2;
+  // The number of upsert entity mutations.
+  int32 upserted = 3;
+  // The number of entity removal mutations.
+  int32 removed = 4;
 }
 
 // Response to RegisterChangeCatalogCapture request.
@@ -584,12 +640,6 @@ service EvitaSessionService {
   rpc GetCatalogSchema(GrpcGetCatalogSchemaRequest) returns (GrpcCatalogSchemaResponse);
   // Procedure that returns the current state of the catalog.
   rpc GetCatalogState(google.protobuf.Empty) returns (GrpcCatalogStateResponse);
-  // Procedure that returns the version of the catalog at a specific moment in time.
-  rpc GetCatalogVersionAt(GrpcCatalogVersionAtRequest) returns (GrpcCatalogVersionAtResponse);
-  // Procedure that returns requested page of past mutations in reversed order that match the request criteria.
-  rpc GetMutationsHistoryPage(GetMutationsHistoryPageRequest) returns (GetMutationsHistoryPageResponse);
-  // Procedure that returns stream of all past mutations in reversed order that match the request criteria.
-  rpc GetMutationsHistory(GetMutationsHistoryRequest) returns (stream GetMutationsHistoryResponse);
   // Procedure that returns the schema of a specific entity type.
   rpc GetEntitySchema(GrpcEntitySchemaRequest) returns (GrpcEntitySchemaResponse);
   // Procedure that returns the list of all entity types.
@@ -661,6 +711,15 @@ service EvitaSessionService {
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
+
+  // Procedure that returns the version of the catalog at a specific moment in time.
+  rpc GetCatalogVersionAt(GrpcCatalogVersionAtRequest) returns (GrpcCatalogVersionAtResponse);
+  // Procedure that returns requested page of past mutations in reversed order that match the request criteria.
+  rpc GetMutationsHistoryPage(GetMutationsHistoryPageRequest) returns (GetMutationsHistoryPageResponse);
+  // Procedure that returns stream of all past mutations in reversed order that match the request criteria.
+  rpc GetMutationsHistory(GetMutationsHistoryRequest) returns (stream GetMutationsHistoryResponse);
+  // Procedure that returns details of a specific transactions that move catalog to specified versions.
+  rpc GetTransactionOverview(GetTransactionOverviewRequest) returns (GetTransactionOverviewResponse);
   // Procedure that registers a change capture.
   rpc RegisterChangeCatalogCapture(GrpcRegisterChangeCatalogCaptureRequest) returns (stream GrpcRegisterChangeCatalogCaptureResponse);
 }
