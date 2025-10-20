@@ -45,7 +45,7 @@ public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
 		.description("""
-			Name of entity schema to remove.
+			Entity type of entity schema that will be affected by passed mutations.
 			""")
 		.type(nonNull(String.class))
 		.build();
