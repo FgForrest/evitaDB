@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -137,7 +136,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityReference fetchProductInLocale(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Locale locale) {
+	private static EntityReferenceContract fetchProductInLocale(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Locale locale) {
 		return session.queryOneEntityReference(
 			query(
 				collection(Entities.PRODUCT),

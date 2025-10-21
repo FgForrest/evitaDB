@@ -23,8 +23,8 @@
 
 package io.evitadb.performance.externalApi.javaDriver.artificial;
 
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -43,6 +43,7 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 
+import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -122,7 +123,7 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 	/**
 	 * Descendants may store reference to the schema if they want.
 	 */
-	protected SealedEntitySchema processSchema(SealedEntitySchema schema) {
+	protected SealedEntitySchema processSchema(@Nonnull SealedEntitySchema schema) {
 		// do nothing by default
 		return schema;
 	}
@@ -130,14 +131,14 @@ public class JavaDriverArtificialFullDatabaseBenchmarkState extends JavaDriverAr
 	/**
 	 * Descendants may examine created entity if they want.
 	 */
-	protected void processEntity(SealedEntity entity) {
+	protected void processEntity(@Nonnull SealedEntity entity) {
 		// do nothing by default
 	}
 
 	/**
 	 * Descendants may examine created entity if they want.
 	 */
-	protected void processCreatedEntityReference(EntityReference entity) {
+	protected void processCreatedEntityReference(@Nonnull EntityReferenceContract entity) {
 		// do nothing by default
 	}
 

@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -173,6 +174,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<Locale, AttributesStoragePart> languageSpecificAttributesContainer;
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
+	private Map<ComparableReferenceKey, ReferenceKey> assignedPrimaryKeys;
 	private Set<Locale> addedLocales;
 	private Set<Locale> removedLocales;
 
@@ -823,7 +825,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	public void finishLocalMutationExecutionPhase() {
 		if (this.referencesStorageContainer != null) {
-			this.referencesStorageContainer.assignMissingIdsAndSort();
+			this.assignedPrimaryKeys = this.referencesStorageContainer.assignMissingIdsAndSort();
 		}
 	}
 
@@ -1111,6 +1113,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	public int getEntityPrimaryKey() {
 		return this.entityPrimaryKey;
+	}
+
+	/**
+	 * Retrieves the list of primary keys that have been assigned.
+	 *
+	 * @return a map of old {@link ReferenceKey} which has been replaced with new {@link ReferenceKey} with
+	 *         assigned internal primary key.
+	 */
+	@Nonnull
+	public Map<ComparableReferenceKey, ReferenceKey> getAssignedPrimaryKeys() {
+		return this.assignedPrimaryKeys == null ?
+			Collections.emptyMap() : this.assignedPrimaryKeys;
 	}
 
 	/**

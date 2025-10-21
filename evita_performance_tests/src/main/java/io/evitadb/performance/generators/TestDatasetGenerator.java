@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -74,7 +75,7 @@ public interface TestDatasetGenerator {
 	                                               long seed,
 	                                               @Nonnull BiFunction<String, Faker, Integer> randomEntityPicker,
 	                                               @Nonnull Consumer<SealedEntity> entityProcessor,
-	                                               @Nonnull Consumer<EntityReference> createdEntityReferenceProcessor,
+	                                               @Nonnull Consumer<EntityReferenceContract> createdEntityReferenceProcessor,
 	                                               @Nonnull TriConsumer<EvitaSessionContract, Map<Serializable, Integer>, EntityBuilder> entityCreator,
 	                                               @Nonnull Function<SealedEntitySchema, SealedEntitySchema> schemaProcessor) {
 		final Evita evita;
@@ -179,7 +180,7 @@ public interface TestDatasetGenerator {
 						.limit(productCount)
 						.forEach(it -> {
 							entityProcessor.accept(it.toInstance());
-							final EntityReference createdEntity = session.upsertEntity(it);
+							final EntityReferenceContract createdEntity = session.upsertEntity(it);
 							createdEntityReferenceProcessor.accept(createdEntity);
 						});
 
@@ -237,7 +238,7 @@ public interface TestDatasetGenerator {
 								.getRecordData()
 								.forEach(it -> {
 									entityProcessor.accept(it);
-									createdEntityReferenceProcessor.accept(new EntityReference(it.getType(), it.getPrimaryKey()));
+									createdEntityReferenceProcessor.accept(new EntityReference(it.getType(), it.getPrimaryKeyOrThrowException()));
 									entityCount.incrementAndGet();
 									priceCount.addAndGet(it.pricesAvailable() ? it.getPrices().size() : 0);
 									attributeCount.addAndGet(it.attributesAvailable() ? it.getAttributeValues().size() : 0);

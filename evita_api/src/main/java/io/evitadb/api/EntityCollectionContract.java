@@ -33,14 +33,13 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -144,7 +143,7 @@ public interface EntityCollectionContract {
 	 *                                  twice entity with the same primary key, or execute update that has no sense
 	 */
 	@Nonnull
-	EntityReference upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException;
+	EntityReferenceContract upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException;
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
@@ -291,7 +290,7 @@ public interface EntityCollectionContract {
 	 * Returns read-only schema of the entity type that is used for formal verification of the data consistency and indexing
 	 * prescription. If you need to alter the schema use {@link SealedEntitySchema#openForWrite()} method to convert schema to
 	 * a builder that allows to generate necessary mutations for you.
-	 * The mutations can be applied by {@link #updateSchema(CatalogSchemaContract, EntitySchemaMutation...)}   method.
+	 * The mutations can be applied by {@link #updateSchema(UUID, CatalogSchemaContract, LocalEntitySchemaMutation...)}    method.
 	 */
 	@Nonnull
 	SealedEntitySchema getSchema();

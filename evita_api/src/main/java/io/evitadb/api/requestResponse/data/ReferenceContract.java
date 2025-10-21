@@ -177,7 +177,7 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 	 *                         can be overwritten by a new value continuing with the versioning where it was stopped for the last time.
 	 */
 	record GroupEntityReference(@Nonnull String referencedEntity, int primaryKey, int version, boolean dropped)
-		implements EntityReferenceContract<GroupEntityReference>, Droppable, Serializable, ContentComparator<GroupEntityReference> {
+		implements EntityReferenceContract, Droppable, Serializable, ContentComparator<GroupEntityReference> {
 		@Serial private static final long serialVersionUID = 7432447904441796055L;
 
 		@Nonnull
@@ -203,7 +203,7 @@ public interface ReferenceContract extends AttributesContract<AttributeSchemaCon
 		}
 
 		@Override
-		public int compareTo(@Nonnull GroupEntityReference o) {
+		public int compareTo(@Nonnull EntityReferenceContract o) {
 			return compareReferenceContract(o);
 		}
 

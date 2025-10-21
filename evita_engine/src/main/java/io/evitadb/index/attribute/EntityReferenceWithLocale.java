@@ -26,8 +26,6 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +49,7 @@ import java.util.Objects;
 @Immutable
 @ThreadSafe
 public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @Nullable Locale locale)
-	implements EntityReferenceContract<EntityReference> {
+	implements EntityReferenceContract {
 	@Serial private static final long serialVersionUID = 7432447904441796055L;
 
 	@Nonnull
@@ -67,7 +65,7 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 	}
 
 	@Override
-	public int compareTo(@Nonnull EntityReference o) {
+	public int compareTo(@Nonnull EntityReferenceContract o) {
 		return compareReferenceContract(o);
 	}
 
@@ -75,7 +73,7 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || !EntityReferenceContract.class.isAssignableFrom(o.getClass())) return false;
-		EntityReferenceContract<?> that = (EntityReferenceContract<?>) o;
+		EntityReferenceContract that = (EntityReferenceContract) o;
 		return this.primaryKey == that.getPrimaryKey() && this.type.equals(that.getType());
 	}
 
@@ -88,20 +86,6 @@ public record EntityReferenceWithLocale(@Nonnull String type, int primaryKey, @N
 	@Override
 	public String toString() {
 		return this.type + ": " + this.primaryKey + (this.locale == null ? "" : ":" + this.locale);
-	}
-
-	/**
-	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
-	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
-	 */
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			// type
-			EvitaDataTypes.estimateSize(this.type) +
-			// primary key
-			MemoryMeasuringConstants.INT_SIZE +
-			// locale
-			MemoryMeasuringConstants.REFERENCE_SIZE;
 	}
 
 }

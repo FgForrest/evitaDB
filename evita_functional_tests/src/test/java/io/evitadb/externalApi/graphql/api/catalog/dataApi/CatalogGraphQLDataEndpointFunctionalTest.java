@@ -26,12 +26,12 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import com.github.javafaker.Faker;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
@@ -130,7 +130,7 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
 						builder -> {

@@ -203,7 +203,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 					referenceName,
 					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType,
 					ReferencedObjectType.GROUP,
-					entityReference -> referenceBuilder.setGroup(entityReference.primaryKey())
+					entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKeyOrThrowException())
 				);
 			} else {
 				final Optional<?> referencedInstance = theState.getReferencedEntityObjectIfPresent(

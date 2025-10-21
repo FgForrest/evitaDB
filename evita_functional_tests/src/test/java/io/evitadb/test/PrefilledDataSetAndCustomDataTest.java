@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 package io.evitadb.test;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -54,7 +54,7 @@ public class PrefilledDataSetAndCustomDataTest implements EvitaTestSupport {
 	DataCarrier setUpData(EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_BRAND);
 		final String testBrandName = "Siemens";
-		final EntityReference brandReference = session.createNewEntity(ENTITY_BRAND)
+		final EntityReferenceContract brandReference = session.createNewEntity(ENTITY_BRAND)
 			.setAttribute(
 				"name", Locale.ENGLISH, testBrandName
 			)

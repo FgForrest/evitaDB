@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -259,7 +260,7 @@ public class EntityByChainOrderingFunctionalTest {
 	@Nonnull
 	static Map<Integer, SealedEntity> collectProductIndex(
 		@Nonnull EvitaSessionContract session,
-		@Nonnull List<EntityReference> storedProducts
+		@Nonnull List<EntityReferenceContract> storedProducts
 	) {
 		return storedProducts.stream()
 			.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
@@ -767,7 +768,7 @@ public class EntityByChainOrderingFunctionalTest {
 				.limit(BRAND_COUNT)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					productSchema,
 					(entityName, faker) -> {
 						if (Entities.CATEGORY.equals(entityName)) {
@@ -931,7 +932,7 @@ public class EntityByChainOrderingFunctionalTest {
 			);
 
 			// and now data for both of them (since they are intertwined via reflected reference)
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					productSchema,
 					randomEntityPicker,
 					SEED

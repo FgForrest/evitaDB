@@ -31,6 +31,7 @@ import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,7 +65,7 @@ public class GraphQLArtificialAttributeBenchmarkState extends GraphQLArtificialF
 	@Getter private final List<Integer> categoryIds = new ArrayList<>();
 
 	@Override
-	protected SealedEntitySchema processSchema(SealedEntitySchema schema) {
+	protected SealedEntitySchema processSchema(@Nonnull SealedEntitySchema schema) {
 		if (schema.getName().equals(Entities.PRODUCT)) {
 			this.productSchema = schema;
 			schema.getAttributes()
@@ -85,7 +86,7 @@ public class GraphQLArtificialAttributeBenchmarkState extends GraphQLArtificialF
 	}
 
 	@Override
-	protected void processEntity(SealedEntity entity) {
+	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(Entities.PRODUCT)) {
 			updateAttributeStatistics(entity, getRandom(), this.filterableAttributes);
 		} else if (entity.getType().equals(Entities.CATEGORY)) {

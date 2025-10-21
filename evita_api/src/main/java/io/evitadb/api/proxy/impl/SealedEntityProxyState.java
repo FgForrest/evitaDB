@@ -30,6 +30,7 @@ import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -81,7 +82,7 @@ public class SealedEntityProxyState
 	 * Optional information about the last {@link EntityReference} returned from {@link EvitaSessionContract#upsertEntity(EntityMutation)},
 	 * it may contain newly assigned {@link EntityContract#getPrimaryKey()} that is not available in the wrapped entity.
 	 */
-	@Setter private EntityReference entityReference;
+	@Setter private EntityReferenceContract entityReference;
 
 	public SealedEntityProxyState(
 		@Nonnull EntityContract entity,
@@ -105,7 +106,7 @@ public class SealedEntityProxyState
 	public Integer getPrimaryKey() {
 		return ofNullable(this.entity.getPrimaryKey())
 			.orElseGet(() -> ofNullable(this.entityReference)
-				.map(EntityReference::getPrimaryKey)
+				.map(EntityReferenceContract::getPrimaryKey)
 				.orElse(null)
 			);
 	}
@@ -142,7 +143,7 @@ public class SealedEntityProxyState
 							.flatMap(goEntry -> goEntry.getValue().proxies(propagation).stream())
 							.forEach(
 								refProxy -> ((SealedEntityReferenceProxyState) ((ProxyStateAccessor) refProxy).getProxyState())
-									.notifyBuilderUpserted()
+									.notifyBuilderUpserted(entityReference)
 							);
 					}
 				)

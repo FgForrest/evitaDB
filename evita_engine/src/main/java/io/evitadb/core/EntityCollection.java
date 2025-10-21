@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -663,12 +664,12 @@ public final class EntityCollection implements
 
 	@Override
 	@Nonnull
-	public EntityReference upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
+	public EntityReferenceContract upsertEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		return upsertEntityInternal(
 			session,
 			entityMutation,
 			entityMutation.getEntityPrimaryKey() == null ? this.defaultMinimalQuery : null,
-			EntityReference.class
+			EntityReferenceContract.class
 		).orElseThrow(
 			() -> new EntityMissingException(
 				getEntityType(),

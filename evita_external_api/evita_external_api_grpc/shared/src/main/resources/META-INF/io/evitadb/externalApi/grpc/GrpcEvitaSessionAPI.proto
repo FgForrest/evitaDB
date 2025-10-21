@@ -505,6 +505,8 @@ message GrpcUpsertEntityResponse {
     GrpcEntityReference entityReference = 1;
     // The upserted entity.
     GrpcSealedEntity entity = 2;
+    // The upserted entity reference with reassigned primary keys
+    GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;
   }
 }
 
