@@ -74,6 +74,12 @@ public final class SchemaAreaPredicate extends AreaPredicate {
 				classifierTypePredicate :
 				schemaPredicate.and(classifierTypePredicate);
 		}
+		if (!ArrayUtils.isEmpty(schemaSite.containerName())) {
+			final MutationPredicate classifierNamePredicate = schemaSite.containerName().length == 1 ?
+				new SingleContainerNamePredicate(this.context, schemaSite.containerName()[0]) :
+				new ContainerNamePredicate(this.context, schemaSite.containerName());
+			schemaPredicate = schemaPredicate == null ? classifierNamePredicate : schemaPredicate.and(classifierNamePredicate);
+		}
 		return Optional.ofNullable(schemaPredicate);
 	}
 

@@ -33,38 +33,48 @@ public interface GrpcCatalogVersionAtResponseOrBuilder extends
 
   /**
    * <pre>
-   * The version of the catalog at the specified moment in time.
+   * The first version of the materialized version block visible in the specified time
    * </pre>
    *
-   * <code>int64 version = 1;</code>
-   * @return The version.
+   * <code>int64 startVersion = 1;</code>
+   * @return The startVersion.
    */
-  long getVersion();
+  long getStartVersion();
 
   /**
    * <pre>
-   * Exact moment when this version was stored (introduced).
+   * The last version of the materialized version block visible in the specified time
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+   * <code>int64 endVersion = 2;</code>
+   * @return The endVersion.
+   */
+  long getEndVersion();
+
+  /**
+   * <pre>
+   * Exact moment when this materialized version block was introduced to the catalog snapshot
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
    * @return Whether the introducedAt field is set.
    */
   boolean hasIntroducedAt();
   /**
    * <pre>
-   * Exact moment when this version was stored (introduced).
+   * Exact moment when this materialized version block was introduced to the catalog snapshot
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
    * @return The introducedAt.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getIntroducedAt();
   /**
    * <pre>
-   * Exact moment when this version was stored (introduced).
+   * Exact moment when this materialized version block was introduced to the catalog snapshot
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getIntroducedAtOrBuilder();
 }

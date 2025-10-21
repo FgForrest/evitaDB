@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
@@ -60,7 +61,8 @@ import java.util.stream.Collectors;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
+public class RemoveReferenceSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -7746714314557968775L;
 	@Getter @Nonnull private final String name;
 
@@ -130,6 +132,12 @@ public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

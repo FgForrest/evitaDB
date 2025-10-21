@@ -33,7 +33,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.grpc.generated.*;
-import io.evitadb.externalApi.grpc.requestResponse.traffic.TrafficCaptureConverter;
+import io.evitadb.externalApi.grpc.services.converter.TrafficCaptureConverter;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.grpc.Metadata;

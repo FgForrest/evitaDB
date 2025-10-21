@@ -33,6 +33,8 @@ message GrpcChangeCaptureSchemaSite {
   repeated GrpcChangeCaptureOperation operation = 2;
   // the name of the intercepted container type
   repeated GrpcChangeCaptureContainerType containerType = 3;
+  // the name of the container (e.g. attribute name, associated data name, reference name)
+  repeated string containerName = 4;
 }
 
 // Record describing the location and form of the CDC data event in the evitaDB that should be captured.

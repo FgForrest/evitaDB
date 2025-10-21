@@ -30,8 +30,8 @@ import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,7 +74,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 				.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 					map()
 						.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
-							.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product"))
+							.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product"))
 						.build()
 				))
 				.build()
@@ -100,7 +100,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 					.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
 							.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
-								.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product"))
+								.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product"))
 							.build()
 					))
 					.build()
@@ -128,7 +128,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 					.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
 							.e(MutationDescriptor.MUTATION_TYPE.name(), CreateEntitySchemaMutation.class.getSimpleName())
-							.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+							.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product")
 							.build()
 					))
 					.build()

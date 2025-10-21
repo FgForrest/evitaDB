@@ -66,4 +66,11 @@ public interface OnSchemaChangeHeaderDescriptor {
 			""")
 		.type(nullable(ClassifierType[].class))
 		.build();
+	PropertyDescriptor CONTAINER_NAME = PropertyDescriptor.builder()
+		.name("containerName")
+		.description("""
+			The intercepted name of the container (e.g. `attribute`, `reference`, `associatedData`).
+			""")
+		.type(nullable(String[].class))
+		.build();
 }

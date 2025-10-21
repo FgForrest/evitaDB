@@ -710,6 +710,18 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Method computes index of an long in the unordered array.
+	 */
+	public static int indexOf(long recId, @Nonnull long[] recordIds) {
+		for (int i = 0; i < recordIds.length; i++) {
+			if (recId == recordIds[i]) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
 	 * Method computes index of a value in the unordered array.
 	 *
 	 * @return -1 if the value was not found or is null

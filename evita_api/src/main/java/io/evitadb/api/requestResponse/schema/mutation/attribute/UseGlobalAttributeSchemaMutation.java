@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -55,7 +56,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMutation {
+public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 1555098941604228716L;
 	@Nonnull @Getter private final String name;
 
@@ -125,6 +126,12 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

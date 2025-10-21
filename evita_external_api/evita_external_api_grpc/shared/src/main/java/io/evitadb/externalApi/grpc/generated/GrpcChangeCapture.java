@@ -85,58 +85,58 @@ public final class GrpcChangeCapture {
       "ated.GrpcChangeCaptureSchemaSiteH\000\022T\n\010da" +
       "taSite\030\003 \001(\0132@.io.evitadb.externalApi.gr" +
       "pc.generated.GrpcChangeCaptureDataSiteH\000" +
-      "B\006\n\004site\"\203\002\n\033GrpcChangeCaptureSchemaSite" +
+      "B\006\n\004site\"\232\002\n\033GrpcChangeCaptureSchemaSite" +
       "\0220\n\nentityType\030\001 \001(\0132\034.google.protobuf.S" +
       "tringValue\022T\n\toperation\030\002 \003(\0162A.io.evita" +
       "db.externalApi.grpc.generated.GrpcChange" +
       "CaptureOperation\022\\\n\rcontainerType\030\003 \003(\0162" +
       "E.io.evitadb.externalApi.grpc.generated." +
-      "GrpcChangeCaptureContainerType\"\317\002\n\031GrpcC" +
-      "hangeCaptureDataSite\0220\n\nentityType\030\001 \001(\013" +
-      "2\034.google.protobuf.StringValue\0225\n\020entity" +
-      "PrimaryKey\030\002 \001(\0132\033.google.protobuf.Int32" +
-      "Value\022T\n\toperation\030\003 \003(\0162A.io.evitadb.ex" +
-      "ternalApi.grpc.generated.GrpcChangeCaptu" +
-      "reOperation\022\\\n\rcontainerType\030\004 \003(\0162E.io." +
-      "evitadb.externalApi.grpc.generated.GrpcC" +
-      "hangeCaptureContainerType\022\025\n\rcontainerNa" +
-      "me\030\005 \003(\t\"\357\005\n\030GrpcChangeCatalogCapture\022,\n" +
-      "\007version\030\001 \001(\0132\033.google.protobuf.Int64Va" +
-      "lue\022*\n\005index\030\002 \001(\0132\033.google.protobuf.Int" +
-      "32Value\022J\n\004area\030\003 \001(\0162<.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcChangeCaptureA" +
-      "rea\0220\n\nentityType\030\004 \001(\0132\034.google.protobu" +
-      "f.StringValue\0225\n\020entityPrimaryKey\030\005 \001(\0132" +
+      "GrpcChangeCaptureContainerType\022\025\n\rcontai" +
+      "nerName\030\004 \003(\t\"\317\002\n\031GrpcChangeCaptureDataS" +
+      "ite\0220\n\nentityType\030\001 \001(\0132\034.google.protobu" +
+      "f.StringValue\0225\n\020entityPrimaryKey\030\002 \001(\0132" +
       "\033.google.protobuf.Int32Value\022T\n\toperatio" +
-      "n\030\006 \001(\0162A.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcChangeCaptureOperation\022Y\n\016sc" +
-      "hemaMutation\030\007 \001(\0132?.io.evitadb.external" +
-      "Api.grpc.generated.GrpcEntitySchemaMutat" +
-      "ionH\000\022S\n\016entityMutation\030\010 \001(\01329.io.evita" +
-      "db.externalApi.grpc.generated.GrpcEntity" +
-      "MutationH\000\022Q\n\rlocalMutation\030\t \001(\01328.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcLo" +
-      "calMutationH\000\022c\n\026infrastructureMutation\030" +
-      "\n \001(\0132A.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcInfrastructureMutationH\000B\006\n\004bo" +
-      "dy\"\342\001\n\027GrpcChangeSystemCapture\022\017\n\007versio" +
-      "n\030\001 \001(\003\022\r\n\005index\030\002 \001(\005\022T\n\toperation\030\003 \001(" +
-      "\0162A.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcChangeCaptureOperation\022Q\n\016systemMu" +
-      "tation\030\004 \001(\01329.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcEngineMutation*A\n\025GrpcC" +
-      "hangeCaptureArea\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001\022\022" +
-      "\n\016INFRASTRUCTURE\020\002*E\n\032GrpcChangeCaptureO" +
-      "peration\022\n\n\006UPSERT\020\000\022\n\n\006REMOVE\020\001\022\017\n\013TRAN" +
-      "SACTION\020\002*\263\001\n\036GrpcChangeCaptureContainer" +
-      "Type\022\025\n\021CONTAINER_CATALOG\020\000\022\024\n\020CONTAINER" +
-      "_ENTITY\020\001\022\027\n\023CONTAINER_ATTRIBUTE\020\002\022\035\n\031CO" +
-      "NTAINER_ASSOCIATED_DATA\020\003\022\023\n\017CONTAINER_P" +
-      "RICE\020\004\022\027\n\023CONTAINER_REFERENCE\020\005*>\n\030GrpcC" +
-      "hangeCaptureContent\022\021\n\rCHANGE_HEADER\020\000\022\017" +
-      "\n\013CHANGE_BODY\020\001*:\n\027GrpcCaptureResponseTy" +
-      "pe\022\023\n\017ACKNOWLEDGEMENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252" +
-      "\002\007EvitaDBb\006proto3"
+      "n\030\003 \003(\0162A.io.evitadb.externalApi.grpc.ge" +
+      "nerated.GrpcChangeCaptureOperation\022\\\n\rco" +
+      "ntainerType\030\004 \003(\0162E.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcChangeCaptureConta" +
+      "inerType\022\025\n\rcontainerName\030\005 \003(\t\"\357\005\n\030Grpc" +
+      "ChangeCatalogCapture\022,\n\007version\030\001 \001(\0132\033." +
+      "google.protobuf.Int64Value\022*\n\005index\030\002 \001(" +
+      "\0132\033.google.protobuf.Int32Value\022J\n\004area\030\003" +
+      " \001(\0162<.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcChangeCaptureArea\0220\n\nentityType" +
+      "\030\004 \001(\0132\034.google.protobuf.StringValue\0225\n\020" +
+      "entityPrimaryKey\030\005 \001(\0132\033.google.protobuf" +
+      ".Int32Value\022T\n\toperation\030\006 \001(\0162A.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcChang" +
+      "eCaptureOperation\022Y\n\016schemaMutation\030\007 \001(" +
+      "\0132?.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcEntitySchemaMutationH\000\022S\n\016entityMu" +
+      "tation\030\010 \001(\01329.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcEntityMutationH\000\022Q\n\rloc" +
+      "alMutation\030\t \001(\01328.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcLocalMutationH\000\022c\n\026" +
+      "infrastructureMutation\030\n \001(\0132A.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcInfrast" +
+      "ructureMutationH\000B\006\n\004body\"\342\001\n\027GrpcChange" +
+      "SystemCapture\022\017\n\007version\030\001 \001(\003\022\r\n\005index\030" +
+      "\002 \001(\005\022T\n\toperation\030\003 \001(\0162A.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcChangeCaptu" +
+      "reOperation\022Q\n\016systemMutation\030\004 \001(\01329.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "EngineMutation*A\n\025GrpcChangeCaptureArea\022" +
+      "\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001\022\022\n\016INFRASTRUCTURE\020" +
+      "\002*E\n\032GrpcChangeCaptureOperation\022\n\n\006UPSER" +
+      "T\020\000\022\n\n\006REMOVE\020\001\022\017\n\013TRANSACTION\020\002*\263\001\n\036Grp" +
+      "cChangeCaptureContainerType\022\025\n\021CONTAINER" +
+      "_CATALOG\020\000\022\024\n\020CONTAINER_ENTITY\020\001\022\027\n\023CONT" +
+      "AINER_ATTRIBUTE\020\002\022\035\n\031CONTAINER_ASSOCIATE" +
+      "D_DATA\020\003\022\023\n\017CONTAINER_PRICE\020\004\022\027\n\023CONTAIN" +
+      "ER_REFERENCE\020\005*>\n\030GrpcChangeCaptureConte" +
+      "nt\022\021\n\rCHANGE_HEADER\020\000\022\017\n\013CHANGE_BODY\020\001*:" +
+      "\n\027GrpcCaptureResponseType\022\023\n\017ACKNOWLEDGE" +
+      "MENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -159,7 +159,7 @@ public final class GrpcChangeCapture {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcChangeCaptureSchemaSite_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcChangeCaptureSchemaSite_descriptor,
-        new java.lang.String[] { "EntityType", "Operation", "ContainerType", });
+        new java.lang.String[] { "EntityType", "Operation", "ContainerType", "ContainerName", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcChangeCaptureDataSite_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcChangeCaptureDataSite_fieldAccessorTable = new

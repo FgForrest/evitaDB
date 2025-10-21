@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -71,7 +72,7 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode
 public class ModifyAttributeSchemaTypeMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -4704241145075202389L;
 	@Nonnull @Getter private final String name;
 	@Nonnull @Getter private final Class<? extends Serializable> type;
@@ -248,6 +249,12 @@ public class ModifyAttributeSchemaTypeMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -80,7 +81,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 @Immutable
 @EqualsAndHashCode
 public class CreateAttributeSchemaMutation
-	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
+	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -469815390440407270L;
 
 	@Getter @Nonnull private final String name;
@@ -414,6 +415,12 @@ public class CreateAttributeSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

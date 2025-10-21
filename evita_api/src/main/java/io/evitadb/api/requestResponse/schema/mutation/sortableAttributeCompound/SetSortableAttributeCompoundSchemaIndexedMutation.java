@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompound
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -62,7 +63,8 @@ import java.util.Objects;
 @Immutable
 @EqualsAndHashCode
 public class SetSortableAttributeCompoundSchemaIndexedMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation,
+	NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 3555872852091050565L;
 
 	@Nonnull @Getter private final String name;
@@ -162,6 +164,12 @@ public class SetSortableAttributeCompoundSchemaIndexedMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

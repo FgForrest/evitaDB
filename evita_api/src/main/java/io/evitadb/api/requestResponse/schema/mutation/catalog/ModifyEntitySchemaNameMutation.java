@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -59,7 +60,8 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutation, LocalEntitySchemaMutation, CatalogSchemaMutation {
+public class ModifyEntitySchemaNameMutation
+	implements LocalCatalogSchemaMutation, LocalEntitySchemaMutation, CatalogSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -5176104766478870248L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final String newName;
@@ -120,6 +122,12 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

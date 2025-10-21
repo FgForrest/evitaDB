@@ -42,10 +42,10 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor {
 
-	PropertyDescriptor ENTITY_TYPE = PropertyDescriptor.builder()
-		.name("entityType")
+	PropertyDescriptor NAME = PropertyDescriptor.builder()
+		.name("name")
 		.description("""
-            Entity type of entity schema that will be affected by passed mutations.
+			Entity type of entity schema that will be affected by passed mutations.
 			""")
 		.type(nonNull(String.class))
 		.build();
@@ -64,6 +64,6 @@ public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor
 			Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within
 			the `CatalogSchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, ENTITY_TYPE, SCHEMA_MUTATIONS))
+		.staticFields(List.of(MUTATION_TYPE, NAME, SCHEMA_MUTATIONS))
 		.build();
 }

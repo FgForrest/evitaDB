@@ -60,7 +60,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
@@ -87,6 +87,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocal
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.services.converter.WriteAheadLogVersionDescriptorConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
@@ -571,7 +572,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	private static void sendTransactionUpdate(
 		@Nonnull StreamObserver<GrpcCloseWithProgressResponse> responseObserver,
 		@Nonnull CommitVersions result,
-		@Nonnull Throwable throwable,
+		@Nullable Throwable throwable,
 		@Nonnull CommitBehavior phase
 	) {
 		if (throwable != null) {
@@ -644,17 +645,21 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@Override
 	public void getCatalogVersionAt(
-		GrpcCatalogVersionAtRequest request, StreamObserver<GrpcCatalogVersionAtResponse> responseObserver) {
+		GrpcCatalogVersionAtRequest request,
+		StreamObserver<GrpcCatalogVersionAtResponse> responseObserver
+	) {
 		executeWithClientContext(
 			session -> {
-				final StoredVersion catalogVersionAt = session.getCatalogVersionAt(
+				final MaterializedVersionBlock catalogVersionAt = session.getCatalogVersionAt(
 					request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
 				);
 				responseObserver.onNext(
-					GrpcCatalogVersionAtResponse.newBuilder()
-					                            .setVersion(catalogVersionAt.version())
-					                            .setIntroducedAt(toGrpcOffsetDateTime(catalogVersionAt.introducedAt()))
-					                            .build()
+					GrpcCatalogVersionAtResponse
+						.newBuilder()
+						.setStartVersion(catalogVersionAt.startVersion())
+						.setEndVersion(catalogVersionAt.endVersion())
+						.setIntroducedAt(toGrpcOffsetDateTime(catalogVersionAt.introducedAt()))
+						.build()
 				);
 				responseObserver.onCompleted();
 			},
@@ -686,13 +691,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				if (request.hasTimeFrame()) {
 					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
 					firstRequestedCatalogVersion = requestedTimeFrame.getPreciseFrom() != null ?
-						session.getCatalogVersionAt(requestedTimeFrame.getPreciseFrom()).version() : null;
+						session.getCatalogVersionAt(requestedTimeFrame.getPreciseFrom()).startVersion() : null;
 					lastRequestedCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
 						(firstRequestedCatalogVersion == null ?
-							session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).version() :
+							session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).startVersion() :
 							Math.max(
 								firstRequestedCatalogVersion + 1,
-								session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).version()
+								session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).startVersion()
 							)
 						) :
 						null;
@@ -743,7 +748,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@Override
 	public void getMutationsHistory(
-		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver) {
+		GetMutationsHistoryRequest request, StreamObserver<GetMutationsHistoryResponse> responseObserver
+	) {
 		ServerCallStreamObserver<GetMutationsHistoryResponse> serverCallStreamObserver =
 			(ServerCallStreamObserver<GetMutationsHistoryResponse>) responseObserver;
 
@@ -775,6 +781,37 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						responseObserver.onNext(builder.build());
 					}
 				);
+				responseObserver.onCompleted();
+			},
+			this.evita.getRequestExecutor(),
+			responseObserver,
+			this.tracingContext
+		);
+	}
+
+	/**
+	 * Retrieves the transaction overview based on the provided request and sends the response back
+	 * through the specified response observer. This method processes catalog version descriptors and
+	 * converts them into gRPC transaction overview objects to be sent as part of the response.
+	 *
+	 * @param request the request containing the catalog version information to retrieve the transaction overview
+	 * @param responseObserver the stream observer used to send the response back to the client
+	 */
+	@Override
+	public void getTransactionOverview(
+		GetTransactionOverviewRequest request,
+		StreamObserver<GetTransactionOverviewResponse> responseObserver
+	) {
+		executeWithClientContext(
+			session -> {
+				final long[] catalogVersions = request.getCatalogVersionList().stream().mapToLong(it -> it).toArray();
+				final GetTransactionOverviewResponse.Builder builder = GetTransactionOverviewResponse.newBuilder();
+				session.getCatalogVersionDescriptors(catalogVersions)
+					.stream()
+					.map(WriteAheadLogVersionDescriptorConverter::toGrpcTransactionOverview)
+					.forEach(builder::addTransactionOverviews);
+
+				responseObserver.onNext(builder.build());
 				responseObserver.onCompleted();
 			},
 			this.evita.getRequestExecutor(),

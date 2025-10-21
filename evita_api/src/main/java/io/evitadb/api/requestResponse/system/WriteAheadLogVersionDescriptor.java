@@ -29,7 +29,7 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
+import java.util.UUID;
 
 /**
  * This record describes changes incorporated in a particular version of the catalog. It contains information about
@@ -39,13 +39,17 @@ import java.util.Arrays;
  * which ensures data durability and consistency.
  *
  * @param version            version number of the catalog
+ * @param transactionId      unique identifier of the transaction that brought the catalog to this version
  * @param processedTimestamp timestamp when this particular version was created and processed
  * @param transactionChanges container with descriptions of all transactions incorporated in this catalog version
+ * @param reversible         indicates whether point-in-time recovery to this version is possible
  */
 public record WriteAheadLogVersionDescriptor(
 	long version,
+	@Nonnull UUID transactionId,
 	@Nonnull OffsetDateTime processedTimestamp,
-	@Nonnull TransactionChangesContainer<? extends TransactionChanges> transactionChanges
+	@Nonnull TransactionChanges transactionChanges,
+	boolean reversible
 ) implements Serializable {
 
 	@Nonnull
@@ -53,52 +57,8 @@ public record WriteAheadLogVersionDescriptor(
 	public String toString() {
 		return "Catalog version: " + this.version +
 			", processed at " + DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(this.processedTimestamp) +
-			" with " + this.transactionChanges.getTransactionChanges().length + " transactions " +
-			this.transactionChanges;
-	}
-
-	/**
-	 * This interface represents a container for transaction changes that are part of a catalog version.
-	 * It provides methods to access the transaction changes and calculate aggregate statistics about them,
-	 * such as the total size of mutations and the total count of mutations.
-	 *
-	 * @param <T> the type of transaction changes contained in this container, must implement TransactionChanges interface
-	 */
-	public interface TransactionChangesContainer<T extends TransactionChanges> {
-
-		/**
-		 * Retrieves an array of transaction changes that are part of this catalog version.
-		 * Each element in the array represents changes made in a single transaction.
-		 *
-		 * @return an array of transaction changes contained in this version
-		 */
-		@Nonnull
-		T[] getTransactionChanges();
-
-		/**
-		 * Calculates and returns the total size in bytes of all mutations incorporated in this catalog version.
-		 * This is the sum of the sizes of all mutations across all transactions in this version.
-		 *
-		 * @return the total size in bytes of all mutations in this catalog version
-		 */
-		default long mutationSizeInBytes() {
-			return Arrays.stream(getTransactionChanges())
-			             .mapToLong(TransactionChanges::mutationSizeInBytes)
-			             .sum();
-		}
-
-		/**
-		 * Calculates and returns the total number of mutations incorporated in this catalog version.
-		 * This is the sum of the mutation counts across all transactions in this version.
-		 *
-		 * @return the total number of mutations in this catalog version
-		 */
-		default int mutationCount() {
-			return Arrays.stream(getTransactionChanges())
-			             .mapToInt(TransactionChanges::mutationCount)
-			             .sum();
-		}
-
+			" in " + (this.reversible ? "reversible " : "") + "transaction " + this.transactionId + ", " +
+			"changes: " + this.transactionChanges;
 	}
 
 	/**
@@ -158,7 +118,7 @@ public record WriteAheadLogVersionDescriptor(
 		 *
 		 * @return the size in bytes of all mutations in this transaction
 		 */
-		long mutationSizeInBytes();
+		long walSizeInBytes();
 
 	}
 

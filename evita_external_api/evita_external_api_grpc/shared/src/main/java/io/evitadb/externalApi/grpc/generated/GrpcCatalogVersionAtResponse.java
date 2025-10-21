@@ -67,29 +67,44 @@ private static final long serialVersionUID = 0L;
   }
 
   private int bitField0_;
-  public static final int VERSION_FIELD_NUMBER = 1;
-  private long version_ = 0L;
+  public static final int STARTVERSION_FIELD_NUMBER = 1;
+  private long startVersion_ = 0L;
   /**
    * <pre>
-   * The version of the catalog at the specified moment in time.
+   * The first version of the materialized version block visible in the specified time
    * </pre>
    *
-   * <code>int64 version = 1;</code>
-   * @return The version.
+   * <code>int64 startVersion = 1;</code>
+   * @return The startVersion.
    */
   @java.lang.Override
-  public long getVersion() {
-    return version_;
+  public long getStartVersion() {
+    return startVersion_;
   }
 
-  public static final int INTRODUCEDAT_FIELD_NUMBER = 2;
+  public static final int ENDVERSION_FIELD_NUMBER = 2;
+  private long endVersion_ = 0L;
+  /**
+   * <pre>
+   * The last version of the materialized version block visible in the specified time
+   * </pre>
+   *
+   * <code>int64 endVersion = 2;</code>
+   * @return The endVersion.
+   */
+  @java.lang.Override
+  public long getEndVersion() {
+    return endVersion_;
+  }
+
+  public static final int INTRODUCEDAT_FIELD_NUMBER = 3;
   private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt_;
   /**
    * <pre>
-   * Exact moment when this version was stored (introduced).
+   * Exact moment when this materialized version block was introduced to the catalog snapshot
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
    * @return Whether the introducedAt field is set.
    */
   @java.lang.Override
@@ -98,10 +113,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Exact moment when this version was stored (introduced).
+   * Exact moment when this materialized version block was introduced to the catalog snapshot
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
    * @return The introducedAt.
    */
   @java.lang.Override
@@ -110,10 +125,10 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Exact moment when this version was stored (introduced).
+   * Exact moment when this materialized version block was introduced to the catalog snapshot
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getIntroducedAtOrBuilder() {
@@ -134,11 +149,14 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (version_ != 0L) {
-      output.writeInt64(1, version_);
+    if (startVersion_ != 0L) {
+      output.writeInt64(1, startVersion_);
+    }
+    if (endVersion_ != 0L) {
+      output.writeInt64(2, endVersion_);
     }
     if (((bitField0_ & 0x00000001) != 0)) {
-      output.writeMessage(2, getIntroducedAt());
+      output.writeMessage(3, getIntroducedAt());
     }
     getUnknownFields().writeTo(output);
   }
@@ -149,13 +167,17 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (version_ != 0L) {
+    if (startVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(1, version_);
+        .computeInt64Size(1, startVersion_);
+    }
+    if (endVersion_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(2, endVersion_);
     }
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(2, getIntroducedAt());
+        .computeMessageSize(3, getIntroducedAt());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -172,8 +194,10 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse other = (io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse) obj;
 
-    if (getVersion()
-        != other.getVersion()) return false;
+    if (getStartVersion()
+        != other.getStartVersion()) return false;
+    if (getEndVersion()
+        != other.getEndVersion()) return false;
     if (hasIntroducedAt() != other.hasIntroducedAt()) return false;
     if (hasIntroducedAt()) {
       if (!getIntroducedAt()
@@ -190,9 +214,12 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + VERSION_FIELD_NUMBER;
+    hash = (37 * hash) + STARTVERSION_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getVersion());
+        getStartVersion());
+    hash = (37 * hash) + ENDVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getEndVersion());
     if (hasIntroducedAt()) {
       hash = (37 * hash) + INTRODUCEDAT_FIELD_NUMBER;
       hash = (53 * hash) + getIntroducedAt().hashCode();
@@ -338,7 +365,8 @@ private static final long serialVersionUID = 0L;
     public Builder clear() {
       super.clear();
       bitField0_ = 0;
-      version_ = 0L;
+      startVersion_ = 0L;
+      endVersion_ = 0L;
       introducedAt_ = null;
       if (introducedAtBuilder_ != null) {
         introducedAtBuilder_.dispose();
@@ -378,10 +406,13 @@ private static final long serialVersionUID = 0L;
     private void buildPartial0(io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse result) {
       int from_bitField0_ = bitField0_;
       if (((from_bitField0_ & 0x00000001) != 0)) {
-        result.version_ = version_;
+        result.startVersion_ = startVersion_;
+      }
+      if (((from_bitField0_ & 0x00000002) != 0)) {
+        result.endVersion_ = endVersion_;
       }
       int to_bitField0_ = 0;
-      if (((from_bitField0_ & 0x00000002) != 0)) {
+      if (((from_bitField0_ & 0x00000004) != 0)) {
         result.introducedAt_ = introducedAtBuilder_ == null
             ? introducedAt_
             : introducedAtBuilder_.build();
@@ -434,8 +465,11 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcCatalogVersionAtResponse.getDefaultInstance()) return this;
-      if (other.getVersion() != 0L) {
-        setVersion(other.getVersion());
+      if (other.getStartVersion() != 0L) {
+        setStartVersion(other.getStartVersion());
+      }
+      if (other.getEndVersion() != 0L) {
+        setEndVersion(other.getEndVersion());
       }
       if (other.hasIntroducedAt()) {
         mergeIntroducedAt(other.getIntroducedAt());
@@ -467,17 +501,22 @@ private static final long serialVersionUID = 0L;
               done = true;
               break;
             case 8: {
-              version_ = input.readInt64();
+              startVersion_ = input.readInt64();
               bitField0_ |= 0x00000001;
               break;
             } // case 8
-            case 18: {
+            case 16: {
+              endVersion_ = input.readInt64();
+              bitField0_ |= 0x00000002;
+              break;
+            } // case 16
+            case 26: {
               input.readMessage(
                   getIntroducedAtFieldBuilder().getBuilder(),
                   extensionRegistry);
-              bitField0_ |= 0x00000002;
+              bitField0_ |= 0x00000004;
               break;
-            } // case 18
+            } // case 26
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -495,46 +534,90 @@ private static final long serialVersionUID = 0L;
     }
     private int bitField0_;
 
-    private long version_ ;
+    private long startVersion_ ;
     /**
      * <pre>
-     * The version of the catalog at the specified moment in time.
+     * The first version of the materialized version block visible in the specified time
      * </pre>
      *
-     * <code>int64 version = 1;</code>
-     * @return The version.
+     * <code>int64 startVersion = 1;</code>
+     * @return The startVersion.
      */
     @java.lang.Override
-    public long getVersion() {
-      return version_;
+    public long getStartVersion() {
+      return startVersion_;
     }
     /**
      * <pre>
-     * The version of the catalog at the specified moment in time.
+     * The first version of the materialized version block visible in the specified time
      * </pre>
      *
-     * <code>int64 version = 1;</code>
-     * @param value The version to set.
+     * <code>int64 startVersion = 1;</code>
+     * @param value The startVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setVersion(long value) {
+    public Builder setStartVersion(long value) {
 
-      version_ = value;
+      startVersion_ = value;
       bitField0_ |= 0x00000001;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * The version of the catalog at the specified moment in time.
+     * The first version of the materialized version block visible in the specified time
      * </pre>
      *
-     * <code>int64 version = 1;</code>
+     * <code>int64 startVersion = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearVersion() {
+    public Builder clearStartVersion() {
       bitField0_ = (bitField0_ & ~0x00000001);
-      version_ = 0L;
+      startVersion_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private long endVersion_ ;
+    /**
+     * <pre>
+     * The last version of the materialized version block visible in the specified time
+     * </pre>
+     *
+     * <code>int64 endVersion = 2;</code>
+     * @return The endVersion.
+     */
+    @java.lang.Override
+    public long getEndVersion() {
+      return endVersion_;
+    }
+    /**
+     * <pre>
+     * The last version of the materialized version block visible in the specified time
+     * </pre>
+     *
+     * <code>int64 endVersion = 2;</code>
+     * @param value The endVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setEndVersion(long value) {
+
+      endVersion_ = value;
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The last version of the materialized version block visible in the specified time
+     * </pre>
+     *
+     * <code>int64 endVersion = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearEndVersion() {
+      bitField0_ = (bitField0_ & ~0x00000002);
+      endVersion_ = 0L;
       onChanged();
       return this;
     }
@@ -544,21 +627,21 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> introducedAtBuilder_;
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      * @return Whether the introducedAt field is set.
      */
     public boolean hasIntroducedAt() {
-      return ((bitField0_ & 0x00000002) != 0);
+      return ((bitField0_ & 0x00000004) != 0);
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      * @return The introducedAt.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getIntroducedAt() {
@@ -570,10 +653,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     public Builder setIntroducedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
       if (introducedAtBuilder_ == null) {
@@ -584,16 +667,16 @@ private static final long serialVersionUID = 0L;
       } else {
         introducedAtBuilder_.setMessage(value);
       }
-      bitField0_ |= 0x00000002;
+      bitField0_ |= 0x00000004;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     public Builder setIntroducedAt(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
@@ -602,20 +685,20 @@ private static final long serialVersionUID = 0L;
       } else {
         introducedAtBuilder_.setMessage(builderForValue.build());
       }
-      bitField0_ |= 0x00000002;
+      bitField0_ |= 0x00000004;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     public Builder mergeIntroducedAt(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
       if (introducedAtBuilder_ == null) {
-        if (((bitField0_ & 0x00000002) != 0) &&
+        if (((bitField0_ & 0x00000004) != 0) &&
           introducedAt_ != null &&
           introducedAt_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
           getIntroducedAtBuilder().mergeFrom(value);
@@ -626,20 +709,20 @@ private static final long serialVersionUID = 0L;
         introducedAtBuilder_.mergeFrom(value);
       }
       if (introducedAt_ != null) {
-        bitField0_ |= 0x00000002;
+        bitField0_ |= 0x00000004;
         onChanged();
       }
       return this;
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     public Builder clearIntroducedAt() {
-      bitField0_ = (bitField0_ & ~0x00000002);
+      bitField0_ = (bitField0_ & ~0x00000004);
       introducedAt_ = null;
       if (introducedAtBuilder_ != null) {
         introducedAtBuilder_.dispose();
@@ -650,22 +733,22 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getIntroducedAtBuilder() {
-      bitField0_ |= 0x00000002;
+      bitField0_ |= 0x00000004;
       onChanged();
       return getIntroducedAtFieldBuilder().getBuilder();
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getIntroducedAtOrBuilder() {
       if (introducedAtBuilder_ != null) {
@@ -677,10 +760,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Exact moment when this version was stored (introduced).
+     * Exact moment when this materialized version block was introduced to the catalog snapshot
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime introducedAt = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>

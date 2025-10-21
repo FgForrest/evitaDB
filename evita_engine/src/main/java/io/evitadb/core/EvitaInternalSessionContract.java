@@ -39,6 +39,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
@@ -181,6 +182,18 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 */
 	@Nonnull
 	CommitProgressRecord getCommitProgress();
+
+	/**
+	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
+	 * be ordered the same way as the input catalog versions, but may be missing some versions if they are not known in
+	 * history. Creating a descriptor could be an expensive operation, so it's recommended to stream changes to clients
+	 * gradually as the stream provides the data.
+	 *
+	 * @param catalogVersion the catalog versions to get descriptors for
+	 * @return a list of {@link WriteAheadLogVersionDescriptor} instances
+	 */
+	@Nonnull
+	List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are
