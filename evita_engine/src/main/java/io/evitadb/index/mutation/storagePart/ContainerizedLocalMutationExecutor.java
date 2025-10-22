@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.Reference;
@@ -82,6 +83,7 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjBiFunction;
@@ -114,6 +116,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1888,6 +1891,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		Set<ReferenceKey> removedReferences = null;
 
 		// go through all input mutations
+		final Map<EntityReference, List<ReferenceAttributeMutation>> referenceAttributeMutationsByEntityReference = new LazyHashMap<>(inputMutations.size());
 		for (LocalMutation<?, ?> inputMutation : inputMutations) {
 			// and check if there are any reference attribute mutation
 			if (inputMutation instanceof ReferenceAttributeMutation ram) {
@@ -1911,23 +1915,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						if (globalIndex != null) {
 							// and whether it contains the entity we are referencing to
 							if (globalIndex.contains(referenceKey.primaryKey())) {
-								// create shared factory for creating entity mutations (shared logic)
-								final Function<ReferenceAttributeMutation, ServerEntityUpsertMutation> entityMutationFactory =
-									referenceAttributeMutation -> new ServerEntityUpsertMutation(
-										referenceSchema.getReferencedEntityType(),
-										referenceKey.primaryKey(),
-										EntityExistence.MUST_EXIST,
-										EnumSet.noneOf(ImplicitMutationBehavior.class),
-										true,
-										true,
-										referenceAttributeMutation
-									);
-
 								// if the current reference is a reflected reference
 								if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
-									final boolean attributeVisibleFromOtherSide = catalogSchema.getEntitySchema(rrsc.getReferencedEntityType())
+									final boolean attributeVisibleFromOtherSide = catalogSchema
+										.getEntitySchema(rrsc.getReferencedEntityType())
 										.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()))
-										.map(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
+										.flatMap(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
 										.isPresent();
 									// create a mutation to counterpart reference in the referenced entity
 									// but only if the attribute is visible from that point of view
@@ -1944,13 +1937,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										);
 										if (!removedReferences.contains(referenceKeyToUpdate)) {
 											// only if the counterpart reference wasn't removed in the same update
-											mutationCollector.addExternalMutation(
-												entityMutationFactory.apply(
-													new ReferenceAttributeMutation(
-														referenceKeyToUpdate,
-														toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-													)
-												)
+											registerPropagatedReferenceAttributeMutation(
+												referenceSchema, ram, referenceAttributeMutationsByEntityReference,
+												referenceKey, referenceKeyToUpdate
 											);
 										}
 									}
@@ -1987,13 +1976,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 											);
 											if (!removedReferences.contains(referenceKeyToUpdate)) {
 												// only if the counterpart reference wasn't removed in the same update
-												mutationCollector.addExternalMutation(
-													entityMutationFactory.apply(
-														new ReferenceAttributeMutation(
-															referenceKeyToUpdate,
-															toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-														)
-													)
+												// only if the counterpart reference wasn't removed in the same update
+												registerPropagatedReferenceAttributeMutation(
+													referenceSchema, ram, referenceAttributeMutationsByEntityReference,
+													referenceKey, referenceKeyToUpdate
 												);
 											}
 										}
@@ -2005,6 +1991,53 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				}
 			}
 		}
+		// finally register upsert mutations for all collected reference attribute mutations
+		for (Entry<EntityReference, List<ReferenceAttributeMutation>> entry : referenceAttributeMutationsByEntityReference.entrySet()) {
+			mutationCollector.addExternalMutation(
+				new ServerEntityUpsertMutation(
+					entry.getKey().getType(),
+					entry.getKey().primaryKey(),
+					EntityExistence.MUST_EXIST,
+					EnumSet.noneOf(ImplicitMutationBehavior.class),
+					true,
+					true,
+					entry.getValue().toArray(ReferenceAttributeMutation[]::new)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Registers a propagated reference attribute mutation by associating it with a specific entity reference
+	 * and grouping it within a map of reference attribute mutations by entity reference.
+	 *
+	 * @param referenceSchema The schema of the reference that defines the metadata and constraints for the reference.
+	 * @param ram The reference attribute mutation to be propagated and registered.
+	 * @param referenceAttributeMutationsByEntityReference A map that organizes reference attribute mutations
+	 *        by the corresponding entity reference.
+	 * @param referenceKey The key of the reference for which the mutation is being registered.
+	 * @param referenceKeyToUpdate The key indicating the specific reference attribute mutation to be updated.
+	 */
+	private static void registerPropagatedReferenceAttributeMutation(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceAttributeMutation ram,
+		@Nonnull Map<EntityReference, List<ReferenceAttributeMutation>> referenceAttributeMutationsByEntityReference,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceKey referenceKeyToUpdate
+	) {
+		referenceAttributeMutationsByEntityReference.computeIfAbsent(
+			new EntityReference(
+				referenceSchema.getReferencedEntityType(),
+				referenceKey.primaryKey()
+			),
+			// we don't expect many mutations per entity reference
+			it -> new LinkedList<>()
+		).add(
+			new ReferenceAttributeMutation(
+				referenceKeyToUpdate,
+				toInvertedTypeAttributeMutation(ram.getAttributeMutation())
+			)
+		);
 	}
 
 	/**

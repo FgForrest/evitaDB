@@ -46,6 +46,7 @@ public class ReferenceAllowsDuplicatesException extends EvitaInvalidUsageExcepti
 				case CREATE -> "Reference with name `" + referenceName + "` of `" + entitySchema.getName() + "` doesn't allow duplicates, but there is already one present - this is not expected at this moment!";
 				case READ -> "Reference with name `" + referenceName + "` of `" + entitySchema.getName() + "` entity allows duplicates, you need to use a method returning a collection of references.";
 				case WRITE -> "Reference with name `" + referenceName + "` of `" + entitySchema.getName() + "` entity allows duplicates, you need to use a method accepting predicate to select the correct instance.";
+				case WRITE_MULTIPLE_MATCHES -> "Reference with name `" + referenceName + "` of `" + entitySchema.getName() + "` entity allows duplicates and there are multiple ones matching your predicate. Please narrow the predicate logic to match exactly one reference.";
 				case MUTATE -> "Reference with name `" + referenceName + "` of `" + entitySchema.getName() + "` entity allows duplicates, you need to exactly specify reference using its internal primary key.";
 			}
 		);
@@ -57,6 +58,7 @@ public class ReferenceAllowsDuplicatesException extends EvitaInvalidUsageExcepti
 	public enum Operation {
 		READ,
 		WRITE,
+		WRITE_MULTIPLE_MATCHES,
 		CREATE,
 		MUTATE
 	}

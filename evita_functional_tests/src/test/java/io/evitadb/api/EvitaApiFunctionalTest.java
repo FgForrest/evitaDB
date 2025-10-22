@@ -1516,7 +1516,7 @@ class EvitaApiFunctionalTest {
 			// add new
 			.setReference(newCategory.getType(), newCategory.getPrimaryKey())
 			// update existing
-			.setReference(
+			.updateReference(
 				CATEGORY, 1,
 				thatIs -> {
 					thatIs.setGroup("CATEGORY_GROUP", 45);

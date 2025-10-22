@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.ReferenceEditMode;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
@@ -52,6 +53,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGro
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -68,6 +70,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.io.Serializable;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Consumer;
@@ -210,11 +213,12 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	private static List<ReferenceMutation<?>> collectMergedReferenceMutations(
 		@Nonnull List<ReferenceMutation<?>> changeSet,
 		@Nonnull ReferenceContract refInBase,
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		// Merge required: we need to restore removals for group/attributes that weren't upserted after previous removal
 		boolean groupUpserted = false;
-		Set<AttributeKey> attributesUpserted = null;
+		Set<AttributeKey> attributesUpsertedOrRemoved = null;
 
 		// Scan changeSet once to gather upsert info
 		for (final ReferenceMutation<?> rm : changeSet) {
@@ -222,17 +226,17 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				groupUpserted = true;
 			} else if (rm instanceof ReferenceAttributeMutation ram) {
 				final AttributeMutation am = ram.getAttributeMutation();
-				if (am instanceof UpsertAttributeMutation) {
-					if (attributesUpserted == null) {
-						attributesUpserted = new HashSet<>(8);
+				if (am instanceof UpsertAttributeMutation || am instanceof RemoveAttributeMutation) {
+					if (attributesUpsertedOrRemoved == null) {
+						attributesUpsertedOrRemoved = new HashSet<>(8);
 					}
-					attributesUpserted.add(am.getAttributeKey());
+					attributesUpsertedOrRemoved.add(am.getAttributeKey());
 				}
 			}
 		}
 
-		final Set<AttributeKey> finalAttributesUpserted =
-			attributesUpserted != null ? attributesUpserted : Collections.emptySet();
+		final Set<AttributeKey> finalAttributesUpsertedOrRemoved =
+			attributesUpsertedOrRemoved != null ? attributesUpsertedOrRemoved : Collections.emptySet();
 
 		// Build merged mutation list with minimal allocations
 		// Heuristic capacity: original + possible removals
@@ -254,13 +258,23 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		for (final AttributeValue av : attrs) {
 			if (av.exists()) {
 				final AttributeKey key = av.key();
-				if (!finalAttributesUpserted.contains(key)) {
-					merged.add(
-						new ReferenceAttributeMutation(
-							referenceKey,
-							new RemoveAttributeMutation(key)
-						)
-					);
+				if (!finalAttributesUpsertedOrRemoved.contains(key)) {
+					final Serializable defaultValue = referenceSchema
+						.getAttribute(key.attributeName())
+						.map(AttributeSchemaContract::getDefaultValue)
+						.orElse(null);
+					if (defaultValue == null) {
+						merged.add(
+							new ReferenceAttributeMutation(referenceKey, new RemoveAttributeMutation(key))
+						);
+					} else {
+						merged.add(
+							new ReferenceAttributeMutation(
+								referenceKey,
+								new UpsertAttributeMutation(key, defaultValue)
+							)
+						);
+					}
 				}
 			}
 		}
@@ -592,6 +606,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			null,
 			null,
+			ReferenceEditMode.RESET,
 			null
 		);
 	}
@@ -608,6 +623,24 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			null,
 			null,
+			ReferenceEditMode.RESET,
+			whichIs
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesBuilder updateReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException {
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrThrowException(referenceName),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			null,
+			null,
+			ReferenceEditMode.UPDATE_ONLY,
 			whichIs
 		);
 	}
@@ -644,6 +677,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			referencedEntityType,
 			cardinality,
+			ReferenceEditMode.RESET,
 			null
 		);
 	}
@@ -662,6 +696,26 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			referencedEntityType,
 			cardinality,
+			ReferenceEditMode.RESET,
+			whichIs
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesBuilder updateReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrCreateImplicit(referenceName, referencedEntityType, cardinality),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			referencedEntityType,
+			cardinality,
+			ReferenceEditMode.UPDATE_ONLY,
 			whichIs
 		);
 	}
@@ -691,7 +745,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			if (filter.test(existingReference)) {
 				Assert.isTrue(
 					selectedReference == null,
-					() -> new ReferenceAllowsDuplicatesException(referenceName, schema, Operation.WRITE)
+					() -> new ReferenceAllowsDuplicatesException(referenceName, schema, Operation.WRITE_MULTIPLE_MATCHES)
 				);
 				selectedReference = existingReference;
 			}
@@ -890,6 +944,17 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 	@Override
 	public int getNextReferenceInternalId() {
+		if (this.lastLocallyAssignedReferenceId == 0) {
+			// take lowest negative internal PK from existing references
+			this.lastLocallyAssignedReferenceId = Math.min(
+				0,
+				getReferences()
+					.stream()
+					.mapToInt(it -> it.getReferenceKey().internalPrimaryKey())
+					.min()
+					.orElse(0)
+			);
+		}
 		return --this.lastLocallyAssignedReferenceId;
 	}
 
@@ -959,9 +1024,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			.orElseGet(() -> new ArrayList<>(16));
 		referenceBuilder
 			.buildChangeSet()
-			.forEach(
-				newMutation -> upsertModification(changeSet, newMutation)
-			);
+			.forEach(newMutation -> upsertModification(changeSet, newMutation));
 
 		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(
 			referenceKey.referenceName(), 8
@@ -969,6 +1032,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		if (existingReferenceOpt.isEmpty()) {
 			// no existing reference with this key - we can just add the mutation set
+			final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceKey.referenceName());
 			replaceChangeSet(
 				internalReferenceKey,
 				referenceBuilder,
@@ -976,7 +1040,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				referenceMutationsIndex,
 				registerCardinalityAndPromoteNewIfNeeded(
 					referenceKey,
-					getReferenceSchemaOrThrowException(referenceKey.referenceName()),
+					referenceSchema,
 					referenceMutationsIndex,
 					changeSet
 				)
@@ -1001,8 +1065,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				replaceChangeSet(
 					internalReferenceKey, referenceBuilder, referenceBundle, referenceMutationsIndex, changeSet);
 			} else {
+				final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceKey.referenceName());
 				final List<ReferenceMutation<?>> merged = collectMergedReferenceMutations(
-					changeSet, refInBaseOpt.get(), referenceKey
+					changeSet, refInBaseOpt.get(), referenceKey, referenceSchema
 				);
 
 				replaceChangeSet(
@@ -1120,7 +1185,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			if (mutationBulk != null) {
 				final ReferenceKey baseRefKey = baseRef.getReferenceKey();
 				final int ipk = baseRefKey.internalPrimaryKey();
-				if (baseRefKey.isKnownInternalPrimaryKey()) {
+				if (!baseRefKey.isUnknownReference()) {
 					knownInternalPks.add(ipk);
 				}
 
@@ -1144,7 +1209,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			for (Entry<Integer, List<ReferenceMutation<?>>> e : mutationBulk.entrySet()) {
 				final int internalPkFromMutation = e.getKey();
 				// skip those already present in base (we processed them above)
-				if (internalPkFromMutation > 0 && knownInternalPks.contains(internalPkFromMutation)) {
+				if (knownInternalPks.contains(internalPkFromMutation)) {
 					continue;
 				}
 				final List<ReferenceMutation<?>> mutations = e.getValue();
@@ -1168,6 +1233,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * @param referenceKey         the unique key identifying the referenced entity; this includes the primary key and internal key
 	 * @param referencedEntityType the type of the referenced entity; must match the schema-defined type, if provided
 	 * @param cardinality          the cardinality of the reference; if provided, must match the schema-defined cardinality
+	 * @param editMode             the mode of reference editing; UPDATE_ONLY or UPDATE_OR_CREATE
 	 * @param whichIs              an optional consumer for setting additional properties of the reference during its building process
 	 * @return the updated instance of InternalEntityBuilder that includes the newly added or updated reference
 	 */
@@ -1177,6 +1243,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceEditMode editMode,
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	) {
 		final String referenceName = referenceKey.referenceName();
@@ -1210,34 +1277,42 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		final Optional<ReferenceContract> existingReference =
 			this.baseReferences.getReferenceWithoutSchemaCheck(referenceKey);
-		final ReferenceBuilder referenceBuilder = existingReference
+
+		if (editMode == ReferenceEditMode.UPDATE_ONLY && existingReference.isEmpty()) {
+			// no action happens - reference does not exist
+			return this;
+		}
+
+		final ReferenceBuilder referenceBuilder;
+		final ReferenceContract ref = existingReference
 			.filter(reference -> isNotReferenceLocallyRemoved(reference.getReferenceKey()))
-			.map(
-				ref -> (ReferenceBuilder) new ExistingReferenceBuilder(
-					ref, entitySchema, existingMutations,
-					getReferenceBundleForUpdate(ref.getReferenceName(), 8)
-						.getAttributeTypes()
-				)
-			)
 			.filter(this.referencePredicate)
-			.orElseGet(
-				() -> {
-					final InitialReferenceBuilder refBuilder;
-					if (existingMutations.isEmpty() || existingMutations.get(0) instanceof RemoveReferenceMutation) {
-						refBuilder = createBrandNewInitialReferenceBuilder(
-							entitySchema, referenceSchema, referenceName, referencedPrimaryKey,
-							existingReference.map(it -> it.getReferenceKey().internalPrimaryKey())
-							                 .orElseGet(this::getNextReferenceInternalId),
-							existingInternalPkCount
-						);
-					} else {
-						refBuilder = createInitialReferenceBuilderWithExistingMutations(
-							entitySchema, referenceSchema, existingMutations, referenceName, referencedPrimaryKey
-						);
-					}
-					return refBuilder;
-				}
+			.orElse(null);
+
+		if (editMode == ReferenceEditMode.UPDATE_ONLY && ref != null && isNotReferenceLocallyRemoved(ref.getReferenceKey()) && this.referencePredicate.test(ref)) {
+			referenceBuilder = new ExistingReferenceBuilder(
+				ref, entitySchema, existingMutations,
+				getReferenceBundleForUpdate(ref.getReferenceName(), 8)
+					.getAttributeTypes()
 			);
+		} else {
+			referenceBuilder = createBrandNewInitialReferenceBuilder(
+				entitySchema, referenceSchema, referenceName, referencedPrimaryKey,
+				existingReference.map(it -> it.getReferenceKey().internalPrimaryKey())
+					.orElseGet(
+						() -> existingMutations.stream()
+							.filter(InsertReferenceMutation.class::isInstance)
+							.map(it -> it.getReferenceKey().internalPrimaryKey())
+							.findFirst()
+							.orElseGet(this::getNextReferenceInternalId)
+					),
+				existingInternalPkCount
+			);
+			existingReference
+				.map(ReferenceContract::getReferenceKey)
+				.ifPresent(this::addReferenceToRemoved);
+		}
+
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
 		addOrReplaceReferenceMutations(referenceBuilder, false);
 		return this;
@@ -1640,12 +1715,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 							new RemoveReferenceMutation(completeReferenceKey)
 						)
 					);
-				if (this.removedReferences == null) {
-					this.removedReferences = new HashSet<>(4);
-				}
-				this.removedReferences.add(
-					new FullyComparableReferenceKey(completeReferenceKey)
-				);
+				addReferenceToRemoved(completeReferenceKey);
 				removed = true;
 			}
 		}
@@ -1688,6 +1758,20 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				"There's no reference of a type `" + referenceName + "` and primary key `" + referencedPrimaryKey + "`!"
 			);
 		}
+	}
+
+	/**
+	 * Adds a given reference key to the collection of removed references.
+	 *
+	 * @param referenceKey the reference key to be added to the removed references collection; must not be null
+	 */
+	private void addReferenceToRemoved(@Nonnull ReferenceKey referenceKey) {
+		if (this.removedReferences == null) {
+			this.removedReferences = new HashSet<>(4);
+		}
+		this.removedReferences.add(
+			new FullyComparableReferenceKey(referenceKey)
+		);
 	}
 
 	/**

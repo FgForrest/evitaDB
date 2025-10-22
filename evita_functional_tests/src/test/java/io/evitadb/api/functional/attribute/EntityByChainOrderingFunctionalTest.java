@@ -234,7 +234,7 @@ public class EntityByChainOrderingFunctionalTest {
 					.forEach(
 						reference -> {
 							if (reference.getAttribute(referenceAttributeName) != null) {
-								entityBuilder.setReference(
+								entityBuilder.updateReference(
 									referenceName,
 									reference.getReferencedPrimaryKey(),
 									whichIs -> whichIs.setAttribute(

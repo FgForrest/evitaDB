@@ -2474,8 +2474,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				       .setAttribute(ATTRIBUTE_CODE, "TV-123")
 				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
 				       .setReference(
-					       Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
-					                                               .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+					       Entities.CATEGORY, 2,
+					       whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
+					                                       .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
 				       )
 				       .setPrice(
 					       1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"),

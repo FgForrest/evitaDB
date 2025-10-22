@@ -1420,7 +1420,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.removeAttribute(ATTRIBUTE_EAN)
 						.removeAttribute(ATTRIBUTE_NAME, Locale.GERMAN)
 						.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
-						.setReference(
+						.updateReference(
 							Entities.BRAND, 1,
 							whichIs -> whichIs
 								.removeAttribute(ATTRIBUTE_BRAND_EAN)
