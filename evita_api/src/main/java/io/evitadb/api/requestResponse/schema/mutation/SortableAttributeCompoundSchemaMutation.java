@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -60,13 +61,13 @@ public interface SortableAttributeCompoundSchemaMutation extends SchemaMutation 
 	 *
 	 * @param entitySchema owner entity schema that could be used in validations and error messages
 	 * @param referenceSchema owner reference schema that could be used in validations and error messages
-	 * @param sortableAttributeCompoundSchema current version of the schema as an input to mutate
+	 * @param existingSchema current version of the schema as an input to mutate
 	 */
 	@Nullable
-	SortableAttributeCompoundSchemaContract mutate(
+	<T extends SortableAttributeCompoundSchemaContract> T mutate(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
+		@Nullable T existingSchema
 	);
 
 	/**
@@ -76,8 +77,8 @@ public interface SortableAttributeCompoundSchemaMutation extends SchemaMutation 
 	@Nonnull
 	default EntitySchemaContract replaceSortableAttributeCompoundIfDifferent(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull SortableAttributeCompoundSchemaContract existingSchema,
-		@Nonnull SortableAttributeCompoundSchemaContract updatedSchema
+		@Nonnull EntitySortableAttributeCompoundSchemaContract existingSchema,
+		@Nonnull EntitySortableAttributeCompoundSchemaContract updatedSchema
 	) {
 		if (existingSchema.equals(updatedSchema)) {
 			// we don't need to update entity schema - the associated data already contains the requested change
@@ -102,12 +103,15 @@ public interface SortableAttributeCompoundSchemaMutation extends SchemaMutation 
 				entitySchema.getReferences(),
 				entitySchema.getEvolutionMode(),
 				Stream.concat(
-						entitySchema.getSortableAttributeCompounds().values().stream().filter(it -> !updatedSchema.getName().equals(it.getName())),
+						entitySchema.getSortableAttributeCompounds()
+							.values()
+							.stream()
+							.filter(it -> !updatedSchema.getName().equals(it.getName())),
 						Stream.of(updatedSchema)
 					)
 					.collect(
 						Collectors.toMap(
-							SortableAttributeCompoundSchemaContract::getName,
+							EntitySortableAttributeCompoundSchemaContract::getName,
 							Function.identity()
 						)
 					)

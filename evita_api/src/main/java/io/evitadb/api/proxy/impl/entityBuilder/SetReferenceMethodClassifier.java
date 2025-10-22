@@ -1117,7 +1117,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					referenceName,
 					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType,
 					ReferencedObjectType.TARGET,
-					entityReference -> entityBuilder.setReference(referenceName, entityReference.primaryKey())
+					entityReference -> entityBuilder.setReference(referenceName, entityReference.getPrimaryKeyOrThrowException())
 				);
 			} else {
 				final ReferenceContract firstReference = references.iterator().next();
@@ -2552,18 +2552,18 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferenceByEntityClassifier(
 		@Nonnull SealedEntityProxyState proxyState,
-		@Nonnull RecognizedContext entityRecognizedIn,
+		@Nullable RecognizedContext entityRecognizedIn,
 		@Nonnull Class<?> returnType,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final ResolvedParameter referencedParameter = entityRecognizedIn.entityContract();
-		if (referencedParameter.mainType().isArray()) {
+		final ResolvedParameter referencedParameter = entityRecognizedIn == null ? null : entityRecognizedIn.entityContract();
+		if (referencedParameter != null && referencedParameter.mainType().isArray()) {
 			if (returnType.equals(proxyState.getProxyClass())) {
 				return setReferencedEntityClassifierAsArrayWithBuilderResult(referenceSchema);
 			} else {
 				return setReferencedEntityClassifierAsArrayWithVoidResult(referenceSchema);
 			}
-		} else if (Collection.class.isAssignableFrom(referencedParameter.mainType())) {
+		} else if (referencedParameter != null && Collection.class.isAssignableFrom(referencedParameter.mainType())) {
 			if (returnType.equals(proxyState.getProxyClass())) {
 				return setReferencedEntityClassifierAsCollectionWithBuilderResult(referenceSchema);
 			} else {

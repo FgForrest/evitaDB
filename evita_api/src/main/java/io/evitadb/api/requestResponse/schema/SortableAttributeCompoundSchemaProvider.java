@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,25 +36,25 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SortableAttributeCompoundSchemaProvider<T extends AttributeSchemaContract> extends AttributeSchemaProvider<T> {
+public interface SortableAttributeCompoundSchemaProvider<T extends AttributeSchemaContract, S extends SortableAttributeCompoundSchemaContract> extends AttributeSchemaProvider<T> {
 
 	/**
 	 * Returns definition of all sortable attribute compounds defined in this provider.
 	 */
 	@Nonnull
-	Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds();
+	Map<String, S> getSortableAttributeCompounds();
 
 	/**
 	 * Returns definition of the sortable attribute compound of particular name.
 	 */
 	@Nonnull
-	Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name);
+	Optional<S> getSortableAttributeCompound(@Nonnull String name);
 
 	/**
 	 * Returns definition of the sortable attribute compound of particular name in specific naming convention.
 	 */
 	@Nonnull
-	Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention);
+	Optional<S> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention);
 
 	/**
 	 * Returns collection of all sortable attribute compounds that refer to an attribute of particular name.
@@ -62,6 +62,6 @@ public interface SortableAttributeCompoundSchemaProvider<T extends AttributeSche
 	 * @return collection of sortable attribute compounds that refer to the attribute of particular name
 	 */
 	@Nonnull
-	Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName);
+	Collection<S> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName);
 
 }

@@ -34,6 +34,8 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -60,7 +62,9 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & Comparable<T>> implements TransactionalLayerProducer<ComplexObjArrayChanges<T>, T[]> {
+public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & Comparable<T>>
+	implements TransactionalLayerProducer<ComplexObjArrayChanges<T>, T[]>, Serializable {
+	@Serial private static final long serialVersionUID = 1929748392138616409L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final Class<T> objectType;
 	private final boolean transactionalLayerProducer;

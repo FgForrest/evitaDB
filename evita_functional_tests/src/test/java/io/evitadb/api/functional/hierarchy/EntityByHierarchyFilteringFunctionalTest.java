@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
@@ -114,7 +115,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				return primaryKey == 0 ? null : primaryKey;
 			};
 
-			final List<EntityReference> storedCategories = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedCategories = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleCategorySchema(
 						session,
 						schemaBuilder -> {

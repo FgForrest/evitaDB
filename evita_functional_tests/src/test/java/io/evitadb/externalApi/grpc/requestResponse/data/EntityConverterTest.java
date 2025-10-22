@@ -35,9 +35,9 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
@@ -159,7 +159,7 @@ class EntityConverterTest {
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
 			Map.of(
 				"compoundAttribute",
-				SortableAttributeCompoundSchema._internalBuild(
+				EntitySortableAttributeCompoundSchema._internalBuild(
 					"compoundAttribute", "This is compound attribute", null, new Scope[] { Scope.LIVE },
 					Arrays.asList(
 						new AttributeElement("test1", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),

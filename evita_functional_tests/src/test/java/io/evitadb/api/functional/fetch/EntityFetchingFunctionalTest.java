@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -399,7 +400,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EvitaResponse<EntityReference> productByPk = session.queryEntityReference(
+				final EvitaResponse<EntityReferenceContract> productByPk = session.queryEntityReference(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
@@ -421,7 +422,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<EntityReference> productByPk = session.queryOneEntityReference(
+				final Optional<EntityReferenceContract> productByPk = session.queryOneEntityReference(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
@@ -639,7 +640,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EvitaResponse<EntityReference> productByPk = session.queryEntityReference(
+				final EvitaResponse<EntityReferenceContract> productByPk = session.queryEntityReference(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
@@ -3501,9 +3502,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References should be returned even if referenced entity doesn't exist")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldFetchEvenMissingReferences(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+	void shouldFetchEvenMissingReferences(Evita evita, List<SealedEntity> originalProducts, List<EntityReferenceContract> originalPriceLists) {
 		final Set<Integer> existingPriceLists = originalPriceLists.stream()
-			.map(EntityReference::getPrimaryKey)
+			.map(EntityReferenceContract::getPrimaryKey)
 			.collect(Collectors.toSet());
 
 		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
@@ -3552,9 +3553,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References should be returned even if referenced entity bodies doesn't exist")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldFetchEvenMissingReferenceBodies(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+	void shouldFetchEvenMissingReferenceBodies(Evita evita, List<SealedEntity> originalProducts, List<EntityReferenceContract> originalPriceLists) {
 		final Set<Integer> existingPriceLists = originalPriceLists.stream()
-			.map(EntityReference::getPrimaryKey)
+			.map(EntityReferenceContract::getPrimaryKey)
 			.collect(Collectors.toSet());
 
 		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
@@ -3624,9 +3625,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References should be returned only if referenced entity exists")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldFetchOnlyExistingReferences(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+	void shouldFetchOnlyExistingReferences(Evita evita, List<SealedEntity> originalProducts, List<EntityReferenceContract> originalPriceLists) {
 		final Set<Integer> existingPriceLists = originalPriceLists.stream()
-			.map(EntityReference::getPrimaryKey)
+			.map(EntityReferenceContract::getPrimaryKey)
 			.collect(Collectors.toSet());
 
 		final SealedEntity productWithMissingPriceLists = originalProducts.stream()
@@ -3678,9 +3679,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References should be returned only if referenced entity bodies exists")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldFetchOnlyExistingReferenceBodies(Evita evita, List<SealedEntity> originalProducts, List<EntityReference> originalPriceLists) {
+	void shouldFetchOnlyExistingReferenceBodies(Evita evita, List<SealedEntity> originalProducts, List<EntityReferenceContract> originalPriceLists) {
 		final Set<Integer> existingPriceLists = originalPriceLists.stream()
-			.map(EntityReference::getPrimaryKey)
+			.map(EntityReferenceContract::getPrimaryKey)
 			.collect(Collectors.toSet());
 
 		final SealedEntity productWithMissingPriceLists = originalProducts.stream()

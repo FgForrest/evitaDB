@@ -36,8 +36,13 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
+import io.evitadb.core.Evita;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
@@ -54,6 +59,7 @@ import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
@@ -69,8 +75,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -98,6 +107,10 @@ import static java.util.Optional.of;
  */
 @Slf4j
 public class TransactionManager implements Closeable {
+	/**
+	 * Reference to the evitaDB instance this transaction manager belongs to.
+	 */
+	private final Evita evita;
 	/**
 	 * Represents reference to the currently active catalog version in the "live view" of the evitaDB engine.
 	 */
@@ -187,6 +200,12 @@ public class TransactionManager implements Closeable {
 	 */
 	private final ReentrantLock catalogPropagationLock = new ReentrantLock(true);
 	/**
+	 * Queue of mutations that are waiting for their changes to be incorporated into the last finalized catalog.
+	 * We use linked list because we expect very short queue most of the time and we want to avoid array resizing,
+	 * that is usually empty.
+	 */
+	private final Deque<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue = new LinkedList<>();
+	/**
 	 * Name of the catalog.
 	 */
 	private String catalogName;
@@ -266,18 +285,19 @@ public class TransactionManager implements Closeable {
 
 	public TransactionManager(
 		@Nonnull Catalog catalog,
-		@Nonnull EvitaConfiguration configuration,
+		@Nonnull Evita evita,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
-		this.configuration = configuration;
+		this.evita = evita;
+		this.configuration = evita.getConfiguration();
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
-		final ChangeDataCaptureOptions cdcOptions = configuration.server().changeDataCapture();
+		final ChangeDataCaptureOptions cdcOptions = this.configuration.server().changeDataCapture();
 		this.changeObserver = cdcOptions.enabled() ?
 			new CatalogChangeObserver(
 				cdcOptions,
@@ -710,7 +730,12 @@ public class TransactionManager implements Closeable {
 
 							// and replay all the mutations of the entire transaction from the WAL
 							// this cannot be interrupted even if the timeout is exceeded and must be fully applied
-							final int[] processedCounts = replayMutationsOnCatalog(transactionMutation, lastTransaction, mutationIterator);
+							final int[] processedCounts = replayMutationsOnCatalog(
+								this.evita,
+								transactionMutation,
+								lastTransaction,
+								mutationIterator
+							);
 							atomicMutationCount += processedCounts[0] + 1;
 							localMutationCount += processedCounts[1];
 
@@ -799,6 +824,22 @@ public class TransactionManager implements Closeable {
 		try {
 			if (this.catalogPropagationLock.tryLock(0, TimeUnit.MILLISECONDS)) {
 				this.newCatalogVersionConsumer.accept(newCatalogVersion);
+				while (
+					!this.engineMutationsQueue.isEmpty() &&
+						this.engineMutationsQueue.peek().catalogVersion() <= newCatalogVersion.getVersion()
+				) {
+					// apply the mutation to the living catalog
+					final ModifyCatalogSchemaMutationWithCatalogVersion mcsmwcv = Objects.requireNonNull(
+						this.engineMutationsQueue.poll()
+					);
+					this.evita.applyMutation(
+						new ServerModifyCatalogSchemaMutation(
+							mcsmwcv.catalogVersion(),
+							mcsmwcv.schemaVersion(),
+							mcsmwcv.engineMutation()
+						)
+					);
+				}
 			} else {
 				throw new TransactionTimedOutException("Catalog propagation lock timed out!");
 			}
@@ -948,6 +989,7 @@ public class TransactionManager implements Closeable {
 	 * @param mutationIterator    The iterator containing the mutations to replay.
 	 */
 	private int[] replayMutationsOnCatalog(
+		@Nonnull Evita evita,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull Transaction transaction,
 		@Nonnull Iterator<CatalogBoundMutation> mutationIterator
@@ -956,17 +998,20 @@ public class TransactionManager implements Closeable {
 			transaction,
 			() -> {
 				final Catalog lastFinalizedCatalog = getLastFinalizedCatalog();
-				lastFinalizedCatalog.setVersion(transactionMutation.getVersion());
+				final long nextCatalogVersion = transactionMutation.getVersion();
+				lastFinalizedCatalog.setVersion(nextCatalogVersion);
 				this.changeObserver.processMutation(transactionMutation);
 				// init mutation counter
 				int atomicMutationCount = 0;
 				int localMutationCount = 0;
+				CompositeObjectArray<LocalCatalogSchemaMutation> schemaMutations = null;
 				while (atomicMutationCount < transactionMutation.getMutationCount() && mutationIterator.hasNext()) {
 					final CatalogBoundMutation mutation = mutationIterator.next();
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
 						lastFinalizedCatalog.applyMutation(
+							evita,
 							new ServerEntityUpsertMutation(
 								entityUpsertMutation,
 								EnumSet.allOf(ImplicitMutationBehavior.class),
@@ -976,14 +1021,21 @@ public class TransactionManager implements Closeable {
 						localMutationCount += entityUpsertMutation.getLocalMutations().size();
 					} else if (mutation instanceof EntityRemoveMutation entityRemoveMutation) {
 						lastFinalizedCatalog.applyMutation(
+							evita,
 							new ServerEntityRemoveMutation(
 								entityRemoveMutation, false, false
 							)
 						);
 						localMutationCount += entityRemoveMutation.getLocalMutations().size();
-					} else {
-						lastFinalizedCatalog.applyMutation(mutation);
+					} else if (mutation instanceof LocalCatalogSchemaMutation lcsm) {
+						lastFinalizedCatalog.updateSchema(evita, null, lcsm);
+						schemaMutations = schemaMutations == null ? new CompositeObjectArray<>(LocalCatalogSchemaMutation.class) : schemaMutations;
+						schemaMutations.add(lcsm);
 						localMutationCount++;
+					} else {
+						throw new GenericEvitaInternalError(
+							"Unsupported mutation type: " + mutation.getClass() + "!"
+						);
 					}
 
 					this.changeObserver.processMutation(mutation);
@@ -995,6 +1047,20 @@ public class TransactionManager implements Closeable {
 						"Transaction mutation mutation count: " + transactionMutation.getMutationCount() + ", " +
 						"actual mutation count: " + atomicMutationCount + "."
 				);
+				if (schemaMutations != null) {
+					final SealedCatalogSchema actualSchema = lastFinalizedCatalog.getSchema();
+					this.engineMutationsQueue.add(
+						new ModifyCatalogSchemaMutationWithCatalogVersion(
+							new ModifyCatalogSchemaMutation(
+								actualSchema.getName(),
+								null,
+								schemaMutations.toArray()
+							),
+							nextCatalogVersion,
+							actualSchema.version()
+						)
+					);
+				}
 				return new int[]{atomicMutationCount, localMutationCount};
 			}
 		);
@@ -1038,5 +1104,18 @@ public class TransactionManager implements Closeable {
 			return Long.compare(this.catalogVersion, other.catalogVersion);
 		}
 	}
+
+	/**
+	 * Internal record that keeps pairs of engine mutation and the catalog version it is visible in. This tuple is
+	 * propagated to engine WAL when the catalog version is incorporated in the trunk.
+	 * @param engineMutation the engine mutation to propagate
+	 * @param catalogVersion the catalog version the mutation is visible in
+	 * @param schemaVersion the schema version which contains the altered schema
+	 */
+	private record ModifyCatalogSchemaMutationWithCatalogVersion(
+		@Nonnull ModifyCatalogSchemaMutation engineMutation,
+		long catalogVersion,
+		int schemaVersion
+	) {}
 
 }

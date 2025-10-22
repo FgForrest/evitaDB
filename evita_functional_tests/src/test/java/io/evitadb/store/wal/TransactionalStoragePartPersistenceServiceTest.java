@@ -30,6 +30,7 @@ import io.evitadb.store.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
+import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.model.StoragePart;
@@ -92,6 +93,7 @@ class TransactionalStoragePartPersistenceServiceTest {
 				SchemaKryoConfigurer.INSTANCE
 					.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
 					.andThen(SharedClassesConfigurer.INSTANCE)
+					.andThen(SharedIndexStoragePartConfigurer.INSTANCE)
 					.andThen(new EntityStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
 					.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
 			),

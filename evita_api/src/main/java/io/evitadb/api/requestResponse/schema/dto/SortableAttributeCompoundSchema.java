@@ -112,6 +112,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 			attributeElements
 		);
 	}
+
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
 	 * different package than current, but still internal code of the Evita ecosystems.
@@ -137,7 +138,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 		);
 	}
 
-	private SortableAttributeCompoundSchema(
+	protected SortableAttributeCompoundSchema(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,

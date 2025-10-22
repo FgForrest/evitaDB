@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -38,7 +39,6 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttribut
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -353,9 +353,9 @@ class EvitaApiFunctionalTest {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityReference brand = createBrand(session, 1).upsertVia(session);
-				final EntityReference category = createCategory(session, 1).upsertVia(session);
-				final EntityReference productRef = createProduct(session, 1, brand, category).upsertVia(session);
+				final EntityReferenceContract brand = createBrand(session, 1).upsertVia(session);
+				final EntityReferenceContract category = createCategory(session, 1).upsertVia(session);
+				final EntityReferenceContract productRef = createProduct(session, 1, brand, category).upsertVia(session);
 				// select existing entity
 				final SealedEntity product = getProductById(session, 1).orElseThrow();
 				// modify the entity contents
@@ -379,9 +379,9 @@ class EvitaApiFunctionalTest {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityReference brand = createBrand(session, 1).upsertVia(session);
-				final EntityReference category = createCategory(session, 1).upsertVia(session);
-				final EntityReference productRef = createProduct(session, 1, brand, category).upsertVia(session);
+				final EntityReferenceContract brand = createBrand(session, 1).upsertVia(session);
+				final EntityReferenceContract category = createCategory(session, 1).upsertVia(session);
+				final EntityReferenceContract productRef = createProduct(session, 1, brand, category).upsertVia(session);
 				// select existing entity
 				final SealedEntity product = getProductById(session, 1).orElseThrow();
 				// modify the entity contents
@@ -449,9 +449,9 @@ class EvitaApiFunctionalTest {
 				final SealedEntity createdEntity = session.getEntity(
 					productReference.getType(), Objects.requireNonNull(productReference.getPrimaryKey()), entityFetchAllContent()
 				).orElseThrow();
-				final EntityReference categoryTwo = session.upsertEntity(createCategory(session, 2));
+				final EntityReferenceContract categoryTwo = session.upsertEntity(createCategory(session, 2));
 				// alter full-featured entity
-				final EntityReference productRef = session.upsertEntity(updateProduct(createdEntity, categoryTwo));
+				final EntityReferenceContract productRef = session.upsertEntity(updateProduct(createdEntity, categoryTwo));
 				product.set(
 					session.getEntity(productRef.getType(), productRef.getPrimaryKey(), entityFetchAllContent()).orElseThrow()
 				);
@@ -1441,7 +1441,7 @@ class EvitaApiFunctionalTest {
 		return newCategory;
 	}
 
-	private EntityBuilder createProduct(EvitaSessionContract session, int primaryKey, EntityReference brand, EntityReference category) {
+	private EntityBuilder createProduct(EvitaSessionContract session, int primaryKey, EntityReferenceContract brand, EntityReferenceContract category) {
 		final EntityBuilder newProduct = session.createNewEntity(PRODUCT, primaryKey);
 		newProduct.setAttribute("code", "SX87Y800BE");
 		newProduct.setAttribute("name", LOCALE_CZECH, "iQ700 Plně vestavná myčka nádobí 60 cm XXL");
@@ -1493,7 +1493,7 @@ class EvitaApiFunctionalTest {
 		return newProduct;
 	}
 
-	private EntityBuilder updateProduct(SealedEntity createdEntity, EntityReference newCategory) {
+	private EntityBuilder updateProduct(SealedEntity createdEntity, EntityReferenceContract newCategory) {
 		return createdEntity.openForWrite()
 			// add new
 			.setAttribute("aquaStop", true)
@@ -1516,7 +1516,7 @@ class EvitaApiFunctionalTest {
 			// add new
 			.setReference(newCategory.getType(), newCategory.getPrimaryKey())
 			// update existing
-			.setReference(
+			.updateReference(
 				CATEGORY, 1,
 				thatIs -> {
 					thatIs.setGroup("CATEGORY_GROUP", 45);
@@ -1536,10 +1536,10 @@ class EvitaApiFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				// create referenced entities
-				final EntityReference brand = session.upsertEntity(createBrand(session, 1));
-				final EntityReference category = session.upsertEntity(createCategory(session, 1));
+				final EntityReferenceContract brand = session.upsertEntity(createBrand(session, 1));
+				final EntityReferenceContract category = session.upsertEntity(createCategory(session, 1));
 				// create full-featured entity
-				final EntityReference productRef = session.upsertEntity(createProduct(session, 1, brand, category));
+				final EntityReferenceContract productRef = session.upsertEntity(createProduct(session, 1, brand, category));
 				product.set(
 					session.getEntity(productRef.getType(), productRef.getPrimaryKey(), entityFetchAllContent())
 						.orElseThrow()

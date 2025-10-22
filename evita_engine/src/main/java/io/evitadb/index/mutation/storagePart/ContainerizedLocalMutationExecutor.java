@@ -24,6 +24,9 @@
 package io.evitadb.index.mutation.storagePart;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
+import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
@@ -49,12 +52,14 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMut
 import io.evitadb.api.requestResponse.data.mutation.parent.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.Reference;
@@ -78,6 +83,7 @@ import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjBiFunction;
@@ -110,6 +116,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -170,6 +177,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<Locale, AttributesStoragePart> languageSpecificAttributesContainer;
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
+	private Map<ComparableReferenceKey, ReferenceKey> assignedPrimaryKeys;
 	private Set<Locale> addedLocales;
 	private Set<Locale> removedLocales;
 
@@ -820,7 +828,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	public void finishLocalMutationExecutionPhase() {
 		if (this.referencesStorageContainer != null) {
-			this.referencesStorageContainer.assignMissingIdsAndSort();
+			this.assignedPrimaryKeys = this.referencesStorageContainer.assignMissingIdsAndSort();
 		}
 	}
 
@@ -1108,6 +1116,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	public int getEntityPrimaryKey() {
 		return this.entityPrimaryKey;
+	}
+
+	/**
+	 * Retrieves the list of primary keys that have been assigned.
+	 *
+	 * @return a map of old {@link ReferenceKey} which has been replaced with new {@link ReferenceKey} with
+	 *         assigned internal primary key.
+	 */
+	@Nonnull
+	public Map<ComparableReferenceKey, ReferenceKey> getAssignedPrimaryKeys() {
+		return this.assignedPrimaryKeys == null ?
+			Collections.emptyMap() : this.assignedPrimaryKeys;
 	}
 
 	/**
@@ -1871,6 +1891,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		Set<ReferenceKey> removedReferences = null;
 
 		// go through all input mutations
+		final Map<EntityReference, List<ReferenceAttributeMutation>> referenceAttributeMutationsByEntityReference = new LazyHashMap<>(inputMutations.size());
 		for (LocalMutation<?, ?> inputMutation : inputMutations) {
 			// and check if there are any reference attribute mutation
 			if (inputMutation instanceof ReferenceAttributeMutation ram) {
@@ -1894,23 +1915,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						if (globalIndex != null) {
 							// and whether it contains the entity we are referencing to
 							if (globalIndex.contains(referenceKey.primaryKey())) {
-								// create shared factory for creating entity mutations (shared logic)
-								final Function<ReferenceAttributeMutation, ServerEntityUpsertMutation> entityMutationFactory =
-									referenceAttributeMutation -> new ServerEntityUpsertMutation(
-										referenceSchema.getReferencedEntityType(),
-										referenceKey.primaryKey(),
-										EntityExistence.MUST_EXIST,
-										EnumSet.noneOf(ImplicitMutationBehavior.class),
-										true,
-										true,
-										referenceAttributeMutation
-									);
-
 								// if the current reference is a reflected reference
 								if (referenceSchema instanceof ReflectedReferenceSchemaContract rrsc) {
-									final boolean attributeVisibleFromOtherSide = catalogSchema.getEntitySchema(rrsc.getReferencedEntityType())
+									final boolean attributeVisibleFromOtherSide = catalogSchema
+										.getEntitySchema(rrsc.getReferencedEntityType())
 										.flatMap(it -> it.getReference(rrsc.getReflectedReferenceName()))
-										.map(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
+										.flatMap(it -> it.getAttribute(ram.getAttributeKey().attributeName()))
 										.isPresent();
 									// create a mutation to counterpart reference in the referenced entity
 									// but only if the attribute is visible from that point of view
@@ -1927,13 +1937,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										);
 										if (!removedReferences.contains(referenceKeyToUpdate)) {
 											// only if the counterpart reference wasn't removed in the same update
-											mutationCollector.addExternalMutation(
-												entityMutationFactory.apply(
-													new ReferenceAttributeMutation(
-														referenceKeyToUpdate,
-														toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-													)
-												)
+											registerPropagatedReferenceAttributeMutation(
+												referenceSchema, ram, referenceAttributeMutationsByEntityReference,
+												referenceKey, referenceKeyToUpdate
 											);
 										}
 									}
@@ -1970,13 +1976,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 											);
 											if (!removedReferences.contains(referenceKeyToUpdate)) {
 												// only if the counterpart reference wasn't removed in the same update
-												mutationCollector.addExternalMutation(
-													entityMutationFactory.apply(
-														new ReferenceAttributeMutation(
-															referenceKeyToUpdate,
-															toInvertedTypeAttributeMutation(ram.getAttributeMutation())
-														)
-													)
+												// only if the counterpart reference wasn't removed in the same update
+												registerPropagatedReferenceAttributeMutation(
+													referenceSchema, ram, referenceAttributeMutationsByEntityReference,
+													referenceKey, referenceKeyToUpdate
 												);
 											}
 										}
@@ -1988,6 +1991,53 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				}
 			}
 		}
+		// finally register upsert mutations for all collected reference attribute mutations
+		for (Entry<EntityReference, List<ReferenceAttributeMutation>> entry : referenceAttributeMutationsByEntityReference.entrySet()) {
+			mutationCollector.addExternalMutation(
+				new ServerEntityUpsertMutation(
+					entry.getKey().getType(),
+					entry.getKey().primaryKey(),
+					EntityExistence.MUST_EXIST,
+					EnumSet.noneOf(ImplicitMutationBehavior.class),
+					true,
+					true,
+					entry.getValue().toArray(ReferenceAttributeMutation[]::new)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Registers a propagated reference attribute mutation by associating it with a specific entity reference
+	 * and grouping it within a map of reference attribute mutations by entity reference.
+	 *
+	 * @param referenceSchema The schema of the reference that defines the metadata and constraints for the reference.
+	 * @param ram The reference attribute mutation to be propagated and registered.
+	 * @param referenceAttributeMutationsByEntityReference A map that organizes reference attribute mutations
+	 *        by the corresponding entity reference.
+	 * @param referenceKey The key of the reference for which the mutation is being registered.
+	 * @param referenceKeyToUpdate The key indicating the specific reference attribute mutation to be updated.
+	 */
+	private static void registerPropagatedReferenceAttributeMutation(
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull ReferenceAttributeMutation ram,
+		@Nonnull Map<EntityReference, List<ReferenceAttributeMutation>> referenceAttributeMutationsByEntityReference,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceKey referenceKeyToUpdate
+	) {
+		referenceAttributeMutationsByEntityReference.computeIfAbsent(
+			new EntityReference(
+				referenceSchema.getReferencedEntityType(),
+				referenceKey.primaryKey()
+			),
+			// we don't expect many mutations per entity reference
+			it -> new LinkedList<>()
+		).add(
+			new ReferenceAttributeMutation(
+				referenceKeyToUpdate,
+				toInvertedTypeAttributeMutation(ram.getAttributeMutation())
+			)
+		);
 	}
 
 	/**
@@ -2060,33 +2110,79 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nullable ReferencesStoragePart referencesStorageContainer
 	) throws ReferenceCardinalityViolatedException {
 		final EntitySchemaContract entitySchema = this.schemaAccessor.get();
-		/* TODO JNO - handle duplicate cardinality */
 		final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
 		if (references.isEmpty()) {
 			return;
 		}
-		final List<CardinalityViolation> violations = references
-			.values()
-			.stream()
-			.flatMap(it -> {
-				final int referenceCount = ofNullable(referencesStorageContainer)
-					.map(ref -> ref.getReferencedIds(it.getName()).length)
-					.orElse(0);
-				if (!(it instanceof ReflectedReferenceSchemaContract rrsc) || rrsc.isReflectedReferenceAvailable()) {
-					final Cardinality cardinality = it.getCardinality();
-					if (referenceCount < cardinality.getMin()) {
-						return Stream.of(new CardinalityViolation(it.getName(), cardinality, referenceCount));
-					} else if (referenceCount > cardinality.getMax()) {
-						return Stream.of(new CardinalityViolation(it.getName(), cardinality, referenceCount));
-					} else {
-						return Stream.empty();
+		ObjectIntMap<String> referencesFound = new ObjectIntHashMap<>(references.size());
+		ObjectIntMap<ReferenceKey> duplicatedReferenceFound = null;
+		if (referencesStorageContainer != null) {
+			ReferenceSchemaContract referenceSchema = null;
+			final Reference[] cntReferences = referencesStorageContainer.getReferences();
+			for (int i = 0; i < cntReferences.length; i++) {
+				final Reference reference = cntReferences[i];
+				if (reference.exists()) {
+					if (referenceSchema == null || !referenceSchema.getName().equals(reference.getReferenceName())) {
+						referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
 					}
-				} else {
-					return Stream.empty();
+					// skip reflected references that are not available
+					if (referenceSchema instanceof final ReflectedReferenceSchemaContract rrsc) {
+						if (!rrsc.isReflectedReferenceAvailable()) {
+							while (cntReferences.length > i + 1 && cntReferences[i + 1].getReferenceName().equals(
+								rrsc.getName())) {
+								i++;
+							}
+							continue;
+						}
+					}
+					referencesFound.putOrAdd(reference.getReferenceName(), 1, 1);
+					if (!referenceSchema.getCardinality().allowsDuplicates()) {
+						if (duplicatedReferenceFound == null) {
+							duplicatedReferenceFound = new ObjectIntHashMap<>();
+						}
+						duplicatedReferenceFound.putOrAdd(reference.getReferenceKey(), 1, 1);
+					}
 				}
-			})
-			.toList();
-		if (!violations.isEmpty()) {
+			}
+		}
+		List<CardinalityViolation> violations = null; // lazy to minimize allocations
+		for (ReferenceSchemaContract examinedSchema : entitySchema.getReferences().values()) {
+			final Cardinality cardinality = examinedSchema.getCardinality();
+			final String referenceName = examinedSchema.getName();
+			if (cardinality.getMin() > 0 && !referencesFound.containsKey(referenceName)) {
+				if (violations == null) {
+					violations = new LinkedList<>();
+				}
+				violations.add(
+					new CardinalityViolation(referenceName, cardinality, 0, false)
+				);
+			} else if (cardinality.getMax() <= 0 && referencesFound.get(referenceName) > 1) {
+				if (violations == null) {
+					violations = new LinkedList<>();
+				}
+				violations.add(
+					new CardinalityViolation(referenceName, cardinality, referencesFound.get(referenceName), false)
+				);
+			}
+		}
+		if (duplicatedReferenceFound != null) {
+			for (ObjectIntCursor<ReferenceKey> cursor : duplicatedReferenceFound) {
+				if (cursor.value > 1) {
+					if (violations == null) {
+						violations = new LinkedList<>();
+					}
+					violations.add(
+						new CardinalityViolation(
+							cursor.key.referenceName(),
+							entitySchema.getReferenceOrThrowException(cursor.key.referenceName()).getCardinality(),
+							cursor.value,
+							true
+						)
+					);
+				}
+			}
+		}
+		if (violations != null && !violations.isEmpty()) {
 			throw new ReferenceCardinalityViolatedException(entitySchema.getName(), violations);
 		}
 	}

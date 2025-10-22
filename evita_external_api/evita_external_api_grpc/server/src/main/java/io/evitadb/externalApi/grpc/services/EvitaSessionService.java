@@ -47,10 +47,13 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -1619,12 +1622,40 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					);
 
 				if (ArrayUtils.isEmpty(entityContentRequires)) {
-					final EntityReference entityReference = session.upsertEntity(entityMutation);
-					builder.setEntityReference(GrpcEntityReference.newBuilder()
-					                                              .setEntityType(entityReference.getType())
-					                                              .setPrimaryKey(entityReference.getPrimaryKey())
-					                                              .build()
-					);
+					final EntityReferenceContract entityReference = session.upsertEntity(entityMutation);
+					if (entityReference instanceof EntityReferenceWithAssignedPrimaryKeys erwapk) {
+						final GrpcEntityReferenceWithAssignedPrimaryKeys.Builder mappingBuilder = GrpcEntityReferenceWithAssignedPrimaryKeys
+							.newBuilder()
+							.setEntityType(erwapk.getType())
+							.setPrimaryKey(erwapk.getPrimaryKey());
+						erwapk.reassignedReferenceKeys()
+							.entrySet()
+							.stream()
+							.map(
+								entry -> {
+									final ReferenceKey original = entry.getKey().referenceKey();
+									final ReferenceKey reassigned = entry.getValue();
+									return GrpcReferenceKeyPair
+										.newBuilder()
+										.setReferenceName(original.referenceName())
+										.setPrimaryKey(original.primaryKey())
+										.setOriginalInternalPrimaryKey(original.internalPrimaryKey())
+										.setReassignedInternalPrimaryKey(reassigned.internalPrimaryKey())
+										.build();
+								}
+							)
+							.forEach(mappingBuilder::addReassignedReferenceKeys);
+						builder.setEntityReferenceWithAssignedPrimaryKeys(
+							mappingBuilder.build()
+						);
+					} else {
+						builder.setEntityReference(
+							GrpcEntityReference.newBuilder()
+								.setEntityType(entityReference.getType())
+								.setPrimaryKey(entityReference.getPrimaryKey())
+								.build()
+						);
+					}
 				} else {
 					final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 					final SealedEntity updatedEntity = session.upsertAndFetchEntity(

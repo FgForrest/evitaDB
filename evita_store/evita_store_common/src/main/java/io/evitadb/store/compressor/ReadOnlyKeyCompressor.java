@@ -60,7 +60,7 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 	 */
 	private final Map<Object, Integer> keyToIdIndex;
 
-	public ReadOnlyKeyCompressor(Map<Integer, Object> keys) {
+	public ReadOnlyKeyCompressor(@Nonnull Map<Integer, Object> keys) {
 		int peek = 0;
 		final Map<Integer, Object> idToKeyIndexInstance = createHashMap(keys.size());
 		final Map<Object, Integer> keyToIdIndexInstance = createHashMap(keys.size());

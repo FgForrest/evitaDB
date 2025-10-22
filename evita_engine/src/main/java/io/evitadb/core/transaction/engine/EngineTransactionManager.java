@@ -32,15 +32,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.*;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.ExpandedEngineState;
@@ -366,42 +358,59 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull UUID transactionId,
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver,
-		@Nullable Runnable onCompletion
+		@Nonnull Runnable onCompletion
 	) {
-		@SuppressWarnings("unchecked")
-		final EngineMutationOperator<T, EngineMutation<T>> engineMutationOperator =
-			(EngineMutationOperator<T, EngineMutation<T>>) this.engineMutationOperators.get(engineMutation.getClass());
-		Assert.isPremiseValid(engineMutationOperator != null, "Unknown engine mutation operator for mutation: " + engineMutation.getClass());
-
-		final Consumer<ProgressRecord<T>> onProgressExecution;
-		final Consumer<ProgressRecord<T>> onProgressCompletion;
-		if (engineMutation instanceof TopLevelCatalogMutation<?> catalogMutation) {
-			onProgressExecution = progress -> this.currentCatalogMutations.put(catalogMutation.getCatalogName(), progress);
-			onProgressCompletion = progress -> {
-				this.currentCatalogMutations.remove(catalogMutation.getCatalogName());
-				if (onCompletion != null) {
-					onCompletion.run();
-				}
-			};
+		if (engineMutation instanceof ServerModifyCatalogSchemaMutation smcsm) {
+			// this specific king of mutation occurs only in Catalog transaction manager when already accepted
+			// and verified transaction is replayed against the engine, so here we just need to write it to the
+			// engine WAL and broadcast the change to the observers - but we don't need really to apply this mutation
+			// on the catalog level, as the operator normally does, because the change is already incorporated by
+			// the catalog transaction manager
+			updateEngineStateAfterEngineMutation(
+				ModifyCatalogSchemaMutationOperator.increaseEngineVersionOnly(
+					transactionId,
+					smcsm.getDelegate()
+				)
+			);
+			onCompletion.run();
+			//noinspection unchecked
+			return (Progress<T>) ProgressRecord.completed("engineUpdate", Void.class);
 		} else {
-			onProgressExecution = Functions.noOpConsumer();
-			onProgressCompletion = onCompletion == null ?
-				Functions.noOpConsumer() :
-				progress -> onCompletion.run();
-		}
+			@SuppressWarnings("unchecked") final EngineMutationOperator<T, EngineMutation<T>> engineMutationOperator =
+				(EngineMutationOperator<T, EngineMutation<T>>) this.engineMutationOperators.get(
+					engineMutation.getClass());
+			Assert.isPremiseValid(
+				engineMutationOperator != null,
+				"Unknown engine mutation operator for mutation: " + engineMutation.getClass()
+			);
 
-		return new ProgressRecord<>(
-			engineMutationOperator.getOperationName(engineMutation),
-			progressObserver == null ? Functions.noOpIntConsumer() : progressObserver,
-			engineMutationOperator.applyMutation(
-				transactionId, engineMutation, this.evita,
-				this::updateEngineStateBeforeEngineMutation,
-				this::updateEngineStateAfterEngineMutation
-			),
-			onProgressExecution,
-			onProgressCompletion,
-			this.engineExecutor
-		);
+			final Consumer<ProgressRecord<T>> onProgressExecution;
+			final Consumer<ProgressRecord<T>> onProgressCompletion;
+			if (engineMutation instanceof TopLevelCatalogMutation<?> catalogMutation) {
+				onProgressExecution = progress -> this.currentCatalogMutations.put(
+					catalogMutation.getCatalogName(), progress);
+				onProgressCompletion = progress -> {
+					this.currentCatalogMutations.remove(catalogMutation.getCatalogName());
+					onCompletion.run();
+				};
+			} else {
+				onProgressExecution = Functions.noOpConsumer();
+				onProgressCompletion = progress -> onCompletion.run();
+			}
+
+			return new ProgressRecord<>(
+				engineMutationOperator.getOperationName(engineMutation),
+				progressObserver == null ? Functions.noOpIntConsumer() : progressObserver,
+				engineMutationOperator.applyMutation(
+					transactionId, engineMutation, this.evita,
+					this::updateEngineStateBeforeEngineMutation,
+					this::updateEngineStateAfterEngineMutation
+				),
+				onProgressExecution,
+				onProgressCompletion,
+				this.engineExecutor
+			);
+		}
 	}
 
 	/**

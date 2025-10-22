@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
@@ -489,9 +490,9 @@ public class ReducedEntityIndex extends EntityIndex
 			referenceSchema != null,
 			() -> "The reference schema must be provided index data in reduced entity index!"
 		);
-		/* TODO JNO - this needs to be better distinguished - name is not enough!! */
 		Assert.isPremiseValid(
-			referenceSchema.getSortableAttributeCompound(compoundSchema.getName()).isPresent() || referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			!(compoundSchema instanceof EntitySortableAttributeCompoundSchemaContract)
+			|| referenceSchema.getReferenceIndexType(this.indexKey.scope()) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			() -> "This operation is allowed only for indexes that are used for filtering and partitioning! Current index type is: " + Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
 		);
 	}

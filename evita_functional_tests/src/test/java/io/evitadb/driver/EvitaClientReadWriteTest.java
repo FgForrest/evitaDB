@@ -359,7 +359,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					              )
 					              .limit(PRODUCT_COUNT)
 					              .forEach(it -> {
-						              final EntityReference upsertedProduct = session.upsertEntity(it);
+						              final EntityReferenceContract upsertedProduct = session.upsertEntity(it);
 						              theProducts.put(
 							              upsertedProduct.getPrimaryKey(),
 							              session.getEntity(
@@ -644,7 +644,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities,
 		@Nonnull EntityBuilder it
 	) {
-		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
+		final EntityReferenceContract insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
 			(serializable, existing) -> ofNullable(existing).orElse(0) + 1
@@ -652,16 +652,17 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Nonnull
-	private static EntityReference createSomeNewCategory(
+	private static EntityReferenceContract createSomeNewCategory(
 		@Nonnull EvitaSessionContract session,
 		int primaryKey,
 		@Nullable Integer parentPrimaryKey
 	) {
-		final EntityBuilder builder = session.createNewEntity(Entities.CATEGORY, primaryKey)
-		                                     .setAttribute(
-			                                     ATTRIBUTE_NAME, Locale.ENGLISH, "New category #" + primaryKey)
-		                                     .setAttribute(ATTRIBUTE_CODE, "category-" + primaryKey)
-		                                     .setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
+		final EntityBuilder builder = session
+			.createNewEntity(Entities.CATEGORY, primaryKey)
+			.setAttribute(
+				ATTRIBUTE_NAME, Locale.ENGLISH, "New category #" + primaryKey)
+			.setAttribute(ATTRIBUTE_CODE, "category-" + primaryKey)
+			.setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
 
 		if (parentPrimaryKey == null) {
 			builder.removeParent();
@@ -674,13 +675,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Nonnull
 	private static EntityMutation createSomeNewProduct(@Nonnull EvitaSessionContract session) {
-		return session.createNewEntity(Entities.PRODUCT)
-		              .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New product")
-		              .setAttribute(
-			              ATTRIBUTE_CODE, "product-" + (session.getEntityCollectionSize(Entities.PRODUCT) + 1))
-		              .setAttribute(ATTRIBUTE_PRIORITY, session.getEntityCollectionSize(Entities.PRODUCT) + 1L)
-		              .toMutation()
-		              .orElseThrow();
+		return session
+			.createNewEntity(Entities.PRODUCT)
+			.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New product")
+			.setAttribute(
+				ATTRIBUTE_CODE, "product-" + (session.getEntityCollectionSize(Entities.PRODUCT) + 1))
+			.setAttribute(ATTRIBUTE_PRIORITY, session.getEntityCollectionSize(Entities.PRODUCT) + 1L)
+			.setReference(Entities.PARAMETER, 1)
+			.setReference(Entities.PARAMETER, 2)
+			.toMutation()
+			.orElseThrow();
 	}
 
 	private static void assertSomeNewProductContent(@Nonnull SealedEntity loadedEntity) {
@@ -1654,7 +1658,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				final EntityMutation entityMutation = createSomeNewProduct(session);
 				assertNotNull(entityMutation);
 
-				final EntityReference newProduct = session.upsertEntity(entityMutation);
+				final EntityReferenceContract newProduct = session.upsertEntity(entityMutation);
 				newProductId.set(newProduct.getPrimaryKey());
 			}
 		);
@@ -1662,9 +1666,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity loadedEntity = session.getEntity(
-					                                         Entities.PRODUCT, newProductId.get(), entityFetchAllContent())
-				                                         .orElseThrow();
+				final SealedEntity loadedEntity = session
+					.getEntity(
+						Entities.PRODUCT, newProductId.get(), entityFetchAllContent())
+					.orElseThrow();
 
 				assertSomeNewProductContent(loadedEntity);
 			}
@@ -2469,8 +2474,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				       .setAttribute(ATTRIBUTE_CODE, "TV-123")
 				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
 				       .setReference(
-					       Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
-					                                               .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+					       Entities.CATEGORY, 2,
+					       whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
+					                                       .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
 				       )
 				       .setPrice(
 					       1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"),

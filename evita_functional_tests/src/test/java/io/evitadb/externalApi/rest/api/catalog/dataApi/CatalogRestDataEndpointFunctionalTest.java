@@ -24,20 +24,11 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import com.github.javafaker.Faker;
-import io.evitadb.api.requestResponse.data.AssociatedDataContract;
+import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
-import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
@@ -141,7 +132,7 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
 						builder -> {

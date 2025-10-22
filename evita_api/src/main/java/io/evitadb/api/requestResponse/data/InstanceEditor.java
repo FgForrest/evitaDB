@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.api.requestResponse.data;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -86,7 +85,7 @@ public interface InstanceEditor<READ_INTERFACE extends Serializable> extends Ser
 	 * @return the reference to the updated / created entity
 	 */
 	@Nonnull
-	default EntityReference upsertVia(@Nonnull EvitaSessionContract session) {
+	default EntityReferenceContract upsertVia(@Nonnull EvitaSessionContract session) {
 		return session.upsertEntity(this);
 	}
 
@@ -99,7 +98,7 @@ public interface InstanceEditor<READ_INTERFACE extends Serializable> extends Ser
 	 * @return the reference to the updated / created entity
 	 */
 	@Nonnull
-	default List<EntityReference> upsertDeeplyVia(@Nonnull EvitaSessionContract session) {
+	default List<EntityReferenceContract> upsertDeeplyVia(@Nonnull EvitaSessionContract session) {
 		return session.upsertEntityDeeply(this);
 	}
 

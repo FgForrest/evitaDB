@@ -27,37 +27,54 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.cardinality.CardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
+import java.io.Serializable;
+import java.util.Map;
+
 /**
- * This {@link Serializer} implementation reads/writes {@link CardinalityIndex} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link AttributeCardinalityIndex} from/to binary format.
  *
  * @deprecated only for backward compatibility purposes
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Deprecated(since = "2025.5", forRemoval = true)
 @RequiredArgsConstructor
-public class CardinalityIndexStoragePartSerializer_2025_5 extends Serializer<CardinalityIndexStoragePart>
+public class AttributeCardinalityIndexStoragePartSerializer_2025_5 extends Serializer<AttributeCardinalityIndexStoragePart>
 	implements AttributeKeyToAttributeKeyIndexBridge {
 	private final KeyCompressor keyCompressor;
 
 	@Override
-	public void write(Kryo kryo, Output output, CardinalityIndexStoragePart filterIndex) {
+	public void write(Kryo kryo, Output output, AttributeCardinalityIndexStoragePart filterIndex) {
 		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
-	public CardinalityIndexStoragePart read(Kryo kryo, Input input, Class<? extends CardinalityIndexStoragePart> type) {
+	public AttributeCardinalityIndexStoragePart read(Kryo kryo, Input input, Class<? extends AttributeCardinalityIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeKey = getAttributeIndexKey(input, this.keyCompressor);
 
-		final CardinalityIndex cardinalityIndex = kryo.readObject(input, CardinalityIndex.class);
-		return new CardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);
+		// skip serialUUID for removed CardinalityIndexSerializer
+		input.readLong();
+
+		@SuppressWarnings("unchecked") final Class<? extends Serializable> valueType = kryo.readClass(input).getType();
+		final int cardinalityCount = input.readVarInt(true);
+		final Map<AttributeCardinalityKey, Integer> cardinalities = CollectionUtils.createHashMap(cardinalityCount);
+		for (int i = 0; i < cardinalityCount; i++) {
+			final Serializable value = kryo.readObject(input, valueType);
+			final int recordId = input.readVarInt(false);
+			final int cardinality = input.readVarInt(true);
+			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);
+		}
+		final AttributeCardinalityIndex cardinalityIndex = new AttributeCardinalityIndex(valueType, cardinalities);
+		return new AttributeCardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);
 	}
 
 }

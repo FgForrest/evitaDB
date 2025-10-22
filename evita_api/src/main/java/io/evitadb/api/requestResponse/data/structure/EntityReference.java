@@ -24,8 +24,6 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -52,10 +50,10 @@ import java.util.Objects;
 public record EntityReference(
 	@Nonnull String type,
 	int primaryKey
-) implements EntityReferenceContract<EntityReference>, Serializable {
+) implements EntityReferenceContract, Serializable {
 	@Serial private static final long serialVersionUID = 7432447904441796055L;
 
-	public EntityReference(@Nonnull EntityReferenceContract<EntityReference> entityReference) {
+	public EntityReference(@Nonnull EntityReferenceContract entityReference) {
 		this(entityReference.getType(), entityReference.getPrimaryKey());
 	}
 
@@ -72,7 +70,7 @@ public record EntityReference(
 	}
 
 	@Override
-	public int compareTo(@Nonnull EntityReference o) {
+	public int compareTo(@Nonnull EntityReferenceContract o) {
 		return compareReferenceContract(o);
 	}
 
@@ -80,7 +78,7 @@ public record EntityReference(
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || !EntityReferenceContract.class.isAssignableFrom(o.getClass())) return false;
-		EntityReferenceContract<?> that = (EntityReferenceContract<?>) o;
+		EntityReferenceContract that = (EntityReferenceContract) o;
 		return this.primaryKey == that.getPrimaryKey() && this.type.equals(that.getType());
 	}
 
@@ -93,18 +91,6 @@ public record EntityReference(
 	@Override
 	public String toString() {
 		return this.type + ": " + this.primaryKey;
-	}
-
-	/**
-	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
-	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
-	 */
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			// type
-			EvitaDataTypes.estimateSize(this.type) +
-			// primary key
-			MemoryMeasuringConstants.INT_SIZE;
 	}
 
 }

@@ -32,11 +32,11 @@ import io.evitadb.api.proxy.mock.CategoryInterfaceSealed;
 import io.evitadb.api.proxy.mock.ProductInterfaceEditor;
 import io.evitadb.api.proxy.mock.SealedProductInterface;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
@@ -332,7 +332,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+				final EntityReferenceContract newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
 					.setCode("product-1")
 					.setName(CZECH_LOCALE, "Produkt 1")
 					.setEnum(TestEnum.ONE)
@@ -348,7 +348,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 				).orElseThrow();
 
 				final ProductInterfaceEditor productEditor = sealedProduct.openForWrite();
-				final List<EntityReference> storedReferences = productEditor.setNewBrand(
+				final List<EntityReferenceContract> storedReferences = productEditor.setNewBrand(
 						newBrand -> {
 							final BrandInterfaceEditor brandEditor = newBrand.setCode("brand-1");
 							brandEditor.setNewStore(
@@ -362,7 +362,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 
 				assertEquals(3, storedReferences.size());
 				int toFind = 3;
-				for (EntityReference storedReference : storedReferences) {
+				for (EntityReferenceContract storedReference : storedReferences) {
 					final SealedEntity theEntity = evitaSession.getEntity(
 						storedReference.getType(), storedReference.getPrimaryKey(), entityFetchAllContent()
 					).orElseThrow();

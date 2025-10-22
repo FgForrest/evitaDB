@@ -26,12 +26,10 @@ package io.evitadb.store.spi.model.storageParts.index;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -53,7 +51,6 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
 @ToString(of = "entityIndexKey")
 public class EntityIndexStoragePart implements StoragePart {
 	@Serial private static final long serialVersionUID = -5960890423106351315L;
@@ -99,16 +96,6 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * allows to translate itself to a unique key allowing to fetch {@link StoragePart} from persistent storage.
 	 */
 	@Getter private final Set<String> facetIndexes;
-	/**
-	 * This field is initialized only by {@link io.evitadb.index.ReferencedTypeEntityIndex} - for other indexes it is
-	 * empty.
-	 */
-	@Getter private final CardinalityIndex indexPrimaryKeyCardinality;
-	/**
-	 * This field is initialized only by {@link io.evitadb.index.ReferencedTypeEntityIndex} - for other indexes it is
-	 * empty.
-	 */
-	@Getter private final Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex;
 
 	public EntityIndexStoragePart(
 		int primaryKey,
@@ -130,8 +117,6 @@ public class EntityIndexStoragePart implements StoragePart {
 		this.priceIndexes = priceIndexes;
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndexes = facetIndexes;
-		this.indexPrimaryKeyCardinality = null;
-		this.referencedPrimaryKeysIndex = null;
 	}
 
 	@Nullable

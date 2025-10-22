@@ -26,8 +26,6 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,7 +55,7 @@ public record EntityReferenceWithParent(
 	@Nonnull String type,
 	int primaryKey,
 	@Nullable EntityClassifierWithParent parentEntity
-) implements EntityReferenceContract<EntityReferenceWithParent>, EntityClassifierWithParent, Serializable {
+) implements EntityReferenceContract, EntityClassifierWithParent, Serializable {
 	@Serial private static final long serialVersionUID = -4893251747273825997L;
 
 	@Nonnull
@@ -79,7 +77,7 @@ public record EntityReferenceWithParent(
 	}
 
 	@Override
-	public int compareTo(@Nonnull EntityReferenceWithParent o) {
+	public int compareTo(@Nonnull EntityReferenceContract o) {
 		return compareReferenceContract(o);
 	}
 
@@ -100,20 +98,6 @@ public record EntityReferenceWithParent(
 	@Override
 	public String toString() {
 		return this.type + ": " + this.primaryKey + (this.parentEntity != null ? " (↰ " + this.parentEntity.getPrimaryKey() + ")" : "");
-	}
-
-	/**
-	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
-	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
-	 */
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			// type
-			EvitaDataTypes.estimateSize(this.type) +
-			// primary key
-			MemoryMeasuringConstants.INT_SIZE +
-			// parent
-			MemoryMeasuringConstants.REFERENCE_SIZE;
 	}
 
 }

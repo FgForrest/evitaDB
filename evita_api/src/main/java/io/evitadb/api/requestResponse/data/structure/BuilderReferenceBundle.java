@@ -490,4 +490,16 @@ class BuilderReferenceBundle {
 	public int count() {
 		return this.internalPkToRepRefKeys.size();
 	}
+
+	/**
+	 * Determines if the specified ReferenceKey is present in the current collection or system.
+	 *
+	 * @param referenceKey a non-null ReferenceKey object to be checked for existence
+	 * @return true if the specified ReferenceKey is found, false otherwise
+	 */
+	public boolean containsReferenceKey(@Nonnull ReferenceKey referenceKey) {
+		return this.repRefKeysToInternalPk.keySet()
+			.stream()
+			.anyMatch(it -> ReferenceKey.GENERIC_COMPARATOR.compare(it.referenceKey(), referenceKey) == 0);
+	}
 }

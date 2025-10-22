@@ -98,6 +98,10 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) {
 		return this.keyToIdIndex.computeIfAbsent(key, o -> {
+			Assert.isPremiseValid(
+				!(key instanceof String),
+				"String keys are not supported by ReadWriteKeyCompressor! Always use specialized classes to avoid conflicts!"
+			);
 			final int id = this.sequence.incrementAndGet();
 			this.idToKeyIndex.put(id, o);
 			this.dirty.compareAndSet(false, true);

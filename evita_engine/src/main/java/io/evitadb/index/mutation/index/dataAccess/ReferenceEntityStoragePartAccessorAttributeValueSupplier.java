@@ -32,8 +32,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
-import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
-import lombok.Data;
+import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -48,43 +47,47 @@ import java.util.stream.Stream;
  * This implementation of attribute accessor looks up for attribute in {@link ReferencesStoragePart}.
  */
 @NotThreadSafe
-@Data
 class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements ExistingAttributeValueSupplier {
-	private final EntityStoragePartAccessor containerAccessor;
+	private final WritableEntityStorageContainerAccessor containerAccessor;
 	private final ReferenceSchema referenceSchema;
 	private final RepresentativeReferenceKey referenceKey;
 	private final String entityType;
 	private final int entityPrimaryKey;
-	private Set<Locale> memoizedLocales;
-	private AttributeKey memoizedKey;
+	private final MemoizedLocalesObsoleteChecker memoizedLocalesObsoleteChecker;
+	private Set<Locale> memoizedOriginalLocales;
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private Optional<ReferenceContract> memoizedReference;
 	private int memoizedReferenceIndex = -1;
-	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-	private Optional<AttributeValue> memoizedValue;
+
+	public ReferenceEntityStoragePartAccessorAttributeValueSupplier(
+		WritableEntityStorageContainerAccessor containerAccessor,
+		ReferenceSchema referenceSchema,
+		RepresentativeReferenceKey referenceKey,
+		String entityType,
+		int entityPrimaryKey
+	) {
+		this.containerAccessor = containerAccessor;
+		this.referenceSchema = referenceSchema;
+		this.referenceKey = referenceKey;
+		this.entityType = entityType;
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.memoizedLocalesObsoleteChecker = new MemoizedLocalesObsoleteChecker(containerAccessor);
+	}
 
 	@Nonnull
 	@Override
 	public Set<Locale> getEntityExistingAttributeLocales() {
-		if (this.memoizedLocales == null) {
-			this.memoizedLocales = this.containerAccessor.getEntityStoragePart(
-				this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
-			).getAttributeLocales();
-		}
-		return this.memoizedLocales;
+		memoizeLocales();
+		return this.memoizedOriginalLocales;
 	}
 
 	@Nonnull
 	@Override
 	public Optional<AttributeValue> getAttributeValue(@Nonnull AttributeKey attributeKey) {
-		if (!Objects.equals(this.memoizedKey, attributeKey)) {
-			this.memoizedKey = attributeKey;
-			this.memoizedValue = getMemoizedReference()
-				.filter(Droppable::exists)
-				.flatMap(it -> it.getAttributeValue(attributeKey))
-				.filter(Droppable::exists);
-		}
-		return this.memoizedValue;
+		return getMemoizedReference()
+			.filter(Droppable::exists)
+			.flatMap(it -> it.getAttributeValue(attributeKey))
+			.filter(Droppable::exists);
 	}
 
 	@Nonnull
@@ -108,6 +111,22 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 			.flatMap(Collection::stream)
 			.filter(Droppable::exists)
 			.filter(it -> Objects.equals(it.key().locale(), locale));
+	}
+
+	/**
+	 * Memoizes the locales associated with an entity if the current memoized locales are detected to be obsolete.
+	 * The method first checks for obsolescence of locales using the provided checker. If locales are obsolete,
+	 * it retrieves the entity storage part to access the attribute locales. These locales are then used to
+	 * generate new memoized locales before and after applying changes. The newly calculated locales are stored
+	 * for future use to ensure efficient retrieval without redundant recalculation.
+	 */
+	private void memoizeLocales() {
+		if (this.memoizedLocalesObsoleteChecker.isLocalesObsolete()) {
+			final Set<Locale> storagePart = this.containerAccessor.getEntityStoragePart(
+				this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
+			).getAttributeLocales();
+			this.memoizedOriginalLocales = this.memoizedLocalesObsoleteChecker.produceNewMemoizedLocalesBeforeChangesAreApplied(storagePart);
+		}
 	}
 
 	/**

@@ -733,6 +733,16 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 
 	@Nonnull
 	@Override
+	public EntityBuilder updateReference(
+		@Nonnull String referenceName, int referencedPrimaryKey,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException {
+		this.referencesBuilder.updateReference(referenceName, referencedPrimaryKey, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
 	public EntityBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
@@ -767,6 +777,18 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	) {
 		this.referencesBuilder.setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder updateReference(
+		@Nonnull String referenceName, @Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		this.referencesBuilder.updateReference(
 			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, whichIs
 		);
 		return this;

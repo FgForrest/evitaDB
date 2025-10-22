@@ -147,7 +147,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	 * Creates new entity and inserts it into the index.
 	 */
 	protected void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
-		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
+		final EntityReferenceContract insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
 			(serializable, existing) -> ofNullable(existing).orElse(0) + 1

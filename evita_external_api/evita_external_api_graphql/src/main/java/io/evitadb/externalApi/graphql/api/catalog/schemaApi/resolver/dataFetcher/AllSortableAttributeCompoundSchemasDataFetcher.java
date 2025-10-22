@@ -41,7 +41,7 @@ import java.util.Objects;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class AllSortableAttributeCompoundSchemasDataFetcher implements DataFetcher<Collection<SortableAttributeCompoundSchemaContract>> {
+public class AllSortableAttributeCompoundSchemasDataFetcher implements DataFetcher<Collection<? extends SortableAttributeCompoundSchemaContract>> {
 
 	@Nullable
 	private static AllSortableAttributeCompoundSchemasDataFetcher INSTANCE;
@@ -56,8 +56,8 @@ public class AllSortableAttributeCompoundSchemasDataFetcher implements DataFetch
 
 	@Nonnull
 	@Override
-	public Collection<SortableAttributeCompoundSchemaContract> get(DataFetchingEnvironment environment) throws Exception {
-		final SortableAttributeCompoundSchemaProvider<?> provider = Objects.requireNonNull(environment.getSource());
+	public Collection<? extends SortableAttributeCompoundSchemaContract> get(DataFetchingEnvironment environment) throws Exception {
+		final SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> provider = Objects.requireNonNull(environment.getSource());
 		return provider.getSortableAttributeCompounds().values();
 	}
 }
