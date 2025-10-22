@@ -54,6 +54,10 @@ public interface AllowLocaleInEntitySchemaMutationDescriptor extends EntitySchem
 			Mutation is responsible for adding one or more locales to a `EntitySchema.locales`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, LOCALES))
+		.staticProperties(List.of(MUTATION_TYPE, LOCALES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("AllowLocaleInEntitySchemaMutationInput")
+		.staticProperties(List.of(LOCALES))
 		.build();
 }

@@ -56,6 +56,10 @@ public interface AllowEvolutionModeInEntitySchemaMutationDescriptor extends Enti
 			Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.staticProperties(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("AllowEvolutionModeInEntitySchemaMutationInput")
+		.staticProperties(List.of(EVOLUTION_MODES))
 		.build();
 }

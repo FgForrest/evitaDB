@@ -41,8 +41,14 @@ public interface RestoreCatalogSchemaMutationDescriptor extends EngineMutationDe
 			Mutation is responsible for setting up a new catalog schema in INACTIVE state.
 			This mutation is used for restoring catalogs from backups or other restoration scenarios.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			CATALOG_NAME
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RestoreCatalogSchemaMutationInput")
+		.staticProperties(List.of(
 			CATALOG_NAME
 		))
 		.build();

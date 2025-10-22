@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation}.
@@ -46,7 +46,7 @@ public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescripto
 		.description("""
             Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
 			""")
-		.type(nonNullRef(AttributeSchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullRef(AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -55,6 +55,10 @@ public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescripto
 			Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any
 			of `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReferenceSortableAttributeCompoundSchemaMutationInput")
+		.staticProperties(List.of(NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
 		.build();
 }

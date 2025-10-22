@@ -40,7 +40,7 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ConnectionClosingDecorator extends SimpleDecoratingHttpService implements WebSocketHandler {
+public class ConnectionClosingDecorator extends SimpleDecoratingHttpService implements WebSocketDecoratingHandler {
 
 	/**
 	 * Creates a new instance that decorates the specified {@link Service}.
@@ -61,6 +61,6 @@ public class ConnectionClosingDecorator extends SimpleDecoratingHttpService impl
 	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
 		// `ctx.initiateConnectionShutdown()` should NOT be used on WebSocket connections because it would close the
 		// initial HTTP upgrade request which would automatically close the WebSocket channel
-		return Objects.requireNonNull(this.unwrap().as(WebSocketHandler.class)).handle(ctx, in);
+		return this.unwrapWebSocketHandler().handle(ctx, in);
 	}
 }

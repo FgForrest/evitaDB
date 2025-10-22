@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -64,11 +64,11 @@ public interface SortableAttributeCompoundSchemaDescriptor extends NamedSchemaWi
 			combination of attributes, so it can deliver the results as fast as possible. Sortable attribute compounds
 			are filtered the same way as attributes - using natural ordering constraint.
 			""")
-		.staticField(NAME)
-		.staticField(NAME_VARIANTS)
-		.staticField(DESCRIPTION)
-		.staticField(DEPRECATION_NOTICE)
-		.staticField(ATTRIBUTE_ELEMENTS)
-		.staticField(INDEXED)
+		.staticProperty(NAME)
+		.staticProperty(NAME_VARIANTS)
+		.staticProperty(DESCRIPTION)
+		.staticProperty(DEPRECATION_NOTICE)
+		.staticProperty(ATTRIBUTE_ELEMENTS)
+		.staticProperty(INDEXED)
 		.build();
 }

@@ -56,6 +56,10 @@ public interface DisallowEvolutionModeInEntitySchemaMutationDescriptor extends E
 			Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.staticProperties(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("DisallowEvolutionModeInEntitySchemaMutationInput")
+		.staticProperties(List.of(EVOLUTION_MODES))
 		.build();
 }

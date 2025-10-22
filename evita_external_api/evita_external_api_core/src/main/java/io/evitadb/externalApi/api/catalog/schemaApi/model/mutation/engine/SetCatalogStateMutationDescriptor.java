@@ -53,8 +53,15 @@ public interface SetCatalogStateMutationDescriptor extends EngineMutationDescrip
 			This mutation allows controlling whether a particular catalog should be active or not.
 			The active state determines the operational status of the catalog.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			CATALOG_NAME,
+			ACTIVE
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetCatalogStateMutationInput")
+		.staticProperties(List.of(
 			CATALOG_NAME,
 			ACTIVE
 		))

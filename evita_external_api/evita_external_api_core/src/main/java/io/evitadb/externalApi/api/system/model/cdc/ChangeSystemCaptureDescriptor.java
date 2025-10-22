@@ -43,6 +43,6 @@ public interface ChangeSystemCaptureDescriptor extends ChangeCaptureDescriptor {
 		.description("""
             Record represents a system-wide CDC event that is sent to the subscriber if it matches to the request he made.
 			""")
-		.staticFields(List.of(VERSION, INDEX, OPERATION))
+		.staticProperties(List.of(VERSION, INDEX, OPERATION))
 		.build();
 }

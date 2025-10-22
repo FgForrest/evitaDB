@@ -72,6 +72,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 		buildCommonTypes();
 		buildEndpoints();
 
+		// todo lho mutation union instead of interface?
 		new CatalogDataApiRestBuilder(this.buildingContext).build();
 		new CatalogSchemaApiRestBuilder(this.buildingContext).build();
 		new CatalogCdcApiRestBuilder(this.buildingContext).build();

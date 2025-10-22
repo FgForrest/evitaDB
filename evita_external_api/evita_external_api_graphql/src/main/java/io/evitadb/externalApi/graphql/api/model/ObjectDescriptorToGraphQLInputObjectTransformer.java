@@ -54,9 +54,11 @@ public class ObjectDescriptorToGraphQLInputObjectTransformer implements ObjectDe
 			objectBuilder.description(objectDescriptor.description());
 		}
 
-		objectDescriptor.staticFields().stream()
+		objectDescriptor.staticProperties().stream()
 			.map(this.inputFieldBuilderTransformer)
 			.forEach(objectBuilder::field);
+
+		// ignoring defined interface, GQL input types don't support them
 
 		return objectBuilder;
 	}

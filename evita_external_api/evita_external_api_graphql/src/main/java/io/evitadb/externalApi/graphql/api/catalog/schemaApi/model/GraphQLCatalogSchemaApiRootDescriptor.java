@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Extension of {@link io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor} for GraphQL API.

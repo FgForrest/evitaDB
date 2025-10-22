@@ -24,13 +24,13 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor representing {@link ReferenceAttributeMutation}
@@ -41,13 +41,20 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationDescriptor {
 
-	// todo lho input version
 	PropertyDescriptor ATTRIBUTE_MUTATION = PropertyDescriptor.builder()
 		.name("attributeMutation")
 		.description("""
 			One attribute mutation to update / insert / delete single attribute of the reference.
 			""")
-		.type(nonNullRef(ReferenceAttributeMutationAggregateDescriptor.THIS))
+		// todo lho proper output version with propertype, union type of mutations?
+		.type(nonNullRef(ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT))
+		.build();
+	PropertyDescriptor ATTRIBUTE_MUTATION_INPUT = PropertyDescriptor.builder()
+		.name("attributeMutation")
+		.description("""
+			One attribute mutation to update / insert / delete single attribute of the reference.
+			""")
+		.type(nonNullRef(ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -55,6 +62,10 @@ public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationD
 		.description("""
 			This mutation allows to create / update / remove attribute of the reference.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY, ATTRIBUTE_MUTATION))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY, ATTRIBUTE_MUTATION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ReferenceAttributeMutationInput")
+		.staticProperties(List.of(NAME, PRIMARY_KEY, ATTRIBUTE_MUTATION_INPUT))
 		.build();
 }

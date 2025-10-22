@@ -57,6 +57,10 @@ public interface SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor extend
 			Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, WITH_GENERATED_PRIMARY_KEY))
+		.staticProperties(List.of(MUTATION_TYPE, WITH_GENERATED_PRIMARY_KEY))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetEntitySchemaWithGeneratedPrimaryKeyMutationInput")
+		.staticProperties(List.of(WITH_GENERATED_PRIMARY_KEY))
 		.build();
 }

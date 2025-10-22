@@ -64,6 +64,10 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, FACETED_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, FACETED_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetReferenceSchemaFacetedMutationInput")
+		.staticProperties(List.of(NAME, FACETED_IN_SCOPES))
 		.build();
 }

@@ -29,7 +29,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -67,6 +67,10 @@ public interface ModifyAttributeSchemaTypeMutationDescriptor extends AttributeSc
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, TYPE, INDEXED_DECIMAL_PLACES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, TYPE, INDEXED_DECIMAL_PLACES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAttributeSchemaTypeMutationInput")
+		.staticProperties(List.of(NAME, TYPE, INDEXED_DECIMAL_PLACES))
 		.build();
 }

@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor representing {@link SetAttributeSchemaGloballyUniqueMutation}.
@@ -64,6 +64,10 @@ public interface SetAttributeSchemaGloballyUniqueMutationDescriptor extends Attr
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, UNIQUE_GLOBALLY_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, UNIQUE_GLOBALLY_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetAttributeSchemaGloballyUniqueMutationInput")
+		.staticProperties(List.of(NAME, UNIQUE_GLOBALLY_IN_SCOPES))
 		.build();
 }

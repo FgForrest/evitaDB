@@ -73,6 +73,10 @@ public interface SetEntitySchemaWithHierarchyMutationDescriptor extends EntitySc
 			Mutation is responsible for setting a `EntitySchema.withHierarchy`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, WITH_HIERARCHY, INDEXED_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, WITH_HIERARCHY, INDEXED_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetEntitySchemaWithHierarchyMutationInput")
+		.staticProperties(List.of(WITH_HIERARCHY, INDEXED_IN_SCOPES))
 		.build();
 }

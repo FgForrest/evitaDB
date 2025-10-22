@@ -43,6 +43,10 @@ public interface RemoveSortableAttributeCompoundSchemaMutationDescriptor extends
 			Mutation is responsible for removing an existing `SortableAttributeCompound` in the
 			`EntitySchema` or `ReferenceSchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveSortableAttributeCompoundSchemaMutationInput")
+		.staticProperties(List.of(NAME))
 		.build();
 }

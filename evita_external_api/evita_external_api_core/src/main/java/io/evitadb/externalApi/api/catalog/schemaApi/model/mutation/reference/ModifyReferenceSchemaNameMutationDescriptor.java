@@ -53,6 +53,10 @@ public interface ModifyReferenceSchemaNameMutationDescriptor extends ReferenceSc
 			Mutation is responsible for renaming an existing `ReferenceSchema` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReferenceSchemaNameMutationInput")
+		.staticProperties(List.of(NAME, NEW_NAME))
 		.build();
 }

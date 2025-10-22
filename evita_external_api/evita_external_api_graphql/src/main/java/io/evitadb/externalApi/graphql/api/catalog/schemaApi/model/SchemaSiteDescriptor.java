@@ -62,7 +62,7 @@ public interface SchemaSiteDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("SchemaSite")
 		.description("Record describing the location and form of the CDC event in the evitaDB that should be captured.")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			ENTITY_TYPE,
 			OPERATION,
 			CONTAINER_TYPE

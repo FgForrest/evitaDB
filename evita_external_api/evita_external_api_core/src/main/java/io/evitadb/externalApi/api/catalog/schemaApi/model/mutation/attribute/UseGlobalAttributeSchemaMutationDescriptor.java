@@ -41,6 +41,10 @@ public interface UseGlobalAttributeSchemaMutationDescriptor extends AttributeSch
 		.description("""
 			Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("UseGlobalAttributeSchemaMutationInput")
+		.staticProperties(List.of(NAME))
 		.build();
 }

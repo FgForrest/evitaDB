@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.model;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.model.UnionDescriptor;
 
 /**
  * Descriptor of union of {@link EntityContract}s of all collections present in evitaDB for schema-based external APIs.
@@ -36,17 +37,19 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface EntityUnion {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
+	UnionDescriptor THIS = UnionDescriptor.builder()
 		.name("Entity")
 		.description("""
 			Gathers all specific entity objects into one.
 			""")
+		.discriminator(EntityDescriptor.TYPE)
 		.build();
 
-	ObjectDescriptor THIS_LOCALIZED = ObjectDescriptor.builder()
+	UnionDescriptor THIS_LOCALIZED = UnionDescriptor.builder()
 		.name("LocalizedEntity")
 		.description("""
 			Gathers all specific localized entity objects into one.
 			""")
+		.discriminator(EntityDescriptor.TYPE)
 		.build();
 }

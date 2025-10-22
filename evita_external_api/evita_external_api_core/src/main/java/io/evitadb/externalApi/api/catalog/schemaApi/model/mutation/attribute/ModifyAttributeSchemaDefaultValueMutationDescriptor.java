@@ -57,6 +57,10 @@ public interface ModifyAttributeSchemaDefaultValueMutationDescriptor extends Att
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DEFAULT_VALUE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, DEFAULT_VALUE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAttributeSchemaDefaultValueMutationInput")
+		.staticProperties(List.of(NAME, DEFAULT_VALUE))
 		.build();
 }

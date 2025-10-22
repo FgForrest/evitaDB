@@ -58,6 +58,10 @@ public interface ModifyReferenceSchemaCardinalityMutationDescriptor extends Refe
 			Mutation is responsible for setting value to a `ReferenceSchema.cardinality`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, CARDINALITY))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, CARDINALITY))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReferenceSchemaCardinalityMutationInput")
+		.staticProperties(List.of(NAME, CARDINALITY))
 		.build();
 }

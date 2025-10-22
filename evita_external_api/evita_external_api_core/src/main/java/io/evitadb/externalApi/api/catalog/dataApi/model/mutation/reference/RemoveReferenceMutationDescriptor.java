@@ -42,6 +42,10 @@ public interface RemoveReferenceMutationDescriptor extends ReferenceMutationDesc
 		.description("""
 			This mutation allows to remove a reference from the entity.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveReferenceMutationInput")
+		.staticProperties(List.of(NAME, PRIMARY_KEY))
 		.build();
 }

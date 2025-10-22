@@ -55,6 +55,10 @@ public interface SetAssociatedDataSchemaLocalizedMutationDescriptor extends Asso
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALIZED))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALIZED))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetAssociatedDataSchemaLocalizedMutationInput")
+		.staticProperties(List.of(NAME, LOCALIZED))
 		.build();
 }

@@ -54,6 +54,10 @@ public interface DisallowLocaleInEntitySchemaMutationDescriptor extends EntitySc
 			Mutation is responsible for removing one or more locales from a `EntitySchema.locales`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, LOCALES))
+		.staticProperties(List.of(MUTATION_TYPE, LOCALES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("DisallowLocaleInEntitySchemaMutationInput")
+		.staticProperties(List.of(LOCALES))
 		.build();
 }

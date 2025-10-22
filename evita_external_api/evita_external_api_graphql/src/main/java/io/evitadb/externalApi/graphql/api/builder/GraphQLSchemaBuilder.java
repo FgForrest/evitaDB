@@ -24,6 +24,9 @@
 package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.GraphQLEnumType;
+import graphql.schema.GraphQLInputObjectType;
+import graphql.schema.GraphQLObjectType;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
@@ -34,16 +37,11 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
-import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
-import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
-import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
-import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLUnionTransformer;
-import io.evitadb.externalApi.graphql.api.model.PropertyDataTypeDescriptorToGraphQLTypeTransformer;
-import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
-import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLInputFieldTransformer;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
+import io.evitadb.externalApi.graphql.api.model.*;
+import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -78,7 +76,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 	@Nonnull protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
-	@Nonnull protected final ObjectDescriptorToGraphQLUnionTransformer unionBuilderTransformer;
+	@Nonnull protected final UnionDescriptorToGraphQLUnionTransformer unionBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
@@ -95,7 +93,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(this.propertyDataTypeBuilderTransformer);
 		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(this.fieldBuilderTransformer);
 		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(this.fieldBuilderTransformer);
-		this.unionBuilderTransformer = new ObjectDescriptorToGraphQLUnionTransformer();
+		this.unionBuilderTransformer = new UnionDescriptorToGraphQLUnionTransformer();
 		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(this.inputFieldBuilderTransformer);
 	}
 
@@ -171,5 +169,27 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 	                                        @Nonnull Class<? extends Serializable> javaType) {
 		final String apiName = DataTypeSerializer.serialize(javaType);
 		scalarBuilder.value(apiName, javaType);
+	}
+
+	protected void registerInputMutations(@Nonnull ObjectDescriptor... mutationDescriptors) {
+		for (final ObjectDescriptor mutationDescriptor : mutationDescriptors) {
+			final GraphQLInputObjectType mutationType = mutationDescriptor.to(this.inputObjectBuilderTransformer).build();
+			this.buildingContext.registerType(mutationType);
+		}
+	}
+
+	protected void registerOutputMutations(@Nonnull ObjectDescriptor... mutationDescriptors) {
+		for (final ObjectDescriptor mutationDescriptor : mutationDescriptors) {
+			final GraphQLObjectType mutationType = mutationDescriptor.to(this.objectBuilderTransformer).build();
+			this.buildingContext.registerType(mutationType);
+			if (!Mutation.class.isAssignableFrom(mutationDescriptor.representedClass())) {
+				throw new GraphQLSchemaBuildingError("Mutation descriptor " + mutationDescriptor.getClass().getName() + " does not represent a Mutation class.");
+			}
+			//noinspection unchecked
+			this.buildingContext.getMappingTypeResolver(MutationDtoTypeResolver.class).registerTypeMapping(
+				(Class<? extends Mutation>) mutationDescriptor.representedClass(),
+				mutationType
+			);
+		}
 	}
 }

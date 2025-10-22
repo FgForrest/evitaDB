@@ -57,6 +57,10 @@ public interface DisallowEvolutionModeInCatalogSchemaMutationDescriptor extends 
 			Mutation is responsible for removing one or more modes from a `CatalogSchema.evolutionMode`
 			in `CatalogSchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.staticProperties(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("DisallowEvolutionModeInCatalogSchemaMutationInput")
+		.staticProperties(List.of(EVOLUTION_MODES))
 		.build();
 }

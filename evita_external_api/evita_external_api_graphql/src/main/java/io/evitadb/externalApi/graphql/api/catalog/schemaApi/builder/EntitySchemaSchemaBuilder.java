@@ -24,10 +24,12 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLUnionType;
 import graphql.schema.TypeResolver;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -36,8 +38,9 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -56,9 +59,10 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -70,6 +74,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDat
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnCollectionSchemaChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
+import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
 
@@ -115,77 +120,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		this.buildingContext.registerType(buildAssociatedDataSchemaObject());
 		this.buildingContext.registerType(buildGenericReferenceSchemaObject());
 
-		// entity schema mutations
-		this.buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(AllowLocaleInEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(CreateEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowLocaleInEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyEntitySchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyEntitySchemaNameMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetEntitySchemaWithHierarchyMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetEntitySchemaWithPriceMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// associated data schema mutations
-		this.buildingContext.registerType(CreateAssociatedDataSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaNameMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveAssociatedDataSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// attribute schema mutations
-		this.buildingContext.registerType(CreateAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaNameMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaTypeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(
-			AttributeSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// sortable attribute compound schema mutations
-		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(
-			SortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// reference schema mutations
-		this.buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(CreateReflectedReferenceSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaCardinalityMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		this.buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		buildInputMutations();
+		buildOutputMutations();
 
 		// build collection-specific field and objects
 		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
@@ -194,6 +130,156 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			this.buildingContext.registerMutationField(buildUpdateEntitySchemaField(entitySchema));
 			this.buildingContext.registerSubscriptionField(buildOnEntitySchemaChangeField(entitySchema));
 		});
+	}
+
+	private void buildInputMutations() {
+		registerInputMutations(
+			// entity schema mutations
+			AllowCurrencyInEntitySchemaMutationDescriptor.THIS_INPUT,
+			AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS_INPUT,
+			AllowLocaleInEntitySchemaMutationDescriptor.THIS_INPUT,
+			CreateEntitySchemaMutationDescriptor.THIS_INPUT,
+			DisallowCurrencyInEntitySchemaMutationDescriptor.THIS_INPUT,
+			DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS_INPUT,
+			DisallowLocaleInEntitySchemaMutationDescriptor.THIS_INPUT,
+			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
+			ModifyEntitySchemaDescriptionMutationDescriptor.THIS_INPUT,
+			ModifyEntitySchemaNameMutationDescriptor.THIS_INPUT,
+			RemoveEntitySchemaMutationDescriptor.THIS_INPUT,
+			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS_INPUT,
+			SetEntitySchemaWithHierarchyMutationDescriptor.THIS_INPUT,
+			SetEntitySchemaWithPriceMutationDescriptor.THIS_INPUT,
+
+			// associated data schema mutations
+			CreateAssociatedDataSchemaMutationDescriptor.THIS_INPUT,
+			ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
+			ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS_INPUT,
+			ModifyAssociatedDataSchemaNameMutationDescriptor.THIS_INPUT,
+			ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS_INPUT,
+			RemoveAssociatedDataSchemaMutationDescriptor.THIS_INPUT,
+			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS_INPUT,
+			SetAssociatedDataSchemaNullableMutationDescriptor.THIS_INPUT,
+
+			// attribute schema mutations
+			CreateAttributeSchemaMutationDescriptor.THIS_INPUT,
+			ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS_INPUT,
+			ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
+			ModifyAttributeSchemaDescriptionMutationDescriptor.THIS_INPUT,
+			ModifyAttributeSchemaNameMutationDescriptor.THIS_INPUT,
+			ModifyAttributeSchemaTypeMutationDescriptor.THIS_INPUT,
+			RemoveAttributeSchemaMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaSortableMutationDescriptor.THIS_INPUT,
+			UseGlobalAttributeSchemaMutationDescriptor.THIS_INPUT,
+			AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			SetAttributeSchemaUniqueMutationDescriptor.THIS,
+
+			// sortable attribute compound schema mutations
+			AttributeElementDescriptor.THIS_INPUT,
+			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
+			ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
+			ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS_INPUT,
+			ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS_INPUT,
+			SetSortableAttributeCompoundIndexedMutationDescriptor.THIS_INPUT,
+			RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
+			SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT,
+
+			// reference schema mutations
+			CreateReferenceSchemaMutationDescriptor.THIS_INPUT,
+			CreateReflectedReferenceSchemaMutationDescriptor.THIS_INPUT,
+			ModifyReferenceAttributeSchemaMutationDescriptor.THIS_INPUT,
+			ModifyReferenceSchemaCardinalityMutationDescriptor.THIS_INPUT,
+			ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS_INPUT,
+			ModifyReferenceSchemaDescriptionMutationDescriptor.THIS_INPUT,
+			ModifyReferenceSchemaNameMutationDescriptor.THIS_INPUT,
+			ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS_INPUT,
+			ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS_INPUT,
+			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS_INPUT,
+			RemoveReferenceSchemaMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
+			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
+
+			EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT
+		);
+	}
+
+	private void buildOutputMutations() {
+		this.buildingContext.registerType(LocalEntitySchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());
+		this.buildingContext.registerType(ReferenceAttributeSchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());
+
+		registerOutputMutations(
+			// entity schema mutations
+			AllowCurrencyInEntitySchemaMutationDescriptor.THIS,
+			AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS,
+			AllowLocaleInEntitySchemaMutationDescriptor.THIS,
+			CreateEntitySchemaMutationDescriptor.THIS,
+			DisallowCurrencyInEntitySchemaMutationDescriptor.THIS,
+			DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS,
+			DisallowLocaleInEntitySchemaMutationDescriptor.THIS,
+			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS,
+			ModifyEntitySchemaDescriptionMutationDescriptor.THIS,
+			ModifyEntitySchemaNameMutationDescriptor.THIS,
+			RemoveEntitySchemaMutationDescriptor.THIS,
+			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS,
+			SetEntitySchemaWithHierarchyMutationDescriptor.THIS,
+			SetEntitySchemaWithPriceMutationDescriptor.THIS,
+
+			// associated data schema mutations
+			CreateAssociatedDataSchemaMutationDescriptor.THIS,
+			ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS,
+			ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS,
+			ModifyAssociatedDataSchemaNameMutationDescriptor.THIS,
+			ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS,
+			RemoveAssociatedDataSchemaMutationDescriptor.THIS,
+			SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS,
+			SetAssociatedDataSchemaNullableMutationDescriptor.THIS,
+
+			// attribute schema mutations
+			CreateAttributeSchemaMutationDescriptor.THIS,
+			ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS,
+			ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS,
+			ModifyAttributeSchemaDescriptionMutationDescriptor.THIS,
+			ModifyAttributeSchemaNameMutationDescriptor.THIS,
+			ModifyAttributeSchemaTypeMutationDescriptor.THIS,
+			RemoveAttributeSchemaMutationDescriptor.THIS,
+			SetAttributeSchemaFilterableMutationDescriptor.THIS,
+			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
+			SetAttributeSchemaNullableMutationDescriptor.THIS,
+			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
+			SetAttributeSchemaSortableMutationDescriptor.THIS,
+			UseGlobalAttributeSchemaMutationDescriptor.THIS,
+			SetAttributeSchemaUniqueMutationDescriptor.THIS,
+
+			// sortable attribute compound schema mutations
+			AttributeElementDescriptor.THIS_INPUT,
+			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS,
+			ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS,
+			ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS,
+			ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS,
+			SetSortableAttributeCompoundIndexedMutationDescriptor.THIS,
+			RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS,
+
+			// reference schema mutations
+			CreateReferenceSchemaMutationDescriptor.THIS,
+			CreateReflectedReferenceSchemaMutationDescriptor.THIS,
+			ModifyReferenceAttributeSchemaMutationDescriptor.THIS,
+			ModifyReferenceSchemaCardinalityMutationDescriptor.THIS,
+			ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS,
+			ModifyReferenceSchemaDescriptionMutationDescriptor.THIS,
+			ModifyReferenceSchemaNameMutationDescriptor.THIS,
+			ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS,
+			ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS,
+			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
+			RemoveReferenceSchemaMutationDescriptor.THIS,
+			SetReferenceSchemaFacetedMutationDescriptor.THIS,
+			SetReferenceSchemaIndexedMutationDescriptor.THIS
+		);
+
+		// todo lho unions?
+
 	}
 
 	/*

@@ -43,6 +43,10 @@ public interface RemoveReferenceSchemaMutationDescriptor extends ReferenceSchema
 			`EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveReferenceSchemaMutationInput")
+		.staticProperties(List.of(NAME))
 		.build();
 }

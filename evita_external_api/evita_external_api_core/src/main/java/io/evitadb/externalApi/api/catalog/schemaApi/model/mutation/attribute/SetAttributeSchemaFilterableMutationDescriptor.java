@@ -61,6 +61,10 @@ public interface SetAttributeSchemaFilterableMutationDescriptor extends Attribut
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, FILTERABLE_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, FILTERABLE_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetAttributeSchemaFilterableMutationInput")
+		.staticProperties(List.of(NAME, FILTERABLE_IN_SCOPES))
 		.build();
 }

@@ -29,9 +29,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescri
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -76,19 +74,19 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 		.type(nonNullListRef(AttributeElementDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateSortableAttributeCompoundSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(CreateSortableAttributeCompoundSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` alone.
 			""")
-		.staticFields(List.of(
-			MUTATION_TYPE,
-			NAME,
-			DESCRIPTION,
-			DEPRECATION_NOTICE,
-			INDEXED_IN_SCOPES,
-			ATTRIBUTE_ELEMENTS
-		))
+		.staticProperty(NAME)
+		.staticProperty(DESCRIPTION)
+		.staticProperty(DEPRECATION_NOTICE)
+		.staticProperty(INDEXED_IN_SCOPES)
+		.staticProperty(ATTRIBUTE_ELEMENTS)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("CreateSortableAttributeCompoundSchemaMutationInput")
 		.build();
 }

@@ -53,7 +53,7 @@ public class ObjectDescriptorToOpenApiObjectTransformer implements ObjectDescrip
 		objectBuilder.description(objectDescriptor.description());
 
 		// static properties of object
-		objectDescriptor.staticFields()
+		objectDescriptor.staticProperties()
 			.stream()
 			.map(this.propertyDescriptorTransformer)
 			.forEach(objectBuilder::property);

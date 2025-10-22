@@ -55,6 +55,10 @@ public interface ModifyAssociatedDataSchemaDescriptionMutationDescriptor extends
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAssociatedDataSchemaDescriptionMutation")
+		.staticProperties(List.of(NAME, DESCRIPTION))
 		.build();
 }

@@ -60,14 +60,10 @@ public interface ScopedReferenceIndexTypeDescriptor extends ScopedDataDescriptor
 		.description("""
 			Represents combination of reference index type and entity scope it should be applied to.
 			""")
-		.staticFields(List.of(SCOPE, INDEX_TYPE))
+		.staticProperties(List.of(SCOPE, INDEX_TYPE))
 		.build();
 
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
 		.name("InputScopedReferenceIndexType")
-		.description("""
-			Represents combination of reference index type and entity scope it should be applied to.
-			""")
-		.staticFields(List.of(SCOPE, INDEX_TYPE))
 		.build();
 }

@@ -55,6 +55,10 @@ public interface SetSortableAttributeCompoundIndexedMutationDescriptor extends S
 		.description("""
 			Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetSortableAttributeCompoundIndexedMutationInput")
+		.staticProperties(List.of(NAME, INDEXED_IN_SCOPES))
 		.build();
 }

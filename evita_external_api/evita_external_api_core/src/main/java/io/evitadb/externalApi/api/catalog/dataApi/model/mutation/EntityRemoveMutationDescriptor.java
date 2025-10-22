@@ -33,7 +33,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * TODO lho docs
+ * Descriptor of {@link io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -62,7 +62,7 @@ public interface EntityRemoveMutationDescriptor extends MutationDescriptor {
 			and all its internal data are marked as TRUE for dropped, stored to the storage file and
 			removed from the mem-table.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 		    MUTATION_TYPE,
 		    ENTITY_PRIMARY_KEY,
 		    ENTITY_TYPE

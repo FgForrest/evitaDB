@@ -42,6 +42,10 @@ public interface RemovePriceMutationDescriptor extends PriceMutationDescriptor {
 		.description("""
 			This mutation allows to remove existing `price` of the entity.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, PRICE_ID, PRICE_LIST, CURRENCY))
+		.staticProperties(List.of(MUTATION_TYPE, PRICE_ID, PRICE_LIST, CURRENCY))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemovePriceMutationInput")
+		.staticProperties(List.of(PRICE_ID, PRICE_LIST, CURRENCY))
 		.build();
 }

@@ -54,6 +54,10 @@ public interface ModifySortableAttributeCompoundSchemaNameMutationDescriptor ext
 			Mutation is responsible for renaming an existing `SortableAttributeCompoundSchema` in `EntitySchema`
 			or `ReferenceSchema`.		
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifySortableAttributeCompoundSchemaNameMutationInput")
+		.staticProperties(List.of(NAME, NEW_NAME))
 		.build();
 }

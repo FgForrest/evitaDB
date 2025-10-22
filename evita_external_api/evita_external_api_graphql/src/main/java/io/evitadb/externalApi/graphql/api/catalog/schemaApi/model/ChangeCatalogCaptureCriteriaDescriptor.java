@@ -29,7 +29,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -67,6 +67,6 @@ public interface ChangeCatalogCaptureCriteriaDescriptor {
 			Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
             properties.             
 			""")
-		.staticFields(List.of(AREA, SCHEMA_SITE, DATA_SITE))
+		.staticProperties(List.of(AREA, SCHEMA_SITE, DATA_SITE))
 		.build();
 }

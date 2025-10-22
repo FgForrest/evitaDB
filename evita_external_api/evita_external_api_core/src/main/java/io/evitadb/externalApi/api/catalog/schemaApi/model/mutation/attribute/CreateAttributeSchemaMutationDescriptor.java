@@ -32,8 +32,8 @@ import io.evitadb.externalApi.dataType.Any;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -158,8 +158,25 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` alone.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			NAME,
+			DESCRIPTION,
+			DEPRECATION_NOTICE,
+			UNIQUE_IN_SCOPES,
+			FILTERABLE_IN_SCOPES,
+			SORTABLE_IN_SCOPES,
+			LOCALIZED,
+			NULLABLE,
+			REPRESENTATIVE,
+			TYPE,
+			DEFAULT_VALUE,
+			INDEXED_DECIMAL_PLACES
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("CreateAttributeSchemaMutationInput")
+		.staticProperties(List.of(
 			NAME,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,

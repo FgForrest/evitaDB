@@ -71,7 +71,11 @@ public interface ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescr
 			`ReflectedReferenceSchema.attributeInheritanceFilter` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_INHERITANCE_BEHAVIOR, ATTRIBUTE_INHERITANCE_FILTER))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_INHERITANCE_BEHAVIOR, ATTRIBUTE_INHERITANCE_FILTER))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReflectedReferenceAttributeInheritanceSchemaMutationInput")
+		.staticProperties(List.of(NAME, ATTRIBUTE_INHERITANCE_BEHAVIOR, ATTRIBUTE_INHERITANCE_FILTER))
 		.build();
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -85,6 +85,6 @@ public interface LevelInfoDescriptor {
 			This DTO represents single hierarchical entity in the hierarchy tree. It contains identification of the entity,
 			the cardinality of queried entities that refer to it and information about children level.
 			""")
-		.staticFields(List.of(LEVEL, REQUESTED, QUERIED_ENTITY_COUNT, CHILDREN_COUNT))
+		.staticProperties(List.of(LEVEL, REQUESTED, QUERIED_ENTITY_COUNT, CHILDREN_COUNT))
 		.build();
 }

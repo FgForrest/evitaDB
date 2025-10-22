@@ -208,15 +208,15 @@ public record EndpointDescriptor(@Nonnull String operation,
 	}
 
 	@Nullable
-	public ObjectPropertyDataTypeDescriptor objectType() {
+	public TypePropertyDataTypeDescriptor objectType() {
 		if (type() == null) {
 			return null;
 		}
 		Assert.isPremiseValid(
-			type() instanceof ObjectPropertyDataTypeDescriptor,
+			type() instanceof TypePropertyDataTypeDescriptor,
 			() -> new ExternalApiInternalError("Type is not object.")
 		);
-		return (ObjectPropertyDataTypeDescriptor) type();
+		return (TypePropertyDataTypeDescriptor) type();
 	}
 
 	/**

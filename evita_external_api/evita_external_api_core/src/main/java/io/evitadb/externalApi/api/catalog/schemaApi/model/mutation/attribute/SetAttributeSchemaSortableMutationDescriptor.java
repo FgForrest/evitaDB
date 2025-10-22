@@ -61,6 +61,10 @@ public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeS
 			 Mutation can be used for altering also the existing `AttributeSchema` or
 			 `GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, SORTABLE_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, SORTABLE_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetAttributeSchemaSortableMutationInput")
+		.staticProperties(List.of(NAME, SORTABLE_IN_SCOPES))
 		.build();
 }

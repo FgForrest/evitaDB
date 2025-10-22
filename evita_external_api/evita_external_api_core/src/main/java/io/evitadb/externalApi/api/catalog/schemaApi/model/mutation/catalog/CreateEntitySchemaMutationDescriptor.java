@@ -54,6 +54,10 @@ public interface CreateEntitySchemaMutationDescriptor extends MutationDescriptor
 			Mutation is responsible for setting up a new `EntitySchema` - or more precisely
 			the collection within catalog.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, ENTITY_TYPE))
+		.staticProperties(List.of(MUTATION_TYPE, ENTITY_TYPE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("CreateEntitySchemaMutationInput")
+		.staticProperties(List.of(ENTITY_TYPE))
 		.build();
 }

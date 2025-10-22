@@ -55,6 +55,10 @@ public interface ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor e
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DEPRECATION_NOTICE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, DEPRECATION_NOTICE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAssociatedDataSchemaDeprecationNoticeMutationInput")
+		.staticProperties(List.of(NAME, DEPRECATION_NOTICE))
 		.build();
 }

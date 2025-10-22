@@ -59,6 +59,10 @@ public interface SetAttributeSchemaRepresentativeMutationDescriptor extends Attr
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, REPRESENTATIVE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, REPRESENTATIVE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetAttributeSchemaRepresentativeMutationInput")
+		.staticProperties(List.of(NAME, REPRESENTATIVE))
 		.build();
 }

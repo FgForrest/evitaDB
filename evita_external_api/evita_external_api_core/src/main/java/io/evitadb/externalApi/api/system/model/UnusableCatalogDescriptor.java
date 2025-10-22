@@ -85,6 +85,6 @@ public interface UnusableCatalogDescriptor {
             Catalog instance that cannot be loaded into a memory due an error.
             The original exception and catalog path are accessible via. `catalogStoragePath` and `cause` properties.
             """)
-        .staticFields(List.of(CATALOG_ID, NAME, CATALOG_STORAGE_PATH, CAUSE, UNUSABLE))
+        .staticProperties(List.of(CATALOG_ID, NAME, CATALOG_STORAGE_PATH, CAUSE, UNUSABLE))
         .build();
 }

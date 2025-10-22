@@ -47,7 +47,6 @@ import io.evitadb.externalApi.graphql.io.GraphQLRouter;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
-import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -160,7 +159,7 @@ public class GraphQLManager {
 
 	@Nonnull
 	public HttpService getGraphQLRouter() {
-		return this.graphQLRouter.decorate(PathNormalizingHandler::new);
+		return this.graphQLRouter;
 	}
 
 	/**

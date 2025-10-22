@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.UnionDescriptor;
 
 /**
  * Descriptor of union of {@link AttributeSchemaContract} and {@link GlobalAttributeSchemaContract} for schema-based external APIs. It describes what properties of attribute schema are
@@ -37,7 +37,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface AttributeSchemaUnionDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
+	UnionDescriptor THIS = UnionDescriptor.builder()
 		.name("AttributeSchemaUnion")
 		.description("""
 			This is the definition object for attributes that are stored along with

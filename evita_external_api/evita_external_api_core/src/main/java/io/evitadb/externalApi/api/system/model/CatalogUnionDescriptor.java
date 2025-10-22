@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.system.model;
 
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.UnionDescriptor;
 
 /**
  * Union of {@link CatalogDescriptor} and {@link UnusableCatalogDescriptor}.
@@ -32,7 +32,8 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface CatalogUnionDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
+	// todo lho discriminator?
+	UnionDescriptor THIS = UnionDescriptor.builder()
 		.name("CatalogUnion")
 		.description("""
 			Contains all possible catalog instance implementations.

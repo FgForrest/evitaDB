@@ -43,6 +43,10 @@ public interface RemoveParentMutationDescriptor extends MutationDescriptor {
 		.description("""
 			This mutation allows to remove `parent` from the `entity`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE))
+		.staticProperties(List.of(MUTATION_TYPE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveParentMutationInput")
+		.staticProperties(List.of())
 		.build();
 }

@@ -54,6 +54,10 @@ public interface ModifyEntitySchemaDescriptionMutationDescriptor extends EntityS
 			Mutation is responsible for setting a `EntitySchema.description`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, DESCRIPTION))
+		.staticProperties(List.of(MUTATION_TYPE, DESCRIPTION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyEntitySchemaDescriptionMutationInput")
+		.staticProperties(List.of(DESCRIPTION))
 		.build();
 }

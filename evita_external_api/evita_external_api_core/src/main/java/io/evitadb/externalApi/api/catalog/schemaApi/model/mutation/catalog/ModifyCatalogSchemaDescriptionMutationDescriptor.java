@@ -55,6 +55,10 @@ public interface ModifyCatalogSchemaDescriptionMutationDescriptor extends Mutati
 			Mutation is responsible for setting value to a `CatalogSchema.description`
 			in `CatalogSchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, DESCRIPTION))
+		.staticProperties(List.of(MUTATION_TYPE, DESCRIPTION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyCatalogSchemaDescriptionMutationInput")
+		.staticProperties(List.of(DESCRIPTION))
 		.build();
 }

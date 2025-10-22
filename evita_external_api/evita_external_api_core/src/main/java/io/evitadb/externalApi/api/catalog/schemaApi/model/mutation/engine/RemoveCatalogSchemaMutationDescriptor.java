@@ -43,8 +43,14 @@ public interface RemoveCatalogSchemaMutationDescriptor extends EngineMutationDes
 			Mutation is responsible for removing an existing catalog schema - or more precisely the catalog
 			instance itself.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			CATALOG_NAME
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveCatalogSchemaMutationInput")
+		.staticProperties(List.of(
 			CATALOG_NAME
 		))
 		.build();

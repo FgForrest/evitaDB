@@ -57,7 +57,7 @@ public abstract class EntityUpsertMutationFactory<A> {
 	private final MutationResolvingExceptionFactory exceptionFactory;
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private LocalMutationAggregateConverter localMutationAggregateConverter;
+	private LocalMutationInputAggregateConverter localMutationAggregateConverter;
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
 	private DelegatingLocalMutationConverter delegatingLocalMutationConverter;
@@ -70,7 +70,7 @@ public abstract class EntityUpsertMutationFactory<A> {
 	) {
 		this.entitySchema = entitySchema;
 		this.exceptionFactory = exceptionFactory;
-		this.localMutationAggregateConverter = new LocalMutationAggregateConverter(objectMapper, mutationObjectMapper, exceptionFactory);
+		this.localMutationAggregateConverter = new LocalMutationInputAggregateConverter(objectMapper, mutationObjectMapper, exceptionFactory);
 		this.delegatingLocalMutationConverter = new DelegatingLocalMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);
 	}
 

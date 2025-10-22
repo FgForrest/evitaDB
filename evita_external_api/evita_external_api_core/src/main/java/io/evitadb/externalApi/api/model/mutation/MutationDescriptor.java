@@ -23,7 +23,11 @@
 
 package io.evitadb.externalApi.api.model.mutation;
 
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import javax.annotation.Nonnull;
+import java.util.function.Predicate;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
@@ -40,4 +44,15 @@ public interface MutationDescriptor {
 		.description("The mutation type. Can be used as discriminator.")
 		.type(nullable(String.class)) // todo lho must be nonnull but only in output types
 		.build();
+
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
+		.name("Mutation")
+		.description("This interface denotes all mutation operations that can be cast on Evita data objects.")
+		.staticProperty(MUTATION_TYPE)
+		.build();
+
+	/**
+	 * Pre-defined filter for creating input object descriptors from output object descriptors.
+	 */
+	Predicate<PropertyDescriptor> INPUT_OBJECT_PROPERTIES_FILTER = it -> it == MUTATION_TYPE;
 }

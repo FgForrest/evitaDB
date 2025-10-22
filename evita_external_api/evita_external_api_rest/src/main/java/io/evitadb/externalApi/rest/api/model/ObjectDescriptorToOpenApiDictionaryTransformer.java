@@ -48,7 +48,7 @@ public class ObjectDescriptorToOpenApiDictionaryTransformer implements ObjectDes
 		unionBuilder.description(objectDescriptor.description());
 
 		Assert.isPremiseValid(
-			objectDescriptor.staticFields().isEmpty(),
+			objectDescriptor.staticProperties().isEmpty(),
 			() -> new OpenApiBuildingError("Union object cannot have properties.")
 		);
 

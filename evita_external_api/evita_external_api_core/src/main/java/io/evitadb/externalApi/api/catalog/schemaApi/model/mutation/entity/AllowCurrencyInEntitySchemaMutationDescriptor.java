@@ -54,6 +54,10 @@ public interface AllowCurrencyInEntitySchemaMutationDescriptor extends EntitySch
 			Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, CURRENCIES))
+		.staticProperties(List.of(MUTATION_TYPE, CURRENCIES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("AllowCurrencyInEntitySchemaMutationInput")
+		.staticProperties(List.of(CURRENCIES))
 		.build();
 }

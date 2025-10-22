@@ -28,7 +28,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-// todo lho
 interface RestSubProtocol {
     void sendResult(@Nonnull String operationId, @Nonnull Object executionResult) throws JsonProcessingException;
 

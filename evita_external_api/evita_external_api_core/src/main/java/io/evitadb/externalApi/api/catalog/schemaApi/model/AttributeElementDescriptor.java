@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,9 +66,9 @@ public interface AttributeElementDescriptor {
 			sorting and the behaviour of the null values. The attribute name refers to the existing attribute defined in the
 			schema.
 			""")
-		.staticField(ATTRIBUTE_NAME)
-		.staticField(DIRECTION)
-		.staticField(BEHAVIOUR)
+		.staticProperty(ATTRIBUTE_NAME)
+		.staticProperty(DIRECTION)
+		.staticProperty(BEHAVIOUR)
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -78,8 +78,8 @@ public interface AttributeElementDescriptor {
 			sorting and the behaviour of the null values. The attribute name refers to the existing attribute defined in the
 			schema.
 			""")
-		.staticField(ATTRIBUTE_NAME)
-		.staticField(DIRECTION)
-		.staticField(BEHAVIOUR)
+		.staticProperty(ATTRIBUTE_NAME)
+		.staticProperty(DIRECTION)
+		.staticProperty(BEHAVIOUR)
 		.build();
 }

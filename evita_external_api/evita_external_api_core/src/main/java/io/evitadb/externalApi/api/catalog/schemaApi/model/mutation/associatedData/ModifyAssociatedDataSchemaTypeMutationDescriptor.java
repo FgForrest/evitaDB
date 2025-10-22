@@ -29,7 +29,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutation}.
@@ -57,6 +57,10 @@ public interface ModifyAssociatedDataSchemaTypeMutationDescriptor extends Associ
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, TYPE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, TYPE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAssociatedDataSchemaTypeMutationInput")
+		.staticProperties(List.of(NAME, TYPE))
 		.build();
 }

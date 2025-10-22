@@ -39,7 +39,7 @@ import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
- * TODO lho docs
+ * REST API for {@link io.evitadb.core.EvitaSession#registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} using WebSockets.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -50,8 +50,7 @@ public class ChangeCatalogCaptureStreamHandler extends RestWebSocketHandler<Cata
 	) {
 		super(
 			restHandlingContext,
-			new ChangeCatalogCaptureStreamExecutor(restHandlingContext),
-			null // todo lho should there be something?
+			new ChangeCatalogCaptureStreamExecutor(restHandlingContext)
 		);
 	}
 

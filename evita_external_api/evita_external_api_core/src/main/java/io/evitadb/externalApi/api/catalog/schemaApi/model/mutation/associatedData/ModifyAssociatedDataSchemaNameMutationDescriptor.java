@@ -54,6 +54,10 @@ public interface ModifyAssociatedDataSchemaNameMutationDescriptor extends Associ
 			Mutation is responsible for renaming an existing `AssociatedDataSchema` in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAssociatedDataSchemaNameMutationInput")
+		.staticProperties(List.of(NAME, NEW_NAME))
 		.build();
 }

@@ -31,7 +31,7 @@ import io.evitadb.externalApi.dataType.Any;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -65,6 +65,10 @@ public interface UpsertAttributeMutationDescriptor extends AttributeMutationDesc
 		.description("""
 			Upsert attribute mutation will either update existing attribute or create new one.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE, VALUE, VALUE_TYPE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALE, VALUE, VALUE_TYPE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("UpsertAttributeMutationInput")
+		.staticProperties(List.of(NAME, LOCALE, VALUE, VALUE_TYPE))
 		.build();
 }

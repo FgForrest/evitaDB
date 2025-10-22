@@ -56,6 +56,10 @@ public interface ModifySortableAttributeCompoundSchemaDescriptionMutationDescrip
 			in `EntitySchema` or `ReferenceSchema`.
 		
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifySortableAttributeCompoundSchemaDescriptionMutationInput")
+		.staticProperties(List.of(NAME, DESCRIPTION))
 		.build();
 }

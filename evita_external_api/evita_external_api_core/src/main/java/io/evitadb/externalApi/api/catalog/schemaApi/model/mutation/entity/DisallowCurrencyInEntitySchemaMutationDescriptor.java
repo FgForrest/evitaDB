@@ -54,6 +54,10 @@ public interface DisallowCurrencyInEntitySchemaMutationDescriptor extends Entity
 			Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, CURRENCIES))
+		.staticProperties(List.of(MUTATION_TYPE, CURRENCIES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("DisallowCurrencyInEntitySchemaMutationInput")
+		.staticProperties(List.of(CURRENCIES))
 		.build();
 }

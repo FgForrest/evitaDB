@@ -25,7 +25,7 @@ package io.evitadb.externalApi.graphql.api.model;
 
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLType;
-import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
+import io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
@@ -72,8 +72,8 @@ public class PropertyDataTypeDescriptorToGraphQLTypeTransformer implements Prope
 					primitiveType.nonNull()
 				);
 			}
-		} else if (typeDescriptor instanceof ObjectPropertyDataTypeDescriptor objectType) {
-			GraphQLInputType graphQLType = typeRef(objectType.objectReference().name());
+		} else if (typeDescriptor instanceof TypePropertyDataTypeDescriptor objectType) {
+			GraphQLInputType graphQLType = typeRef(objectType.typeReference().name());
 			if (objectType.list()) {
 				graphQLType = list(nonNull(graphQLType));
 			}

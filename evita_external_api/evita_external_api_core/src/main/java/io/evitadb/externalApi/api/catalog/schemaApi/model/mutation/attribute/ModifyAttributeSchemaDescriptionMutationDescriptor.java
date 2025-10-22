@@ -56,6 +56,10 @@ public interface ModifyAttributeSchemaDescriptionMutationDescriptor extends Attr
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAttributeSchemaDescriptionMutationInput")
+		.staticProperties(List.of(NAME, DESCRIPTION))
 		.build();
 }

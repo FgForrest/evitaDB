@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -71,7 +71,7 @@ public interface EntityUpsertMutationDescriptor extends MutationDescriptor {
 		.description("""
 			All local mutations that should be applied to the entity.
 			""")
-		.type(nonNullListRef(LocalMutationAggregateDescriptor.THIS))
+		.type(nonNullListRef(LocalMutationInputAggregateDescriptor.THIS))
 		.build();
 
 	// todo lho register in api
@@ -82,7 +82,7 @@ public interface EntityUpsertMutationDescriptor extends MutationDescriptor {
 			and all its internal data are marked as TRUE for dropped, stored to the storage file and
 			removed from the mem-table.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
 			ENTITY_PRIMARY_KEY,
 			ENTITY_TYPE,

@@ -33,7 +33,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
@@ -85,23 +85,47 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		this.buildingContext.registerType(buildEntitySchemaObject());
 		this.buildingContext.registerType(buildCatalogSchemaObject());
 
-		// catalog schema mutations
-		this.buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// global attribute schema mutations
-		this.buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		this.buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		buildInputMutations();
+		buildOutputMutations();
 
 		// build catalog field
 		this.buildingContext.registerQueryField(buildCatalogSchemaField());
 		this.buildingContext.registerMutationField(buildUpdateCatalogSchemaField());
 		this.buildingContext.registerSubscriptionField(buildOnCatalogSchemaChangeField());
+	}
+
+	private void buildInputMutations() {
+		registerInputMutations(
+			// catalog schema mutations
+			ModifyEntitySchemaMutationDescriptor.THIS_INPUT,
+			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT,
+			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
+			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
+
+			// global attribute schema mutations
+			CreateGlobalAttributeSchemaMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS_INPUT,
+
+			LocalCatalogSchemaMutationInputAggregateDescriptor.THIS_INPUT
+
+			// other mutation objects should be already created by EntitySchemaSchemaBuilder
+		);
+	}
+
+	private void buildOutputMutations() {
+		registerOutputMutations(
+			// catalog schema mutations
+			ModifyEntitySchemaMutationDescriptor.THIS,
+			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
+			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
+			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
+
+			// global attribute schema mutations
+			CreateGlobalAttributeSchemaMutationDescriptor.THIS,
+			SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS
+		);
+
+		// todo lho union?
 	}
 
 	/*

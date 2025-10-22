@@ -32,6 +32,7 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -39,7 +40,24 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -66,12 +84,14 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataF
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnCatalogDataChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnCollectionDataChangeCaptureSubscribingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
+import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -164,8 +184,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			this.orderConstraintSchemaBuilder
 		);
 		this.localMutationAggregateObjectBuilder = new LocalMutationAggregateObjectBuilder(
-			this.buildingContext,
-			this.inputObjectBuilderTransformer,
 			this.inputFieldBuilderTransformer
 		);
 	}
@@ -183,6 +201,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		buildCurrencyEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
 		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(QueryLabelDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		buildInputMutations();
+		buildOutputMutations();
 
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		this.buildingContext.registerType(scalarEnum);
@@ -190,7 +210,6 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		this.entityObjectBuilder.buildCommonTypes();
 		this.fullResponseObjectBuilder.buildCommonTypes();
-		this.localMutationAggregateObjectBuilder.buildCommonTypes();
 	}
 
 	private void buildFields() {
@@ -738,5 +757,48 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				this.buildingContext.getEvita(), collectionBuildingContext.getSchema()
 			)
 		);
+	}
+
+	private void buildInputMutations() {
+		registerInputMutations(
+			SetEntityScopeMutationDescriptor.THIS_INPUT,
+			RemoveAssociatedDataMutationDescriptor.THIS_INPUT,
+			UpsertAssociatedDataMutationDescriptor.THIS_INPUT,
+			ApplyDeltaAttributeMutationDescriptor.THIS_INPUT,
+			RemoveAttributeMutationDescriptor.THIS_INPUT,
+			UpsertAttributeMutationDescriptor.THIS_INPUT,
+			SetParentMutationDescriptor.THIS_INPUT,
+			SetPriceInnerRecordHandlingMutationDescriptor.THIS_INPUT,
+			RemovePriceMutationDescriptor.THIS_INPUT,
+			UpsertPriceMutationDescriptor.THIS_INPUT,
+			InsertReferenceMutationDescriptor.THIS_INPUT,
+			RemoveReferenceMutationDescriptor.THIS_INPUT,
+			SetReferenceGroupMutationDescriptor.THIS_INPUT,
+			RemoveReferenceGroupMutationDescriptor.THIS_INPUT,
+			ReferenceAttributeMutationDescriptor.THIS_INPUT,
+			ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT
+		);
+	}
+
+	private void buildOutputMutations() {
+		registerOutputMutations(
+			SetEntityScopeMutationDescriptor.THIS,
+			RemoveAssociatedDataMutationDescriptor.THIS,
+			UpsertAssociatedDataMutationDescriptor.THIS,
+			ApplyDeltaAttributeMutationDescriptor.THIS,
+			RemoveAttributeMutationDescriptor.THIS,
+			UpsertAttributeMutationDescriptor.THIS,
+			SetParentMutationDescriptor.THIS,
+			SetPriceInnerRecordHandlingMutationDescriptor.THIS,
+			RemovePriceMutationDescriptor.THIS,
+			UpsertPriceMutationDescriptor.THIS,
+			InsertReferenceMutationDescriptor.THIS,
+			RemoveReferenceMutationDescriptor.THIS,
+			SetReferenceGroupMutationDescriptor.THIS,
+			RemoveReferenceGroupMutationDescriptor.THIS,
+			ReferenceAttributeMutationDescriptor.THIS
+		);
+
+		// todo lho union?
 	}
 }

@@ -39,7 +39,11 @@ public interface CreateCatalogSchemaMutationDescriptor extends EngineMutationDes
 			Mutation is responsible for setting up a new catalog schema - or more precisely the catalog instance
 			itself.
 			""")
-		.staticField(MUTATION_TYPE)
-		.staticField(CATALOG_NAME)
+		.staticProperty(MUTATION_TYPE)
+		.staticProperty(CATALOG_NAME)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("CreateCatalogSchemaMutationInput")
+		.staticProperty(CATALOG_NAME)
 		.build();
 }

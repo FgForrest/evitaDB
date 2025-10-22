@@ -63,6 +63,10 @@ public interface ModifyReferenceSchemaRelatedEntityMutationDescriptor extends Re
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_TYPE_MANAGED))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_TYPE_MANAGED))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReferenceSchemaRelatedEntityMutationInput")
+		.staticProperties(List.of(NAME, REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_TYPE_MANAGED))
 		.build();
 }

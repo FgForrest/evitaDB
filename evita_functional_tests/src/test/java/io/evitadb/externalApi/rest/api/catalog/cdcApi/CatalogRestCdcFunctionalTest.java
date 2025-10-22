@@ -183,7 +183,55 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 		);
 	}
 
-	// todo lho test custom criteria
+	@Test
+	@UseDataSet(REST_EMPTY_SYSTEM_FOR_CATALOG_API)
+	@DisplayName("Should receive catalog capture filtered by criteria")
+	void shouldReceiveCatalogCaptureFilteredByCriteria(Evita evita, RestTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+		final String newEntityType = "myEntityType";
+
+		// prepare data
+		evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+		evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+
+		tester.testWebSocket(
+			newCatalogName,
+			CATALOG_CHANGE_CAPTURE_URL_PATH,
+			writer -> {
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
+
+				// apply operation to trigger a new event
+				evita.updateCatalog(
+					newCatalogName,
+					session -> {
+						session.defineEntitySchema(newEntityType).updateVia(session);
+					}
+				);
+
+				// open subscription
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"{ " +
+						"\"sinceVersion\": \"" + startVersion + "\", " +
+						"\"criteria\": [{ \"area\": \"SCHEMA\", \"site\": { \"type\": \"SCHEMA\", \"containerType\": [\"ENTITY\"] } }], " +
+						"\"content\": \"BODY\" " +
+						"}"
+				));
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.and(
+						it -> it.node(resultPath(CATALOG_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT),
+						it -> it.node(resultPath(CATALOG_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateEntitySchemaMutation")
+					);
+			}
+		);
+	}
 
 	@Nonnull
 	private static String createSubscriptionQueryMessage(@Nonnull String subscriptionId, @Nonnull String payload) {

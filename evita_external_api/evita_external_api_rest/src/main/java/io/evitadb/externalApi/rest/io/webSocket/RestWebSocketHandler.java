@@ -37,7 +37,6 @@ import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -58,18 +57,13 @@ public class RestWebSocketHandler<CTX extends RestHandlingContext>
 
 	@Nonnull
 	private final RestWebSocketExecutor<CTX, ?> restWebSocketExecutor;
-	// todo lho should this be supported?
-	@Nullable
-	private final RestEndpointHandler<CTX> fallbackService;
 
 	public RestWebSocketHandler(
 		@Nonnull CTX restHandlingContext,
-		@Nonnull RestWebSocketExecutor<CTX, ?> restWebSocketExecutor,
-		@Nullable RestEndpointHandler<CTX> fallbackService
+		@Nonnull RestWebSocketExecutor<CTX, ?> restWebSocketExecutor
 	) {
 		super(restHandlingContext);
 		this.restWebSocketExecutor = restWebSocketExecutor;
-		this.fallbackService = fallbackService;
 	}
 
 	@Nonnull
@@ -85,19 +79,6 @@ public class RestWebSocketHandler<CTX extends RestHandlingContext>
 		return outgoing;
 	}
 
-//	@Override
-//	@Nonnull
-//	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
-//		// WebSocket connection must be already open at this point, so it should call the handle() method.
-//		// However, we want to use the GET method via HTTP for other purposes, so we delegate the processing to nested
-//		// service.
-//		if (this.fallbackService == null) {
-//			// todo lho better exception
-//			throw new RestInvalidArgumentException("Only WebSocket connections are supported.");
-//		}
-//		return this.fallbackService.serve(ctx, req);
-//	}
-
 	@Nonnull
 	@Override
 	public Set<HttpMethod> getSupportedHttpMethods() {
@@ -109,7 +90,6 @@ public class RestWebSocketHandler<CTX extends RestHandlingContext>
 	protected CompletableFuture<EndpointResponse> doHandleRequest(
 		@Nonnull RestEndpointExecutionContext executionContext
 	) {
-		// todo lho what with this
 		throw new RestInvalidArgumentException("Only WebSocket connections are supported.");
 	}
 }

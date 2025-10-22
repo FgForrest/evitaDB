@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,38 +46,83 @@ import java.util.stream.Stream;
  *
  * @param name name of object, if starts with *, it is treated only as suffix to the full name, if ends with *, it is treated only as prefix to the full name
  * @param description can be parametrized with {@link String#format(String, Object...)} parameters
- * @param staticFields list of static fields that can be safely added to built object without additional configuration
+ * @param staticProperties list of static fields that can be safely added to built object without additional configuration
+ * @param interfaceDescriptor if present, the object will implement the specified interface
+ * @param representedClass reference to a class that this descriptor represents in API
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public record ObjectDescriptor(@Nonnull String name,
                                @Nullable String description,
-                               @Nonnull List<PropertyDescriptor> staticFields) {
-
-	public static String NAME_WILDCARD = "*";
+                               @Nonnull List<PropertyDescriptor> staticProperties,
+                               @Nullable ObjectDescriptor interfaceDescriptor,
+                               @Nullable Class<?> representedClass) implements TypeDescriptor {
 
 	@Builder
-	public ObjectDescriptor(@Nonnull String name,
-	                        @Nullable String description,
-	                        @Nullable @Singular List<PropertyDescriptor> staticFields) {
+	public ObjectDescriptor(
+		@Nullable String name,
+        @Nullable String description,
+        @Nullable @Singular List<PropertyDescriptor> staticProperties,
+		@Nullable ObjectDescriptor interfaceDescriptor,
+		@Nullable Class<?> representedClass
+	) {
 		Assert.isPremiseValid(
-			!name.isEmpty(),
-			() -> new ExternalApiInternalError("Name of object cannot be empty.")
+			(name != null && !name.isBlank()) || representedClass != null,
+			() -> new ExternalApiInternalError("Name of object must be specified directly or via represented class.")
 		);
-		this.name = name;
+		this.name = name != null ? name : representedClass.getSimpleName();
 		this.description = description;
-		this.staticFields = staticFields != null ? staticFields : List.of();
+		this.staticProperties = staticProperties != null ? staticProperties : List.of();
+		this.interfaceDescriptor = interfaceDescriptor;
+		this.representedClass = representedClass;
 	}
 
 	/**
-	 * Creates new descriptor extending all properties of specified one. Note that {@link ObjectDescriptor#name} is not
-	 * being transferred to prevent name duplication.
+	 * Creates a new descriptor of an object implementing a specified interface.
+	 *
+	 * Note: to add additional static fields instead of replacing extended ones, use the `staticField` builder method instead
+	 * of the `staticFields` builder method.
 	 */
 	@Nonnull
-	public static ObjectDescriptorBuilder extend(@Nonnull ObjectDescriptor objectDescriptor) {
+	public static ObjectDescriptorBuilder implementing(@Nonnull ObjectDescriptor interfaceDescriptor) {
+		return from(interfaceDescriptor)
+			.interfaceDescriptor(interfaceDescriptor);
+	}
+
+	/**
+	 * Creates a new descriptor with all the properties of the specified one. Note that {@link ObjectDescriptor#name} is not
+	 * being transferred to prevent name duplication.
+	 *
+	 * Note: to add additional static fields instead of replacing extended ones, use the `staticField` builder method instead
+	 * of the `staticFields` builder method.
+	 */
+	@Nonnull
+	public static ObjectDescriptorBuilder from(@Nonnull ObjectDescriptor objectDescriptor) {
+		return from(objectDescriptor, null);
+	}
+
+	/**
+	 * Creates a new descriptor with all the properties of the specified one. Note that {@link ObjectDescriptor#name} is not
+	 * being transferred to prevent name duplication.
+	 *
+	 * Note: to add additional static fields instead of replacing extended ones, use the `staticField` builder method instead
+	 * of the `staticFields` builder method.
+	 */
+	@Nonnull
+	public static ObjectDescriptorBuilder from(
+		@Nonnull ObjectDescriptor objectDescriptor,
+		@Nullable Predicate<PropertyDescriptor> withoutProperties
+	) {
 		return builder()
 			.description(objectDescriptor.description())
-			.staticFields(new ArrayList<>(objectDescriptor.staticFields()));
+			.staticProperties(new ArrayList<>(
+				withoutProperties == null
+					? objectDescriptor.staticProperties()
+					: objectDescriptor.staticProperties()
+						.stream()
+						.filter(it -> !withoutProperties.test(it))
+						.collect(Collectors.toList())
+			));
 	}
 
 	@Nonnull
@@ -133,6 +179,25 @@ public record ObjectDescriptor(@Nonnull String name,
 			return null;
 		}
 		return String.format(this.description, args);
+	}
+
+	/**
+	 * Whether this descriptor represents a specific class.
+	 */
+	public boolean representsClass() {
+		return this.representedClass != null;
+	}
+
+	/**
+	 * Returns the class that this descriptor represents in API. If not present, exception is thrown.
+	 * To check if the descriptor represents a class, use {@link #representsClass()}.
+	 */
+	@Nonnull
+	public Class<?> representedClass() {
+		if (this.representedClass == null) {
+			throw new ExternalApiInternalError("Object descriptor doesn't represent any specific class.");
+		}
+		return this.representedClass;
 	}
 
 	/**

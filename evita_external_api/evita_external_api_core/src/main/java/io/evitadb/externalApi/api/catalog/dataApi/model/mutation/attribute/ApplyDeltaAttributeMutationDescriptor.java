@@ -69,6 +69,10 @@ public interface ApplyDeltaAttributeMutationDescriptor extends AttributeMutation
 			Allows to specify the number range that is tolerated for the value after delta application has been finished to
 			verify for example that number of items on stock doesn't go below zero.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE, DELTA, REQUIRED_RANGE_AFTER_APPLICATION))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALE, DELTA, REQUIRED_RANGE_AFTER_APPLICATION))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ApplyDeltaAttributeMutationInput")
+		.staticProperties(List.of(NAME, LOCALE, DELTA, REQUIRED_RANGE_AFTER_APPLICATION))
 		.build();
 }

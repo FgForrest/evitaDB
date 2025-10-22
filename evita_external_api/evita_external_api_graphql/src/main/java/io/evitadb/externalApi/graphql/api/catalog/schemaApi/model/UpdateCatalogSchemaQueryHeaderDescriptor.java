@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Descriptor for header arguments of {@link CatalogSchemaApiRootDescriptor#UPDATE_CATALOG_SCHEMA}
@@ -42,6 +42,6 @@ public interface UpdateCatalogSchemaQueryHeaderDescriptor {
 		.description("""
 			Individual mutations to apply to catalog schema.
 			""")
-		.type(nonNullListRef(LocalCatalogSchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullListRef(LocalCatalogSchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 }

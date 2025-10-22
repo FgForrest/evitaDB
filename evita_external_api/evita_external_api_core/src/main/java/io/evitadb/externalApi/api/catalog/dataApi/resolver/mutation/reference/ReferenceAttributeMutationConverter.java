@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingAttributeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.AttributeMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.AttributeMutationInputAggregateConverter;
 import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
@@ -52,14 +52,14 @@ import java.util.Optional;
 public class ReferenceAttributeMutationConverter extends ReferenceMutationConverter<ReferenceAttributeMutation> {
 
 	@Nonnull
-	private final AttributeMutationAggregateConverter attributeMutationAggregateConverter;
+	private final AttributeMutationInputAggregateConverter attributeMutationAggregateConverter;
 	@Nonnull
 	private final DelegatingAttributeMutationConverter delegatingAttributeMutationConverter;
 
 	public ReferenceAttributeMutationConverter(@Nonnull MutationObjectMapper objectMapper,
 	                                           @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectMapper, exceptionFactory);
-		this.attributeMutationAggregateConverter = new AttributeMutationAggregateConverter(objectMapper, exceptionFactory);
+		this.attributeMutationAggregateConverter = new AttributeMutationInputAggregateConverter(objectMapper, exceptionFactory);
 		this.delegatingAttributeMutationConverter = new DelegatingAttributeMutationConverter(objectMapper, exceptionFactory);
 	}
 

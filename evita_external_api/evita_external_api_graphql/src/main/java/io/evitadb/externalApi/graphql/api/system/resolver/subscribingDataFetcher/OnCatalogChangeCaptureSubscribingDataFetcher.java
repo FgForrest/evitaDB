@@ -42,6 +42,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.SchemaSiteDesc
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.ChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.OnCatalogChangeCaptureSubscriptionHeaderDescriptor;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 
 import javax.annotation.Nonnull;
@@ -49,6 +50,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Flow.Publisher;
 
 /**
@@ -110,10 +112,16 @@ public class OnCatalogChangeCaptureSubscribingDataFetcher extends ChangeCaptureS
 		if (CaptureArea.DATA.equals(captureArea)) {
 			//noinspection unchecked
 			final Map<String, Object> dataSiteDto = (Map<String, Object>) criteriaDto.get(ChangeCatalogCaptureCriteriaDescriptor.DATA_SITE.name());
+			if (dataSiteDto == null) {
+				throw new GraphQLInvalidArgumentException("Data site is not specified.");
+			}
 			captureSite = parseDataSite(dataSiteDto);
 		} else if (CaptureArea.SCHEMA.equals(captureArea)) {
 			//noinspection unchecked
 			final Map<String, Object> schemaSiteDto = (Map<String, Object>) criteriaDto.get(ChangeCatalogCaptureCriteriaDescriptor.SCHEMA_SITE.name());
+			if (schemaSiteDto == null) {
+				throw new GraphQLInvalidArgumentException("Schema site is not specified.");
+			}
 			captureSite = parseSchemaSite(schemaSiteDto);
 		} else if (CaptureArea.INFRASTRUCTURE.equals(captureArea)) {
 			captureSite = null;
@@ -126,21 +134,33 @@ public class OnCatalogChangeCaptureSubscribingDataFetcher extends ChangeCaptureS
 
 	@Nonnull
 	private static DataSite parseDataSite(@Nonnull Map<String, Object> dataSiteDto) {
+		//noinspection unchecked
 		return DataSite.builder()
 			.entityType((String) dataSiteDto.get(DataSiteDescriptor.ENTITY_TYPE.name()))
 			.entityPrimaryKey((Integer) dataSiteDto.get(DataSiteDescriptor.ENTITY_PRIMARY_KEY.name()))
-			.operation((Operation[]) dataSiteDto.get(DataSiteDescriptor.OPERATION.name()))
-			.containerType((ContainerType[]) dataSiteDto.get(DataSiteDescriptor.CONTAINER_TYPE.name()))
-			.containerName((String[]) dataSiteDto.get(DataSiteDescriptor.CONTAINER_NAME.name()))
+			.operation(Optional.ofNullable((List<Operation>) dataSiteDto.get(DataSiteDescriptor.OPERATION.name()))
+	           .map(it -> it.toArray(Operation[]::new))
+	           .orElse(null))
+			.containerType(Optional.ofNullable((List<ContainerType>) dataSiteDto.get(DataSiteDescriptor.CONTAINER_TYPE.name()))
+               .map(it -> it.toArray(ContainerType[]::new))
+               .orElse(null))
+			.containerName(Optional.ofNullable((List<String>) dataSiteDto.get(DataSiteDescriptor.CONTAINER_NAME.name()))
+               .map(it -> it.toArray(String[]::new))
+               .orElse(null))
 			.build();
 	}
 
 	@Nonnull
 	private static SchemaSite parseSchemaSite(@Nonnull Map<String, Object> schemaSiteDto) {
+		//noinspection unchecked
 		return SchemaSite.builder()
 			.entityType((String) schemaSiteDto.get(SchemaSiteDescriptor.ENTITY_TYPE.name()))
-			.operation((Operation[]) schemaSiteDto.get(SchemaSiteDescriptor.OPERATION.name()))
-			.containerType((ContainerType[]) schemaSiteDto.get(SchemaSiteDescriptor.CONTAINER_TYPE.name()))
+			.operation(Optional.ofNullable((List<Operation>) schemaSiteDto.get(SchemaSiteDescriptor.OPERATION.name()))
+	           .map(it -> it.toArray(Operation[]::new))
+	           .orElse(null))
+			.containerType(Optional.ofNullable((List<ContainerType>) schemaSiteDto.get(SchemaSiteDescriptor.CONTAINER_TYPE.name()))
+               .map(it -> it.toArray(ContainerType[]::new))
+               .orElse(null))
 			.build();
 	}
 }

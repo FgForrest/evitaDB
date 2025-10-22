@@ -43,6 +43,10 @@ public interface RemoveAssociatedDataSchemaMutationDescriptor extends Associated
 			`EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveAssociatedDataSchemaMutationInput")
+		.staticProperties(List.of(NAME))
 		.build();
 }

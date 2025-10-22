@@ -54,6 +54,10 @@ public interface RemoveEntitySchemaMutationDescriptor extends MutationDescriptor
 			Mutation is responsible for removing an existing `EntitySchema` - or more precisely the entity
 			collection instance itself.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveEntitySchemaMutationInput")
+		.staticProperties(List.of(NAME))
 		.build();
 }

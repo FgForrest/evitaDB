@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Descriptor representing {@link SetReferenceSchemaIndexedMutation}.
@@ -70,6 +70,10 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetReferenceSchemaIndexedMutationInput")
+		.staticProperties(List.of(NAME, INDEXED_IN_SCOPES))
 		.build();
 }

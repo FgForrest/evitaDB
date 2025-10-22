@@ -60,8 +60,16 @@ public interface ModifyCatalogSchemaNameMutationDescriptor extends EngineMutatio
 		.description("""
 			Mutation is responsible for renaming an existing catalog schema.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			CATALOG_NAME,
+			NEW_CATALOG_NAME,
+			OVERWRITE_TARGET
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyCatalogSchemaNameMutationInput")
+		.staticProperties(List.of(
 			CATALOG_NAME,
 			NEW_CATALOG_NAME,
 			OVERWRITE_TARGET

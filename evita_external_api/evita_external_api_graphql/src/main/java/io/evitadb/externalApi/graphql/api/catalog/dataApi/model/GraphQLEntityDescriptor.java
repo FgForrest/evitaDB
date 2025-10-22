@@ -29,8 +29,8 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -90,7 +90,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 		.type(nullableRef(PriceDescriptor.THIS))
 		.build();
 
-	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_CLASSIFIER)
+	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.from(THIS_CLASSIFIER)
 		.name("NonHierarchical*")
 		.build();
 }

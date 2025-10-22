@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface ReferenceStripDescriptor extends StripListDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(StripListDescriptor.THIS)
+	ObjectDescriptor THIS = ObjectDescriptor.from(StripListDescriptor.THIS)
 		.name("*ReferenceStrip")
 		.build();
 }

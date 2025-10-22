@@ -43,6 +43,10 @@ public interface RemoveAssociatedDataMutationDescriptor extends AssociatedDataMu
 			Remove associated data mutation will drop existing associatedData - ie.generates new version of the associated data with tombstone
 			on it.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveAssociatedDataMutationInput")
+		.staticProperties(List.of(NAME, LOCALE))
 		.build();
 }

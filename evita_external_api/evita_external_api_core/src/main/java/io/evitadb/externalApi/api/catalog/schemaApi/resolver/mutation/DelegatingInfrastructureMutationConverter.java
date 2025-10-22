@@ -26,11 +26,9 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.DelegatingMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.InfrastructureMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.transaction.resolver.mutation.TransactionMutationConverter;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -38,7 +36,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.InfrastructureMutationAggregateDescriptor.TRANSACTION_MUTATION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**

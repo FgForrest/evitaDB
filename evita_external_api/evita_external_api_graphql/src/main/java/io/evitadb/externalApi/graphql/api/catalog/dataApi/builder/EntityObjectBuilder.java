@@ -145,9 +145,9 @@ public class EntityObjectBuilder {
 	public void buildCommonTypes() {
 		final GraphQLInterfaceType entityClassifier = EntityDescriptor.THIS_CLASSIFIER.to(this.interfaceBuilderTransformer).build();
 		this.buildingContext.registerType(entityClassifier);
-		this.buildingContext.registerTypeResolver(
+		this.buildingContext.addMappingTypeResolver(
 			entityClassifier,
-			new EntityDtoTypeResolver(this.buildingContext.getEntityTypeToEntityObject())
+			new EntityDtoTypeResolver(this.buildingContext.getEntitySchemas().size())
 		);
 		this.buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(buildGlobalEntity());
@@ -177,8 +177,7 @@ public class EntityObjectBuilder {
 		final GraphQLObjectType.Builder entityObjectBuilder = entityDescriptor
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
-			.description(entitySchema.getDescription())
-			.withInterface(typeRef(EntityDescriptor.THIS_CLASSIFIER.name()));
+			.description(entitySchema.getDescription());
 
 		// build top level fields
 		entityObjectBuilder.field(EntityDescriptor.SCOPE.to(this.fieldBuilderTransformer));

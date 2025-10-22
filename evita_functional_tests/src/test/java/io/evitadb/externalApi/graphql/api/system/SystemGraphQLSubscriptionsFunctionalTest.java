@@ -42,7 +42,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
-import static net.javacrumbs.jsonunit.assertj.JsonAssertions.json;
 
 /**
  * Tests for GraphQL catalog collections query.
@@ -278,7 +277,55 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		);
 	}
 
-	// todo lho test custom criteria
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive catalog capture filtered by criteria")
+	void shouldReceiveCatalogCaptureFilteredByCriteria(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+		final String newEntityType = "myEntityType";
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				// prepare data
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
+
+				// apply operation to trigger a new event
+				evita.updateCatalog(
+					newCatalogName,
+					session -> {
+						session.defineEntitySchema(newEntityType).updateVia(session);
+					}
+				);
+
+				// open subscription
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onCatalogChange(" +
+						"sinceVersion: \\\"" + startVersion + "\\\", " +
+						"catalogName: \\\"" + newCatalogName + "\\\"," +
+						"criteria: { area: SCHEMA, schemaSite: { containerType: ENTITY } }" +
+						")" +
+						" { version index operation body }"
+				));
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT),
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo("CreateEntitySchemaMutation")
+					);
+			}
+		);
+	}
 
 	@Nonnull
 	private static String createSubscriptionQueryMessage(@Nonnull String subscriptionId, @Nonnull String subscriptionQuery) {

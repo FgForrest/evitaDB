@@ -87,6 +87,10 @@ public interface SetEntitySchemaWithPriceMutationDescriptor extends EntitySchema
 			Mutation is responsible for setting a `EntitySchema.withPrice`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
+		.staticProperties(List.of(MUTATION_TYPE, WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetEntitySchemaWithPriceMutationInput")
+		.staticProperties(List.of(WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
 		.build();
 }

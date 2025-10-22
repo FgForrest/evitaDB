@@ -42,6 +42,10 @@ public interface RemoveReferenceGroupMutationDescriptor extends ReferenceMutatio
 		.description("""
 			This mutation allows to remove group in the reference.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveReferenceGroupMutationInput")
+		.staticProperties(List.of(NAME, PRIMARY_KEY))
 		.build();
 }

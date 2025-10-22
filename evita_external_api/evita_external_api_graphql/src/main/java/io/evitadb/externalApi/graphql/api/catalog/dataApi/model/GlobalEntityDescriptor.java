@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Represents global entity with only fields that are present in all entities across all collection.s
@@ -43,11 +43,11 @@ public interface GlobalEntityDescriptor extends GraphQLEntityDescriptor {
 		.type(nonNullRef(THIS_CLASSIFIER))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_CLASSIFIER)
+	ObjectDescriptor THIS = ObjectDescriptor.from(THIS_CLASSIFIER)
 		.name("GlobalEntity")
 		.description("""
             Catalog-wise entity with only common data across all entity collections.
             """)
-		.staticField(TARGET_ENTITY)
+		.staticProperty(TARGET_ENTITY)
 		.build();
 }

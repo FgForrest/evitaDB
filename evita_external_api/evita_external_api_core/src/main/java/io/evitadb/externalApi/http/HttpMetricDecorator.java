@@ -50,7 +50,7 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class HttpMetricDecorator extends SimpleDecoratingHttpService implements WebSocketHandler {
+public class HttpMetricDecorator extends SimpleDecoratingHttpService implements WebSocketDecoratingHandler {
 	private final String apiCode;
 
 	/**
@@ -102,8 +102,8 @@ public class HttpMetricDecorator extends SimpleDecoratingHttpService implements 
 	@Nonnull
 	@Override
 	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
-		// todo lho impl
-		return Objects.requireNonNull(this.unwrap().as(WebSocketHandler.class)).handle(ctx, in);
+		// not logging is done for WebSocket connections, these are long-lived and don't have a single result state
+		return this.unwrapWebSocketHandler().handle(ctx, in);
 	}
 
 	/**

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ public interface AssociatedDataSchemaDescriptor extends NamedSchemaWithDeprecati
 			in slower storage and may contain wide range of data types - from small ones (i.e. numbers, strings, dates) up to large
 			binary arrays representing entire files (i.e. pictures, documents).
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			NAME,
 			NAME_VARIANTS,
 			DESCRIPTION,

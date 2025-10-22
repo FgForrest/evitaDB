@@ -33,7 +33,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -152,8 +152,21 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			NAME,
+			DESCRIPTION,
+			DEPRECATION_NOTICE,
+			CARDINALITY,
+			REFERENCED_ENTITY_TYPE,
+			REFLECTED_REFERENCE_NAME,
+			INDEXED_IN_SCOPES,
+			FACETED_IN_SCOPES
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("CreateReflectedReferenceSchemaMutationInput")
+		.staticProperties(List.of(
 			NAME,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,

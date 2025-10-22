@@ -67,6 +67,10 @@ public interface ModifyEntitySchemaNameMutationDescriptor extends MutationDescri
 		.description("""
 			Mutation is responsible for renaming an existing `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, NEW_NAME, OVERWRITE_TARGET))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, NEW_NAME, OVERWRITE_TARGET))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyEntitySchemaNameMutationInput")
+		.staticProperties(List.of(NAME, NEW_NAME, OVERWRITE_TARGET))
 		.build();
 }

@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Descriptor interface that defines the structure for catalog schema modification mutations
@@ -47,7 +47,7 @@ public interface ModifyCatalogSchemaMutationDescriptor extends EngineMutationDes
 		.description("""
 			Contains all possible schema mutations for catalog.
 			""")
-		.type(nonNullListRef(LocalCatalogSchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullListRef(LocalCatalogSchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	// todo lho register?
@@ -57,8 +57,15 @@ public interface ModifyCatalogSchemaMutationDescriptor extends EngineMutationDes
 			 Mutation is a holder for a set of catalog schema mutations that affect a internal contents of the catalog
 			 schema itself.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			CATALOG_NAME,
+			SCHEMA_MUTATIONS
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyCatalogSchemaMutationInput")
+		.staticProperties(List.of(
 			CATALOG_NAME,
 			SCHEMA_MUTATIONS
 		))

@@ -43,6 +43,10 @@ public interface RemoveAttributeMutationDescriptor extends AttributeMutationDesc
 			Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone
 			on it.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("RemoveAttributeMutationInput")
+		.staticProperties(List.of(NAME, LOCALE))
 		.build();
 }

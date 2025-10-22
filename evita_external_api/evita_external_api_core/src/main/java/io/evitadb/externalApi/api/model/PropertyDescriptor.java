@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import lombok.Builder;
 
 import javax.annotation.Nonnull;
@@ -151,15 +150,15 @@ public record PropertyDescriptor(@Nonnull String name,
 	}
 
 	@Nullable
-	public ObjectPropertyDataTypeDescriptor objectType() {
+	public TypePropertyDataTypeDescriptor objectType() {
 		if (type() == null) {
 			return null;
 		}
 		Assert.isPremiseValid(
-			type() instanceof ObjectPropertyDataTypeDescriptor,
+			type() instanceof TypePropertyDataTypeDescriptor,
 			() -> new ExternalApiInternalError("Type is not object.")
 		);
-		return (ObjectPropertyDataTypeDescriptor) type();
+		return (TypePropertyDataTypeDescriptor) type();
 	}
 
 	public boolean isNameStatic() {
@@ -173,27 +172,44 @@ public record PropertyDescriptor(@Nonnull String name,
 		return transformer.apply(this);
 	}
 
-	public static PropertyDescriptor nullableFromObject(@Nonnull ObjectDescriptor objectReference) {
-		return fromObject(objectReference, false, false);
+	public static PropertyDescriptor nullableFromObject(
+		@Nonnull String propertyName,
+		@Nonnull ObjectDescriptor objectReference
+	) {
+		return fromObject(propertyName, objectReference, false, false);
 	}
 
-	public static PropertyDescriptor nonNullFromObject(@Nonnull ObjectDescriptor objectReference) {
-		return fromObject(objectReference, true, false);
+	public static PropertyDescriptor nonNullFromObject(
+		@Nonnull String propertyName,
+		@Nonnull ObjectDescriptor objectReference
+	) {
+		return fromObject(propertyName, objectReference, true, false);
 	}
 
-	public static PropertyDescriptor nullableListFromObject(@Nonnull ObjectDescriptor objectReference) {
-		return fromObject(objectReference, false, true);
+	public static PropertyDescriptor nullableListFromObject(
+		@Nonnull String propertyName,
+		@Nonnull ObjectDescriptor objectReference
+	) {
+		return fromObject(propertyName, objectReference, false, true);
 	}
 
-	public static PropertyDescriptor nonNullListFromObject(@Nonnull ObjectDescriptor objectReference) {
-		return fromObject(objectReference, true, true);
+	public static PropertyDescriptor nonNullListFromObject(
+		@Nonnull String propertyName,
+		@Nonnull ObjectDescriptor objectReference
+	) {
+		return fromObject(propertyName, objectReference, true, true);
 	}
 
-	private static PropertyDescriptor fromObject(@Nonnull ObjectDescriptor objectReference, boolean nonNull, boolean list) {
+	private static PropertyDescriptor fromObject(
+		@Nonnull String propertyName,
+		@Nonnull ObjectDescriptor objectReference,
+		boolean nonNull,
+		boolean list
+	) {
 		return PropertyDescriptor.builder()
-			.name(StringUtils.toSpecificCase(objectReference.name(), ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION))
+			.name(propertyName)
 			.description(objectReference.description())
-			.type(new ObjectPropertyDataTypeDescriptor(objectReference, nonNull, list))
+			.type(new TypePropertyDataTypeDescriptor(objectReference, nonNull, list))
 			.build();
 	}
 }

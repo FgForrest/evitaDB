@@ -72,6 +72,6 @@ public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor 
 		.description("""
 			Record representing a catalog-specific CDC event that is sent to the subscriber if it matches to the request he made.
 			""")
-		.staticFields(List.of(VERSION, INDEX, AREA, ENTITY_TYPE, ENTITY_PRIMARY_KEY, OPERATION))
+		.staticProperties(List.of(VERSION, INDEX, AREA, ENTITY_TYPE, ENTITY_PRIMARY_KEY, OPERATION))
 		.build();
 }

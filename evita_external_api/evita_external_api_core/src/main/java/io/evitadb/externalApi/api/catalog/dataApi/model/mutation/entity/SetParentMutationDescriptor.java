@@ -54,6 +54,10 @@ public interface SetParentMutationDescriptor extends MutationDescriptor {
 		.description("""
 			This mutation allows to set `parent` in the `entity`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, PARENT_PRIMARY_KEY))
+		.staticProperties(List.of(MUTATION_TYPE, PARENT_PRIMARY_KEY))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("SetParentMutationInput")
+		.staticProperties(List.of(PARENT_PRIMARY_KEY))
 		.build();
 }

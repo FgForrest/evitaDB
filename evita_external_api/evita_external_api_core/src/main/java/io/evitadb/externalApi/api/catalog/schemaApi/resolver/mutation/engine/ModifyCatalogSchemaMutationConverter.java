@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingLocalCatalogSchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.LocalCatalogSchemaMutationConverter;
 import io.evitadb.utils.Assert;
 
@@ -51,7 +51,7 @@ public class ModifyCatalogSchemaMutationConverter
 	extends EngineMutationConverter<ModifyCatalogSchemaMutation> {
 
 	@Nonnull
-	private final LocalCatalogSchemaMutationAggregateConverter localCatalogSchemaMutationAggregateConverter;
+	private final LocalCatalogSchemaMutationInputAggregateConverter localCatalogSchemaMutationAggregateConverter;
 	@Nonnull
 	private final DelegatingLocalCatalogSchemaMutationConverter delegatingLocalCatalogSchemaMutationConverter;
 
@@ -60,7 +60,7 @@ public class ModifyCatalogSchemaMutationConverter
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectMapper, exceptionFactory);
-		this.localCatalogSchemaMutationAggregateConverter = new LocalCatalogSchemaMutationAggregateConverter(
+		this.localCatalogSchemaMutationAggregateConverter = new LocalCatalogSchemaMutationInputAggregateConverter(
 			objectMapper, exceptionFactory);
 		this.delegatingLocalCatalogSchemaMutationConverter = new DelegatingLocalCatalogSchemaMutationConverter(
 			objectMapper, exceptionFactory

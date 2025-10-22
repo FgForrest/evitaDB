@@ -75,8 +75,18 @@ public interface TransactionMutationDescriptor extends MutationDescriptor {
 	         This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
 	         the scope of the transaction and verify its integrity.
 	         """)
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			TRANSACTION_ID,
+			VERSION,
+			MUTATION_COUNT,
+			WAL_SIZE_IN_BYTES,
+			COMMIT_TIMESTAMP
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("TransactionMutationInput")
+		.staticProperties(List.of(
 			TRANSACTION_ID,
 			VERSION,
 			MUTATION_COUNT,

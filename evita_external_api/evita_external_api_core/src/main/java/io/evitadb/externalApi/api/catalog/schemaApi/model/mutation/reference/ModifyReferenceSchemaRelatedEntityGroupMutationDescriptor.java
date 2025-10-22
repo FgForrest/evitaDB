@@ -63,6 +63,10 @@ public interface ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor exten
 			Mutation is responsible for setting value to a `ReferenceSchema.referencedGroupType`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, REFERENCED_GROUP_TYPE, REFERENCED_GROUP_TYPE_MANAGED))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, REFERENCED_GROUP_TYPE, REFERENCED_GROUP_TYPE_MANAGED))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReferenceSchemaRelatedEntityGroupMutationInput")
+		.staticProperties(List.of(NAME, REFERENCED_GROUP_TYPE, REFERENCED_GROUP_TYPE_MANAGED))
 		.build();
 }

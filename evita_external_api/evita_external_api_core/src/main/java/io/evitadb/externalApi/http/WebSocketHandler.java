@@ -62,11 +62,16 @@ public interface WebSocketHandler {
 
 	@Nonnull
 	default WebSocket subprotocolNotSupported() {
-		final WebSocketWriter out = WebSocket.streaming();
 		// this is not an ideal solution to not accepting WebSocket connection due to invalid subprotocol, but we don't
 		// know that before the WebSocket channel is opened and routed due to the Armeria limitations of WebSocketService
 		// placement needing to be registered as a root service
-		out.close(WebSocketCloseStatus.PROTOCOL_ERROR, "Subprotocol not supported.");
+		return closeWithError(WebSocketCloseStatus.PROTOCOL_ERROR, "Subprotocol not supported.");
+	}
+
+	@Nonnull
+	default WebSocket closeWithError(@Nonnull WebSocketCloseStatus status, @Nonnull String reasonPhrase) {
+		final WebSocketWriter out = WebSocket.streaming();
+		out.close(status, reasonPhrase);
 		return out;
 	}
 }

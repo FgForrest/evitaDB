@@ -99,8 +99,22 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 		.description("""
 			This mutation allows to create / update `price` of the entity.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			MUTATION_TYPE,
+			PRICE_ID,
+			PRICE_LIST,
+			CURRENCY,
+			INNER_RECORD_ID,
+			PRICE_WITHOUT_TAX,
+			TAX_RATE,
+			PRICE_WITH_TAX,
+			VALIDITY,
+			INDEXED
+		))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("UpsertPriceMutationInput")
+		.staticProperties(List.of(
 			PRICE_ID,
 			PRICE_LIST,
 			CURRENCY,

@@ -42,6 +42,10 @@ public interface MakeCatalogAliveMutationDescriptor extends EngineMutationDescri
 			When a catalog goes live, it becomes fully operational and can participate in transactions.
 			This is a one-way operation that changes the catalog's operational state.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, CATALOG_NAME))
+		.staticProperties(List.of(MUTATION_TYPE, CATALOG_NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("MakeCatalogAliveMutationInput")
+		.staticProperties(List.of(CATALOG_NAME))
 		.build();
 }

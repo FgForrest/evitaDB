@@ -74,7 +74,7 @@ public interface DataSiteDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("DataSite")
 		.description("Record describing the location and form of the CDC event in the evitaDB that should be captured.")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			ENTITY_TYPE, ENTITY_PRIMARY_KEY, OPERATION, CONTAINER_TYPE, CONTAINER_NAME
 		))
 		.build();

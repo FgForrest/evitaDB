@@ -24,11 +24,14 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLEnumType;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
@@ -63,7 +66,15 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 		this.buildingContext.registerType(buildNameVariantsObject());
 
+		buildMutationInterface();
+
 		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
+	}
+
+	private void buildMutationInterface() {
+		final GraphQLInterfaceType mutationInterface = MutationDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(mutationInterface);
+		this.buildingContext.addMappingTypeResolver(mutationInterface, new MutationDtoTypeResolver(120));
 	}
 
 	@Nonnull

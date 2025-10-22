@@ -28,7 +28,7 @@ import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
@@ -55,11 +55,11 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 
-	@Nonnull private final EntitySchemaMutationAggregateConverter mutationAggregateResolver;
+	@Nonnull private final EntitySchemaMutationInputAggregateConverter mutationAggregateResolver;
 
 	public UpdateEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
+		this.mutationAggregateResolver = new EntitySchemaMutationInputAggregateConverter(
 			new RestMutationObjectMapper(restApiHandlingContext.getObjectMapper()),
 			RestMutationResolvingExceptionFactory.INSTANCE
 		);

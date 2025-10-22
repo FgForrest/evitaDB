@@ -55,6 +55,10 @@ public interface ModifyAttributeSchemaNameMutationDescriptor extends AttributeSc
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, NEW_NAME))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyAttributeSchemaNameMutationInput")
+		.staticProperties(List.of(NAME, NEW_NAME))
 		.build();
 }

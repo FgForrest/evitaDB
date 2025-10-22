@@ -133,7 +133,7 @@ nested objects (similar problem is in the query language as well).
 
 Aggregates usually copy base mutation interfaces from evitaDB's core API and lists all its implementations as their
 possible object fields. Each aggregate must have descriptor and corresponding
-`io.evitadb.externalApi.api.catalog.resolver.mutation.MutationAggregateConverter`.
+`io.evitadb.externalApi.api.catalog.resolver.mutation.MutationInputAggregateConverter`.
 
 ## Creating new API
 

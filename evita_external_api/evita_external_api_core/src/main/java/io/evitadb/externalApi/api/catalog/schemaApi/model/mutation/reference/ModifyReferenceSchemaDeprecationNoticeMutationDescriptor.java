@@ -54,6 +54,10 @@ public interface ModifyReferenceSchemaDeprecationNoticeMutationDescriptor extend
 			Mutation is responsible for setting value to a `ReferenceSchema.deprecationNotice`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DEPRECATION_NOTICE))
+		.staticProperties(List.of(MUTATION_TYPE, NAME, DEPRECATION_NOTICE))
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("ModifyReferenceSchemaDeprecationNoticeMutationInput")
+		.staticProperties(List.of(NAME, DEPRECATION_NOTICE))
 		.build();
 }

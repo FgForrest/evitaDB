@@ -61,7 +61,7 @@ public interface StripListDescriptor extends DataChunkDescriptor {
 		.description("""
 			Strip of records according to offset and limit rules in input query.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			OFFSET,
 			LIMIT,
 			TOTAL_RECORD_COUNT,
