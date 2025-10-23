@@ -191,7 +191,34 @@ public class SealedEntityProxyState
 	 * reference and manage its interaction with the system. If the reference already exists, the proxy handles the
 	 * existing instance; otherwise, a new reference is created and initialized.
 	 *
-	 * @param entitySchema    the schema of the entity that owns the reference
+	 * @param referenceSchema the schema of the reference to be proxied
+	 * @param expectedType    the expected type of the proxy to be created, defining the contract it should implement
+	 * @param reference       the reference contract instance representing the entity reference
+	 * @param <T>             the type of the proxy that will be returned
+	 * @return a proxy instance implementing the specified contract for the reference
+	 * @throws EntityClassInvalidException if the entity class or its schema configurations are invalid or incompatible
+	 */
+	@Nonnull
+	public <T> T getOrCreateEntityReferenceProxy(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull ReferenceContract reference,
+		@Nonnull ProxyInput proxyInput
+	) throws EntityClassInvalidException {
+		return getOrCreateEntityReferenceProxy(
+			referenceSchema,
+			expectedType,
+			reference.getReferenceKey(),
+			reference,
+			proxyInput
+		);
+	}
+
+	/**
+	 * Creates a proxy for an entity reference based on the specified parameters. The proxy will represent the entity’s
+	 * reference and manage its interaction with the system. If the reference already exists, the proxy handles the
+	 * existing instance; otherwise, a new reference is created and initialized.
+	 *
 	 * @param referenceSchema the schema of the reference to be proxied
 	 * @param expectedType    the expected type of the proxy to be created, defining the contract it should implement
 	 * @param referenceKey    the unique key associated with the reference, including its name, primary key, and potentially
@@ -201,17 +228,47 @@ public class SealedEntityProxyState
 	 * @throws EntityClassInvalidException if the entity class or its schema configurations are invalid or incompatible
 	 */
 	@Nonnull
-	public <T> T createEntityReferenceProxy(
-		@Nonnull EntitySchemaContract entitySchema,
+	public <T> T getOrCreateEntityReferenceProxy(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ReferenceKey referenceKey
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ProxyInput proxyInput
+	) throws EntityClassInvalidException {
+		return getOrCreateEntityReferenceProxy(
+			referenceSchema,
+			expectedType,
+			referenceKey,
+			null,
+			proxyInput
+		);
+	}
+
+	/**
+	 * Creates a proxy for an entity reference based on the specified parameters. The proxy will represent the entity’s
+	 * reference and manage its interaction with the system. If the reference already exists, the proxy handles the
+	 * existing instance; otherwise, a new reference is created and initialized.
+	 *
+	 * @param referenceSchema the schema of the reference to be proxied
+	 * @param expectedType    the expected type of the proxy to be created, defining the contract it should implement
+	 * @param referenceKey    the unique key associated with the reference, including its name, primary key, and potentially
+	 *                        an internal identifier
+	 * @param <T>             the type of the proxy that will be returned
+	 * @return a proxy instance implementing the specified contract for the reference
+	 * @throws EntityClassInvalidException if the entity class or its schema configurations are invalid or incompatible
+	 */
+	@Nonnull
+	public <T> T getOrCreateEntityReferenceProxy(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable ReferenceContract reference,
+		@Nonnull ProxyInput proxyInput
 	) throws EntityClassInvalidException {
 		final EntityContract theEntity = entityBuilderIfPresent()
 			.map(EntityContract.class::cast)
 			.orElse(this.entity);
-		final Optional<ReferenceContract> existingReference = theEntity
-			.getReference(referenceKey);
+		final Optional<ReferenceContract> existingReference = reference == null ?
+			theEntity.getReference(referenceKey) : Optional.of(reference);
 		final ReferenceKey resolvedReferenceKey = existingReference
 			.map(ReferenceContract::getReferenceKey)
 			.orElseGet(() -> new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey(), entityBuilder().getNextReferenceInternalId()));
@@ -222,49 +279,48 @@ public class SealedEntityProxyState
 			);
 			return existingReference
 				.filter(
-					ref -> !(entityBuilder() instanceof ExistingEntityBuilder eeb) ||
-						eeb.isPresentInBaseEntity(ref)
+					ref -> !(entityBuilder() instanceof ExistingEntityBuilder eeb) || eeb.isPresentInBaseEntity(ref)
 				)
 				.map(
-					it -> new ProxyWithUpsertCallback(
-						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType,
-							this.recipes,
-							this.collectedRecipes,
-							this.entity,
-							this::getPrimaryKey,
-							this.referencedEntitySchemas,
+					it -> switch (proxyInput) {
+						case EXISTING_REFERENCE_BUILDER -> getOrCreateEntityReferenceProxy(
+							expectedType,
+							attributeTypesForReference,
 							new ExistingReferenceBuilder(
 								it,
-								entitySchema,
+								getEntitySchema(),
 								attributeTypesForReference
-							),
+							)
+						);
+						case READ_ONLY_REFERENCE -> getOrCreateEntityReferenceProxy(
+							expectedType,
 							attributeTypesForReference,
-							getReflectionLookup(),
-							this.generatedProxyObjects
-						)
-					)
-				)
-				.orElseGet(
-					() -> new ProxyWithUpsertCallback(
-						ProxycianFactory.createEntityReferenceProxy(
-							this.getProxyClass(), expectedType,
-							this.recipes,
-							this.collectedRecipes,
-							this.entity,
-							this::getPrimaryKey,
-							getReferencedEntitySchemas(),
+							it
+						);
+						case INITIAL_REFERENCE_BUILDER -> getOrCreateEntityReferenceProxy(
+							expectedType,
+							attributeTypesForReference,
 							new InitialReferenceBuilder(
-								entitySchema,
+								getEntitySchema(),
 								referenceSchema,
 								referenceSchema.getName(),
 								referenceKey.primaryKey(),
 								resolvedReferenceKey.internalPrimaryKey(),
 								attributeTypesForReference
-							),
-							attributeTypesForReference,
-							getReflectionLookup(),
-							this.generatedProxyObjects
+							)
+						);
+					}
+				)
+				.orElseGet(
+					() -> getOrCreateEntityReferenceProxy(
+						expectedType, attributeTypesForReference,
+						new InitialReferenceBuilder(
+							getEntitySchema(),
+							referenceSchema,
+							referenceSchema.getName(),
+							referenceKey.primaryKey(),
+							resolvedReferenceKey.internalPrimaryKey(),
+							attributeTypesForReference
 						)
 					)
 				);
@@ -279,6 +335,37 @@ public class SealedEntityProxyState
 				new ReferenceProxyCacheKey(resolvedReferenceKey),
 				key -> instanceSupplier.get()
 			).proxy(expectedType, instanceSupplier);
+	}
+
+	/**
+	 * Creates a proxy for an entity reference, allowing for upserts (insert or update) when interacting with
+	 * the referenced entity and its associated attributes.
+	 *
+	 * @param expectedType the expected type of the proxy to be created, which defines the contract the proxy should implement
+	 * @param attributeTypesForReference a map of attribute names to their respective schema details for the reference
+	 * @param reference the reference contract instance representing the entity reference
+	 * @param <T> the type of the proxy to be created
+	 * @return a {@code ProxyWithUpsertCallback} instance representing the proxy for the specified entity reference
+	 */
+	private <T> @Nonnull ProxyWithUpsertCallback getOrCreateEntityReferenceProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypesForReference,
+		@Nonnull ReferenceContract reference
+	) {
+		return new ProxyWithUpsertCallback(
+			ProxycianFactory.createEntityReferenceProxy(
+				this.getProxyClass(), expectedType,
+				this.recipes,
+				this.collectedRecipes,
+				this.entity,
+				this::getPrimaryKey,
+				this.referencedEntitySchemas,
+				reference,
+				attributeTypesForReference,
+				getReflectionLookup(),
+				this.generatedProxyObjects
+			)
+		);
 	}
 
 	/**
@@ -298,22 +385,6 @@ public class SealedEntityProxyState
 					"__referenceAttributes_" + referenceName,
 					k -> CollectionUtils.createHashMap(4)
 				);
-	}
-
-	/**
-	 * Creates new proxy for a reference.
-	 *
-	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
-	 * not known (the referenced entity needs to be persisted first).
-	 *
-	 * @param expectedType            contract that the proxy should implement
-	 * @param reference               reference instance to create proxy for
-	 * @param <T>                     type of contract that the proxy should implement
-	 * @return proxy instance of sealed entity
-	 */
-	@Nonnull
-	public <T> T getOrCreateEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull ReferenceContract reference) {
-		return getOrCreateEntityReferenceProxy(expectedType, reference, getAttributeTypesForReference(reference.getReferenceName()));
 	}
 
 	/**
@@ -339,6 +410,28 @@ public class SealedEntityProxyState
 	public String toString() {
 		return this.entity instanceof EntityBuilder eb ?
 			eb.toInstance().toString() : this.entity.toString();
+	}
+
+	/**
+	 * Enum `ProxyInput` defines the mechanisms used to create or initialize a proxy for an entity reference.
+	 * It determines how a reference proxy interacts with an existing reference or builds a new one.
+	 */
+	public enum ProxyInput {
+
+		/**
+		 * Reference proxy will be created with access to the existing reference only.
+		 */
+		READ_ONLY_REFERENCE,
+		/**
+		 * Reference proxy will be created with access to the initial reference builder, even if the reference already
+		 * exists.
+		 */
+		INITIAL_REFERENCE_BUILDER,
+		/**
+		 * Reference proxy will be created with access to the existing reference builder, if the reference exists.
+		 */
+		EXISTING_REFERENCE_BUILDER
+
 	}
 
 }

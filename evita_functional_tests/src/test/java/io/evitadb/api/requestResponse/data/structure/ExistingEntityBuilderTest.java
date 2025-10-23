@@ -501,19 +501,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final SealedEntity updatedInstance = entityBuilder.toInstance();
 		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
 
-		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
-			assertEquals(
-				"Whatever", reference.getGroup()
-				                     .filter(Droppable::exists)
-				                     .map(GroupEntityReference::getType)
-				                     .orElse(null)
-			);
-			assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
-			assertEquals("someValue", reference.getAttribute("newAttribute"));
-			assertEquals("Brand A", reference.getAttribute("brandName"));
-			assertEquals("008", reference.getAttribute("brandCode"));
-			assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
-		});
+		updatedInstance.getReference(BRAND_TYPE, 1)
+			.ifPresent(
+				reference -> {
+					assertEquals(
+						"Whatever",
+						reference.getGroup()
+							.filter(Droppable::exists)
+							.map(GroupEntityReference::getType)
+							.orElse(null)
+					);
+					assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
+					assertEquals("someValue", reference.getAttribute("newAttribute"));
+					assertEquals("Brand A", reference.getAttribute("brandName"));
+					assertEquals("008", reference.getAttribute("brandCode"));
+					assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
+				});
 	}
 
 	@Test

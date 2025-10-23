@@ -21,30 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.mock;
+package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.data.InstanceEditor;
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
-import io.evitadb.api.requestResponse.data.annotation.EntityRef;
-import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
-import io.evitadb.test.Entities;
-
-import java.util.function.Consumer;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Example interface mapping a brand entity.
+ * Annotation is used to mark a method parameter to signalize existing entity reference should be reset
+ * when the reference exists. I.e. consumer implementation should redefine particular reference from scratch.
+ * This annotation is targeted for `set` method signatures.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@EntityRef(Entities.BRAND)
-public interface BrandInterfaceEditor extends BrandInterface, InstanceEditor<BrandInterface> {
-
-	BrandInterfaceEditor setCode(String code);
-
-	@ReferenceRef(Entities.STORE)
-	BrandInterfaceEditor setStore(int storeId);
-
-	@ReferenceRef(Entities.STORE)
-	BrandInterfaceEditor setNewStore(@CreateWhenMissing Consumer<StoreInterfaceEditor> storeConsumer);
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD, ElementType.PARAMETER})
+public @interface ResetWhenExists {
 
 }

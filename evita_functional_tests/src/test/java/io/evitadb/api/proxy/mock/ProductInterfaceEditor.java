@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
+import io.evitadb.api.requestResponse.data.annotation.ResetWhenExists;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
@@ -117,7 +118,10 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	BrandInterface removeBrandAndReturnItsBody();
 
 	@ReferenceRef(Entities.PARAMETER)
-	ProductInterfaceEditor setParameter(int parameterId, @CreateWhenMissing Consumer<ProductParameterInterfaceEditor> parameterEditor);
+	ProductInterfaceEditor setOrUpdateParameter(int parameterId, @CreateWhenMissing Consumer<ProductParameterInterfaceEditor> parameterEditor);
+
+	@ReferenceRef(Entities.PARAMETER)
+	ProductInterfaceEditor setParameter(int parameterId, @ResetWhenExists Consumer<ProductParameterInterfaceEditor> parameterEditor);
 
 	@ReferenceRef(Entities.PARAMETER)
 	ProductInterfaceEditor updateParameter(int parameterId, Consumer<ProductParameterInterfaceEditor> parameterEditor);

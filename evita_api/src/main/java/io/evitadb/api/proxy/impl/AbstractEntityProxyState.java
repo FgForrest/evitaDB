@@ -453,8 +453,11 @@ abstract class AbstractEntityProxyState implements
 	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
 	 * not known (the referenced entity needs to be persisted first).
 	 *
+	 * @param referenceName name of the reference
+	 * @param primaryKey primary key of the referenced entity (if known)
 	 * @param entitySchema schema of the entity to be created
 	 * @param expectedType contract that the proxy should implement
+	 * @param type type of the referenced object (reference vs. group)
 	 * @param callback     callback that will be called when the entity is upserted
 	 * @param <T>          type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
@@ -463,22 +466,28 @@ abstract class AbstractEntityProxyState implements
 	@Nonnull
 	public <T> T getOrCreateReferencedEntityProxyWithCallback(
 		@Nonnull String referenceName,
+		@Nullable Integer primaryKey,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Class<T> expectedType,
 		@Nonnull ReferencedObjectType type,
 		@Nonnull Consumer<EntityReferenceContract> callback
 	) throws EntityClassInvalidException {
-		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
-			ProxycianFactory.createEntityProxy(
-				expectedType, this.recipes, this.collectedRecipes,
-				new InitialEntityBuilder(entitySchema),
-				this.referencedEntitySchemas,
-				getReflectionLookup()
-			),
-			callback
-		);
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
+			final InitialEntityBuilder entityBuilder = primaryKey == null ?
+				new InitialEntityBuilder(entitySchema) :
+				new InitialEntityBuilder(entitySchema, primaryKey);
+			return new ProxyWithUpsertCallback(
+				ProxycianFactory.createEntityProxy(
+					expectedType, this.recipes, this.collectedRecipes,
+					entityBuilder,
+					this.referencedEntitySchemas,
+					getReflectionLookup()
+				),
+				callback
+			);
+		};
 		return this.generatedProxyObjects.computeIfAbsent(
-				new ReferencedEntityProxyCacheKey(referenceName, Integer.MIN_VALUE, type),
+				new ReferencedEntityProxyCacheKey(referenceName, primaryKey == null ? Integer.MIN_VALUE : primaryKey, type),
 				key -> instanceSupplier.get()
 			)
 			.proxy(expectedType, instanceSupplier);

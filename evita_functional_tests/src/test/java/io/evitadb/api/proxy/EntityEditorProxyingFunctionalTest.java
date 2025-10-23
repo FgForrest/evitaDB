@@ -26,10 +26,8 @@ package io.evitadb.api.proxy;
 import io.evitadb.api.AbstractEntityProxyingFunctionalTest;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.proxy.mock.*;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -516,8 +514,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 		assertSame(editor, returnedEditor);
 
-		final RelatedProductInterface createdRelatedProductViaGet = editor.getRelatedProduct(relationType);
-		assertEquals(relatedProductRef.get(), createdRelatedProductViaGet);
+		final RelatedProductInterfaceEditor relId = relatedProductRef.get();
+		final RelatedProductInterface createdRelatedProductViaGet = editor.getRelatedProduct(relationType, relId.getPrimaryKey());
+		assertEquals(relId, createdRelatedProductViaGet);
 
 		// Persist and verify via sealed entity reference
 		editor.upsertVia(evitaSession);
@@ -1083,7 +1082,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						BigDecimal.ONE, BigDecimal.ONE,
 						BigDecimal.ZERO, "CZK", 7, VALIDITY, 8
 					)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1204,7 +1203,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							)
 						)
 					)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1327,7 +1326,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							BigDecimal.ONE, VALIDITY, true
 						)
 					)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1409,7 +1408,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brandId)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1465,7 +1464,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brand)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1518,7 +1517,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setNewBrand(brand -> brand.setCode(
 						"consumer-created-brand").setStore(1))
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1558,17 +1557,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(13)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldFailToUpdateNonExistingBrandInConsumer(EvitaContract evita) {
+	void shouldNotUpdateNonExistingBrandInConsumer(EvitaContract evita) {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				assertThrows(
-					ContextMissingException.class,
-					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
-						.setCode("product-7")
-						.setName(CZECH_LOCALE, "Produkt 7")
-						.updateBrand(brand -> fail("Should not be called."))
-				);
+				evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-7")
+					.setName(CZECH_LOCALE, "Produkt 7")
+					.updateBrand(brand -> fail("Should not be called."));
 			}
 		);
 	}
@@ -1592,7 +1588,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1646,16 +1642,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(16)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldFailToUpdateNonExistingParameterInConsumer(EvitaContract evita) {
+	void shouldNotUpdateNonExistingParameterInConsumer(EvitaContract evita) {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				assertThrows(
-					ReferenceNotFoundException.class,
-					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
+				evitaSession.createNewEntity(ProductInterfaceEditor.class)
 						.setCode("product-8")
 						.setName(CZECH_LOCALE, "Produkt 8")
-						.updateParameter(7, brand -> fail("Should not be called."))
+						.updateParameter(7, brand -> fail("Should not be called.")
 				);
 			}
 		);
@@ -1740,7 +1734,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					)
 					.setStoresByIds(1, 2, 3);
 
-				assertNull(newProduct.getParameter());
+				assertNull(newProduct.getParameter(parameterId));
 				final ProductParameterInterfaceEditor newParameter = newProduct.getOrCreateParameter(parameterId);
 				newParameter.setPriority(10L);
 
@@ -1752,10 +1746,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterId, newProduct.getParameter().getPrimaryKey());
-				assertEquals(10L, newProduct.getParameter().getPriority());
-				assertEquals(parameterId, modifiedInstance.getParameter().getPrimaryKey());
-				assertEquals(10L, modifiedInstance.getParameter().getPriority());
+				assertEquals(parameterId, newProduct.getParameter(parameterId).getPrimaryKey());
+				assertEquals(10L, newProduct.getParameter(parameterId).getPriority());
+				assertEquals(parameterId, modifiedInstance.getParameter(parameterId).getPrimaryKey());
+				assertEquals(10L, modifiedInstance.getParameter(parameterId).getPriority());
 
 				newProduct.upsertVia(evitaSession);
 
@@ -2080,14 +2074,15 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = product6.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(1, mutation.get().getLocalMutations().size());
+				assertEquals(2, mutation.get().getLocalMutations().size());
 
 				final Optional<EntityMutation> editorMutation = editor.toMutation();
 				assertTrue(editorMutation.isPresent());
-				assertEquals(1, editorMutation.get().getLocalMutations().size());
+				assertEquals(2, editorMutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = product6.toInstance();
-				assertEquals(80L, modifiedInstance.getParameter().getPriority());
+				final ProductParameterInterface parameter = modifiedInstance.getParameter(1);
+				assertEquals(80L, parameter.getPriority());
 
 				product6.upsertVia(evitaSession);
 
@@ -2095,9 +2090,16 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					Entities.PRODUCT, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
-				for (ReferenceContract reference : storedProduct.getReferences(Entities.PARAMETER)) {
-					assertEquals(80L, reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
-				}
+				assertEquals(
+					80L,
+					storedProduct.getReference(Entities.PARAMETER, 1).orElseThrow()
+						.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+				);
+				assertEquals(
+					10L,
+					storedProduct.getReference(Entities.PARAMETER, 101).orElseThrow()
+						.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+				);
 			}
 		);
 	}
@@ -2942,7 +2944,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final ProductInterface modifiedInstance = product4.toInstance();
 				assertNull(modifiedInstance.getBrand());
-				assertNull(modifiedInstance.getParameter());
+				assertNull(modifiedInstance.getParameter(parameterId));
 
 				assertThrows(
 					ReferenceCardinalityViolatedException.class, () -> product4.upsertVia(evitaSession)
@@ -2973,7 +2975,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroup(
 								parameterGroupId)
@@ -2987,10 +2989,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter(parameterId).getParameterGroup());
 				assertEquals(
 					parameterGroupId,
-					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+					modifiedInstance.getParameter(parameterId).getParameterGroupEntityClassifier().getPrimaryKey()
 				);
 
 				newProduct.upsertVia(evitaSession);
@@ -3009,13 +3011,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
 
-				loadedProduct.getParameter()
+				loadedProduct.getParameter(parameterId)
 					.openForWrite()
 					.removeParameterGroup()
 					.upsertVia(evitaSession);
@@ -3033,9 +3035,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				assertNull(loadedProductAgain.getParameter().getParameterGroup());
-				assertNull(loadedProductAgain.getParameter().getParameterGroupEntityClassifier());
-				assertNull(loadedProductAgain.getParameter().getParameterGroupEntity());
+				assertNull(loadedProductAgain.getParameter(parameterId).getParameterGroup());
+				assertNull(loadedProductAgain.getParameter(parameterId).getParameterGroupEntityClassifier());
+				assertNull(loadedProductAgain.getParameter(parameterId).getParameterGroupEntity());
 			}
 		);
 	}
@@ -3062,7 +3064,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroupEntityClassifier(
 								new EntityReference(
@@ -3079,10 +3081,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter(parameterId).getParameterGroup());
 				assertEquals(
 					parameterGroupId,
-					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+					modifiedInstance.getParameter(parameterId).getParameterGroupEntityClassifier().getPrimaryKey()
 				);
 
 				newProduct.upsertVia(evitaSession);
@@ -3101,7 +3103,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
@@ -3136,7 +3138,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroupEntity(
 								parameterGroupEntity)
@@ -3150,10 +3152,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter(parameterId).getParameterGroup());
 				assertEquals(
 					parameterGroupId,
-					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+					modifiedInstance.getParameter(parameterId).getParameterGroupEntityClassifier().getPrimaryKey()
 				);
 
 				newProduct.upsertVia(evitaSession);
@@ -3172,7 +3174,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
@@ -3202,7 +3204,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -3210,7 +3212,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.upsertVia(evitaSession);
 
-				newProduct.getParameter()
+				newProduct.getParameter(parameterId)
 					.openForWrite()
 					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-2"))
 					.upsertDeeplyVia(evitaSession);
@@ -3225,7 +3227,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
@@ -3256,7 +3258,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroup(
 								parameterGroupId)
@@ -3267,7 +3269,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.upsertVia(evitaSession);
 
-				newProduct.getParameter()
+				newProduct.getParameter(parameterId)
 					.openForWrite()
 					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-20"))
 					.upsertDeeplyVia(evitaSession);
@@ -3282,7 +3284,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
@@ -3314,7 +3316,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroup(
 								parameterGroupId)

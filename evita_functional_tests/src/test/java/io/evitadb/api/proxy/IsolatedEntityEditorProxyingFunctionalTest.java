@@ -25,6 +25,7 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.AbstractEntityProxyingFunctionalTest;
 import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.AmbiguousReferenceException;
 import io.evitadb.api.proxy.mock.BrandInterfaceEditor;
 import io.evitadb.api.proxy.mock.CategoryInterface;
 import io.evitadb.api.proxy.mock.CategoryInterfaceEditor;
@@ -340,7 +341,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 					.setPriority(78L)
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(1, parameter -> parameter.setPriority(10L))
+					.setOrUpdateParameter(1, parameter -> parameter.setPriority(10L))
 					.upsertVia(evitaSession);
 
 				final SealedProductInterface sealedProduct = evitaSession.getEntity(
@@ -384,6 +385,132 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 					}
 				}
 				assertEquals(0, toFind);
+			}
+		);
+	}
+
+	@DisplayName("Should reset parameter using setParameter with consumer when parameter already exists")
+	@Order(5)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldResetParameterWhenParameterAlreadyExists(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				// Create product with initial parameter
+				final EntityReferenceContract newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-5")
+					.setName(CZECH_LOCALE, "Produkt 5")
+					.setEnum(TestEnum.ONE)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setOrUpdateParameter(1, parameter -> parameter.setPriority(10L))
+					.upsertVia(evitaSession);
+
+				// Load the product and verify initial parameter
+				final SealedProductInterface sealedProduct = evitaSession.getEntity(
+					SealedProductInterface.class, newProduct.getPrimaryKey(),
+					entityFetchAllContentAnd(referenceContentWithAttributes(Entities.PARAMETER, entityFetchAll()))
+				).orElseThrow();
+
+				assertEquals(1, sealedProduct.getParameter(1).getPrimaryKey());
+
+				// Now use setParameter with consumer to reset the parameter completely
+				final ProductInterfaceEditor productEditor = sealedProduct.openForWrite();
+				// no parameter should be known when we enter the consumer
+				productEditor.setParameter(1, parameter -> assertNull(parameter.getPriority()));
+			}
+		);
+	}
+
+	@DisplayName("Should access existing parameter using setParameter with consumer")
+	@Order(6)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldAccessExistingParameterInUpdate(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				// Create product without parameter
+				final EntityReferenceContract newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-3")
+					.setName(CZECH_LOCALE, "Produkt 3")
+					.setEnum(TestEnum.ONE)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setOrUpdateParameter(1, parameter -> parameter.setPriority(10L))
+					.upsertVia(evitaSession);
+
+				// Load the product and verify parameter exists
+				final SealedProductInterface sealedProduct = evitaSession.getEntity(
+					SealedProductInterface.class, newProduct.getPrimaryKey(),
+					entityFetchAllContentAnd(referenceContentWithAttributes(Entities.PARAMETER, entityFetchAll()))
+				).orElseThrow();
+
+				assertNotNull(sealedProduct.getParameter(1));
+
+				// Use setParameter with consumer to verify existing parameter contents is available
+				final ProductInterfaceEditor productEditor = sealedProduct.openForWrite();
+				productEditor.updateParameter(
+					1,
+					parameter -> {
+						assertEquals(10L, parameter.getPriority());
+						parameter.setPriority(11L);
+					}
+				);
+
+				productEditor.upsertVia(evitaSession);
+
+				// Load the product and verify parameter code has changed
+				final SealedProductInterface sealedProductAgain = evitaSession.getEntity(
+					SealedProductInterface.class, newProduct.getPrimaryKey(),
+					entityFetchAllContentAnd(referenceContentWithAttributes(Entities.PARAMETER, entityFetchAll()))
+				).orElseThrow();
+
+				assertEquals(11L, sealedProductAgain.getParameter(1).getPriority());
+			}
+		);
+	}
+
+	@DisplayName("Should reset parameter using setParameter with consumer when parameter does not exist")
+	@Order(7)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldNotUpdateParameterWhenParameterDoesNotExist(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				// Create product without parameter
+				final EntityReferenceContract newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-7")
+					.setName(CZECH_LOCALE, "Produkt 7")
+					.setEnum(TestEnum.ONE)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setOrUpdateParameter(1, parameter -> parameter.setPriority(10L))
+					.upsertVia(evitaSession);
+
+				// Load the product and verify no parameter exists
+				final SealedProductInterface sealedProduct = evitaSession.getEntity(
+					SealedProductInterface.class, newProduct.getPrimaryKey(),
+					entityFetchAllContentAnd(referenceContentWithAttributes(Entities.PARAMETER, entityFetchAll()))
+				).orElseThrow();
+
+				assertThrows(
+					AmbiguousReferenceException.class,
+					sealedProduct::getParameter
+				);
+				assertNull(sealedProduct.getParameter(2));
+
+				// Use setParameter with consumer to verify existing parameter contents is available
+				final ProductInterfaceEditor productEditor = sealedProduct.openForWrite();
+				productEditor.updateParameter(2, parameter -> fail("Should not be called, parameter does not exist"));
 			}
 		);
 	}
