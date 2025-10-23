@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,7 +70,13 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 			} else if (o1 == null) {
 				return 1;
 			} else {
-				return Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
+				final int firstComparison = Integer.compare(o1.getReferencedPrimaryKey(), o2.getReferencedPrimaryKey());
+				if (firstComparison == 0) {
+					// in case of equality, we fall back to comparing by reference type
+					return Integer.compare(o1.getReferenceKey().internalPrimaryKey(), o2.getReferenceKey().internalPrimaryKey());
+				} else {
+					return firstComparison;
+				}
 			}
 		}
 	};

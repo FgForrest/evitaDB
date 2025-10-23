@@ -552,7 +552,8 @@ public class EntityDecorator implements SealedEntity {
 				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
 					.orElse(Collections.emptyList());
 				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
-					entity, referenceName, references);
+					entity, referenceName, references
+				);
 				removeReferencesNotPresentInChunk(
 					chunk, references,
 					this.filteredReferences,
@@ -745,12 +746,13 @@ public class EntityDecorator implements SealedEntity {
 			return theFilteredReferences.values();
 		} else {
 			// need to expand duplicates
-			return Stream.concat(
-					theFilteredReferences
-						.values()
-						.stream()
-					    .filter(it -> it != DUPLICATE_REFERENCE),
-					this.filteredDuplicateReferences.values().stream().flatMap(Collection::stream)
+			return theFilteredReferences
+				.entrySet()
+				.stream()
+				.flatMap(
+					entry -> entry.getValue() == DUPLICATE_REFERENCE ?
+						this.filteredDuplicateReferences.get(entry.getKey()).stream() :
+						Stream.of(entry.getValue())
 				)
 				.collect(Collectors.toList());
 		}
