@@ -525,14 +525,16 @@ public class EntityDecorator implements SealedEntity {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
 			if (duplicatesAllowed) {
 				// mark reference key as duplicate bearer
-				this.filteredReferences.put(referenceKey, DUPLICATE_REFERENCE);
+				final ReferenceKey genericKey = new ReferenceKey(
+					referenceKey.referenceName(), referenceKey.primaryKey()
+				);
+				this.filteredReferences.put(genericKey, DUPLICATE_REFERENCE);
 				if (this.filteredDuplicateReferences == null) {
 					this.filteredDuplicateReferences = createHashMap(schema.getReferences().size());
 				}
 				this.filteredDuplicateReferences
 					.computeIfAbsent(
-						new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey()),
-						k -> new ArrayList<>(2)
+						genericKey, k -> new ArrayList<>(2)
 					)
 					.add(reference);
 			} else {
