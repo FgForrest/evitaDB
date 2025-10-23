@@ -2625,13 +2625,13 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				);
 				if (parameter.getAnnotation(CreateWhenMissing.class) != null) {
 					Assert.isTrue(
-						proxyInput == ProxyInput.READ_ONLY_REFERENCE,
+						proxyInput == ProxyInput.READ_ONLY_REFERENCE || proxyInput == ProxyInput.EXISTING_REFERENCE_BUILDER,
 						"Cannot use both CreateWhenMissing and ResetWhenExists annotations on the same method!"
 					);
 					proxyInput = ProxyInput.EXISTING_REFERENCE_BUILDER;
 				} else if (parameter.getAnnotation(ResetWhenExists.class) != null) {
 					Assert.isTrue(
-						proxyInput == ProxyInput.READ_ONLY_REFERENCE,
+						proxyInput == ProxyInput.READ_ONLY_REFERENCE || proxyInput == ProxyInput.INITIAL_REFERENCE_BUILDER,
 						"Cannot use both CreateWhenMissing and ResetWhenExists annotations on the same method!"
 					);
 					proxyInput = ProxyInput.INITIAL_REFERENCE_BUILDER;

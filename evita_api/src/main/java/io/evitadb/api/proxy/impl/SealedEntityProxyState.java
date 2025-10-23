@@ -279,7 +279,11 @@ public class SealedEntityProxyState
 			);
 			return existingReference
 				.filter(
-					ref -> !(entityBuilder() instanceof ExistingEntityBuilder eeb) || eeb.isPresentInBaseEntity(ref)
+					ref -> entityBuilderIfPresent()
+						.filter(ExistingEntityBuilder.class::isInstance)
+						.map(ExistingEntityBuilder.class::cast)
+						.map(it -> it.isPresentInBaseEntity(ref))
+						.orElse(true)
 				)
 				.map(
 					it -> switch (proxyInput) {

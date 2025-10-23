@@ -842,13 +842,19 @@ public class EntityDecorator implements SealedEntity {
 		return ofNullable(this.parentEntity);
 	}
 
+	/**
+	 * Retrieves a reference associated with the specified {@code referenceKey} without checking any predicate.
+	 *
+	 * @param referenceKey the key identifying the reference to retrieve; must not be null
+	 * @return an {@code Optional} containing the {@code ReferenceContract} if a matching reference is found,
+	 *         or an empty {@code Optional} if no matching reference exists
+	 */
 	@Nonnull
 	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(
-		@Nonnull String referenceName, int referencedEntityId
+		@Nonnull ReferenceKey referenceKey
 	) {
-		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
 		return ofNullable(getFilteredReferences().get(referenceKey))
-			.map(it -> avoidDuplicates(it.getReferenceKey(), it));
+			.map(it -> avoidDuplicates(referenceKey, it));
 	}
 
 	@Nonnull

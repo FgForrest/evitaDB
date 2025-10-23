@@ -361,10 +361,11 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				throw ContextMissingException.referenceContextMissing();
 			}
 
+			final Collection<ReferenceContract> references = this.baseReferences.getReferences();
 			final List<ReferenceContract> result = new ArrayList<>(
-				Math.max(16, this.baseReferences.getReferences().size()));
+				Math.max(16, references.size()));
 
-			for (ReferenceContract baseRef : this.baseReferences.getReferences()) {
+			for (ReferenceContract baseRef : references) {
 				if (!baseRef.exists()) {
 					continue;
 				}

@@ -219,7 +219,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.referencesBuilder = new ExistingReferencesBuilder(
 			this.baseEntity.schema, this.baseEntity.references,
 			baseEntity.getReferencePredicate(),
-			baseEntity::getReference
+			baseEntity::getReferenceWithoutCheckingPredicate
 		);
 		this.localePredicate = baseEntity.getLocalePredicate();
 		this.hierarchyPredicate = baseEntity.getHierarchyPredicate();
@@ -945,6 +945,29 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this.baseEntity.getReference(reference.getReferenceKey())
 		                      .map(Droppable::exists)
 		                      .orElse(false);
+	}
+
+	/**
+	 * Returns locale that was used for fetching the entity - either the {@link EntityDecorator#getImplicitLocale()} or the locale
+	 * from {@link #getLocalePredicate()} if there was exactly single locale used for fetching.
+	 *
+	 * @return locale that was used for fetching the entity
+	 */
+	@Nullable
+	public Locale getRequestedLocale() {
+		final Set<Locale> locales = this.localePredicate.getLocales();
+		return locales != null && locales.size() == 1 ?
+			locales.iterator().next() : this.localePredicate.getImplicitLocale();
+	}
+
+	/**
+	 * Returns true if there was more than one locale used for fetching the entity.
+	 *
+	 * @return true if there was more than one locale used for fetching the entity
+	 */
+	public boolean isMultipleLocalesRequested() {
+		final Set<Locale> locales = this.localePredicate.getLocales();
+		return locales != null && locales.size() != 1;
 	}
 
 	/**
