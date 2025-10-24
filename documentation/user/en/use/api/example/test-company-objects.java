@@ -7,7 +7,7 @@ public class PrefilledDataSetAndCustomDataTest {
 	DataCarrier setUpData(EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_BRAND);
 		final String testBrandName = "Siemens";
-		final EntityReference brandReference = session
+		final EntityReferenceContract brandReference = session
 			.createNewEntity(ENTITY_BRAND)
 			.setAttribute(
 				"name", Locale.ENGLISH, testBrandName
