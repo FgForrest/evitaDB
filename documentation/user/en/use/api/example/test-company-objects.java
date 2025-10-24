@@ -1,4 +1,4 @@
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class PrefilledDataSetAndCustomDataTest {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewDataAndCustomObjects";
 	private static final String ENTITY_BRAND = "Brand";

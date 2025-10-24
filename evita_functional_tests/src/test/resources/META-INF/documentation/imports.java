@@ -158,7 +158,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.extension.DataCarrier;
 
 import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
