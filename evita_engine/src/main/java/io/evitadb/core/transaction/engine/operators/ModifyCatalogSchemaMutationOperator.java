@@ -73,8 +73,6 @@ public class ModifyCatalogSchemaMutationOperator implements EngineMutationOperat
 			)
 		);
 
-		final String catalogName = mutation.getCatalogName();
-		final CatalogContract catalogContract = evita.getCatalogInstanceOrThrowException(catalogName);
 		//noinspection resource
 		final Transaction theTransaction = Transaction.getTransaction().orElse(null);
 
@@ -83,28 +81,46 @@ public class ModifyCatalogSchemaMutationOperator implements EngineMutationOperat
 			theFuture -> Transaction.executeInTransactionIfProvided(
 				theTransaction,
 				() -> {
-					final CatalogSchemaContract newSchema = catalogContract.updateSchema(
-						mutation.getSessionId(), mutation.getSchemaMutations()
+					final String catalogName = mutation.getCatalogName();
+					final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
+					final CatalogSchemaContract newSchema = catalog.updateSchema(
+						evita, mutation.getSessionId(), mutation.getSchemaMutations()
 					);
-					completionEngineStateUpdater.accept(
-						new AbstractEngineStateUpdater(transactionId, mutation) {
-							@Override
-							public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
-								// no actual change of the engine state
-								return ExpandedEngineState
-									.builder(expandedEngineState)
-									.withVersion(version)
-									.build();
-							}
-						}
-					);
+					completionEngineStateUpdater.accept(increaseEngineVersionOnly(transactionId, mutation));
 					return new CommitVersions(
-						catalogContract.getVersion(),
+						// we need to fetch catalog again, because by schema update version is incremented
+						evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
 						newSchema.version()
 					);
 				}
 			)
 		);
+	}
+
+	/**
+	 * Creates an instance of an {@link AbstractEngineStateUpdater} that increments the engine version
+	 * without modifying the actual engine state. This method facilitates an internal state update
+	 * process triggered by a transaction and schema mutation.
+	 *
+	 * @param transactionId the unique identifier for the transaction associated with this operation
+	 * @param mutation the mutation defining changes to the catalog schema, used in association with the transaction
+	 * @return a new instance of {@link AbstractEngineStateUpdater} that updates the engine's version only
+	 */
+	@Nonnull
+	public static AbstractEngineStateUpdater increaseEngineVersionOnly(
+		@Nonnull UUID transactionId,
+		@Nonnull ModifyCatalogSchemaMutation mutation
+	) {
+		return new AbstractEngineStateUpdater(transactionId, mutation) {
+			@Override
+			public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+				// no actual change of the engine state
+				return ExpandedEngineState
+					.builder(expandedEngineState)
+					.withVersion(version)
+					.build();
+			}
+		};
 	}
 
 }

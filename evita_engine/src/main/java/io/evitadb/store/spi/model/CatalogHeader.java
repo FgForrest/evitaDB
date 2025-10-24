@@ -30,7 +30,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.PersistenceService;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.LogFileRecordReference;
 import io.evitadb.store.spi.model.storageParts.StoragePartKey;
@@ -84,7 +84,7 @@ public record CatalogHeader(
 
 	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(
-			CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
+			PersistenceService.STORAGE_PROTOCOL_VERSION,
 			0L,
 			null,
 			Map.of(),

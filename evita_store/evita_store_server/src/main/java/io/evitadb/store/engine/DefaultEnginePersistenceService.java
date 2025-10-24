@@ -63,7 +63,9 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.IntFunction;
@@ -200,6 +202,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		if (bootstrapFileExists) {
 			this.engineState = readEngineState();
 			this.created = false;
+			this.engineState = syncEngineStateByFolderContents(storageOptions, this.engineState);
 		} else {
 			this.engineState = createNewEngineState(storageOptions);
 			this.created = true;
@@ -480,6 +483,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 */
 	@Nonnull
 	private EngineState readEngineState() {
+		final EngineState engineState;
 		try (
 			final ReadOnlyFileHandle readOnlyFileHandle = new ReadOnlyFileHandle(
 				null,
@@ -489,7 +493,7 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				this.storageOptions
 			)
 		) {
-			return readOnlyFileHandle.execute(
+			engineState = readOnlyFileHandle.execute(
 				observableInput ->
 					read(
 						observableInput,
@@ -506,6 +510,84 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 					).payload()
 			);
 		}
+
+		return engineState;
+	}
+
+	/**
+	 * Synchronizes the current engine state with the actual contents on disk by analyzing the specified storage directory.
+	 * It identifies catalogs present on disk, updates the active and inactive catalog lists in the current engine state,
+	 * adds newly discovered catalogs as inactive, and persists any changes to storage.
+	 *
+	 * @param storageOptions configuration options for persistent storage, including the storage directory
+	 * @param engineState the current engine state to be synchronized with the storage directory contents
+	 * @return a new {@link EngineState} instance with updated active and inactive catalog lists,
+	 *         or the original engine state if no changes are detected
+	 */
+	@Nonnull
+	private EngineState syncEngineStateByFolderContents(
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull EngineState engineState
+	) {
+		// Detect catalogs present on disk and reduce to only previously unknown ones
+		final Path[] directories = FileUtils.listDirectories(storageOptions.storageDirectory());
+		final LinkedHashSet<String> catalogsOnDisk = new LinkedHashSet<>(directories.length << 1);
+		for (final Path dir : directories) {
+			catalogsOnDisk.add(dir.getName(dir.getNameCount() - 1).toString());
+		}
+
+		// Build new active and inactive catalog lists using ArrayList for simplicity
+		final String[] oldActive = engineState.activeCatalogs();
+		final String[] oldInactive = engineState.inactiveCatalogs();
+
+		final ArrayList<String> newActive = new ArrayList<>(oldActive.length);
+		for (final String catalog : oldActive) {
+			if (catalogsOnDisk.contains(catalog)) {
+				newActive.add(catalog);
+				// keep only unknown catalogs in the set
+				catalogsOnDisk.remove(catalog);
+			}
+		}
+
+		final ArrayList<String> newInactive = new ArrayList<>(oldInactive.length);
+		for (final String catalog : oldInactive) {
+			if (catalogsOnDisk.contains(catalog)) {
+				newInactive.add(catalog);
+				// keep only unknown catalogs in the set
+				catalogsOnDisk.remove(catalog);
+			}
+		}
+		// Add any previously unknown on-disk catalogs as inactive
+		if (!catalogsOnDisk.isEmpty()) {
+			for (String catalogName : catalogsOnDisk) {
+				log.info("Discovered previously unknown catalog on disk (registering as inactive): {}", catalogName);
+				newInactive.add(catalogName);
+			}
+		}
+
+		// Determine if anything actually changed
+		final boolean activeUnchanged = Arrays.equals(
+			oldActive, newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY)
+		);
+		final boolean inactiveUnchanged = Arrays.equals(
+			oldInactive, newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY)
+		);
+		if (activeUnchanged && inactiveUnchanged) {
+			// No change at all - return the original engine state
+			return engineState;
+		}
+
+		// Create new engine state with updated catalogs
+		final EngineState newEngineState = EngineState.builder(engineState)
+			.version(this.engineState.version() + 1)
+			.activeCatalogs(newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
+			.inactiveCatalogs(newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
+			.build();
+
+		// Store the newly created engine state
+		storeEngineState(newEngineState);
+
+		return newEngineState;
 	}
 
 	/**

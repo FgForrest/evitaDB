@@ -256,6 +256,7 @@ public final class GlobalAttributeSchemaBuilder
 		return super.toInstance();
 	}
 
+	@Nonnull
 	@Override
 	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(

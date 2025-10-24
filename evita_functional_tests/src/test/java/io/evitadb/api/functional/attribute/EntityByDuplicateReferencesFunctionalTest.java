@@ -33,10 +33,10 @@ import io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.E
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Catalog;
@@ -502,7 +502,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	 * @return a list of entity references that match the specified category and country filters
 	 */
 	@Nonnull
-	private static List<EntityReference> getProductByCategoryCountry(
+	private static List<EntityReferenceContract> getProductByCategoryCountry(
 		@Nonnull EvitaSessionContract session, @Nonnull String country) {
 		return session.queryListOfEntityReferences(
 			query(
@@ -526,7 +526,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	 * @return A list of entity references representing the products matching the query criteria. Never null.
 	 */
 	@Nonnull
-	private static List<EntityReference> getProductByNullCategoryCountry(@Nonnull EvitaSessionContract session) {
+	private static List<EntityReferenceContract> getProductByNullCategoryCountry(@Nonnull EvitaSessionContract session) {
 		return session.queryListOfEntityReferences(
 			query(
 				collection(Entities.PRODUCT),
@@ -598,7 +598,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				             .forEach(session::upsertEntity);
 
 				// and now data for both of them (since they are intertwined via reflected reference)
-				final List<EntityReference> storedProducts = dataGenerator
+				final List<EntityReferenceContract> storedProducts = dataGenerator
 					.generateEntities(
 						session.getEntitySchemaOrThrowException(Entities.PRODUCT),
 						randomEntityPicker,
@@ -685,19 +685,19 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				// first create a single brand and two categories
-				final EntityReference brand = session
+				final EntityReferenceContract brand = session
 					.createNewEntity(Entities.BRAND, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Sony, Inc.")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Sony GmbH")
 					.upsertVia(session);
 
-				final EntityReference categoryRef1 = session
+				final EntityReferenceContract categoryRef1 = session
 					.createNewEntity(Entities.CATEGORY, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Cameras")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Kameras")
 					.upsertVia(session);
 
-				final EntityReference categoryRef2 = session
+				final EntityReferenceContract categoryRef2 = session
 					.createNewEntity(Entities.CATEGORY, 2)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TVs")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Fernseher")
@@ -708,7 +708,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				assertNotNull(categoryRef2);
 
 				// now create a product that references the same brand and category twice
-				final EntityReference product = session
+				final EntityReferenceContract product = session
 					.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Bravia TV")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Bravia Fernseher")
@@ -776,7 +776,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				// first create a product that references the same brand and category twice
-				final EntityReference product = session
+				final EntityReferenceContract product = session
 					.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Bravia TV")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Bravia Fernseher")
@@ -831,19 +831,19 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.upsertVia(session);
 
 				// now create a single brand and two categories
-				final EntityReference brand = session
+				final EntityReferenceContract brand = session
 					.createNewEntity(Entities.BRAND, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Sony, Inc.")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Sony GmbH")
 					.upsertVia(session);
 
-				final EntityReference categoryRef1 = session
+				final EntityReferenceContract categoryRef1 = session
 					.createNewEntity(Entities.CATEGORY, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Cameras")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Kameras")
 					.upsertVia(session);
 
-				final EntityReference categoryRef2 = session
+				final EntityReferenceContract categoryRef2 = session
 					.createNewEntity(Entities.CATEGORY, 2)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TVs")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Fernseher")
@@ -978,7 +978,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				// create a product first that references the non-existing brand
-				final EntityReference product = session
+				final EntityReferenceContract product = session
 					.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Bravia TV")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Bravia Fernseher")
@@ -993,14 +993,14 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.upsertVia(session);
 
 				// then create a single brand
-				final EntityReference brand = session
+				final EntityReferenceContract brand = session
 					.createNewEntity(Entities.BRAND, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Sony, Inc.")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Sony GmbH")
 					.upsertVia(session);
 
 				// now create category with duplicated reflected reference to product
-				final EntityReference categoryRef1 = session
+				final EntityReferenceContract categoryRef1 = session
 					.createNewEntity(Entities.CATEGORY, 1)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Cameras")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Kameras")
@@ -1021,7 +1021,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					.upsertVia(session);
 
 				// now create category with duplicated reflected reference to product
-				final EntityReference categoryRef2 = session
+				final EntityReferenceContract categoryRef2 = session
 					.createNewEntity(Entities.CATEGORY, 2)
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TVs")
 					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Fernseher")
@@ -1334,12 +1334,12 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "FR"));
 
 				// product can be found by new country in category 1
-				final List<EntityReference> foundProducts = getProductByCategoryCountry(session, "FR");
+				final List<EntityReferenceContract> foundProducts = getProductByCategoryCountry(session, "FR");
 				assertEquals(1, foundProducts.size());
 				assertEquals(1, foundProducts.get(0).getPrimaryKey());
 
 				// product cannot be found by old country in category 1
-				final List<EntityReference> notFoundProducts = getProductByCategoryCountry(session, "DE");
+				final List<EntityReferenceContract> notFoundProducts = getProductByCategoryCountry(session, "DE");
 				assertEquals(0, notFoundProducts.size());
 			}
 		);
@@ -1403,15 +1403,15 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				));
 
 				// product can be found by empty country in category 1
-				final List<EntityReference> foundProducts = getProductByNullCategoryCountry(session);
+				final List<EntityReferenceContract> foundProducts = getProductByNullCategoryCountry(session);
 				assertEquals(1, foundProducts.size());
 				assertEquals(1, foundProducts.get(0).getPrimaryKey());
-				final List<EntityReference> foundProductsUS = getProductByCategoryCountry(session, "US");
+				final List<EntityReferenceContract> foundProductsUS = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUS.size());
 				assertEquals(1, foundProductsUS.get(0).getPrimaryKey());
 
 				// product cannot be found by old country in category 1
-				final List<EntityReference> notFoundProductsDE = getProductByCategoryCountry(session, "DE");
+				final List<EntityReferenceContract> notFoundProductsDE = getProductByCategoryCountry(session, "DE");
 				assertEquals(0, notFoundProductsDE.size());
 
 				// restore country attribute in both duplicated references to category 1
@@ -1454,16 +1454,16 @@ public class EntityByDuplicateReferencesFunctionalTest {
 					getReferencedEntityIndex(evita, Scope.LIVE, Entities.PRODUCT, REFERENCE_CATEGORIES, 1, "US"));
 
 				// product can be found by restored country in category 1
-				final List<EntityReference> foundProductsDE = getProductByCategoryCountry(session, "DE");
+				final List<EntityReferenceContract> foundProductsDE = getProductByCategoryCountry(session, "DE");
 				assertEquals(1, foundProductsDE.size());
 				assertEquals(1, foundProductsDE.get(0).getPrimaryKey());
 
-				final List<EntityReference> foundProductsUSAfterRestore = getProductByCategoryCountry(session, "US");
+				final List<EntityReferenceContract> foundProductsUSAfterRestore = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUSAfterRestore.size());
 				assertEquals(1, foundProductsUSAfterRestore.get(0).getPrimaryKey());
 
 				// product cannot be found by empty country in category 1
-				final List<EntityReference> notFoundProductsNull = getProductByNullCategoryCountry(session);
+				final List<EntityReferenceContract> notFoundProductsNull = getProductByNullCategoryCountry(session);
 				assertEquals(0, notFoundProductsNull.size());
 			}
 		);
@@ -1480,7 +1480,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// verify that each product is found when filtering by brand
 				productsInBrand.forEach(
 					(entityCountry, products) -> {
-						final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+						final List<EntityReferenceContract> foundProducts = session.queryListOfEntityReferences(
 							query(
 								collection(Entities.PRODUCT),
 								filterBy(
@@ -1541,7 +1541,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 							.stream()
 							.mapToInt(EntityClassifier::getPrimaryKeyOrThrowException)
 							.toArray();
-						final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+						final List<EntityReferenceContract> foundProducts = session.queryListOfEntityReferences(
 							query(
 								collection(Entities.PRODUCT),
 								filterBy(
@@ -1608,7 +1608,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				for (String country : countries) {
-					final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+					final List<EntityReferenceContract> foundProducts = session.queryListOfEntityReferences(
 						query(
 							collection(Entities.PRODUCT),
 							/* CURRENTLY, WE DON'T support traversing hierarchy by reference attributes */
@@ -1682,7 +1682,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 			TEST_CATALOG,
 			session -> {
 				for (String country : countries) {
-					final List<EntityReference> foundProducts = session.queryListOfEntityReferences(
+					final List<EntityReferenceContract> foundProducts = session.queryListOfEntityReferences(
 						query(
 							collection(Entities.PRODUCT),
 							/* CURRENTLY, WE DON'T support traversing hierarchy by reference attributes */

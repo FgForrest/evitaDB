@@ -45,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Closeable;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -311,13 +312,39 @@ public final class Transaction implements TransactionContract {
 			final StoragePartPersistenceService transactionalService = storagePartPersistenceService.createTransactionalService(
 				transaction.getTransactionId()
 			);
-			final TransactionalLayerMaintainerFinalizer finalizer = transaction.getTransactionalMemory().getTransactionalLayerMaintainerFinalizer();
-			if (finalizer instanceof TransactionWalFinalizer transactionWalFinalizer) {
-				transactionWalFinalizer.registerCloseable(transactionalService);
-			}
+			registerCloseable(transaction, transactionalService);
 			return transactionalService;
 		} else {
 			return storagePartPersistenceService;
+		}
+	}
+
+	/**
+	 * Registers a {@link Closeable} instance with the finalizer of the given {@link Transaction}.
+	 * If the finalizer of the transaction is of type {@link TransactionWalFinalizer}, the closeable
+	 * instance will be registered for cleanup during transaction finalization.
+	 *
+	 * @param closeableInstance The closeable instance that needs to be managed and finalized with the transaction.
+	 */
+	public static void registerCloseable(@Nonnull Closeable closeableInstance) {
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null && !transaction.isReplay()) {
+			registerCloseable(transaction, closeableInstance);
+		}
+	}
+
+	/**
+	 * Registers a {@link Closeable} instance with the finalizer of the given {@link Transaction}.
+	 * If the finalizer of the transaction is of type {@link TransactionWalFinalizer}, the closeable
+	 * instance will be registered for cleanup during transaction finalization.
+	 *
+	 * @param transaction       The transaction instance in which the closeable instance is to be registered.
+	 * @param closeableInstance The closeable instance that needs to be managed and finalized with the transaction.
+	 */
+	private static void registerCloseable(@Nonnull Transaction transaction, @Nonnull Closeable closeableInstance) {
+		final TransactionalLayerMaintainerFinalizer finalizer = transaction.getTransactionalMemory().getTransactionalLayerMaintainerFinalizer();
+		if (finalizer instanceof TransactionWalFinalizer transactionWalFinalizer) {
+			transactionWalFinalizer.registerCloseable(closeableInstance);
 		}
 	}
 

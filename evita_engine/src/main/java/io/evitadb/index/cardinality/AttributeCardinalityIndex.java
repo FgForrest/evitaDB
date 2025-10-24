@@ -29,9 +29,9 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
@@ -50,16 +50,14 @@ import java.util.Map;
  * the key is present in the index and remove it only when the last occurrence is evicted. This is where the cardinality
  * index comes in.
  *
- * TODO JNO - zjednodušit klíče na jednoduchý objekt - viz použití v ReferenceTypeIndexu
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class CardinalityIndex implements VoidTransactionMemoryProducer<CardinalityIndex>, IndexDataStructure, Serializable {
+public class AttributeCardinalityIndex
+	implements VoidTransactionMemoryProducer<AttributeCardinalityIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = -7416602590381722682L;
 	/**
 	 * Represents the type of values stored in this cardinality index.
 	 */
-	/* TODO JNO - tohle se k ničemu nepoužívá - adept na zrušení!!! */
 	@Getter private final Class<? extends Serializable> valueType;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -69,20 +67,20 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 * A variable that holds the cardinalities of different entities.
 	 *
 	 * The TransactionalMap is a map-like data structure that allows concurrent access and modification
-	 * of the cardinalities in a transactional manner. Each cardinality is associated with a CardinalityKey,
+	 * of the cardinalities in a transactional manner. Each cardinality is associated with a AttributeCardinalityKey,
 	 * which uniquely identifies the entity for which the cardinality is being stored.
 	 */
-	private final TransactionalMap<CardinalityKey, Integer> cardinalities;
+	private final TransactionalMap<AttributeCardinalityKey, Integer> cardinalities;
 
-	public CardinalityIndex(@Nonnull Class<? extends Serializable> valueType) {
+	public AttributeCardinalityIndex(@Nonnull Class<? extends Serializable> valueType) {
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
 		this.cardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(16));
 	}
 
-	public CardinalityIndex(
+	public AttributeCardinalityIndex(
 		@Nonnull Class<? extends Serializable> valueType,
-		@Nonnull Map<CardinalityKey, Integer> cardinalities
+		@Nonnull Map<AttributeCardinalityKey, Integer> cardinalities
 	) {
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
@@ -94,40 +92,48 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 * @return cardinalities of all keys in the index
 	 */
 	@Nonnull
-	public Map<CardinalityKey, Integer> getCardinalities() {
+	public Map<AttributeCardinalityKey, Integer> getCardinalities() {
 		return this.cardinalities;
 	}
 
 	/**
-	 * Increases cardinality of given key by one. If key is not present in the index, it is added with cardinality 1
+	 * Increases cardinality of given value by one. If value is not present in the index, it is added with cardinality 1
 	 * and TRUE is returned, otherwise existing cardinality is increased by one FALSE is returned.
-	 * @param key key to be added
-	 * @return TRUE if key was not present in the index, FALSE otherwise
+	 * @param value value to be added
+	 * @return TRUE if value was not present in the index, FALSE otherwise
 	 */
-	public boolean addRecord(@Nonnull Serializable key, int recordId) {
+	public boolean addRecord(@Nonnull Serializable value, int recordId) {
+		Assert.isTrue(
+			this.valueType.isInstance(value),
+			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
+		);
 		this.dirty.setToTrue();
 		return this.cardinalities.compute(
-			new CardinalityKey(recordId, key),
+			new AttributeCardinalityKey(recordId, value),
 			(k, v) -> v == null ? 1 : v + 1
 		) == 1;
 	}
 
 	/**
-	 * Decreases cardinality of given key by one. If the cardinality of the key reaches zero, the key is removed from
+	 * Decreases cardinality of given value by one. If the cardinality of the value reaches zero, the value is removed from
 	 * the index and TRUE is returned, otherwise FALSE is returned.
 	 *
-	 * @param key key to be removed
-	 * @return TRUE if key was removed from the index, FALSE otherwise
+	 * @param value value to be removed
+	 * @return TRUE if value was removed from the index, FALSE otherwise
 	 */
-	public boolean removeRecord(@Nonnull Serializable key, int recordId) {
+	public boolean removeRecord(@Nonnull Serializable value, int recordId) {
+		Assert.isTrue(
+			this.valueType.isInstance(value),
+			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
+		);
 		this.dirty.setToTrue();
-		final CardinalityKey cardinalityKey = new CardinalityKey(recordId, key);
+		final AttributeCardinalityKey cardinalityKey = new AttributeCardinalityKey(recordId, value);
 		final Integer newValue = this.cardinalities.computeIfPresent(
 			cardinalityKey,
 			(k, v) -> v - 1
 		);
 		if (newValue == null) {
-			throw new GenericEvitaInternalError("Cardinality of key `" + key + "` for record `" + recordId + "` is null");
+			throw new GenericEvitaInternalError("Cardinality of value `" + value + "` for record `" + recordId + "` is null");
 		} else if (newValue == 0) {
 			this.cardinalities.remove(cardinalityKey);
 			return true;
@@ -148,9 +154,9 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
 	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull AttributeIndexKey attribute) {
+	public AttributeCardinalityIndexStoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull AttributeIndexKey attribute) {
 		if (this.dirty.isTrue()) {
-			return new CardinalityIndexStoragePart(
+			return new AttributeCardinalityIndexStoragePart(
 				entityIndexPrimaryKey, attribute, this
 			);
 		} else {
@@ -180,11 +186,11 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 
 	@Nonnull
 	@Override
-	public CardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public AttributeCardinalityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
 		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
-			return new CardinalityIndex(
+			return new AttributeCardinalityIndex(
 				this.valueType,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
 			);
@@ -199,7 +205,7 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	 * @param recordId ID of the record
 	 * @param value value of the record
 	 */
-	public record CardinalityKey(
+	public record AttributeCardinalityKey(
 		int recordId,
 		@Nonnull Serializable value
 	) {

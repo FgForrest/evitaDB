@@ -41,11 +41,11 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -288,7 +288,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.limit(iterations)
 						.map(it -> {
 							assertFalse(Transaction.getTransaction().isPresent());
-							final AtomicReference<EntityReference> createdReference = new AtomicReference<>();
+							final AtomicReference<EntityReferenceContract> createdReference = new AtomicReference<>();
 							final CompletableFuture<CommitVersions> targetCatalogVersion = evita.updateCatalogAsync(
 									TEST_CATALOG,
 									session -> {
@@ -1897,13 +1897,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						session -> {
 							for (int i = 0; i < 1000; i++) {
 								if (entities.size() < 10000 || faker.random().nextBoolean()) {
-									final EntityReference ref = session.createNewEntity(entityProduct, entities.size() + 1)
+									final EntityReferenceContract ref = session.createNewEntity(entityProduct, entities.size() + 1)
 										.setAttribute(attributeUrl, faker.internet().url())
 										.setAttribute(attributeCode, faker.code().isbn10())
 										.setAttribute(attributeName, faker.book().title())
 										.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)))
 										.upsertVia(session);
-									entities.put(ref.primaryKey(), session.getEntity(entityProduct, ref.primaryKey(), attributeContentAll()).orElseThrow());
+									final int pk = ref.getPrimaryKeyOrThrowException();
+									entities.put(
+										pk, session.getEntity(entityProduct, pk, attributeContentAll()).orElseThrow());
 								} else {
 									updates.incrementAndGet();
 									final int entityPrimaryKey = faker.random().nextInt(entities.size()) + 1;
@@ -2266,7 +2268,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
  }
 
  private record PkWithCatalogVersion(
-		EntityReference entityReference,
+		@Nonnull EntityReferenceContract entityReference,
 		long catalogVersion
 	) implements Comparable<PkWithCatalogVersion> {
 

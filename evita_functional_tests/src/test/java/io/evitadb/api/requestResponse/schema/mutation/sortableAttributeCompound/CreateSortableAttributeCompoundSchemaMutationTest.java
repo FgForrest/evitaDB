@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,13 +27,14 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -57,8 +58,8 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 	static final String ATTRIBUTE_COMPOUND_NAME = "name";
 
 	@Nonnull
-	static SortableAttributeCompoundSchemaContract createExistingAttributeCompoundSchema() {
-		return SortableAttributeCompoundSchema._internalBuild(
+	static EntitySortableAttributeCompoundSchemaContract createExistingAttributeCompoundSchema() {
+		return EntitySortableAttributeCompoundSchema._internalBuild(
 			ATTRIBUTE_COMPOUND_NAME,
 			"oldDescription",
 			"oldDeprecationNotice",
@@ -97,8 +98,10 @@ public class CreateSortableAttributeCompoundSchemaMutationTest {
 		assertNotNull(result);
 		assertFalse(result.discarded());
 		assertEquals(2, result.current().length);
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifySortableAttributeCompoundSchemaDescriptionMutation));
-		assertTrue(Arrays.stream(result.current()).anyMatch(m -> m instanceof ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation));
+		assertTrue(Arrays.stream(result.current())
+			           .anyMatch(ModifySortableAttributeCompoundSchemaDescriptionMutation.class::isInstance));
+		assertTrue(Arrays.stream(result.current())
+			           .anyMatch(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class::isInstance));
 	}
 
 	@Test

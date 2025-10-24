@@ -58,7 +58,8 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			EntitySchema.class,
 			new SerialVersionBasedSerializer<>(new EntitySchemaSerializer(), EntitySchema.class)
-				.addBackwardCompatibleSerializer(-209500573660545111L, new EntitySchemaSerializer_2024_11()),
+				.addBackwardCompatibleSerializer(-209500573660545111L, new EntitySchemaSerializer_2024_11())
+				.addBackwardCompatibleSerializer(-7519764827214964135L, new EntitySchemaSerializer_2025_6()),
 			index++
 		);
 		kryo.register(EntitySchemaStoragePart.class, new SerialVersionBasedSerializer<>(new EntitySchemaStoragePartSerializer(), EntitySchemaStoragePart.class), index++);
@@ -109,6 +110,11 @@ public class SchemaKryoConfigurer implements Consumer<Kryo> {
 		);
 		kryo.register(AttributeInheritanceBehavior.class, new EnumNameSerializer<>(), index++);
 		kryo.register(ReferenceIndexType.class, new EnumNameSerializer<>(), index++);
+		kryo.register(
+			EntitySortableAttributeCompoundSchema.class,
+			new SerialVersionBasedSerializer<>(new EntitySortableAttributeCompoundSchemaSerializer(), EntitySortableAttributeCompoundSchema.class),
+			index++
+		);
 
 		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}

@@ -525,14 +525,16 @@ public class EntityDecorator implements SealedEntity {
 			final ReferenceKey referenceKey = reference.getReferenceKey();
 			if (duplicatesAllowed) {
 				// mark reference key as duplicate bearer
-				this.filteredReferences.put(referenceKey, DUPLICATE_REFERENCE);
+				final ReferenceKey genericKey = new ReferenceKey(
+					referenceKey.referenceName(), referenceKey.primaryKey()
+				);
+				this.filteredReferences.put(genericKey, DUPLICATE_REFERENCE);
 				if (this.filteredDuplicateReferences == null) {
 					this.filteredDuplicateReferences = createHashMap(schema.getReferences().size());
 				}
 				this.filteredDuplicateReferences
 					.computeIfAbsent(
-						new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey()),
-						k -> new ArrayList<>(2)
+						genericKey, k -> new ArrayList<>(2)
 					)
 					.add(reference);
 			} else {
@@ -552,7 +554,8 @@ public class EntityDecorator implements SealedEntity {
 				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
 					.orElse(Collections.emptyList());
 				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
-					entity, referenceName, references);
+					entity, referenceName, references
+				);
 				removeReferencesNotPresentInChunk(
 					chunk, references,
 					this.filteredReferences,
@@ -745,12 +748,13 @@ public class EntityDecorator implements SealedEntity {
 			return theFilteredReferences.values();
 		} else {
 			// need to expand duplicates
-			return Stream.concat(
-					theFilteredReferences
-						.values()
-						.stream()
-					    .filter(it -> it != DUPLICATE_REFERENCE),
-					this.filteredDuplicateReferences.values().stream().flatMap(Collection::stream)
+			return theFilteredReferences
+				.entrySet()
+				.stream()
+				.flatMap(
+					entry -> entry.getValue() == DUPLICATE_REFERENCE ?
+						this.filteredDuplicateReferences.get(entry.getKey()).stream() :
+						Stream.of(entry.getValue())
 				)
 				.collect(Collectors.toList());
 		}
@@ -838,13 +842,19 @@ public class EntityDecorator implements SealedEntity {
 		return ofNullable(this.parentEntity);
 	}
 
+	/**
+	 * Retrieves a reference associated with the specified {@code referenceKey} without checking any predicate.
+	 *
+	 * @param referenceKey the key identifying the reference to retrieve; must not be null
+	 * @return an {@code Optional} containing the {@code ReferenceContract} if a matching reference is found,
+	 *         or an empty {@code Optional} if no matching reference exists
+	 */
 	@Nonnull
 	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(
-		@Nonnull String referenceName, int referencedEntityId
+		@Nonnull ReferenceKey referenceKey
 	) {
-		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedEntityId);
 		return ofNullable(getFilteredReferences().get(referenceKey))
-			.map(it -> avoidDuplicates(it.getReferenceKey(), it));
+			.map(it -> avoidDuplicates(referenceKey, it));
 	}
 
 	@Nonnull

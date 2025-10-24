@@ -25,6 +25,7 @@ package io.evitadb.api.proxy.mock;
 
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.test.Entities;
 
@@ -35,6 +36,7 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@EntityRef(Entities.BRAND)
 public interface BrandInterfaceEditor extends BrandInterface, InstanceEditor<BrandInterface> {
 
 	BrandInterfaceEditor setCode(String code);

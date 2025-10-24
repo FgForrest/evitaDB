@@ -26,11 +26,10 @@ package io.evitadb.api.proxy;
 import io.evitadb.api.AbstractEntityProxyingFunctionalTest;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
-import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.proxy.mock.*;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -52,7 +51,6 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -359,7 +357,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+				final Optional<EntityReferenceContract> parameterReference = evitaSession.queryOneEntityReference(
 					query(
 						collection(Entities.PARAMETER),
 						filterBy(
@@ -387,7 +385,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+				final Optional<EntityReferenceContract> parameterReference = evitaSession.queryOneEntityReference(
 					query(
 						collection(Entities.PARAMETER_GROUP),
 						filterBy(
@@ -410,7 +408,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+				final Optional<EntityReferenceContract> parameterReference = evitaSession.queryOneEntityReference(
 					query(
 						collection(Entities.BRAND),
 						filterBy(
@@ -434,7 +432,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final Optional<EntityReference> categoryReference = evitaSession.queryOneEntityReference(
+				final Optional<EntityReferenceContract> categoryReference = evitaSession.queryOneEntityReference(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -456,7 +454,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
-	private static Optional<EntityReference> getProductByCode(EvitaContract evita, String code) {
+	private static Optional<EntityReferenceContract> getProductByCode(EvitaContract evita, String code) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -467,7 +465,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
-	private static Optional<EntityReference> getCategoryByCode(EvitaContract evita, String code) {
+	private static Optional<EntityReferenceContract> getCategoryByCode(EvitaContract evita, String code) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -478,7 +476,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
-	private static Optional<EntityReference> getParameterGroupByCode(EvitaContract evita, String code) {
+	private static Optional<EntityReferenceContract> getParameterGroupByCode(EvitaContract evita, String code) {
 		return evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -516,8 +514,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 		assertSame(editor, returnedEditor);
 
-		final RelatedProductInterface createdRelatedProductViaGet = editor.getRelatedProduct(relationType);
-		assertEquals(relatedProductRef.get(), createdRelatedProductViaGet);
+		final RelatedProductInterfaceEditor relId = relatedProductRef.get();
+		final RelatedProductInterface createdRelatedProductViaGet = editor.getRelatedProduct(relationType, relId.getPrimaryKey());
+		assertEquals(relId, createdRelatedProductViaGet);
 
 		// Persist and verify via sealed entity reference
 		editor.upsertVia(evitaSession);
@@ -833,8 +832,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setCode("child-category-2")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
-					.setParentEntityReference(
-						parentEntityReference);
+					.setParentEntityReference(parentEntityReference);
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
@@ -976,7 +974,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newCategory.setLabels(new Labels());
 				newCategory.setReferencedFiles(new ReferencedFileSet());
-				final List<EntityReference> createdEntityReferences = evitaSession.upsertEntityDeeply(newCategory);
+				final List<EntityReferenceContract> createdEntityReferences = evitaSession.upsertEntityDeeply(newCategory);
 
 				assertEquals(2, createdEntityReferences.size());
 				assertEquals(new EntityReference(Entities.CATEGORY, 1100), createdEntityReferences.get(0));
@@ -1084,7 +1082,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						BigDecimal.ONE, BigDecimal.ONE,
 						BigDecimal.ZERO, "CZK", 7, VALIDITY, 8
 					)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1205,7 +1203,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							)
 						)
 					)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1232,7 +1230,6 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							3,
 							entityFetchAllContent()
 						).orElseThrow()));
-				;
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -1329,7 +1326,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							BigDecimal.ONE, VALIDITY, true
 						)
 					)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1411,7 +1408,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brandId)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1467,7 +1464,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brand)
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1520,7 +1517,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setNewBrand(brand -> brand.setCode(
 						"consumer-created-brand").setStore(1))
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1544,7 +1541,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.upsertDeeplyVia(evitaSession);
 
-				final EntityReference createdBrand = evitaSession.queryOneEntityReference(
+				final EntityReferenceContract createdBrand = evitaSession.queryOneEntityReference(
 					query(collection(Entities.BRAND), filterBy(attributeEquals("code", "consumer-created-brand")))
 				).orElseThrow();
 
@@ -1560,17 +1557,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(13)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldFailToUpdateNonExistingBrandInConsumer(EvitaContract evita) {
+	void shouldNotUpdateNonExistingBrandInConsumer(EvitaContract evita) {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				assertThrows(
-					ContextMissingException.class,
-					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
-						.setCode("product-7")
-						.setName(CZECH_LOCALE, "Produkt 7")
-						.updateBrand(brand -> fail("Should not be called."))
-				);
+				evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-7")
+					.setName(CZECH_LOCALE, "Produkt 7")
+					.updateBrand(brand -> fail("Should not be called."));
 			}
 		);
 	}
@@ -1594,7 +1588,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L))
 					.addProductCategory(
 						categoryId1, that -> that.setOrderInCategory(
@@ -1632,7 +1626,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.upsertDeeplyVia(evitaSession);
 
-				final EntityReference createdBrand = evitaSession.queryOneEntityReference(
+				final EntityReferenceContract createdBrand = evitaSession.queryOneEntityReference(
 					query(collection(Entities.BRAND), filterBy(attributeEquals("code", "getorcreate-created-brand")))
 				).orElseThrow();
 
@@ -1648,16 +1642,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(16)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldFailToUpdateNonExistingParameterInConsumer(EvitaContract evita) {
+	void shouldNotUpdateNonExistingParameterInConsumer(EvitaContract evita) {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				assertThrows(
-					ReferenceNotFoundException.class,
-					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
+				evitaSession.createNewEntity(ProductInterfaceEditor.class)
 						.setCode("product-8")
 						.setName(CZECH_LOCALE, "Produkt 8")
-						.updateParameter(7, brand -> fail("Should not be called."))
+						.updateParameter(7, brand -> fail("Should not be called.")
 				);
 			}
 		);
@@ -1742,7 +1734,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					)
 					.setStoresByIds(1, 2, 3);
 
-				assertNull(newProduct.getParameter());
+				assertNull(newProduct.getParameter(parameterId));
 				final ProductParameterInterfaceEditor newParameter = newProduct.getOrCreateParameter(parameterId);
 				newParameter.setPriority(10L);
 
@@ -1754,10 +1746,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterId, newProduct.getParameter().getPrimaryKey());
-				assertEquals(10L, newProduct.getParameter().getPriority());
-				assertEquals(parameterId, modifiedInstance.getParameter().getPrimaryKey());
-				assertEquals(10L, modifiedInstance.getParameter().getPriority());
+				assertEquals(parameterId, newProduct.getParameter(parameterId).getPrimaryKey());
+				assertEquals(10L, newProduct.getParameter(parameterId).getPriority());
+				assertEquals(parameterId, modifiedInstance.getParameter(parameterId).getPrimaryKey());
+				assertEquals(10L, modifiedInstance.getParameter(parameterId).getPriority());
 
 				newProduct.upsertVia(evitaSession);
 
@@ -1781,7 +1773,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
 		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
 
-		final EntityReference product7Ref = getProductByCode(evita, "product-7")
+		final EntityReferenceContract product7Ref = getProductByCode(evita, "product-7")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewBrandViaGetOrCreateMethod(evita);
 				return getProductByCode(evita, "product-7").orElseThrow();
@@ -1791,7 +1783,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor product7 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product7Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product7Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				product7.removeBrand();
@@ -1810,7 +1802,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product7.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product7Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product7Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertNull(product8SE.getReference(Entities.BRAND, brandId).orElse(null));
@@ -1825,7 +1817,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldRemovePrice(EvitaContract evita) {
-		final EntityReference product8Ref = getProductByCode(evita, "product-8")
+		final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
 				return getProductByCode(evita, "product-8").orElseThrow();
@@ -1835,7 +1827,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				/*
@@ -1866,7 +1858,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(1, product8SE.getPrices().size());
@@ -1880,7 +1872,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldRemoveParent(EvitaContract evita) {
-		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1")
+		final EntityReferenceContract childCategoryRef = getCategoryByCode(evita, "child-category-1")
 			.orElseGet(() -> {
 				shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
 				return getCategoryByCode(evita, "child-category-1").orElseThrow();
@@ -1890,7 +1882,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
-					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(), entityFetchAllContent()
+					CategoryInterfaceEditor.class, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				childCategory.removeParent();
@@ -1905,7 +1897,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				childCategory.upsertVia(evitaSession);
 
 				final SealedEntity childCategorySE = evitaSession.getEntity(
-					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+					Entities.CATEGORY, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());
@@ -1918,7 +1910,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldIsolateMutationsInSeparatedEditorsButStoreAllByUpsertDeeply(EvitaContract evita) {
-		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+		final EntityReferenceContract product6Ref = getProductByCode(evita, "product-6")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
 				return getProductByCode(evita, "product-6").orElseThrow();
@@ -1928,7 +1920,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor product6 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final List<Long> originalPriorities = product6
@@ -1965,7 +1957,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product6.upsertDeeplyVia(evitaSession);
 
 				final SealedEntity storedProduct = evitaSession.getEntity(
-					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Iterator<Long> priorityItAgainAndAgain = originalPriorities.iterator();
@@ -1984,7 +1976,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldIsolateMutationsInSeparatedEditors(EvitaContract evita) {
-		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+		final EntityReferenceContract product6Ref = getProductByCode(evita, "product-6")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
 				return getProductByCode(evita, "product-6").orElseThrow();
@@ -1994,7 +1986,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor product6 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final List<Long> originalPriorities = product6.getProductCategoriesAsList()
@@ -2030,7 +2022,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product6.upsertVia(evitaSession);
 
 				final SealedEntity storedProduct = evitaSession.getEntity(
-					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Iterator<Long> priorityItAgain = originalPriorities.iterator();
@@ -2044,7 +2036,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				}
 
 				final SealedEntity storedProductAgain = evitaSession.getEntity(
-					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Iterator<Long> priorityItAgainAndAgain = originalPriorities.iterator();
@@ -2063,7 +2055,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldShareReferenceMutationsInSharedEditor(EvitaContract evita) {
-		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+		final EntityReferenceContract product6Ref = getProductByCode(evita, "product-6")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
 				return getProductByCode(evita, "product-6").orElseThrow();
@@ -2073,7 +2065,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor product6 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final ProductParameterInterfaceEditor editor = product6.getOrCreateParameter(1);
@@ -2082,24 +2074,32 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = product6.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(1, mutation.get().getLocalMutations().size());
+				assertEquals(2, mutation.get().getLocalMutations().size());
 
 				final Optional<EntityMutation> editorMutation = editor.toMutation();
 				assertTrue(editorMutation.isPresent());
-				assertEquals(1, editorMutation.get().getLocalMutations().size());
+				assertEquals(2, editorMutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = product6.toInstance();
-				assertEquals(80L, modifiedInstance.getParameter().getPriority());
+				final ProductParameterInterface parameter = modifiedInstance.getParameter(1);
+				assertEquals(80L, parameter.getPriority());
 
 				product6.upsertVia(evitaSession);
 
 				final SealedEntity storedProduct = evitaSession.getEntity(
-					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product6Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
-				for (ReferenceContract reference : storedProduct.getReferences(Entities.PARAMETER)) {
-					assertEquals(80L, reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
-				}
+				assertEquals(
+					80L,
+					storedProduct.getReference(Entities.PARAMETER, 1).orElseThrow()
+						.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+				);
+				assertEquals(
+					10L,
+					storedProduct.getReference(Entities.PARAMETER, 101).orElseThrow()
+						.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+				);
 			}
 		);
 	}
@@ -2117,13 +2117,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				}
 			));
 		shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
-		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
+		final EntityReferenceContract childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
 
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
-					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(), entityFetchAllContent()
+					CategoryInterfaceEditor.class, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(childCategory.removeParentAndReturnResult());
@@ -2139,7 +2139,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				childCategory.upsertVia(evitaSession);
 
 				final SealedEntity childCategorySE = evitaSession.getEntity(
-					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+					Entities.CATEGORY, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());
@@ -2160,13 +2160,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				}
 			));
 		shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
-		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
+		final EntityReferenceContract childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
 
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
-					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(), entityFetchAllContent()
+					CategoryInterfaceEditor.class, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(1000, childCategory.removeParentAndReturnItsPrimaryKey());
@@ -2182,7 +2182,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				childCategory.upsertVia(evitaSession);
 
 				final SealedEntity childCategorySE = evitaSession.getEntity(
-					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+					Entities.CATEGORY, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());
@@ -2203,13 +2203,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				}
 			));
 		shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
-		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
+		final EntityReferenceContract childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
 
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
 				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
-					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(),
+					CategoryInterfaceEditor.class, childCategoryRef.getPrimaryKeyOrThrowException(),
 					hierarchyContent(entityFetchAll()), attributeContentAll()
 				).orElseThrow();
 
@@ -2228,7 +2228,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				childCategory.upsertVia(evitaSession);
 
 				final SealedEntity childCategorySE = evitaSession.getEntity(
-					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+					Entities.CATEGORY, childCategoryRef.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());
@@ -2253,9 +2253,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				/*
@@ -2291,7 +2291,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(4, product8SE.getPrices().size());
@@ -2316,9 +2316,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				/*
@@ -2352,7 +2352,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(4, product8SE.getPrices().size());
@@ -2377,9 +2377,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				/*
@@ -2413,7 +2413,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(4, product8SE.getPrices().size());
@@ -2438,9 +2438,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				/*
@@ -2473,7 +2473,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(3, product8SE.getPrices().size());
@@ -2498,9 +2498,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(product8.removeAllPrices());
@@ -2517,7 +2517,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2542,9 +2542,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final int[] removedPriceIds = product8.removeAllPricesAndReturnTheirIds();
@@ -2562,7 +2562,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2587,9 +2587,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Collection<Integer> removedPriceIds = product8.removeAllPricesAndReturnCollectionOfTheirIds();
@@ -2608,7 +2608,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2633,9 +2633,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Set<Price.PriceKey> removedPriceIds = new HashSet<>(
@@ -2660,7 +2660,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2685,9 +2685,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Set<Price.PriceKey> removedPriceIds = new HashSet<>(
@@ -2712,7 +2712,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2737,9 +2737,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Set<Price.PriceKey> removedPriceIds = Arrays.stream(product8.removeAllPricesAndReturnThem())
@@ -2764,7 +2764,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2789,9 +2789,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final EntityReferenceContract product8Ref = getProductByCode(evita, "product-8").orElseThrow();
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final Set<Price.PriceKey> removedPriceIds = product8.removeAllPricesAndReturnThemAsCollection().stream()
@@ -2816,7 +2816,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
@@ -2844,10 +2844,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final EntityReferenceContract product1Ref = getProductByCode(evita, "product-1").orElseThrow();
 
 				final ProductInterfaceEditor product1 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product1Ref.primaryKey(),
+					ProductInterfaceEditor.class, product1Ref.getPrimaryKeyOrThrowException(),
 					referenceContentWithAttributes(
 						Entities.CATEGORY,
 						entityFetchAll()
@@ -2886,7 +2886,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product1.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product1Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertNull(product8SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
@@ -2916,10 +2916,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product4Ref = getProductByCode(evita, "product-4").orElseThrow();
+				final EntityReferenceContract product4Ref = getProductByCode(evita, "product-4").orElseThrow();
 
 				final ProductInterfaceEditor product4 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product4Ref.primaryKey(),
+					ProductInterfaceEditor.class, product4Ref.getPrimaryKeyOrThrowException(),
 					referenceContentWithAttributes(
 						Entities.BRAND,
 						entityFetchAll()
@@ -2944,7 +2944,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final ProductInterface modifiedInstance = product4.toInstance();
 				assertNull(modifiedInstance.getBrand());
-				assertNull(modifiedInstance.getParameter());
+				assertNull(modifiedInstance.getParameter(parameterId));
 
 				assertThrows(
 					ReferenceCardinalityViolatedException.class, () -> product4.upsertVia(evitaSession)
@@ -2975,7 +2975,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroup(
 								parameterGroupId)
@@ -2989,10 +2989,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter(parameterId).getParameterGroup());
 				assertEquals(
 					parameterGroupId,
-					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+					modifiedInstance.getParameter(parameterId).getParameterGroupEntityClassifier().getPrimaryKey()
 				);
 
 				newProduct.upsertVia(evitaSession);
@@ -3011,13 +3011,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
 				assertEquals("parameterGroup-1", groupEntity.getCode());
 
-				loadedProduct.getParameter()
+				loadedProduct.getParameter(parameterId)
 					.openForWrite()
 					.removeParameterGroup()
 					.upsertVia(evitaSession);
@@ -3035,9 +3035,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				assertNull(loadedProductAgain.getParameter().getParameterGroup());
-				assertNull(loadedProductAgain.getParameter().getParameterGroupEntityClassifier());
-				assertNull(loadedProductAgain.getParameter().getParameterGroupEntity());
+				assertNull(loadedProductAgain.getParameter(parameterId).getParameterGroup());
+				assertNull(loadedProductAgain.getParameter(parameterId).getParameterGroupEntityClassifier());
+				assertNull(loadedProductAgain.getParameter(parameterId).getParameterGroupEntity());
 			}
 		);
 	}
@@ -3064,7 +3064,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroupEntityClassifier(
 								new EntityReference(
@@ -3081,10 +3081,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter(parameterId).getParameterGroup());
 				assertEquals(
 					parameterGroupId,
-					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+					modifiedInstance.getParameter(parameterId).getParameterGroupEntityClassifier().getPrimaryKey()
 				);
 
 				newProduct.upsertVia(evitaSession);
@@ -3103,7 +3103,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
@@ -3138,7 +3138,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroupEntity(
 								parameterGroupEntity)
@@ -3152,10 +3152,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(14, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter(parameterId).getParameterGroup());
 				assertEquals(
 					parameterGroupId,
-					modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey()
+					modifiedInstance.getParameter(parameterId).getParameterGroupEntityClassifier().getPrimaryKey()
 				);
 
 				newProduct.upsertVia(evitaSession);
@@ -3174,7 +3174,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(parameterGroupId, groupEntity.getId());
@@ -3187,7 +3187,6 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(40)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	@Disabled("Temporary disabled - see io.evitadb.core.EvitaSession.upsertEntity(S)")
 	void shouldSetReferenceGroupAsNewlyCreatedEntity(EvitaContract evita) {
 		final int parameterId = createParameterEntityIfMissing(evita);
 
@@ -3205,7 +3204,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -3213,12 +3212,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.upsertVia(evitaSession);
 
-				newProduct.getParameter()
+				newProduct.getParameter(parameterId)
 					.openForWrite()
 					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-2"))
 					.upsertDeeplyVia(evitaSession);
 
-				final EntityReference createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-2")
+				final EntityReferenceContract createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-2")
 					.orElseThrow();
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -3228,7 +3227,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
@@ -3241,7 +3240,6 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Order(41)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	@Disabled("Temporary disabled - see io.evitadb.core.EvitaSession.upsertEntity(S)")
 	void shouldSetReferenceGroupByIdAndUpdateIt(EvitaContract evita) {
 		final int parameterId = createParameterEntityIfMissing(evita);
 		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
@@ -3260,7 +3258,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroup(
 								parameterGroupId)
@@ -3271,12 +3269,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				newProduct.upsertVia(evitaSession);
 
-				newProduct.getParameter()
+				newProduct.getParameter(parameterId)
 					.openForWrite()
 					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-20"))
 					.upsertDeeplyVia(evitaSession);
 
-				final EntityReference createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-20")
+				final EntityReferenceContract createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-20")
 					.orElseThrow();
 
 				final ProductInterface loadedProduct = evitaSession.getEntity(
@@ -3286,7 +3284,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					dataInLocalesAll()
 				).orElseThrow();
 
-				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter()
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter(parameterId)
 					.getParameterGroupEntity();
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
@@ -3318,7 +3316,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(
 						new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setParameter(
+					.setOrUpdateParameter(
 						parameterId, that -> that.setPriority(10L)
 							.setParameterGroup(
 								parameterGroupId)
@@ -3366,16 +3364,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							fail("Unexpected attribute: " + ram.getAttributeKey());
 						}
 					} else if (localMutation instanceof RemoveAssociatedDataMutation radm) {
-						if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_LABELS)) {
-							assertEquals(CZECH_LOCALE, radm.getAssociatedDataKey().locale());
-							expectedMutations.set(3, true);
-						} else if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_MARKETS)) {
-							expectedMutations.set(4, true);
-						} else if (radm.getAssociatedDataKey().associatedDataName().equals(
-							ASSOCIATED_DATA_REFERENCED_FILES)) {
-							expectedMutations.set(4, true);
-						} else {
-							fail("Unexpected associated data: " + radm.getAssociatedDataKey());
+						switch (radm.getAssociatedDataKey().associatedDataName()) {
+							case ASSOCIATED_DATA_LABELS -> {
+								assertEquals(CZECH_LOCALE, radm.getAssociatedDataKey().locale());
+								expectedMutations.set(3, true);
+							}
+							case ASSOCIATED_DATA_MARKETS -> expectedMutations.set(4, true);
+							case ASSOCIATED_DATA_REFERENCED_FILES -> expectedMutations.set(4, true);
+							default -> fail("Unexpected associated data: " + radm.getAssociatedDataKey());
 						}
 					} else {
 						fail("Unexpected mutation: " + localMutation);
@@ -3415,9 +3411,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final EntityReferenceContract product1Ref = getProductByCode(evita, "product-1").orElseThrow();
 				final ProductInterfaceEditor product1 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final List<Integer> removedCategories = product1.removeAllProductCategoriesAndReturnTheirIds();
@@ -3435,7 +3431,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product1.upsertVia(evitaSession);
 
 				final SealedEntity product1SE = evitaSession.getEntity(
-					Entities.PRODUCT, product1Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertNotNull(product1SE.getReference(Entities.PARAMETER, parameterId).orElse(null));
@@ -3466,9 +3462,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final EntityReferenceContract product1Ref = getProductByCode(evita, "product-1").orElseThrow();
 				final ProductInterfaceEditor product1 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final List<ProductCategoryInterfaceEditor> removedCategories = product1.removeAllProductCategoriesAndReturnTheirBodies();
@@ -3487,7 +3483,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product1.upsertVia(evitaSession);
 
 				final SealedEntity product1SE = evitaSession.getEntity(
-					Entities.PRODUCT, product1Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertNotNull(product1SE.getReference(Entities.PARAMETER, parameterId).orElse(null));
@@ -3517,9 +3513,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final EntityReferenceContract product1Ref = getProductByCode(evita, "product-1").orElseThrow();
 				final ProductInterfaceEditor product1 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				final List<ProductCategoryInterfaceEditor> categories = product1.removeAllProductCategoriesAndReturnTheirBodies();
@@ -3552,7 +3548,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				evitaSession.upsertEntity(product1);
 
 				final ProductInterfaceEditor product1Again = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product1Ref.getPrimaryKeyOrThrowException(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(1, product1Again.getProductCategoriesAsList().size());
@@ -3701,21 +3697,17 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 		final Collection<RelatedProductInterface> rel1Products = reloaded.getRelatedProducts(relationType1);
 		assertEquals(3, rel1Products.size());
-		rel1Products.forEach(ref -> {
-			assertEquals(
-				relationType1,
-				ref.getRelationType()
-			);
-		});
+		rel1Products.forEach(ref -> assertEquals(
+			relationType1,
+			ref.getRelationType()
+		));
 
 		final Collection<RelatedProductInterface> rel2Products = reloaded.getRelatedProducts(relationType2);
 		assertEquals(3, rel2Products.size());
-		rel2Products.forEach(ref -> {
-			assertEquals(
-				relationType2,
-				ref.getRelationType()
-			);
-		});
+		rel2Products.forEach(ref -> assertEquals(
+			relationType2,
+			ref.getRelationType()
+		));
 	}
 
 	@DisplayName("Should update duplicated reference when predicate matches")

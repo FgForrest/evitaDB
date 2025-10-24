@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -65,6 +66,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -217,17 +219,15 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
 		@Nullable Locale locale
 	) {
-		/* TODO JNO - we need to distinguish compound schemas here better */
-		final boolean referenceCompound = referenceSchema != null &&
-			referenceSchema.getSortableAttributeCompound(compoundSchema.getName()).isPresent();
+		final boolean entityCompound = compoundSchema instanceof EntitySortableAttributeCompoundSchemaContract;
 		return new AttributeIndexKey(
-			referenceCompound ? referenceSchema.getName() : null,
+			entityCompound ? null : Objects.requireNonNull(referenceSchema).getName(),
 			/*compoundSchema instanceof EntityCompoundSchema || referenceSchema == null ? null : referenceSchema.getName(),*/
 			compoundSchema.getName(),
 			((SortableAttributeCompoundSchema)compoundSchema).isLocalized(
-				referenceCompound ?
-					attributeName -> referenceSchema.getAttribute(attributeName).orElse(null) :
-					attributeName -> entitySchema.getAttribute(attributeName).orElse(null)
+				entityCompound ?
+					attributeName -> entitySchema.getAttribute(attributeName).orElse(null) :
+					attributeName -> referenceSchema.getAttribute(attributeName).orElse(null)
 			) ? locale : null
 		);
 	}

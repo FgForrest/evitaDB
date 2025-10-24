@@ -31,6 +31,7 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
+import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -226,7 +227,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 					)
 				);
 				final Kryo kryo = KryoFactory.createKryo(
-					SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+					SharedClassesConfigurer.INSTANCE
+						.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+						.andThen(SharedIndexStoragePartConfigurer.INSTANCE)
 				);
 				return ofNullable(
 					StorageRecord.read(
@@ -275,7 +278,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 			)
 		);
 		final Kryo kryo = KryoFactory.createKryo(
-			SharedClassesConfigurer.INSTANCE.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+			SharedClassesConfigurer.INSTANCE
+				.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+				.andThen(SharedIndexStoragePartConfigurer.INSTANCE)
 		);
 		final CatalogHeader theCatalogHeader = Objects.requireNonNull(
 			StorageRecord.read(

@@ -782,6 +782,36 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 	}
 
+	@DisplayName("Should render to string")
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRenderToString(
+		Class<? extends AbstractProductPojo> theClass,
+		EvitaSessionContract evitaSession,
+		SealedEntity productWithCzkSellingPrice
+	) {
+		final Query query = query(
+			collection(Entities.PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productWithCzkSellingPrice.getPrimaryKey())),
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentRespectingFilter(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
+		);
+
+		final AbstractProductPojo product = evitaSession.queryOne(query, theClass)
+			.orElseThrow();
+
+		assertFalse(product.toString().isEmpty());
+	}
+
 	@DisplayName("Should return list of entity references")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)

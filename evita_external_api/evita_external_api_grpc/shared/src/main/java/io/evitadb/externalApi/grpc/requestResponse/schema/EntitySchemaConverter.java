@@ -188,7 +188,7 @@ public class EntitySchemaConverter {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> toSortableAttributeCompoundSchema(it.getValue())
+						it -> toEntitySortableAttributeCompoundSchema(it.getValue())
 					)
 				)
 		);
@@ -349,12 +349,12 @@ public class EntitySchemaConverter {
 	 */
 	@Nonnull
 	private static Map<String, GrpcSortableAttributeCompoundSchema> toGrpcSortableAttributeCompoundSchemas(
-		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas,
+		@Nonnull Map<String, ? extends SortableAttributeCompoundSchemaContract> originalSortableAttributeCompoundSchemas,
 		boolean includeNameVariants,
 		@Nonnull Predicate<String> inheritedPredicate
 	) {
 		final Map<String, GrpcSortableAttributeCompoundSchema> attributeSchemas = CollectionUtils.createHashMap(originalSortableAttributeCompoundSchemas.size());
-		for (Map.Entry<String, SortableAttributeCompoundSchemaContract> entry : originalSortableAttributeCompoundSchemas.entrySet()) {
+		for (Map.Entry<String, ? extends SortableAttributeCompoundSchemaContract> entry : originalSortableAttributeCompoundSchemas.entrySet()) {
 			attributeSchemas.put(
 				entry.getKey(),
 				toGrpcSortableAttributeCompoundSchema(entry.getValue(), includeNameVariants, inheritedPredicate)
@@ -858,6 +858,26 @@ public class EntitySchemaConverter {
 				} :
 				ScopedReferenceIndexType.EMPTY;
 		}
+	}
+
+	/**
+	 * Creates {@link EntitySortableAttributeCompoundSchema} from the {@link GrpcSortableAttributeCompoundSchema}.
+	 */
+	@Nonnull
+	private static EntitySortableAttributeCompoundSchemaContract toEntitySortableAttributeCompoundSchema(
+		@Nonnull GrpcSortableAttributeCompoundSchema sortableAttributeCompound
+	) {
+		return EntitySortableAttributeCompoundSchema._internalBuild(
+			sortableAttributeCompound.getName(),
+			NamingConvention.generate(sortableAttributeCompound.getName()),
+			sortableAttributeCompound.hasDescription() ? sortableAttributeCompound.getDescription().getValue() : null,
+			sortableAttributeCompound.hasDeprecationNotice() ? sortableAttributeCompound.getDeprecationNotice().getValue() : null,
+			sortableAttributeCompound.getIndexedInScopesList()
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new),
+			toAttributeElement(sortableAttributeCompound.getAttributeElementsList())
+		);
 	}
 
 	/**

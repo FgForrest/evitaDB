@@ -25,6 +25,7 @@ package io.evitadb.store.entity.model.entity;
 
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -47,15 +48,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.function.ToIntBiFunction;
 import java.util.function.ToIntFunction;
@@ -154,10 +147,14 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 *
 	 * After the assignment procedure, the storage part marks itself as modified by setting the `dirty` field to true.
 	 * Finally, the `unassignedPrimaryKeys` field is set to false to indicate all missing primary keys have been assigned.
+	 *
+	 * @return map of all reference keys that were assigned new primary keys during this operation
 	 */
-	public void assignMissingIdsAndSort() {
+	@Nonnull
+	public Map<ComparableReferenceKey, ReferenceKey> assignMissingIdsAndSort() {
 		if (this.unassignedPrimaryKeys) {
 			final int lupkBefore = this.lastUsedPrimaryKey;
+			Map<ComparableReferenceKey, ReferenceKey> assignedKeys = null;
 			ReferenceKey previousReferenceKey = null;
 			for (int i = 0; i < this.references.length; i++) {
 				Reference reference = this.references[i];
@@ -178,6 +175,13 @@ public class ReferencesStoragePart implements EntityStoragePart {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					this.references[i] = reference;
 					this.dirty = true;
+					if (assignedKeys == null) {
+						assignedKeys = new HashMap<>(16);
+					}
+					assignedKeys.put(
+						new ComparableReferenceKey(previousReferenceKey),
+						reference.getReferenceKey()
+					);
 				}
 			}
 
@@ -187,7 +191,10 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			}
 
 			this.unassignedPrimaryKeys = false;
+			return assignedKeys == null ?
+				Collections.emptyMap() : assignedKeys;
 		}
+		return Collections.emptyMap();
 	}
 
 	/**

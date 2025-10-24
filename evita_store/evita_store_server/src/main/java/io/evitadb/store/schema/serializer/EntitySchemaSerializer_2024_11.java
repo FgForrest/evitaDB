@@ -29,10 +29,11 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.dataType.serializer.HeterogeneousMapSerializer;
@@ -86,12 +87,19 @@ public class EntitySchemaSerializer_2024_11 extends Serializer<EntitySchema> {
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 
 		final int sortableAttributeCompoundsCount = input.readVarInt(true);
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
+		final Map<String, EntitySortableAttributeCompoundSchemaContract> sortableAttributeCompounds = CollectionUtils.createHashMap(sortableAttributeCompoundsCount);
 		for (int i = 0; i < sortableAttributeCompoundsCount; i++) {
 			final SortableAttributeCompoundSchema compoundSchemaContract = kryo.readObject(input, SortableAttributeCompoundSchema.class);
 			sortableAttributeCompounds.put(
 				compoundSchemaContract.getName(),
-				compoundSchemaContract
+				EntitySortableAttributeCompoundSchema._internalBuild(
+					compoundSchemaContract.getName(),
+					compoundSchemaContract.getNameVariants(),
+					compoundSchemaContract.getDescription(),
+					compoundSchemaContract.getDeprecationNotice(),
+					compoundSchemaContract.getIndexedInScopes(),
+					compoundSchemaContract.getAttributeElements()
+				)
 			);
 		}
 

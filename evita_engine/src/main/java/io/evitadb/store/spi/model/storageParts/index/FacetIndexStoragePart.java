@@ -79,8 +79,8 @@ public class FacetIndexStoragePart implements StoragePart {
 		this.facetingEntities = facetingEntities;
 	}
 
-	public static long computeUniquePartId(Integer entityIndexPrimaryKey, String referencedEntityType, KeyCompressor keyCompressor) {
-		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(referencedEntityType));
+	public static long computeUniquePartId(Integer entityIndexPrimaryKey, String referenceName, KeyCompressor keyCompressor) {
+		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(referenceName)));
 	}
 
 	@Override

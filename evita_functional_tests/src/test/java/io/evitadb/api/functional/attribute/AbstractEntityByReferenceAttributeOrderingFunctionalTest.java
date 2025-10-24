@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.functional.attribute.AbstractEntityByAttributeFilteringFunctionalTest.PredicateWithComparatorTuple;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -220,7 +221,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				.limit(20)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {

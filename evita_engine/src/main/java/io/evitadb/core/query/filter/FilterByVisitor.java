@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.PrefetchStrategyResolver;
@@ -115,6 +116,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -755,12 +757,27 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			)
 		);
 
+		final IntFunction<ReducedEntityIndex> indexAccessor;
+		if (this.getSchema().getName().equals(entitySchema.getName())) {
+			indexAccessor = reducedIndexPk -> getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class);
+		} else {
+			final EntityCollection targetCollection = getEntityCollectionOrThrowException(
+				entitySchema.getName(),
+				"locate referenced record entity indexes"
+			);
+			indexAccessor = reducedIndexPk -> targetCollection.getIndexIfExists(reducedIndexPk, value -> (ReducedEntityIndex) null);
+		}
+
 		final Bitmap reducedIndexPks = reducedIndexPksFormula.compute();
 		final List<ReducedEntityIndex> result = new ArrayList<>(reducedIndexPks.size());
 		final OfInt it = reducedIndexPks.iterator();
 		while (it.hasNext()) {
-			int reducedIndexPk = it.nextInt();
-			result.add(getEntityIndexByPrimaryKey(reducedIndexPk, ReducedEntityIndex.class));
+			final ReducedEntityIndex reducedEntityIndex = indexAccessor.apply(it.nextInt());
+			Assert.isPremiseValid(
+				reducedEntityIndex != null,
+				"Reduced entity index with primary key " + it + " was unexpectedly not found!"
+			);
+			result.add(reducedEntityIndex);
 		}
 		return result;
 	}

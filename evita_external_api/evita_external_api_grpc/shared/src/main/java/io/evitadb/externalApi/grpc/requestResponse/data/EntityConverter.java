@@ -447,12 +447,13 @@ public class EntityConverter {
 						toGrpcSealedEntity(reference.getReferencedEntity().get(), clientVersion)
 					);
 				} else {
-					grpcReferenceBuilder.setReferencedEntityReference(GrpcEntityReference.newBuilder()
-						.setEntityType(reference.getReferencedEntityType())
-						.setPrimaryKey(reference.getReferencedPrimaryKey())
-						.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
-						.setVersion(reference.version())
-						.build()
+					grpcReferenceBuilder.setReferencedEntityReference(
+						GrpcEntityReference.newBuilder()
+							.setEntityType(reference.getReferencedEntityType())
+							.setPrimaryKey(reference.getReferencedPrimaryKey())
+							.setReferenceVersion(Int32Value.newBuilder().setValue(reference.version()).build())
+							.setVersion(reference.version())
+							.build()
 					);
 				}
 

@@ -30,7 +30,6 @@ import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
@@ -75,7 +74,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			EntityIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new EntityIndexStoragePartSerializer(this.keyCompressor), EntityIndexStoragePart.class)
 				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(this.keyCompressor))
-				.addBackwardCompatibleSerializer(5424554446828324138L, new EntityIndexStoragePartSerializer_2025_5(this.keyCompressor))
+				.addBackwardCompatibleSerializer(5424554446828324138L, new EntityIndexStoragePartSerializer_2025_6(this.keyCompressor))
 				.addBackwardCompatibleSerializer(6028764096012501468L, new EntityIndexStoragePartSerializer_2025_6(this.keyCompressor)),
 			index++
 		);
@@ -105,9 +104,9 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 		kryo.register(
-			CardinalityIndexStoragePart.class,
-			new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(this.keyCompressor), CardinalityIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(6163295675316818632L, new CardinalityIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+			AttributeCardinalityIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new AttributeCardinalityIndexStoragePartSerializer(this.keyCompressor), AttributeCardinalityIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(6163295675316818632L, new AttributeCardinalityIndexStoragePartSerializer_2025_5(this.keyCompressor)),
 			index++
 		);
 
@@ -127,7 +126,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(RangeIndex.class, new SerialVersionBasedSerializer<>(new IntRangeIndexSerializer(), RangeIndex.class), index++);
 		kryo.register(TransactionalRangePoint.class, new SerialVersionBasedSerializer<>(new TransactionalIntRangePointSerializer(), TransactionalRangePoint.class), index++);
 
-		kryo.register(CardinalityIndex.class, new SerialVersionBasedSerializer<>(new CardinalityIndexSerializer(), CardinalityIndex.class), index++);
+		// skip index, it was used by removed AttributeCardinalityIndexSerializer
+		index++;
 
 		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
 		kryo.register(PriceListAndCurrencyRefIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class), index++);
@@ -145,7 +145,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(ComparableCurrency.class, new SerialVersionBasedSerializer<>(new ComparableCurrencySerializer(), ComparableCurrency.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 		kryo.register(RepresentativeReferenceKey.class, new SerialVersionBasedSerializer<>(new RepresentativeReferenceKeySerializer(), RepresentativeReferenceKey.class), index++);
-		kryo.register(AttributeIndexKey.class, new SerialVersionBasedSerializer<>(new AttributeIndexKeySerializer(), AttributeIndexKey.class), index++);
+
+		kryo.register(ReferenceTypeCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityIndexStoragePartSerializer(this.keyCompressor), ReferenceTypeCardinalityIndexStoragePart.class), index++);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

@@ -176,7 +176,7 @@ class EntitySchemaConverterTest {
 			Set.of(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_ATTRIBUTES),
 			Map.of(
 				"compound1",
-				SortableAttributeCompoundSchema._internalBuild(
+				EntitySortableAttributeCompoundSchema._internalBuild(
 					"compound1", "This is compound 1", null, new Scope[]{Scope.LIVE},
 					Arrays.asList(
 						new AttributeElement("code", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),

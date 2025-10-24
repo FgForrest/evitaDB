@@ -34,10 +34,10 @@ import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -403,7 +403,7 @@ abstract class AbstractEntityProxyState implements
 	public <T> T getOrCreateParentEntityProxyWithCallback(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Class<T> expectedType,
-		@Nonnull Consumer<EntityReference> callback
+		@Nonnull Consumer<EntityReferenceContract> callback
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityProxy(
@@ -453,8 +453,11 @@ abstract class AbstractEntityProxyState implements
 	 * This method should be used if the referenced entity is not known (doesn't exists), and its primary key is also
 	 * not known (the referenced entity needs to be persisted first).
 	 *
+	 * @param referenceName name of the reference
+	 * @param primaryKey primary key of the referenced entity (if known)
 	 * @param entitySchema schema of the entity to be created
 	 * @param expectedType contract that the proxy should implement
+	 * @param type type of the referenced object (reference vs. group)
 	 * @param callback     callback that will be called when the entity is upserted
 	 * @param <T>          type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
@@ -463,22 +466,28 @@ abstract class AbstractEntityProxyState implements
 	@Nonnull
 	public <T> T getOrCreateReferencedEntityProxyWithCallback(
 		@Nonnull String referenceName,
+		@Nullable Integer primaryKey,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Class<T> expectedType,
 		@Nonnull ReferencedObjectType type,
-		@Nonnull Consumer<EntityReference> callback
+		@Nonnull Consumer<EntityReferenceContract> callback
 	) throws EntityClassInvalidException {
-		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
-			ProxycianFactory.createEntityProxy(
-				expectedType, this.recipes, this.collectedRecipes,
-				new InitialEntityBuilder(entitySchema),
-				this.referencedEntitySchemas,
-				getReflectionLookup()
-			),
-			callback
-		);
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
+			final InitialEntityBuilder entityBuilder = primaryKey == null ?
+				new InitialEntityBuilder(entitySchema) :
+				new InitialEntityBuilder(entitySchema, primaryKey);
+			return new ProxyWithUpsertCallback(
+				ProxycianFactory.createEntityProxy(
+					expectedType, this.recipes, this.collectedRecipes,
+					entityBuilder,
+					this.referencedEntitySchemas,
+					getReflectionLookup()
+				),
+				callback
+			);
+		};
 		return this.generatedProxyObjects.computeIfAbsent(
-				new ReferencedEntityProxyCacheKey(referenceName, Integer.MIN_VALUE, type),
+				new ReferencedEntityProxyCacheKey(referenceName, primaryKey == null ? Integer.MIN_VALUE : primaryKey, type),
 				key -> instanceSupplier.get()
 			)
 			.proxy(expectedType, instanceSupplier);
@@ -731,15 +740,15 @@ abstract class AbstractEntityProxyState implements
 						.map(
 							mutation -> {
 								final EntityBuilder theBuilder = mutation.builder();
-								final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
-								final Consumer<EntityReference> externalCallback = it.getValue().callback();
+								final Consumer<EntityReferenceContract> mutationCallback = mutation.upsertCallback();
+								final Consumer<EntityReferenceContract> externalCallback = it.getValue().callback();
 								return new EntityBuilderWithCallback(
 									theBuilder,
 									mutationCallback == null ?
 										externalCallback :
-										entityReference1 -> {
-											mutation.entityUpserted(entityReference1);
-											externalCallback.accept(entityReference1);
+										entityReferenceWithAssignedPrimaryKeys -> {
+											mutation.entityUpserted(entityReferenceWithAssignedPrimaryKeys);
+											externalCallback.accept(entityReferenceWithAssignedPrimaryKeys);
 										}
 								);
 							}
@@ -840,10 +849,10 @@ abstract class AbstractEntityProxyState implements
 	 * is no need to invoke any callback, the {@link #DO_NOTHING_CALLBACK} is used.
 	 */
 	protected static class ProxyWithUpsertCallback {
-		private static final Consumer<EntityReference> DO_NOTHING_CALLBACK = entityReference -> {
+		private static final Consumer<EntityReferenceContract> DO_NOTHING_CALLBACK = entityReference -> {
 		};
 		@Nonnull private final List<Object> proxies;
-		@Nonnull private Consumer<EntityReference> callback;
+		@Nonnull private Consumer<EntityReferenceContract> callback;
 
 		/**
 		 * Creates a holder for a proxy instance and an upsert callback to be invoked after persistence.
@@ -851,7 +860,7 @@ abstract class AbstractEntityProxyState implements
 		 * @param proxy    the proxy instance to register
 		 * @param callback the callback to execute when the entity is upserted
 		 */
-		public ProxyWithUpsertCallback(@Nonnull Object proxy, @Nonnull Consumer<EntityReference> callback) {
+		public ProxyWithUpsertCallback(@Nonnull Object proxy, @Nonnull Consumer<EntityReferenceContract> callback) {
 			this.proxies = new LinkedList<>();
 			this.proxies.add(proxy);
 			this.callback = callback;
@@ -872,7 +881,7 @@ abstract class AbstractEntityProxyState implements
 		 * @return callback to be invoked after upsert; may be a no-op
 		 */
 		@Nonnull
-		public Consumer<EntityReference> callback() {
+		public Consumer<EntityReferenceContract> callback() {
 			return this.callback;
 		}
 

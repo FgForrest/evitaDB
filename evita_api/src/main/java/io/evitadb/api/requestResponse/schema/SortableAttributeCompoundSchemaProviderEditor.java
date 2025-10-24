@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,8 +37,11 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SortableAttributeCompoundSchemaProviderEditor<T extends SortableAttributeCompoundSchemaProviderEditor<T, S>, S extends AttributeSchemaContract>
-	extends SortableAttributeCompoundSchemaProvider<S> {
+public interface SortableAttributeCompoundSchemaProviderEditor<
+		T extends SortableAttributeCompoundSchemaProviderEditor<T, S, U>,
+		S extends AttributeSchemaContract,
+		U extends SortableAttributeCompoundSchemaContract
+	> extends SortableAttributeCompoundSchemaProvider<S, U> {
 
 	/**
 	 * Adds new {@link SortableAttributeCompoundSchemaContract} to the entity or reference.

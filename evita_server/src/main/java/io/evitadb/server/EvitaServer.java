@@ -51,6 +51,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
 import org.apache.commons.text.StringSubstitutor;
@@ -588,7 +589,15 @@ public class EvitaServer {
 			this.evita, this.evitaServerConfiguration.api(), this.externalApiProviders
 		);
 		this.evita.management().setConfigurationSupplier(this::serializeConfiguration);
-		this.externalApiServer.start();
+
+		try {
+			this.externalApiServer.start();
+		} catch (RuntimeException e) {
+			ConsoleWriter.write("*".repeat(100) + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
+			ConsoleWriter.write("!!! Failed to start external APIs due to: " + ExceptionUtils.getRootCause(e).getMessage() + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
+			ConsoleWriter.write("*".repeat(100) + "\n", ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
+			log.error("Failed to start external APIs.", e);
+		}
 
 		// now schedule catalog loading
 		this.evita.scheduleInitialCatalogLoading();
@@ -750,15 +759,14 @@ public class EvitaServer {
 			if (evita == null) {
 				ConsoleWriter.write("evitaDB instance is still being initialized (aborting initialization).\n\n");
 			} else {
-				try {
+				try (evita) {
 					evita.getServiceExecutor().prepareForBeingShutdown();
 					this.evitaServer.stop()
-					                .thenAccept(unused -> stop())
-					                .get(30, TimeUnit.SECONDS);
+						.thenAccept(unused -> stop())
+						.get(30, TimeUnit.SECONDS);
 				} catch (ExecutionException | InterruptedException | TimeoutException e) {
 					ConsoleWriter.write("Failed to stop evita server in dedicated time (30 secs.).\n");
 				} finally {
-					evita.close();
 					ConsoleWriter.write("evitaDB instance closed, all files synced on disk.\n\n");
 				}
 			}

@@ -436,11 +436,11 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nullable Locale locale,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
-		@Nonnull SortableAttributeCompoundSchemaProvider<?> compoundProvider,
+		@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,
 		@Nonnull ExistingAttributeValueSupplier entityAttributeValueSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = compoundProvider.getSortableAttributeCompounds();
+		final Map<String, ? extends SortableAttributeCompoundSchemaContract> sortableAttributeCompounds = compoundProvider.getSortableAttributeCompounds();
 		if (sortableAttributeCompounds.isEmpty()) {
 			return;
 		}
@@ -492,7 +492,7 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nullable Locale locale,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
-		@Nonnull SortableAttributeCompoundSchemaProvider<?> compoundProvider,
+		@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,
 		@Nonnull ExistingAttributeValueSupplier entityAttributeValueSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -595,7 +595,8 @@ public interface AttributeIndexMutator {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchema compound,
-		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider, @Nonnull Set<Locale> availableAttributeLocales,
+		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
+		@Nonnull Set<Locale> availableAttributeLocales,
 		@Nullable Locale locale,
 		@Nullable String updatedAttributeName,
 		@Nullable Serializable valueToUpdate,

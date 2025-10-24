@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,13 +47,14 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 22, FilterIndexStoragePart.class),
 			new StoragePartRecord((byte) 23, SortIndexStoragePart.class),
 			new StoragePartRecord((byte) 24, ChainIndexStoragePart.class),
-			new StoragePartRecord((byte) 25, CardinalityIndexStoragePart.class),
+			new StoragePartRecord((byte) 25, AttributeCardinalityIndexStoragePart.class),
 			new StoragePartRecord((byte) 26, PriceListAndCurrencySuperIndexStoragePart.class),
 			new StoragePartRecord((byte) 27, PriceListAndCurrencyRefIndexStoragePart.class),
 			new StoragePartRecord((byte) 28, HierarchyIndexStoragePart.class),
 			new StoragePartRecord((byte) 29, FacetIndexStoragePart.class),
 			new StoragePartRecord((byte) 30, CatalogIndexStoragePart.class),
-			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class)
+			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class),
+			new StoragePartRecord((byte) 32, ReferenceTypeCardinalityIndexStoragePart.class)
 		);
 	}
 

@@ -74,6 +74,7 @@ private static final long serialVersionUID = 0L;
           com.google.protobuf.AbstractMessage.InternalOneOfEnum {
     ENTITYREFERENCE(1),
     ENTITY(2),
+    ENTITYREFERENCEWITHASSIGNEDPRIMARYKEYS(3),
     RESPONSE_NOT_SET(0);
     private final int value;
     private ResponseCase(int value) {
@@ -93,6 +94,7 @@ private static final long serialVersionUID = 0L;
       switch (value) {
         case 1: return ENTITYREFERENCE;
         case 2: return ENTITY;
+        case 3: return ENTITYREFERENCEWITHASSIGNEDPRIMARYKEYS;
         case 0: return RESPONSE_NOT_SET;
         default: return null;
       }
@@ -194,6 +196,49 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance();
   }
 
+  public static final int ENTITYREFERENCEWITHASSIGNEDPRIMARYKEYS_FIELD_NUMBER = 3;
+  /**
+   * <pre>
+   * The upserted entity reference with reassigned primary keys
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+   * @return Whether the entityReferenceWithAssignedPrimaryKeys field is set.
+   */
+  @java.lang.Override
+  public boolean hasEntityReferenceWithAssignedPrimaryKeys() {
+    return responseCase_ == 3;
+  }
+  /**
+   * <pre>
+   * The upserted entity reference with reassigned primary keys
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+   * @return The entityReferenceWithAssignedPrimaryKeys.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys getEntityReferenceWithAssignedPrimaryKeys() {
+    if (responseCase_ == 3) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * The upserted entity reference with reassigned primary keys
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder getEntityReferenceWithAssignedPrimaryKeysOrBuilder() {
+    if (responseCase_ == 3) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -214,6 +259,9 @@ private static final long serialVersionUID = 0L;
     if (responseCase_ == 2) {
       output.writeMessage(2, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
     }
+    if (responseCase_ == 3) {
+      output.writeMessage(3, (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -230,6 +278,10 @@ private static final long serialVersionUID = 0L;
     if (responseCase_ == 2) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, (io.evitadb.externalApi.grpc.generated.GrpcSealedEntity) response_);
+    }
+    if (responseCase_ == 3) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(3, (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -256,6 +308,10 @@ private static final long serialVersionUID = 0L;
         if (!getEntity()
             .equals(other.getEntity())) return false;
         break;
+      case 3:
+        if (!getEntityReferenceWithAssignedPrimaryKeys()
+            .equals(other.getEntityReferenceWithAssignedPrimaryKeys())) return false;
+        break;
       case 0:
       default:
     }
@@ -278,6 +334,10 @@ private static final long serialVersionUID = 0L;
       case 2:
         hash = (37 * hash) + ENTITY_FIELD_NUMBER;
         hash = (53 * hash) + getEntity().hashCode();
+        break;
+      case 3:
+        hash = (37 * hash) + ENTITYREFERENCEWITHASSIGNEDPRIMARYKEYS_FIELD_NUMBER;
+        hash = (53 * hash) + getEntityReferenceWithAssignedPrimaryKeys().hashCode();
         break;
       case 0:
       default:
@@ -423,6 +483,9 @@ private static final long serialVersionUID = 0L;
       if (entityBuilder_ != null) {
         entityBuilder_.clear();
       }
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ != null) {
+        entityReferenceWithAssignedPrimaryKeysBuilder_.clear();
+      }
       responseCase_ = 0;
       response_ = null;
       return this;
@@ -471,6 +534,10 @@ private static final long serialVersionUID = 0L;
       if (responseCase_ == 2 &&
           entityBuilder_ != null) {
         result.response_ = entityBuilder_.build();
+      }
+      if (responseCase_ == 3 &&
+          entityReferenceWithAssignedPrimaryKeysBuilder_ != null) {
+        result.response_ = entityReferenceWithAssignedPrimaryKeysBuilder_.build();
       }
     }
 
@@ -527,6 +594,10 @@ private static final long serialVersionUID = 0L;
           mergeEntity(other.getEntity());
           break;
         }
+        case ENTITYREFERENCEWITHASSIGNEDPRIMARYKEYS: {
+          mergeEntityReferenceWithAssignedPrimaryKeys(other.getEntityReferenceWithAssignedPrimaryKeys());
+          break;
+        }
         case RESPONSE_NOT_SET: {
           break;
         }
@@ -571,6 +642,13 @@ private static final long serialVersionUID = 0L;
               responseCase_ = 2;
               break;
             } // case 18
+            case 26: {
+              input.readMessage(
+                  getEntityReferenceWithAssignedPrimaryKeysFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              responseCase_ = 3;
+              break;
+            } // case 26
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -957,6 +1035,184 @@ private static final long serialVersionUID = 0L;
       responseCase_ = 2;
       onChanged();
       return entityBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder> entityReferenceWithAssignedPrimaryKeysBuilder_;
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     * @return Whether the entityReferenceWithAssignedPrimaryKeys field is set.
+     */
+    @java.lang.Override
+    public boolean hasEntityReferenceWithAssignedPrimaryKeys() {
+      return responseCase_ == 3;
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     * @return The entityReferenceWithAssignedPrimaryKeys.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys getEntityReferenceWithAssignedPrimaryKeys() {
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ == null) {
+        if (responseCase_ == 3) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance();
+      } else {
+        if (responseCase_ == 3) {
+          return entityReferenceWithAssignedPrimaryKeysBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    public Builder setEntityReferenceWithAssignedPrimaryKeys(io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys value) {
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        response_ = value;
+        onChanged();
+      } else {
+        entityReferenceWithAssignedPrimaryKeysBuilder_.setMessage(value);
+      }
+      responseCase_ = 3;
+      return this;
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    public Builder setEntityReferenceWithAssignedPrimaryKeys(
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.Builder builderForValue) {
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ == null) {
+        response_ = builderForValue.build();
+        onChanged();
+      } else {
+        entityReferenceWithAssignedPrimaryKeysBuilder_.setMessage(builderForValue.build());
+      }
+      responseCase_ = 3;
+      return this;
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    public Builder mergeEntityReferenceWithAssignedPrimaryKeys(io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys value) {
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ == null) {
+        if (responseCase_ == 3 &&
+            response_ != io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance()) {
+          response_ = io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          response_ = value;
+        }
+        onChanged();
+      } else {
+        if (responseCase_ == 3) {
+          entityReferenceWithAssignedPrimaryKeysBuilder_.mergeFrom(value);
+        } else {
+          entityReferenceWithAssignedPrimaryKeysBuilder_.setMessage(value);
+        }
+      }
+      responseCase_ = 3;
+      return this;
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    public Builder clearEntityReferenceWithAssignedPrimaryKeys() {
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ == null) {
+        if (responseCase_ == 3) {
+          responseCase_ = 0;
+          response_ = null;
+          onChanged();
+        }
+      } else {
+        if (responseCase_ == 3) {
+          responseCase_ = 0;
+          response_ = null;
+        }
+        entityReferenceWithAssignedPrimaryKeysBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.Builder getEntityReferenceWithAssignedPrimaryKeysBuilder() {
+      return getEntityReferenceWithAssignedPrimaryKeysFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder getEntityReferenceWithAssignedPrimaryKeysOrBuilder() {
+      if ((responseCase_ == 3) && (entityReferenceWithAssignedPrimaryKeysBuilder_ != null)) {
+        return entityReferenceWithAssignedPrimaryKeysBuilder_.getMessageOrBuilder();
+      } else {
+        if (responseCase_ == 3) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * The upserted entity reference with reassigned primary keys
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder>
+        getEntityReferenceWithAssignedPrimaryKeysFieldBuilder() {
+      if (entityReferenceWithAssignedPrimaryKeysBuilder_ == null) {
+        if (!(responseCase_ == 3)) {
+          response_ = io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.getDefaultInstance();
+        }
+        entityReferenceWithAssignedPrimaryKeysBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys) response_,
+                getParentForChildren(),
+                isClean());
+        response_ = null;
+      }
+      responseCase_ = 3;
+      onChanged();
+      return entityReferenceWithAssignedPrimaryKeysBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

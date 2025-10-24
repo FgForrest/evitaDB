@@ -7,6 +7,11 @@
         "code" : "apple-ipad-10-2-10th-generation-2022-6"
       },
       "references" : {
+        "bonusVisibilities" : [
+          {
+            "referencedKey" : 119334
+          }
+        ],
         "brand" : [
           {
             "referencedKey" : 66465
@@ -39,28 +44,28 @@
             "referencedKey" : 1938,
             "attributes" : {
               "gallery" : "hlavni-motiv",
-              "order" : 1
+              "mediaOrder" : 1
             }
           },
           {
             "referencedKey" : 1940,
             "attributes" : {
               "gallery" : "galerie",
-              "order" : 3
+              "mediaOrder" : 3
             }
           },
           {
             "referencedKey" : 1941,
             "attributes" : {
               "gallery" : "galerie",
-              "order" : 2
+              "mediaOrder" : 2
             }
           },
           {
             "referencedKey" : 1942,
             "attributes" : {
               "gallery" : "galerie",
-              "order" : 1
+              "mediaOrder" : 1
             }
           }
         ],

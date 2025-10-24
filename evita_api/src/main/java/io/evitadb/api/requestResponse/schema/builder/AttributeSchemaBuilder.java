@@ -99,6 +99,7 @@ public final class AttributeSchemaBuilder
 		return AttributeSchemaContract.class;
 	}
 
+	@Nonnull
 	@Override
 	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(

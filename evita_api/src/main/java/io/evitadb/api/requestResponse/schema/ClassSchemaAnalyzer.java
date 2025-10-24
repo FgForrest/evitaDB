@@ -1290,7 +1290,7 @@ public class ClassSchemaAnalyzer {
 	 */
 	private void defineSortableAttributeCompounds(
 		@Nonnull Class<?> type,
-		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?, ?> editor
+		@Nonnull SortableAttributeCompoundSchemaProviderEditor<?, ?, ?> editor
 	) {
 		Stream.concat(
 			this.reflectionLookup.getClassAnnotations(type, SortableAttributeCompounds.class)

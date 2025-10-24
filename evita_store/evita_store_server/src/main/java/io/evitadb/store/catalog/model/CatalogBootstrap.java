@@ -76,21 +76,6 @@ public record CatalogBootstrap(
 	}
 
 	/**
-	 * Returns last meaningful position in the file. It is the last position that can be used to read the record
-	 * without risk of reading incomplete record.
-	 *
-	 * @param fileLength length of the file
-	 * @return last meaningful position
-	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
-	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
-	public static long getOldLastMeaningfulPosition(long fileLength) {
-		// removes non-divisible remainder as it might be incomplete record and returns last meaningful position
-		final int oldSize = BOOTSTRAP_RECORD_SIZE - 4;
-		return fileLength - (fileLength % oldSize) - oldSize;
-	}
-
-	/**
 	 * Calculates the position of a record in the file based on its index.
 	 *
 	 * @param index The index of the record.
@@ -101,18 +86,6 @@ public record CatalogBootstrap(
 	}
 
 	/**
-	 * Calculates the position of a record in the file based on its index.
-	 *
-	 * @param index The index of the record.
-	 * @return The position of the record in the file.
-	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
-	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
-	public static long getOldPositionForRecord(int index) {
-		return (long) index * (BOOTSTRAP_RECORD_SIZE - 4);
-	}
-
-	/**
 	 * Calculates the number of records in a file based on its length.
 	 *
 	 * @param fileLength The length of the file in bytes.
@@ -120,18 +93,6 @@ public record CatalogBootstrap(
 	 */
 	public static int getRecordCount(long fileLength) {
 		return Math.toIntExact(fileLength / BOOTSTRAP_RECORD_SIZE);
-	}
-
-	/**
-	 * Calculates the number of records in a file based on its length.
-	 *
-	 * @param fileLength The length of the file in bytes.
-	 * @return The number of records in the file.
-	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
-	 */
-	@Deprecated(since = "2025.1", forRemoval = true)
-	public static int getOldRecordCount(long fileLength) {
-		return Math.toIntExact(fileLength / (BOOTSTRAP_RECORD_SIZE - 4));
 	}
 
 	public CatalogBootstrap(

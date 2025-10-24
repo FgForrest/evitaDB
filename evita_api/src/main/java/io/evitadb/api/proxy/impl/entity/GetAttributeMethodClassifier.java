@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -399,8 +400,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
-				final Locale locale = sealedEntity.getRequestedLocale();
+				final EntityContract sealedEntity = theState.entity();
+				final Locale locale = getRequestedLocale(sealedEntity);
 				if (locale != null) {
 					return resultWrapper.wrap(
 						() -> toTargetType(
@@ -423,6 +424,38 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Retrieves the requested locale from the given entity, if applicable.
+	 *
+	 * @param entity the entity from which the requested locale is to be retrieved;
+	 *               must not be null
+	 * @return the requested locale if available, or null if the entity does not have a requested locale
+	 */
+	@Nullable
+	private static Locale getRequestedLocale(@Nonnull EntityContract entity) {
+		if (entity instanceof EntityDecorator entityDecorator) {
+			return entityDecorator.getRequestedLocale();
+		} else if (entity instanceof ExistingEntityBuilder entityBuilder) {
+			return entityBuilder.getRequestedLocale();
+		}
+		return null;
+	}
+
+	/**
+	 * Determines if multiple locales are requested for the given entity.
+	 *
+	 * @param entity the entity to check, must not be null
+	 * @return true if multiple locales are requested, false otherwise
+	 */
+	private static boolean isMultipleLocalesRequested(@Nonnull EntityContract entity) {
+		if (entity instanceof EntityDecorator entityDecorator) {
+			return entityDecorator.isMultipleLocalesRequested();
+		} else if (entity instanceof ExistingEntityBuilder entityBuilder) {
+			return entityBuilder.isMultipleLocalesRequested();
+		}
+		return false;
+	}
+
+	/**
 	 * Creates an implementation of the method returning an attribute of an array type wrapped into a set.
 	 */
 	@Nonnull
@@ -437,8 +470,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
-				final Locale locale = sealedEntity.getRequestedLocale();
+				final EntityContract sealedEntity = theState.entity();
+				final Locale locale = getRequestedLocale(sealedEntity);
 				if (locale != null) {
 					return resultWrapper.wrap(
 						() -> ofNullable(
@@ -510,8 +543,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
-				final Locale locale = sealedEntity.getRequestedLocale();
+				final EntityContract sealedEntity = theState.entity();
+				final Locale locale = getRequestedLocale(sealedEntity);
 				if (locale != null) {
 					return resultWrapper.wrap(
 						() -> ofNullable(
@@ -610,9 +643,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		final EntityDecorator entityDecorator = (EntityDecorator) entity;
-		final Locale locale = entityDecorator.getRequestedLocale();
-		if (locale == null && entityDecorator.isMultipleLocalesRequested() && entity.attributeAvailable(attributeName)) {
+		final Locale locale = getRequestedLocale(entity);
+		if (locale == null && isMultipleLocalesRequested(entity) && entity.attributeAvailable(attributeName)) {
 			if (requestedType.isArray()) {
 				return entity.getAttributeLocales()
 					.stream()
@@ -723,10 +755,9 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		final EntityDecorator entityDecorator = (EntityDecorator) entity;
-		final Locale locale = entityDecorator.getRequestedLocale();
+		final Locale locale = getRequestedLocale(entity);
 		final Serializable[] value;
-		if (locale == null && entityDecorator.isMultipleLocalesRequested() && entity.attributeAvailable(attributeName)) {
+		if (locale == null && isMultipleLocalesRequested(entity) && entity.attributeAvailable(attributeName)) {
 			throw new EvitaInvalidUsageException(
 				"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
 					"it could be localized to multiple locales, and it's expected to be an array data type. " +
@@ -822,10 +853,9 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		final EntityDecorator entityDecorator = (EntityDecorator) entity;
-		final Locale locale = entityDecorator.getRequestedLocale();
+		final Locale locale = getRequestedLocale(entity);
 		final Serializable[] value;
-		if (locale == null && entityDecorator.isMultipleLocalesRequested() && entity.attributeAvailable(attributeName)) {
+		if (locale == null && isMultipleLocalesRequested(entity) && entity.attributeAvailable(attributeName)) {
 			throw new EvitaInvalidUsageException(
 				"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
 					"it could be localized to multiple locales, and it's expected to be an array data type. " +
@@ -907,9 +937,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class parameterType,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		final EntityDecorator entityDecorator = (EntityDecorator) entity;
-		final Locale locale = entityDecorator.getRequestedLocale();
-		if (locale == null && entityDecorator.isMultipleLocalesRequested() && entity.attributeAvailable(attributeName)) {
+		final Locale locale = getRequestedLocale(entity);
+		if (locale == null && isMultipleLocalesRequested(entity) && entity.attributeAvailable(attributeName)) {
 			throw new EvitaInvalidUsageException(
 				"Cannot initialize attribute `" + attributeName + "` in a constructor as a single enum value since " +
 					"it could be localized to multiple locales, and none or multiple locales was requested when fetching the entity!"

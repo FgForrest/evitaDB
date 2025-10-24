@@ -49,7 +49,7 @@ public interface ProductParameterInterface extends Serializable, SealedInstance<
 	Integer getParameterGroup();
 
 	@ReferencedEntityGroup
-	EntityReferenceContract<?> getParameterGroupEntityClassifier();
+	EntityReferenceContract getParameterGroupEntityClassifier();
 
 	@ReferencedEntityGroup
 	ParameterGroupInterfaceEditor getParameterGroupEntity();

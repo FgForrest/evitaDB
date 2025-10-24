@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -3175,7 +3176,7 @@ class EvitaTest implements EvitaTestSupport {
 					       }
 				       ).upsertVia(session);
 
-				IntFunction<EntityReference> getInRange = (threshold) -> session.queryOneEntityReference(
+				IntFunction<EntityReferenceContract> getInRange = (threshold) -> session.queryOneEntityReference(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(attributeInRange("range", threshold))

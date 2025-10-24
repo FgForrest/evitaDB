@@ -30,12 +30,12 @@ import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
@@ -432,7 +432,7 @@ public class EntityByPriceFilteringFunctionalTest {
 			this.dataGenerator.getSampleBrandSchema(session);
 			this.dataGenerator.getSampleStoreSchema(session);
 
-			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleProductSchema(session),
 					randomEntityPicker,
 					SEED

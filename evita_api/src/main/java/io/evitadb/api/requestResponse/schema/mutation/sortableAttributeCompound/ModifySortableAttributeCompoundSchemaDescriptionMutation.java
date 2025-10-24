@@ -27,9 +27,11 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -42,6 +44,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Objects;
 
 /**
  * Mutation is responsible for setting value to a {@link SortableAttributeCompoundSchema#getDescription()}
@@ -69,20 +72,33 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 
 	@Nullable
 	@Override
-	public SortableAttributeCompoundSchemaContract mutate(
+	public <T extends SortableAttributeCompoundSchemaContract> T mutate(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable SortableAttributeCompoundSchemaContract sortableAttributeCompoundSchema
+		@Nullable T existingSchema
 	) {
-		Assert.isPremiseValid(sortableAttributeCompoundSchema != null, "Sortable attribute compound schema is mandatory!");
-		return SortableAttributeCompoundSchema._internalBuild(
-			sortableAttributeCompoundSchema.getName(),
-			sortableAttributeCompoundSchema.getNameVariants(),
-			this.description,
-			sortableAttributeCompoundSchema.getDeprecationNotice(),
-			sortableAttributeCompoundSchema.getIndexedInScopes(),
-			sortableAttributeCompoundSchema.getAttributeElements()
-		);
+		Assert.isPremiseValid(existingSchema != null, "Sortable attribute compound schema is mandatory!");
+		if (referenceSchema == null) {
+			//noinspection unchecked
+			return (T) EntitySortableAttributeCompoundSchema._internalBuild(
+				existingSchema.getName(),
+				existingSchema.getNameVariants(),
+				this.description,
+				existingSchema.getDeprecationNotice(),
+				existingSchema.getIndexedInScopes(),
+				existingSchema.getAttributeElements()
+			);
+		} else {
+			//noinspection unchecked
+			return (T) SortableAttributeCompoundSchema._internalBuild(
+				existingSchema.getName(),
+				existingSchema.getNameVariants(),
+				this.description,
+				existingSchema.getDeprecationNotice(),
+				existingSchema.getIndexedInScopes(),
+				existingSchema.getAttributeElements()
+			);
+		}
 	}
 
 	@Nullable
@@ -103,14 +119,14 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final SortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name)
+		final EntitySortableAttributeCompoundSchemaContract existingCompoundSchema = entitySchema.getSortableAttributeCompound(this.name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
 				"The sortable attribute compound `" + this.name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 
-		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
+		final EntitySortableAttributeCompoundSchemaContract updatedCompoundSchema = mutate(entitySchema, null, existingCompoundSchema);
 		return replaceSortableAttributeCompoundIfDifferent(
-			entitySchema, existingCompoundSchema, updatedAttributeSchema
+			entitySchema, existingCompoundSchema, Objects.requireNonNull(updatedCompoundSchema)
 		);
 	}
 
@@ -119,9 +135,9 @@ public class ModifySortableAttributeCompoundSchemaDescriptionMutation
 	public ReferenceSchemaContract mutate(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceSchemaContract referenceSchema, @Nonnull ConsistencyChecks consistencyChecks) {
 		Assert.isPremiseValid(referenceSchema != null, "Reference schema is mandatory!");
 		final SortableAttributeCompoundSchemaContract existingCompoundSchema = getReferenceSortableAttributeCompoundSchemaOrThrow(entitySchema, referenceSchema, this.name);
-		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, null, existingCompoundSchema);
+		final SortableAttributeCompoundSchemaContract updatedAttributeSchema = mutate(entitySchema, referenceSchema, existingCompoundSchema);
 		return replaceSortableAttributeCompoundIfDifferent(
-			referenceSchema, existingCompoundSchema, updatedAttributeSchema
+			referenceSchema, existingCompoundSchema, Objects.requireNonNull(updatedAttributeSchema)
 		);
 	}
 

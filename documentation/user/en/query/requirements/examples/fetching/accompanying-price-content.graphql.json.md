@@ -12,11 +12,6 @@
           "priceWithTax" : "369.34",
           "taxRate" : "21.0"
         },
-        "custom" : {
-          "priceWithoutTax" : "305.24",
-          "priceWithTax" : "369.34",
-          "taxRate" : "21.0"
-        },
         "special" : {
           "priceWithoutTax" : "269.42",
           "priceWithTax" : "326.0",

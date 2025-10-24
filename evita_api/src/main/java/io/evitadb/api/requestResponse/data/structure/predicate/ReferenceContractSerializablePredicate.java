@@ -290,6 +290,19 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	}
 
 	/**
+	 * Retrieves a predicate that includes all attributes for the reference.
+	 * @return a {@code ReferenceAttributeValueSerializablePredicate} configured to include all attributes.
+	 */
+	@Nonnull
+	public ReferenceAttributeValueSerializablePredicate getAllAttributePredicate() {
+		return new ReferenceAttributeValueSerializablePredicate(
+			this.implicitLocale,
+			this.locales,
+			AttributeRequest.ALL
+		);
+	}
+
+	/**
 	 * Retrieves a set of all locales available in the current instance. If an implicit locale is set and
 	 * no explicit locales are available, a set containing only the implicit locale is returned. If both
 	 * implicit and explicit locales are present, a merged set of both is returned. If no implicit locale

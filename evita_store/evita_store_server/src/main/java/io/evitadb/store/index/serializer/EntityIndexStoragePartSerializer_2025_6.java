@@ -36,14 +36,16 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.cardinality.CardinalityIndex;
-import io.evitadb.index.cardinality.CardinalityIndex.CardinalityKey;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePartDeprecated;
+import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
@@ -120,33 +122,34 @@ public class EntityIndexStoragePartSerializer_2025_6 extends Serializer<EntityIn
 		final int facetIndexesCount = input.readVarInt(true);
 		final Set<String> facetIndexes = createHashSet(facetIndexesCount);
 		for (int i = 0; i < facetIndexesCount; i++) {
-			final String entityType = this.keyCompressor.getKeyForId(input.readVarInt(true));
-			facetIndexes.add(entityType);
+			final Object key = this.keyCompressor.getKeyForId(input.readVarInt(true));
+			final String referenceName = key instanceof ReferenceNameKey rnk ? rnk.referenceName() : (String) key;
+			facetIndexes.add(referenceName);
 		}
 
 		final int primaryKeyCardinalityCount = input.readInt();
-		final CardinalityIndex primaryKeyCardinality;
+		final AttributeCardinalityIndex primaryKeyCardinality;
 		if (primaryKeyCardinalityCount == -1) {
-			primaryKeyCardinality = null;
+			primaryKeyCardinality = new AttributeCardinalityIndex(Integer.class, Map.of());
 		} else {
-			final Map<CardinalityKey, Integer> index = createHashMap(primaryKeyCardinalityCount);
+			final Map<AttributeCardinalityKey, Integer> index = createHashMap(primaryKeyCardinalityCount);
 			for (int i = 0; i < primaryKeyCardinalityCount; i++) {
 				final int cardinalityPrimaryKey = input.readVarInt(false);
 				index.put(
-					new CardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
+					new AttributeCardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
 					input.readVarInt(true)
 				);
 			}
-			primaryKeyCardinality = new CardinalityIndex(Integer.class, index);
+			primaryKeyCardinality = new AttributeCardinalityIndex(Integer.class, index);
 		}
 
-		return new EntityIndexStoragePart(
+		return new EntityIndexStoragePartDeprecated(
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLocale,
 			attributeIndexes,
 			priceIndexes,
 			hierarchyIndex, facetIndexes, primaryKeyCardinality,
-			null
+			0
 		);
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,16 +39,38 @@ import java.util.stream.Collectors;
 public class ReferenceCardinalityViolatedException extends InvalidMutationException {
 	@Serial private static final long serialVersionUID = -2457165966707036900L;
 
-	public record CardinalityViolation(@Nonnull String referenceName, @Nonnull Cardinality cardinality, int realCount) {}
+	public record CardinalityViolation(
+		@Nonnull String referenceName,
+		@Nonnull Cardinality cardinality,
+		int realCount,
+		boolean duplicate
+	) {}
 
 	public ReferenceCardinalityViolatedException(@Nonnull String entityName, @Nonnull Collection<CardinalityViolation> violations) {
 		super(constructErrorMessage(entityName, violations));
 	}
 
-	private static String constructErrorMessage(@Nonnull String entityName, @Nonnull Collection<CardinalityViolation> violations) {
+	/**
+	 * Constructs an error message detailing the violations of expected reference cardinalities for a given entity.
+	 *
+	 * @param entityName the name of the entity where the cardinality violations occurred
+	 * @param violations a collection of {@link CardinalityViolation} objects describing the violated references,
+	 *                   expected cardinalities, actual occurrences, and whether duplicates are present
+	 * @return a string describing the violations in a human-readable format
+	 */
+	@Nonnull
+	private static String constructErrorMessage(
+		@Nonnull String entityName,
+		@Nonnull Collection<CardinalityViolation> violations
+	) {
 		return "Expected reference cardinalities are violated in entity `" + entityName + "`: " +
 			violations.stream()
-				.map(it -> "reference `" + it.referenceName() + "` is expected to be `" + it.cardinality() + "` - but entity contains " + it.realCount() + " references")
+				.map(
+					it -> "reference `" + it.referenceName() +
+						"` is expected to be `" + it.cardinality() +
+						"` - but entity contains " + it.realCount() + " " +
+						(it.duplicate ? "duplicated " : "") + "references"
+				)
 				.collect(Collectors.joining(", ")) + ".";
 	}
 }

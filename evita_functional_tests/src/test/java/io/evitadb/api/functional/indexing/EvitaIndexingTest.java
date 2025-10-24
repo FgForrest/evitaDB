@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -137,7 +136,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Nullable
-	private static EntityReference fetchProductInLocale(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Locale locale) {
+	private static EntityReferenceContract fetchProductInLocale(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Locale locale) {
 		return session.queryOneEntityReference(
 			query(
 				collection(Entities.PRODUCT),
@@ -1421,7 +1420,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.removeAttribute(ATTRIBUTE_EAN)
 						.removeAttribute(ATTRIBUTE_NAME, Locale.GERMAN)
 						.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
-						.setReference(
+						.updateReference(
 							Entities.BRAND, 1,
 							whichIs -> whichIs
 								.removeAttribute(ATTRIBUTE_BRAND_EAN)
@@ -3184,11 +3183,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
-						.getSortIndex(productSchema, null, categoryCodeEanCompoundSchema, Locale.ENGLISH)
+						.getSortIndex(productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
 				);
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
-						.getSortIndex(productSchema, null, categoryCodeEanCompoundSchema, Locale.CANADA)
+						.getSortIndex(productSchema, brandReferenceSchema, brandCodeEanCompoundSchema, Locale.CANADA)
 				);
 			}
 		);

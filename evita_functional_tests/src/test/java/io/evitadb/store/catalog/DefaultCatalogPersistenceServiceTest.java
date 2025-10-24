@@ -99,6 +99,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import tool.ReflectionUtils;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -773,7 +774,12 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Nonnull
-	private EntityCollection constructEntityCollectionWithSomeEntities(@Nonnull CatalogPersistenceService ioService, @Nonnull SealedCatalogSchema catalogSchema, @Nonnull SealedEntitySchema entitySchema, int entityTypePrimaryKey) {
+	private EntityCollection constructEntityCollectionWithSomeEntities(
+		@Nonnull CatalogPersistenceService ioService,
+		@Nonnull SealedCatalogSchema catalogSchema,
+		@Nonnull SealedEntitySchema entitySchema,
+		int entityTypePrimaryKey
+	) {
 		final Catalog mockCatalog = getMockCatalog(catalogSchema, entitySchema);
 		Mockito.when(mockCatalog.getTrafficRecordingEngine()).thenReturn(Mockito.mock(TrafficRecordingEngine.class));
 		final CatalogSchemaContract catalogSchemaContract = Mockito.mock(CatalogSchemaContract.class);
@@ -795,6 +801,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			this.sequenceService,
 			createTrafficRecordingEngine(catalogSchema)
 		);
+
+		ReflectionUtils.setFieldValue(entityCollection, "initialSchema", ((EntitySchemaDecorator)entitySchema).getDelegate());
 		entityCollection.attachToCatalog(null, mockCatalog);
 
 		// Use the captor when defining the mock behavior
@@ -805,7 +813,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			final ModifyCatalogSchemaMutation mutation = invocation.getArgument(0);
 			for (LocalCatalogSchemaMutation schemaMutation : mutation.getSchemaMutations()) {
 				if (schemaMutation instanceof ModifyEntitySchemaMutation mesm && mesm.getEntityType().equals(entityType)) {
-					entityCollection.updateSchema(catalogSchemaContract, mesm.getSchemaMutations());
+					entityCollection.updateSchema(null, catalogSchemaContract, mesm.getSchemaMutations());
 				}
 			}
 			return new ProgressRecord<>(
@@ -864,6 +872,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			this.sequenceService,
 			createTrafficRecordingEngine(catalogSchema)
 		);
+
+		ReflectionUtils.setFieldValue(collection, "initialSchema", ((EntitySchemaDecorator)schema).getDelegate());
 		collection.attachToCatalog(null, getMockCatalog(catalogSchema, schema));
 
 		final EvitaSession mockSession = mock(EvitaSession.class);

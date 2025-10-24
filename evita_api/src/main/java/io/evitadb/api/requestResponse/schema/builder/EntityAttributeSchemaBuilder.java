@@ -96,6 +96,7 @@ public final class EntityAttributeSchemaBuilder
 		return EntityAttributeSchemaContract.class;
 	}
 
+	@Nonnull
 	@Override
 	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(

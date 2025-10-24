@@ -33,6 +33,7 @@ import io.evitadb.api.exception.ReferenceCardinalityViolatedException.Cardinalit
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditMode;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
@@ -379,6 +380,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			null,
 			null,
+			ReferenceEditMode.RESET,
 			null
 		);
 	}
@@ -386,12 +388,33 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	@Nonnull
 	@Override
 	public ReferencesBuilder setReference(
-		@Nonnull String referenceName, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
 		return setUniqueReferenceInternal(
 			getReferenceSchemaOrThrowException(referenceName),
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			null,
 			null,
+			ReferenceEditMode.RESET,
+			whichIs
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesBuilder updateReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException {
+		return setUniqueReferenceInternal(
+			getReferenceSchemaOrThrowException(referenceName),
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			null,
+			null,
+			ReferenceEditMode.UPDATE_ONLY,
 			whichIs
 		);
 	}
@@ -428,6 +451,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			referencedEntityType,
 			cardinality,
+			ReferenceEditMode.RESET,
 			null
 		);
 	}
@@ -449,6 +473,30 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			new ReferenceKey(referenceName, referencedPrimaryKey),
 			referencedEntityType,
 			cardinality,
+			ReferenceEditMode.RESET,
+			whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesBuilder updateReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrCreateImplicit(
+			referenceName, referencedEntityType, cardinality
+		);
+		setUniqueReferenceInternal(
+			referenceSchema,
+			new ReferenceKey(referenceName, referencedPrimaryKey),
+			referencedEntityType,
+			cardinality,
+			ReferenceEditMode.UPDATE_ONLY,
 			whichIs
 		);
 		return this;
@@ -1192,6 +1240,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 	 * @param referenceKey         the unique key identifying the referenced entity; this includes the primary key and internal key
 	 * @param referencedEntityType the type of the referenced entity; must match the schema-defined type, if provided
 	 * @param cardinality          the cardinality of the reference; if provided, must match the schema-defined cardinality
+	 * @param editMode             the mode of editing the reference; determines whether to reset or update the reference
 	 * @param whichIs              an optional consumer for setting additional properties of the reference during its building process
 	 * @return the updated instance of InternalEntityBuilder that includes the newly added or updated reference
 	 */
@@ -1201,6 +1250,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,
+		@Nonnull ReferenceEditMode editMode,
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -1214,9 +1264,16 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		}
 		// but we allow implicit cardinality widening when needed
 		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
+		final boolean bundleContainsReference = referenceBundle.containsReferenceKey(referenceKey);
+
+		if (editMode == ReferenceEditMode.UPDATE_ONLY && !bundleContainsReference) {
+			// no action happens - existing reference not found
+			return this;
+		}
+
 		if (schemaCardinality.getMax() <= 1) {
 			final int existingRefCount = referenceBundle.count();
-			if (existingRefCount >= 1) {
+			if (existingRefCount > 1 || (existingRefCount == 1 && !bundleContainsReference)) {
 				// check whether there already is some reference to this key
 				// if yes, check whether we can promote cardinality
 				if (this.entitySchema.allows(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
@@ -1225,7 +1282,7 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 					throw new ReferenceCardinalityViolatedException(
 						this.entitySchema.getName(),
 						List.of(
-							new CardinalityViolation(referenceName, schemaCardinality, existingRefCount + 1)
+							new CardinalityViolation(referenceName, schemaCardinality, existingRefCount + 1, false)
 						)
 					);
 				}
@@ -1257,18 +1314,28 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 				}
 			}
 		}
-		final InitialReferenceBuilder builder = new InitialReferenceBuilder(
-			this.entitySchema,
-			referenceSchema,
-			referenceName,
-			referencedEntityPrimaryKey,
-			referenceKey.isUnknownReference() ?
-				getNextReferenceInternalId() :
-				referenceKey.internalPrimaryKey(),
-			referenceBundle.getAttributeTypes()
-		);
+		final ReferenceBuilder builder;
+		if (editMode == ReferenceEditMode.UPDATE_ONLY) {
+			final ReferenceContract existingReference = getReference(referenceKey).orElseThrow();
+			builder = new ExistingReferenceBuilder(
+				existingReference,
+				this.entitySchema,
+				referenceBundle.getAttributeTypes()
+			);
+		} else {
+			builder = new InitialReferenceBuilder(
+				this.entitySchema,
+				referenceSchema,
+				referenceName,
+				referencedEntityPrimaryKey,
+				referenceKey.isUnknownReference() ?
+					getNextReferenceInternalId() :
+					referenceKey.internalPrimaryKey(),
+				referenceBundle.getAttributeTypes()
+			);
+		}
 		ofNullable(whichIs).ifPresent(it -> it.accept(builder));
-		final Reference newReference = builder.build();
+		final ReferenceContract newReference = builder.build();
 		referenceBundle.upsertNonDuplicateReference(newReference);
 		addOrReplaceReferenceInternal(newReference);
 		return this;

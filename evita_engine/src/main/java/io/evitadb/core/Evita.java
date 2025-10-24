@@ -288,7 +288,9 @@ public final class Evita implements EvitaContract {
 		this.tracingContext = TracingContextProvider.getContext();
 
 		final ServiceLoader<EnginePersistenceServiceFactory> svcLoader = ServiceLoader.load(
-			EnginePersistenceServiceFactory.class);
+			EnginePersistenceServiceFactory.class
+		);
+
 		final EnginePersistenceService enginePersistenceService = svcLoader
 			.findFirst()
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
@@ -991,12 +993,9 @@ public final class Evita implements EvitaContract {
 		return new Catalog(
 			catalogSchema,
 			this.cacheSupervisor,
-			this.configuration,
+			this,
 			this.reflectionLookup,
-			this.serviceExecutor,
 			this.management.exportFileService(),
-			this.requestExecutor,
-			this.transactionExecutor,
 			this::replaceCatalogReference,
 			this.tracingContext
 		);
@@ -1015,12 +1014,9 @@ public final class Evita implements EvitaContract {
 			catalogName,
 			readOnly,
 			this.cacheSupervisor,
-			this.configuration,
+			this,
 			this.reflectionLookup,
-			this.serviceExecutor,
 			this.management.exportFileService(),
-			this.requestExecutor,
-			this.transactionExecutor,
 			this::replaceCatalogReference,
 			(cn, catalog) -> {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));

@@ -131,6 +131,9 @@ public interface ProductInterface extends EntityClassifier, WithEntityContract, 
 	@ReferenceRef(Entities.PARAMETER)
 	ProductParameterInterface getParameter() throws ContextMissingException;
 
+	@ReferenceRef(Entities.PARAMETER)
+	ProductParameterInterface getParameter(int parameterId) throws ContextMissingException;
+
 	@ReferenceRef(Entities.CATEGORY)
 	Collection<Integer> getCategoryIds() throws ContextMissingException;
 
@@ -193,7 +196,7 @@ public interface ProductInterface extends EntityClassifier, WithEntityContract, 
 		throws ContextMissingException;
 
 	@ReferenceRef(Entities.PRODUCT)
-	RelatedProductInterface getRelatedProduct(@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category)
+	RelatedProductInterface getRelatedProduct(@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category, int productId)
 		throws ContextMissingException;
 
 	@ReferenceRef(Entities.PRODUCT)

@@ -99,6 +99,8 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	private static final String BRAND_TYPE = "BRAND";
 	private static final String ATTRIBUTE_DISCRIMINATOR = "discriminator";
 	private static final String ATTRIBUTE_UPDATED = "updated";
+	private static final String BRAND_PRIORITY = "brandPriority";
+	private static final String CATEGORY_PRIORITY = "categoryPriority";
 	private Entity initialEntity;
 	private ExistingEntityBuilder builder;
 
@@ -499,19 +501,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final SealedEntity updatedInstance = entityBuilder.toInstance();
 		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
 
-		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
-			assertEquals(
-				"Whatever", reference.getGroup()
-				                     .filter(Droppable::exists)
-				                     .map(GroupEntityReference::getType)
-				                     .orElse(null)
-			);
-			assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
-			assertEquals("someValue", reference.getAttribute("newAttribute"));
-			assertEquals("Brand A", reference.getAttribute("brandName"));
-			assertEquals("008", reference.getAttribute("brandCode"));
-			assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
-		});
+		updatedInstance.getReference(BRAND_TYPE, 1)
+			.ifPresent(
+				reference -> {
+					assertEquals(
+						"Whatever",
+						reference.getGroup()
+							.filter(Droppable::exists)
+							.map(GroupEntityReference::getType)
+							.orElse(null)
+					);
+					assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
+					assertEquals("someValue", reference.getAttribute("newAttribute"));
+					assertEquals("Brand A", reference.getAttribute("brandName"));
+					assertEquals("008", reference.getAttribute("brandCode"));
+					assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
+				});
 	}
 
 	@Test
@@ -575,6 +580,214 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final Set<String> expectedReferences = Set.of(BRAND, CATEGORY, PARAMETER, STORE);
 		assertEquals(expectedReferences, eb.getReferenceNames());
 		assertEquals(expectedReferences, eb.toInstance().getReferenceNames());
+	}
+
+	@Test
+	@DisplayName("reference builders internal state must be distinguished for insertion and update")
+	void shouldCorrectlyInitializeReferenceBuilder() {
+		// Setup schema with BRAND (0..1) and CATEGORY (0..*:N) references
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withoutGeneratedPrimaryKey()
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE,
+				ref -> ref.withAttribute(
+					BRAND_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
+				).withGroupType(STORE)
+			)
+			.withReferenceToEntity(
+				CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				ref -> ref.withAttribute(
+					CATEGORY_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
+				).withGroupType(STORE)
+			)
+			.verifySchemaStrictly()
+			.toInstance();
+
+		/*
+		 * Create initial entity with:
+		 * - BRAND reference #1: priority=10, group=1000
+		 * - CATEGORY reference #1: priority=10, group=1000
+		 */
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(
+				BRAND,
+				1,
+				rb -> rb.setAttribute(BRAND_PRIORITY, 10L)
+					.setGroup(STORE, 1000)
+			)
+			.setOrUpdateReference(
+				CATEGORY,
+				1,
+				ref -> false,
+				rb -> {
+					rb.setAttribute(CATEGORY_PRIORITY, 10L);
+					rb.setGroup(STORE, 1000);
+				}
+			)
+			.toInstance();
+
+		// Open entity for modification
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertInstanceOf(ExistingEntityBuilder.class, builder);
+
+		/*
+		 * Test 1: Update BRAND reference #1
+		 * Expected: Builder starts with clean state (no existing attributes or group)
+		 * New values: priority=20, group=2000
+		 */
+		builder.setReference(
+			BRAND,
+			1,
+			rb -> {
+				assertNull(rb.getAttribute(BRAND_PRIORITY, Long.class));
+				assertTrue(rb.getGroup().isEmpty());
+				rb.setAttribute(BRAND_PRIORITY, 20L);
+				rb.setGroup(STORE, 2000);
+				assertEquals(20L, rb.getAttribute(BRAND_PRIORITY, Long.class));
+				assertEquals(2000, rb.getGroup().orElseThrow().getPrimaryKey());
+			}
+		);
+
+		/*
+		 * Test 2: Insert new CATEGORY reference #1 (first duplicate)
+		 * Filter: false (no match - this is an insertion)
+		 * Expected: Builder starts with clean state
+		 * New values: priority=100, group=10000
+		 */
+		builder.setOrUpdateReference(
+			CATEGORY,
+			1,
+			ref -> false,
+			rb -> {
+				assertNull(rb.getAttribute(CATEGORY_PRIORITY));
+				assertTrue(rb.getGroup().isEmpty());
+				rb.setAttribute(CATEGORY_PRIORITY, 100L);
+				rb.setGroup(STORE, 10000);
+				assertEquals(100L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(10000, rb.getGroup().orElseThrow().getPrimaryKey());
+			}
+		);
+
+		/*
+		 * Test 3: Update the original CATEGORY reference #1
+		 * Filter: priority==10 (matches the original reference from initialEntity)
+		 * Expected: Builder contains existing data (priority=10, group=1000)
+		 * New values: priority=200, group=20000
+		 */
+		builder.setOrUpdateReference(
+			CATEGORY,
+			1,
+			ref -> ref.getAttribute(CATEGORY_PRIORITY, Long.class) == 10L,
+			rb -> {
+				assertEquals(10L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(new GroupEntityReference(STORE, 1000, 1, false), rb.getGroup().orElse(null));
+				rb.setAttribute(CATEGORY_PRIORITY, 200L);
+				rb.setGroup(STORE, 20000);
+				assertEquals(200L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(20000, rb.getGroup().orElseThrow().getPrimaryKey());
+			}
+		);
+
+		/*
+		 * Test 4: Insert new CATEGORY reference #1 (second duplicate)
+		 * Filter: false (no match - this is an insertion)
+		 * Expected: Builder starts with clean state
+		 * New values: priority=110, group=11000
+		 */
+		builder.setOrUpdateReference(
+			CATEGORY,
+			1,
+			ref -> false,
+			rb -> {
+				assertNull(rb.getAttribute(CATEGORY_PRIORITY));
+				assertTrue(rb.getGroup().isEmpty());
+				rb.setAttribute(CATEGORY_PRIORITY, 110L);
+				rb.setGroup(STORE, 11000);
+				assertEquals(110L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(11000, rb.getGroup().orElseThrow().getPrimaryKey());
+			}
+		);
+
+		/*
+		 * Test 5: Update CATEGORY reference with priority=200
+		 * Filter: priority==200 (matches the reference updated in Test 3)
+		 * Expected: Builder contains existing data from that update (priority=200, group=20000)
+		 * New values: priority=210, group=21000
+		 */
+		builder.setOrUpdateReference(
+			CATEGORY,
+			1,
+			ref -> ref.getAttribute(CATEGORY_PRIORITY, Long.class) == 200L,
+			rb -> {
+				assertEquals(200L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(20000, rb.getGroup().orElseThrow().getPrimaryKey());
+				rb.setAttribute(CATEGORY_PRIORITY, 210L);
+				rb.setGroup(STORE, 21000);
+				assertEquals(210L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(21000, rb.getGroup().orElseThrow().getPrimaryKey());
+			}
+		);
+
+		/*
+		 * Test 6: Update CATEGORY reference with priority=110
+		 * Filter: priority==110 (matches the reference inserted in Test 4)
+		 * Expected: Builder contains existing data from that insertion (priority=110, group=11000)
+		 * New values: priority=120, group=12000
+		 */
+		builder.setOrUpdateReference(
+			CATEGORY,
+			1,
+			ref -> ref.getAttribute(CATEGORY_PRIORITY, Long.class) == 110L,
+			rb -> {
+				assertEquals(110L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(11000, rb.getGroup().orElseThrow().getPrimaryKey());
+				rb.setAttribute(CATEGORY_PRIORITY, 120L);
+				rb.setGroup(STORE, 12000);
+				assertEquals(120L, rb.getAttribute(CATEGORY_PRIORITY, Long.class));
+				assertEquals(12000, rb.getGroup().orElseThrow().getPrimaryKey());
+			}
+		);
+
+		/*
+		 * Verify final state:
+		 * - BRAND reference #1: priority=20, group=2000
+		 * - CATEGORY reference #1 (3 duplicates):
+		 *   1) priority=100, group=10000 (Test 2 insertion)
+		 *   2) priority=210, group=21000 (Test 3 → Test 5 update chain)
+		 *   3) priority=120, group=12000 (Test 4 → Test 6 update chain)
+		 */
+		final SealedEntity builtInstance = builder.toInstance();
+
+		// Verify BRAND reference
+		final ReferenceContract brandReference = builtInstance.getReference(BRAND, 1).orElseThrow();
+		assertEquals(20L, brandReference.getAttribute(BRAND_PRIORITY, Long.class));
+		assertEquals(2000, brandReference.getGroup().orElseThrow().getPrimaryKey());
+
+		// Verify CATEGORY references
+		final List<ReferenceContract> categoryReferences = builtInstance.getReferences(CATEGORY, 1);
+		assertEquals(3, categoryReferences.size());
+
+		final Set<Long> categoryPriorities = categoryReferences
+			.stream()
+			.map(r -> r.getAttribute(CATEGORY_PRIORITY, Long.class))
+			.collect(Collectors.toSet());
+		assertTrue(categoryPriorities.contains(100L));
+		assertTrue(categoryPriorities.contains(120L));
+		assertTrue(categoryPriorities.contains(210L));
+
+		final Set<Integer> categoryGroups = categoryReferences
+			.stream()
+			.map(r -> r.getGroup().orElseThrow().getPrimaryKey())
+			.collect(Collectors.toSet());
+		assertEquals(3, categoryGroups.size());
+		assertTrue(categoryGroups.contains(10000));
+		assertTrue(categoryGroups.contains(12000));
+		assertTrue(categoryGroups.contains(21000));
 	}
 
 	@Test
@@ -1048,7 +1261,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				assertEquals(BRAND, whichIs.getReferenceSchemaOrThrow().getReferencedEntityType());
 				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceCardinality());
 				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceSchemaOrThrow().getCardinality());
-				assertEquals(10, whichIs.getAttribute("priority", Integer.class).intValue());
+				assertNull(whichIs.getAttribute("priority", Integer.class));
 				whichIs.setAttribute("priority", 11);
 			}
 		);
@@ -1060,7 +1273,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				assertEquals(BRAND, whichIs.getReferenceSchemaOrThrow().getReferencedEntityType());
 				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceCardinality());
 				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceSchemaOrThrow().getCardinality());
-				assertEquals(11, whichIs.getAttribute("priority", Integer.class).intValue());
+				assertNull(whichIs.getAttribute("priority", Integer.class));
 				whichIs.setAttribute("someOtherAttribute", "Y");
 			}
 		);
@@ -1076,24 +1289,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				assertEquals(BRAND, whichIs.getReferenceSchemaOrThrow().getReferencedEntityType());
 				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceCardinality());
 				assertEquals(Cardinality.ZERO_OR_MORE, whichIs.getReferenceSchemaOrThrow().getCardinality());
-				assertEquals(1, whichIs.getAttribute("priority", Integer.class).intValue());
+				assertNull(whichIs.getAttribute("priority", Integer.class));
 				whichIs.setAttribute("someOtherAttribute", "X");
 			}
 		);
 		assertThrows(
 			InvalidDataTypeMutationException.class,
-			() -> {
-				builder.setReference(
-					BRAND, 2,
-					whichIs -> whichIs.setAttribute("someOtherAttribute", 1)
-				);
-			}
+			() -> builder.setReference(
+				BRAND, 2,
+				whichIs -> whichIs.setAttribute("someOtherAttribute", 1)
+			)
 		);
 		final List<? extends LocalMutation<?, ?>> localMutations = builder
 			.toMutation()
 			.orElseThrow()
 			.getLocalMutations();
-		assertEquals(5, localMutations.size());
+		assertEquals(4, localMutations.size());
 	}
 
 	@Test
@@ -1508,6 +1719,193 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(3, resultInstance.getReferences(STORE).size());
 
 		return resultInstance;
+	}
+
+	@Test
+	@DisplayName("updateReference(name, id, consumer) updates existing reference and does nothing when reference not found")
+	void shouldUpdateExistingReferenceOrDoNothingWhenNotFound() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE,
+				ref -> ref.withAttribute(
+					BRAND_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
+				)
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(BRAND, 1, rb -> rb.setAttribute(BRAND_PRIORITY, 10L))
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+
+		// verify initial state
+		assertTrue(builder.getReference(BRAND, 1).isPresent());
+		assertEquals(10L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// update existing reference -> should modify
+		builder.updateReference(BRAND, 1, rb -> rb.setAttribute(BRAND_PRIORITY, 20L));
+		assertEquals(20L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// verify final state
+		final SealedEntity entity = builder.toInstance();
+		assertEquals(1, entity.getReferences(BRAND).size());
+		assertEquals(20L, entity.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// attempt to update different reference id -> no change
+		builder.updateReference(BRAND, 2, rb -> rb.setAttribute(BRAND_PRIORITY, 30L));
+		assertEquals(1, builder.getReferences(BRAND).size(), "No new reference should be created");
+		assertEquals(20L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+	}
+
+	@Test
+	@DisplayName("updateReference(name, entityType, cardinality, id, consumer) updates existing reference and does nothing when reference not found")
+	void shouldUpdateExistingReferenceWithCardinalityOrDoNothingWhenNotFound() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE,
+				ref -> ref.withAttribute(
+					BRAND_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
+				)
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(
+				BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+				rb -> rb.setAttribute(BRAND_PRIORITY, 10L)
+			)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+
+		// verify initial state
+		assertTrue(builder.getReference(BRAND, 1).isPresent());
+		assertEquals(10L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// update existing reference -> should modify
+		builder.updateReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 1,
+			rb -> rb.setAttribute(BRAND_PRIORITY, 25L)
+		);
+		assertEquals(25L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// verify final state
+		final SealedEntity entity = builder.toInstance();
+		assertEquals(1, entity.getReferences(BRAND).size());
+		assertEquals(25L, entity.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// attempt to update different reference id -> no change
+		builder.updateReference(
+			BRAND, BRAND, Cardinality.ZERO_OR_ONE, 2,
+			rb -> rb.setAttribute(BRAND_PRIORITY, 30L)
+		);
+		assertEquals(1, builder.getReferences(BRAND).size(), "No new reference should be created");
+		assertEquals(25L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+	}
+
+	@Test
+	@DisplayName("updateReference methods work correctly with multiple references of same type")
+	void shouldUpdateOnlyTargetedReferenceAmongMultiple() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+				ref -> ref.withAttribute(
+					BRAND_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
+				)
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(BRAND, 1, rb -> rb.setAttribute(BRAND_PRIORITY, 10L))
+			.setReference(BRAND, 2, rb -> rb.setAttribute(BRAND_PRIORITY, 20L))
+			.setReference(BRAND, 3, rb -> rb.setAttribute(BRAND_PRIORITY, 30L))
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+
+		assertEquals(3, builder.getReferences(BRAND).size());
+
+		// update only reference 2
+		builder.updateReference(BRAND, 2, rb -> rb.setAttribute(BRAND_PRIORITY, 200L));
+
+		// verify only reference 2 was modified
+		assertEquals(10L, builder.getReference(BRAND, 1).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+		assertEquals(200L, builder.getReference(BRAND, 2).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+		assertEquals(30L, builder.getReference(BRAND, 3).orElseThrow().getAttribute(BRAND_PRIORITY, Long.class));
+
+		// attempt to update non-existent reference 4 -> no change
+		builder.updateReference(BRAND, 4, rb -> rb.setAttribute(BRAND_PRIORITY, 400L));
+		assertEquals(3, builder.getReferences(BRAND).size(), "No new reference should be created");
+	}
+
+	@Test
+	@DisplayName("updateReference methods respect duplicates with ZERO_OR_MORE_WITH_DUPLICATES")
+	void shouldUpdateCorrectDuplicateReferenceWhenMultipleSameIdExist() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				ref -> ref.withAttribute(
+					BRAND_PRIORITY, Long.class,
+					thatIs -> thatIs.nullable().representative()
+				).withAttribute(
+					ATTRIBUTE_DISCRIMINATOR, String.class,
+					AttributeSchemaEditor::representative
+				)
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setOrUpdateReference(
+				BRAND, 1,
+				ref -> false,
+				rb -> {
+					rb.setAttribute(BRAND_PRIORITY, 10L);
+					rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ");
+				}
+			)
+			.setOrUpdateReference(
+				BRAND, 1,
+				ref -> false,
+				rb -> {
+					rb.setAttribute(BRAND_PRIORITY, 20L);
+					rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE");
+				}
+			)
+			.setOrUpdateReference(
+				BRAND, 1,
+				ref -> false,
+				rb -> {
+					rb.setAttribute(BRAND_PRIORITY, 30L);
+					rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "FR");
+				}
+			)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+
+		assertEquals(3, builder.getReferences(new ReferenceKey(BRAND, 1)).size());
+
+		// updateReference with just id cannot distinguish between duplicates - must throw exception
+		assertThrows(
+			ReferenceAllowsDuplicatesException.class,
+			() -> builder.updateReference(BRAND, 1, rb -> rb.setAttribute(BRAND_PRIORITY, 11L))
+		);
 	}
 
 }

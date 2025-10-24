@@ -7,6 +7,11 @@
         "code" : "alcatel-3t-10-2020"
       },
       "references" : {
+        "bonusVisibilities" : [
+          {
+            "referencedKey" : 119334
+          }
+        ],
         "brand" : [
           {
             "referencedKey" : 103887

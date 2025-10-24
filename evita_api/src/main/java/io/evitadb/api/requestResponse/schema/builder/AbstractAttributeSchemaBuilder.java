@@ -482,11 +482,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	/**
 	 * Returns the type of the attribute this builder builds.
 	 */
+	@Nonnull
 	protected abstract Class<S> getAttributeSchemaType();
 
 	/**
 	 * Method allows adding specific mutation on the fly.
 	 */
+	@Nonnull
 	protected abstract MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation);
 
 	/**

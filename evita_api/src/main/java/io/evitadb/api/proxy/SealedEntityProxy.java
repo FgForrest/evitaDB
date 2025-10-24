@@ -25,8 +25,8 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -103,13 +103,13 @@ public interface SealedEntityProxy extends
 	 */
 	record EntityBuilderWithCallback(
 		@Nonnull EntityBuilder builder,
-		@Nullable Consumer<EntityReference> upsertCallback
+		@Nullable Consumer<EntityReferenceContract> upsertCallback
 	) {
 
 		/**
 		 * Method invokes the {@link #upsertCallback} callback if it is present.
 		 */
-		public void entityUpserted(@Nonnull EntityReference entityReference) {
+		public void entityUpserted(@Nonnull EntityReferenceContract entityReference) {
 			if (this.upsertCallback != null) {
 				this.upsertCallback.accept(entityReference);
 			}

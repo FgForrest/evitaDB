@@ -63,14 +63,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>2025.6.0</version>
+    <version>2025.7.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:2025.6.0'
+implementation 'io.evitadb:evita_db:2025.7.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -108,14 +108,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>2025.6.0</version>
+    <version>2025.7.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:2025.6.0'
+implementation 'io.evitadb:evita_external_api_grpc:2025.7.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -128,14 +128,14 @@ implementation 'io.evitadb:evita_external_api_grpc:2025.6.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>2025.6.0</version>
+    <version>2025.7.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:2025.6.0'
+implementation 'io.evitadb:evita_external_api_graphql:2025.7.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -148,14 +148,14 @@ implementation 'io.evitadb:evita_external_api_graphql:2025.6.0'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>2025.6.0</version>
+    <version>2025.7.0</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:2025.6.0'
+implementation 'io.evitadb:evita_external_api_rest:2025.7.0'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -225,7 +225,7 @@ When you start the evitaDB server you should see the following information in th
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/
 
-beta build 2025.6.0 (keep calm and report bugs 😉)
+beta build 2025.7.0 (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
 Log config used: META-INF/logback.xml
