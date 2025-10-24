@@ -25,11 +25,6 @@
             priceWithTax
             taxRate
           }
-          custom: accompanyingPrice {
-            priceWithoutTax
-            priceWithTax
-            taxRate
-          }
           special: accompanyingPrice(
             priceLists: [
               "employee-basic-price",

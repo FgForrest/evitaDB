@@ -1532,7 +1532,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				);
 
 				final EntityCollectionHeader compactedHeader = entityCollectionPersistenceService.compact(
-					this.catalogName, catalogVersion, headerInfoSupplier);
+					this.catalogName, catalogVersion, headerInfoSupplier
+				);
 				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
 					new CollectionFileReference(
 						entityCollectionHeader.entityType(),
