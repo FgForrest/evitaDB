@@ -263,7 +263,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		// when time travel is enabled, the files are removed only when bootstrap records is purged
 		if (!this.timeTravelEnabled) {
 			if (maintainedFile.path().toFile().delete()) {
-				log.debug("Deleted obsolete file {}", maintainedFile.path());
+				/* TODO JNO - remove, just for debugging purposes */
+				log.info("Deleted obsolete file:" + maintainedFile.path(), new RuntimeException("Stack trace"));
 			} else {
 				log.warn("Could not delete obsolete file {}", maintainedFile.path());
 			}
