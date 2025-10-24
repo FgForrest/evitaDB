@@ -96,7 +96,7 @@ jobs:
         echo $NEW_VERSION > version.txt
         echo "Version: $(cat version.txt)"
         mvn versions:set -DnewVersion=$NEW_VERSION
-        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true deploy --file pom.xml
+        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true javadoc:jar source:jar deploy --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
