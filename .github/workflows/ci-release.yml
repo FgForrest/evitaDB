@@ -17,6 +17,7 @@ on:
       - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
       - evita*/**/pom.xml
       - pom.xml
+      - .github/workflows/*
 
 jobs:
   build:
