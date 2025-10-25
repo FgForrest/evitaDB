@@ -70,12 +70,17 @@ jobs:
 
     - name: Resolve new release version
       id: release_version
-      uses: lukashornych/semantic-calendar-version@bb0a07cf0ca71a0b2b4fed52114e28092e5cac81 #v1.2.0
-      with:
-        prefix: 'v'
-        year_switch_mode: 'OnMinor'
-        minor-identifier: '/feat(?:\\([^)]+\\))?:/'
-        hotfix-branch-pattern: 'release_.*'
+      run: |
+        # Extract version from pom.xml
+        POM_VERSION=$(grep -m 1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+        echo "Extracted pom.xml version: $POM_VERSION"
+
+        # Remove -SNAPSHOT suffix and convert to version format with .0 patch
+        VERSION=$(echo "$POM_VERSION" | sed 's/-SNAPSHOT$//')
+        VERSION_WITH_PATCH="v${VERSION}.0"
+
+        echo "version=$VERSION_WITH_PATCH" >> $GITHUB_OUTPUT
+        echo "Release version: $VERSION_WITH_PATCH"
 
     - name: Determine release branch name
       id: release_branch
