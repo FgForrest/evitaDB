@@ -426,22 +426,32 @@ public final class Catalog
 									initBulk.entitySchemaIndex().put(entityType, collection.getSchema());
 									return collection;
 								},
-								(entityCollection) -> entityHeader
-									.usedEntityIndexPrimaryKeys()
-									.stream()
-									.map(eid -> new ProgressingFuture<EntityIndex>(
-										0,
-										theFuture -> {
-											final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
-												catalogVersion, eid, entityCollection.getInternalSchema()
-											);
-											if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
-												initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
+								(entityCollection) -> {
+									// backward compatibility (currently, the global index is part of used indexes)
+									final Integer globalIndexPk = entityHeader.globalEntityIndexPrimaryKey();
+									if (globalIndexPk != null) {
+										final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
+											catalogVersion, globalIndexPk, entityCollection.getInternalSchema()
+										);
+										initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
+									}
+									return entityHeader
+										.usedEntityIndexPrimaryKeys()
+										.stream()
+										.map(eid -> new ProgressingFuture<EntityIndex>(
+											0,
+											theFuture -> {
+												final EntityIndex loadedIndex = entityCollectionPersistenceService.readEntityIndex(
+													catalogVersion, eid, entityCollection.getInternalSchema()
+												);
+												if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL && !Objects.equals(globalIndexPk, eid)) {
+													initBulk.addGlobalIndex(entityCollection.getEntityType(), loadedIndex);
+												}
+												return loadedIndex;
 											}
-											return loadedIndex;
-										}
-									))
-									.toList(),
+										))
+										.toList();
+								},
 								(theFuture, entityCollection, loadedIndexes) -> {
 									// we need to add global indexes first, other indexes might look up in these indexes for data
 									// we pass them via init bulk to avoid duplicate collection iteration here (collection might be large)
