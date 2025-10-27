@@ -318,7 +318,10 @@ public class EngineTransactionManager implements Closeable {
 	 * underlying persistence service is properly closed to prevent resource leaks.
 	 */
 	public void close() {
-		IOUtils.closeQuietly(this.enginePersistenceService::close);
+		IOUtils.closeQuietly(
+			this.changeObserver::close,
+			this.enginePersistenceService::close
+		);
 	}
 
 	/**
