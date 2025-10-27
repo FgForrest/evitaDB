@@ -143,7 +143,7 @@
 		<!-- we should keep this in sync with armeria -->
 		<netty.version>4.2.6.Final</netty.version>
 		<prometheus.version>1.4.1</prometheus.version>
-		<byteBuddy.version>1.17.7</byteBuddy.version>
+		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>22.3</graphql.version>
 		<okhttp.version>5.2.0</okhttp.version>
 		<opentelemetry.version>1.54.1</opentelemetry.version>
