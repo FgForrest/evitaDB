@@ -41,7 +41,7 @@ jobs:
         fetch-depth: 0
 
     - name: Setup Java JDK
-      uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1  # setup JDK 17 for building
+      uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0  # setup JDK 17 for building
       with:
         distribution: 'temurin'
         java-version: '17'
@@ -136,7 +136,7 @@ jobs:
 
     # Upload workflow data for the release workflow
     - name: Upload workflow data
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       with:
         name: workflow-data
         path: |

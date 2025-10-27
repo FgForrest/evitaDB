@@ -41,7 +41,7 @@ jobs:
           echo "Commits found in dev branch: $NEW_COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed to dev branch in the last week
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1  # setup JDK 17 for building
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0  # setup JDK 17 for building
         if: ${{ env.NEW_COMMIT_COUNT != '0' }}
         with:
            distribution: 'temurin'
@@ -53,7 +53,7 @@ jobs:
         run: mvn -T 1C -B package -P longRunning -V --fail-at-end --file pom.xml
 
       - name: Upload test results  # this upload test results but only if something was committed to dev branch in the last week
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: ${{ env.NEW_COMMIT_COUNT != '0' && always() }}
         with:
           name: test-results-${{ matrix.os }}-${{ matrix.arch }}
