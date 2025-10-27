@@ -1780,6 +1780,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				// close the evita
 				evita.close();
 
+				log.info("Re-initializing evita to verify persistence of data.");
+
 				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
 					restartedEvita.waitUntilFullyInitialized();
 
@@ -1787,6 +1789,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
 						"Catalog should be loaded from the disk!"
 					);
+
+					log.info("evitaDB restarted and fully initialized");
 
 					catalogChecker.accept(restartedEvita, expectedLastVersion, TEST_CATALOG);
 
@@ -1816,7 +1820,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 									}
 									// connect to it and check existence of the first record
 									catalogChecker.accept(restartedEvita, record.catalogVersion(), restoredCatalogName);
+
+									// drop the restored catalog
+									restartedEvita.deleteCatalogIfExists(restoredCatalogName);
 								} catch (Exception e) {
+									log.error("Exception thrown during backup & restore test!", e);
 									throw new RuntimeException(e);
 								}
 							}
@@ -1827,11 +1835,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				log.error("Exception thrown within test!", ex);
 				fail(ex);
 			} finally {
+				log.info("Closing evita instance (state is {}).", evita.isActive() ? "active" : "closed");
 				if (evita.isActive()) {
 					evita.close();
 				}
 			}
 		} finally {
+			log.info("Cleaning test directories.");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		}
