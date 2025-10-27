@@ -138,7 +138,7 @@
 		<lombok.version>1.18.42</lombok.version>
 		<grpc.version>1.75.0</grpc.version>
 		<bouncyCastle.version>1.82</bouncyCastle.version>
-		<swagger.version>2.2.38</swagger.version>
+		<swagger.version>2.2.39</swagger.version>
 		<armeria.version>1.33.4</armeria.version>
 		<!-- we should keep this in sync with armeria -->
 		<netty.version>4.2.6.Final</netty.version>
