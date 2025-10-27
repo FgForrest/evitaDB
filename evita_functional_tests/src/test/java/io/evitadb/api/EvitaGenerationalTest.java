@@ -84,8 +84,8 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 * Count of the product that will exist in the database BEFORE the test starts.
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
-	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
-	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
+	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
+	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
 	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
 	 */
@@ -253,6 +253,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		assertNotNull(this.evita);
 	}

@@ -284,6 +284,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private final ReentrantLock bootstrapWriteLock = new ReentrantLock();
 	/**
+	 * This lock synchronizes the access to the write ahead log file.
+	 */
+	private final ReentrantLock walWriteLock = new ReentrantLock();
+	/**
 	 * Scheduled executor service is used for planning maintenance tasks on the data level.
 	 */
 	@Nonnull private final Scheduler scheduler;
@@ -1707,28 +1711,33 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
-		try (walReference) {
-			if (this.catalogWal == null) {
-				final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
-				this.catalogWal = getCatalogWriteAheadLog(
-					this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
-					this.catalogStoragePath, catalogHeader, this.walKryoPool,
-					this.storageOptions, this.transactionOptions, this.scheduler,
-					this::trimBootstrapFile,
-					this.obsoleteFileMaintainer::createWalPurgeCallback
+		this.walWriteLock.lock();
+		try {
+			try (walReference) {
+				if (this.catalogWal == null) {
+					final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
+					this.catalogWal = getCatalogWriteAheadLog(
+						this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
+						this.catalogStoragePath, catalogHeader, this.walKryoPool,
+						this.storageOptions, this.transactionOptions, this.scheduler,
+						this::trimBootstrapFile,
+						this.obsoleteFileMaintainer::createWalPurgeCallback
+					);
+				}
+				Assert.isPremiseValid(
+					walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
+					"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
 				);
-			}
-			Assert.isPremiseValid(
-				walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
-				"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
-			);
-			Assert.isPremiseValid(
-				this.catalogWal != null,
-				"Catalog WAL is unexpectedly not present!"
-			);
+				Assert.isPremiseValid(
+					this.catalogWal != null,
+					"Catalog WAL is unexpectedly not present!"
+				);
 
-			return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
-			              .recordLength();
+				return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
+					.recordLength();
+			}
+		} finally {
+			this.walWriteLock.unlock();
 		}
 	}
 
@@ -2351,7 +2360,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			this.closed = true;
 			// close WAL
 			if (this.catalogWal != null) {
-				IOUtils.closeQuietly(this.catalogWal::close);
+				this.walWriteLock.lock();
+				try {
+					IOUtils.closeQuietly(this.catalogWal::close);
+				} finally {
+					this.walWriteLock.unlock();
+				}
 			}
 			// close all services
 			IOUtils.closeQuietly(
