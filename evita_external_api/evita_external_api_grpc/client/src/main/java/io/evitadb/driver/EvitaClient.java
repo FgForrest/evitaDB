@@ -975,8 +975,11 @@ public class EvitaClient implements EvitaContract {
 			this.activePublishers.forEach((key, it) -> IOUtils.closeSafely(it::close));
 			this.activeSessions.values().forEach(it -> IOUtils.closeSafely(it::close));
 			this.activeSessions.clear();
-			IOUtils.closeSafely(this.management::close);
-			IOUtils.closeSafely(this.clientFactory::close);
+			this.executor.shutdownNow();
+			IOUtils.closeSafely(
+				this.management::close,
+				this.clientFactory::close
+			);
 		}
 	}
 
