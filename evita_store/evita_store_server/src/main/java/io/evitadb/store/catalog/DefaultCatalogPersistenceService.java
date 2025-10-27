@@ -102,6 +102,7 @@ import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.HeaderInfoSupplier;
@@ -1718,28 +1719,31 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		this.walWriteLock.lock();
 		try {
-		try (walReference) {
-			if (this.catalogWal == null) {
-				final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
-				this.catalogWal = getCatalogWriteAheadLog(
-					this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
-					this.catalogStoragePath, catalogHeader, this.walKryoPool,
-					this.storageOptions, this.transactionOptions, this.scheduler,
-					this::trimBootstrapFile,
-					this.obsoleteFileMaintainer::createWalPurgeCallback
+			try (walReference) {
+				if (this.catalogWal == null) {
+					final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
+					this.catalogWal = getCatalogWriteAheadLog(
+						this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
+						this.catalogStoragePath, catalogHeader, this.walKryoPool,
+						this.storageOptions, this.transactionOptions, this.scheduler,
+						this::trimBootstrapFile,
+						this.obsoleteFileMaintainer::createWalPurgeCallback
+					);
+				}
+				Assert.isPremiseValid(
+					walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
+					"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
 				);
-			}
-			Assert.isPremiseValid(
-				walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
-				"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
-			);
-			Assert.isPremiseValid(
-				this.catalogWal != null,
-				"Catalog WAL is unexpectedly not present!"
-			);
+				Assert.isPremiseValid(
+					this.catalogWal != null,
+					"Catalog WAL is unexpectedly not present!"
+				);
 
-			return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
-			              .recordLength();
+				return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
+					.recordLength();
+			}
+		} finally {
+			this.walWriteLock.unlock();
 		}
 		} finally {
 			this.walWriteLock.unlock();

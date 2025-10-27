@@ -71,6 +71,7 @@ import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -97,7 +98,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	};
 	private static final String TEST_FOLDER = "offsetIndexTest";
 	private static final String TEST_FOLDER_EXPORT = "offsetIndexTest_export";
-	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
+	private final Path targetFile = Files.createTempFile("fileOffsetIndex", "kryo");
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 
 	/**
@@ -112,6 +113,9 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		return Stream.of(OffsetIndexTest.Crc32Check.values())
 			.flatMap(crc32Check -> Stream.of(OffsetIndexTest.Compression.values())
 				.map(compression -> Arguments.of(crc32Check, compression)));
+	}
+
+	OffsetIndexTest() throws IOException {
 	}
 
 	/**

@@ -58,6 +58,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -318,6 +319,14 @@ public class EngineTransactionManager implements Closeable {
 	 * underlying persistence service is properly closed to prevent resource leaks.
 	 */
 	public void close() {
+		// wait for all engine level tasks to complete
+		CompletableFuture.allOf(
+			this.currentCatalogMutations.values()
+				.stream()
+				.map(it -> it.onCompletion().toCompletableFuture())
+				.toArray(CompletableFuture[]::new)
+		);
+		// close the engine executor
 		IOUtils.closeQuietly(
 			this.changeObserver::close,
 			this.enginePersistenceService::close
