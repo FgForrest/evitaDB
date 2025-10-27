@@ -28,12 +28,14 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher.ClientSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.Closeable;
 import java.util.UUID;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
@@ -227,6 +229,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		if (this.closed.compareAndSet(false, true)) {
 			// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
 			this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
+		}
+		if (this.delegate instanceof Closeable closeable) {
+			IOUtils.closeQuietly(closeable::close);
 		}
 	}
 
