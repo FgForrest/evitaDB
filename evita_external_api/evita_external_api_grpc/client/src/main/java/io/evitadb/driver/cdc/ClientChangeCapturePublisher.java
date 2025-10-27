@@ -280,6 +280,10 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * exception that will be executed when the queue is depleted, after this fact - subscriber is closed.
 		 */
 		private final AtomicReference<Throwable> walkingDead = new AtomicReference<>(null);
+		/**
+		 * Flag indicating whether the subscription has been cancelled.
+		 */
+		private final AtomicBoolean cancelled = new AtomicBoolean(false);
 
 		/**
 		 * Creates a new subscription for the specified subscriber.
@@ -325,10 +329,14 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 */
 		@Override
 		public void cancel() {
-			// close the internal subscriber
-			IOUtils.closeSafely(this.internalSubscriber::close);
-			// notify the publisher that this subscription is closed
-			this.onCloseCallback.accept(this);
+			if (this.cancelled.compareAndSet(false, true)) {
+				log.debug("Cancelling subscription with id {}", this.id);
+				// close the internal subscriber
+				IOUtils.closeSafely(this.internalSubscriber::close);
+				// notify the publisher that this subscription is closed
+				this.onCloseCallback.accept(this);
+
+			}
 		}
 
 		/**
