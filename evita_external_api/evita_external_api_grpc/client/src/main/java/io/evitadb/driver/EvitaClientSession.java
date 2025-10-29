@@ -525,15 +525,26 @@ public class EvitaClientSession implements EvitaSessionContract {
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
 						this.executor,
-						subscriber -> executeWithAsyncEvitaSessionService(
-							evitaService -> {
+						subscriber -> {
+							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
-									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest((ChangeCatalogCaptureRequest)theRequest),
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(
+										(ChangeCatalogCaptureRequest) theRequest),
 									subscriber
 								);
 								return null;
+							};
+							if (this.isActive()) {
+								executeWithAsyncEvitaSessionService(callFunction);
+							} else {
+								// when current session is no longer active, create new one
+								final EvitaClientSession session = this.evita.createSession(
+									new SessionTraits(this.catalogName)
+								);
+								// and register the change capture on it
+								session.executeWithAsyncEvitaSessionService(callFunction);
 							}
-						),
+						},
 						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
 					) : existingInstance
 		);

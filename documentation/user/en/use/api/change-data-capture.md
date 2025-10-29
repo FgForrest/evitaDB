@@ -114,6 +114,7 @@ Example of setting up the engine change capture in Java:
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture.java)
+
 </SourceCodeTabs>
 
 The subscriber will start receiving change events as soon as they occur in the engine. Subscriber `onComplete` method is never called since the change stream is infinite.
@@ -123,6 +124,8 @@ The subscriber will start receiving change events as soon as they occur in the e
 Currently, multiple engine mutations cannot be wrapped into a single transaction. Each engine operation is represented by a separate transaction mutation. So you can expect that the engine mutation stream will always contain transaction mutation, followed by a single top level engine mutation.
 
 </Note>
+
+</LS>
 
 ## Catalog change capture
 
@@ -214,11 +217,32 @@ Schema capture area tracks changes to the catalog schema and entity schemas. Thi
 
 The schema area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SchemaSite.java</SourceClass> for filtering, which allows you to specify:
 
-- `entityType` - filter by specific entity type name
-- `operation` - filter by operation type (UPSERT, REMOVE)
-- `containerType` - filter by container type (e.g., ATTRIBUTE, REFERENCE, ASSOCIATED_DATA)
-
-Schema area is separate from data area because schema changes are typically less frequent but more critical, requiring different handling and potentially different downstream processing than regular data changes.
+<dl>
+  <dt>String <code>entityType</code> (optional)</dt>
+  <dd>
+    Filter by specific entity type name. If not specified, changes to all entity types are captured.
+  </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] <code>operation</code> (optional)</dt>
+  <dd>
+    Filter by operation type. If not specified, all operations are captured. Possible values:
+    <ul>
+      <li><code>UPSERT</code> - Create or update operation</li>
+      <li><code>REMOVE</code> - Remove operation</li>
+    </ul>
+  </dd>
+  <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] <code>containerType</code> (optional)</dt>
+  <dd>
+    Filter by container type. If not specified, changes to all container types are captured. Possible values:
+    <ul>
+      <li><code>CATALOG</code> - Catalog-level schema changes</li>
+      <li><code>ENTITY</code> - Entity schema changes</li>
+      <li><code>ATTRIBUTE</code> - Attribute schema changes</li>
+      <li><code>ASSOCIATED_DATA</code> - Associated data schema changes</li>
+      <li><code>PRICE</code> - Price schema changes</li>
+      <li><code>REFERENCE</code> - Reference schema changes</li>
+    </ul>
+  </dd>
+</dl>
 
 #### Data capture area
 
@@ -230,13 +254,39 @@ Data capture area tracks changes to entity data within the catalog. This include
 
 The data area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/DataSite.java</SourceClass> for filtering, which allows you to specify:
 
-- `entityType` - filter by specific entity type name
-- `entityPrimaryKey` - filter by specific entity primary key
-- `operation` - filter by operation type (UPSERT, REMOVE)
-- `containerType` - filter by container type (e.g., ATTRIBUTE, REFERENCE, ASSOCIATED_DATA)
-- `containerName` - filter by specific container name (e.g., specific attribute name)
-
-Data area is separate because data changes are typically much more frequent than schema changes, and clients often need to react to data changes in real-time while treating schema changes as exceptional events that require special handling.
+<dl>
+  <dt>String <code>entityType</code> (optional)</dt>
+  <dd>
+    Filter by specific entity type name. If not specified, changes to all entity types are captured.
+  </dd>
+  <dt>Integer <code>entityPrimaryKey</code> (optional)</dt>
+  <dd>
+    Filter by specific entity primary key. If not specified, changes to all entities are captured.
+  </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] <code>operation</code> (optional)</dt>
+  <dd>
+    Filter by operation type. If not specified, all operations are captured. Possible values:
+    <ul>
+      <li><code>UPSERT</code> - Create or update operation</li>
+      <li><code>REMOVE</code> - Remove operation</li>
+    </ul>
+  </dd>
+  <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] <code>containerType</code> (optional)</dt>
+  <dd>
+    Filter by container type. If not specified, changes to all container types are captured. Possible values:
+    <ul>
+      <li><code>ENTITY</code> - Entity-level changes</li>
+      <li><code>ATTRIBUTE</code> - Attribute value changes</li>
+      <li><code>ASSOCIATED_DATA</code> - Associated data value changes</li>
+      <li><code>PRICE</code> - Price changes</li>
+      <li><code>REFERENCE</code> - Reference changes</li>
+    </ul>
+  </dd>
+  <dt>String[] <code>containerName</code> (optional)</dt>
+  <dd>
+    Filter by specific container name (e.g., specific attribute name like `name`, `code`). If not specified, changes to all containers are captured.
+  </dd>
+</dl>
 
 #### Infrastructure capture area
 
@@ -245,38 +295,40 @@ Infrastructure capture area tracks transaction-related and other infrastructural
 - Transaction delimiting operations
 - System-level operations
 
-Infrastructure area does not use any capture site for filtering - it captures all infrastructure mutations. This area exists separately because transaction boundaries and system operations are orthogonal to both schema and data changes, and clients may need to track transaction boundaries independently for proper event grouping and consistency guarantees.
+Infrastructure area does not use any capture site for filtering — currently, it captures all infrastructure mutations represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
+
+<dl>
+  <dt>No filtering parameters</dt>
+  <dd>
+    Infrastructure area captures all transaction and system-level mutations without any filtering options. To capture infrastructure mutations, specify <code>CaptureArea.INFRASTRUCTURE</code> in your criteria without a capture site.
+  </dd>
+</dl>
+
+This area exists separately because transaction boundaries and system operations are orthogonal to both schema and data changes, and clients may need to track transaction boundaries independently for proper event grouping and consistency guarantees.
 
 ### How to set up a new catalog change capture
 
-Setting up catalog change capture differs from engine change capture in that it operates on the catalog level and provides access to historical changes via a stream. The changes are retrieved through the session's `getMutationsHistory` method.
+Setting up catalog change capture differs from engine change capture in that it operates on the catalog level.
 
 <LS to="j">
 
 The setup consists of:
 
 1. Open a session (read-only or read-write) to the catalog
-2. Call `getMutationsHistory` with <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
+2. Call `registerChangeCatalogCapture` with <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
 3. Process the returned stream of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> events
 
 Example of retrieving catalog change history in Java:
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
-[Retrieving catalog change history](/documentation/user/en/use/api/example/catalog-change-capture.java)
+[Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture.java)
+
 </SourceCodeTabs>
-
-The stream returns changes in **reverse chronological order** (most recent first). Remember to close the stream after processing to release resources.
-
-<Note type="info">
-
-The `getMutationsHistory` method returns a stream of historical changes that have already occurred. This is different from engine change capture which uses a publisher/subscriber pattern for real-time change notifications. Both approaches serve different use cases: historical analysis vs. real-time reaction to changes.
-
-</Note>
 
 </LS>
 
-### Frequently asked questions regarding change capture mechanism
+### Frequently asked questions regarding a change capture mechanism
 
 <Note type="question">
 
@@ -289,6 +341,18 @@ The `getMutationsHistory` method returns a stream of historical changes that hav
 No - you can let it be garbage collected. The publisher is just a factory for creating subscribers. Once the subscriber is created and subscribed, it maintains its own state and connection to the engine. Reference to the subscriber is kept in the evitaDB (client) instance, which prevents it from being garbage collected as long as the instance is alive.
 
 You need to keep the reference to the publisher only if you plan to subscriber multiple subscribers to it.
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Do I need a valid session to subscribe to the catalog change capture?
+
+</NoteTitle>
+
+No, you need a session only to create the publisher. Once the publisher is created, subscribers can subscribe to it without an active session. The publisher opens up a dedicated session for each subscriber internally if the subscription is not created within an active session.
 
 </Note>
 
@@ -315,5 +379,3 @@ Publisher freezes the CDC request parameters (including the starting version) at
 If your subscriber class implements [AutoCloseable](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/AutoCloseable.html) interface, you can rely on the evitaDB (client) instance to automatically close it when the client instance is closed. Close will be automatically called when subscription is canceled or when the client instance is closed.
 
 </Note>
-
-</LS>
