@@ -1495,15 +1495,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		// register a new reference
 		final Cardinality schemaCardinality = referenceSchema.getCardinality();
-		final int currentReferenceCount = referenceBundle.count() + 1;
-		final boolean lowCardinality = schemaCardinality.getMax() < currentReferenceCount;
+		final boolean bundleContainsReference = referenceBundle.containsReferenceKey(referenceKey);
+		final int newReferenceCount = referenceBundle.count() + (bundleContainsReference ? 0 : 1);
+		final boolean lowCardinality = schemaCardinality.getMax() < newReferenceCount;
 		final boolean hasDuplicates = referenceMutationIndex.size() > 1;
 		final boolean duplicateMismatch = hasDuplicates && !schemaCardinality.allowsDuplicates();
 		if (lowCardinality || duplicateMismatch) {
 			if (!this.entitySchema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
 				throw new ReferenceCardinalityViolatedException(
 					this.entitySchema.getName(),
-					List.of(new CardinalityViolation(referenceName, schemaCardinality, currentReferenceCount, duplicateMismatch))
+					List.of(new CardinalityViolation(referenceName, schemaCardinality, newReferenceCount, duplicateMismatch))
 				);
 			} else {
 				// we need to promote the cardinality in all insert reference mutations
