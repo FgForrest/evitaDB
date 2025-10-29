@@ -39,6 +39,7 @@ import io.evitadb.store.spi.SessionSink;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
@@ -212,7 +213,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 			if (exportSessionSink != null) {
 				IOUtils.close(
 					() -> new UnexpectedIOException("Failed to close export session sink."),
-					(IOUtils.IOExceptionThrowingRunnable) exportSessionSink::close
+					(ExceptionThrowingRunnable) exportSessionSink::close
 				);
 			}
 		}

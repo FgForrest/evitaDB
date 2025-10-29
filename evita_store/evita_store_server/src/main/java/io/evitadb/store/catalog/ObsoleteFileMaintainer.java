@@ -224,15 +224,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	private long purgeObsoleteFiles() {
 		final long lastKnownMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
 		/* TOBEDONE JNO - this is only for debugging purposes, we should rely on events instead */
-		log.debug(
-			"Purging obsolete files - last known minimal active version: {}\nFiles waiting for removal:\n{}",
-			lastKnownMinimalActiveVersion,
-			this.maintainedFiles.stream()
-				.map(MaintainedFile::path)
-				.map(Path::toString)
-				.map(path -> "\t - " + path)
-				.collect(Collectors.joining("\n"))
-		);
+		if (!this.maintainedFiles.isEmpty()) {
+			log.info(
+				"Purging obsolete files - last known minimal active version: {}\nFiles waiting for removal:\n{}",
+				lastKnownMinimalActiveVersion,
+				this.maintainedFiles.stream()
+					.map(MaintainedFile::path)
+					.map(Path::toString)
+					.map(path -> "\t - " + path)
+					.collect(Collectors.joining("\n"))
+			);
+		}
 		final List<MaintainedFile> itemsToRemove = new LinkedList<>();
 		long newFirstCatalogVersion = 0L;
 		for (MaintainedFile maintainedFile : this.maintainedFiles) {

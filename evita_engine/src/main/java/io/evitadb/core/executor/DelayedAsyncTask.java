@@ -25,6 +25,7 @@ package io.evitadb.core.executor;
 
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -147,6 +148,7 @@ public class DelayedAsyncTask implements Closeable {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void scheduleImmediately() {
+		assertNotClosed();
 		final OffsetDateTime now = OffsetDateTime.now();
 		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
 			scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
@@ -162,6 +164,8 @@ public class DelayedAsyncTask implements Closeable {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void schedule() {
+		assertNotClosed();
+
 		if (this.delay == Long.MAX_VALUE) {
 			// the task is manual task and will never be scheduled
 			return;
@@ -191,6 +195,20 @@ public class DelayedAsyncTask implements Closeable {
 			}
 			// release the lambda to allow garbage collection
 			this.lambda.set(null);
+			this.nextPlannedExecution.set(OffsetDateTime.MIN);
+		}
+	}
+
+	/**
+	 * Ensures that the task is not closed before proceeding with its execution or scheduling.
+	 * If the task is already marked as closed, this method throws a GenericEvitaInternalError
+	 * to indicate that the operation cannot be performed on a closed task.
+	 *
+	 * @throws GenericEvitaInternalError if the task is marked as closed
+	 */
+	private void assertNotClosed() {
+		if (this.closed.get()) {
+			throw new GenericEvitaInternalError("Cannot schedule task `" + this.taskName + "` that has been closed.");
 		}
 	}
 
@@ -223,8 +241,9 @@ public class DelayedAsyncTask implements Closeable {
 		if (lastFinishedExecutionTime.equals(OffsetDateTime.MIN)) {
 			return 0;
 		} else {
-			return Math.max(0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant()
-			                                                                                     .toEpochMilli())
+			return Math.max(
+				0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant()
+					.toEpochMilli())
 			);
 		}
 	}
