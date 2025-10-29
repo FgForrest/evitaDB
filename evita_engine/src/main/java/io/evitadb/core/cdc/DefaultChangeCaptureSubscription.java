@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.BiLongConsumer;
 import io.evitadb.function.TriConsumer;
+import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -223,8 +224,10 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		if (this.finished.compareAndSet(false, true)) {
 			// Clear the queue to release memory
 			this.queue.clear();
-			this.subscriber.onComplete();
 			this.onCancellation.accept(this.subscriptionId);
+			if (this.subscriber instanceof AutoCloseable closeable) {
+				IOUtils.closeQuietly(closeable::close);
+			}
 		}
 	}
 
