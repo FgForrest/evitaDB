@@ -39,6 +39,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongSupplier;
 
 /**
@@ -111,6 +112,10 @@ public class DelayedAsyncTask implements Closeable {
 	 * The flag indicating whether the task has been closed. Closed task cannot be scheduled anymore.
 	 */
 	private final AtomicBoolean closed = new AtomicBoolean();
+	/**
+	 * Lock for scheduling to ensure thread-safety.
+	 */
+	private final ReentrantLock schedulingLock = new ReentrantLock();
 
 	public DelayedAsyncTask(
 		@Nullable String catalogName,
@@ -149,12 +154,17 @@ public class DelayedAsyncTask implements Closeable {
 	 */
 	public void scheduleImmediately() {
 		assertNotClosed();
-		final OffsetDateTime now = OffsetDateTime.now();
-		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
-			scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
-		} else if (this.running.get()) {
-			// if this task is currently running, we need to schedule it again after it finishes
-			this.reSchedule.set(true);
+		this.schedulingLock.lock();
+		try {
+			final OffsetDateTime now = OffsetDateTime.now();
+			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
+				scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
+			} else if (this.running.get()) {
+				// if this task is currently running, we need to schedule it again after it finishes
+				this.reSchedule.set(true);
+			}
+		} finally {
+			this.schedulingLock.unlock();
 		}
 	}
 
@@ -166,36 +176,46 @@ public class DelayedAsyncTask implements Closeable {
 	public void schedule() {
 		assertNotClosed();
 
-		if (this.delay == Long.MAX_VALUE) {
-			// the task is manual task and will never be scheduled
-			return;
-		}
+		this.schedulingLock.lock();
+		try {
+			if (this.delay == Long.MAX_VALUE) {
+				// the task is manual task and will never be scheduled
+				return;
+			}
 
-		final OffsetDateTime now = OffsetDateTime.now();
-		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
-		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
-			final long nowMillis = now.toInstant().toEpochMilli();
-			final long computedDelay = Math.max(
-				nextTick.toInstant().toEpochMilli() - nowMillis,
-				computeMinimalSchedulingGap(nowMillis)
-			);
-			scheduleTask(computedDelay);
-		} else if (this.running.get()) {
-			// if this task is currently running, we need to schedule it again after it finishes
-			this.reSchedule.set(true);
+			final OffsetDateTime now = OffsetDateTime.now();
+			final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
+			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+				final long nowMillis = now.toInstant().toEpochMilli();
+				final long computedDelay = Math.max(
+					nextTick.toInstant().toEpochMilli() - nowMillis,
+					computeMinimalSchedulingGap(nowMillis)
+				);
+				scheduleTask(computedDelay);
+			} else if (this.running.get()) {
+				// if this task is currently running, we need to schedule it again after it finishes
+				this.reSchedule.set(true);
+			}
+		} finally {
+			this.schedulingLock.unlock();
 		}
 	}
 
 	@Override
 	public void close() throws IOException {
 		if (this.closed.compareAndSet(false, true)) {
-			final ScheduledFuture<?> future = this.scheduledFuture.getAndSet(null);
-			if (future != null && !future.isDone()) {
-				future.cancel(false);
+			this.schedulingLock.lock();
+			try {
+				final ScheduledFuture<?> future = this.scheduledFuture.getAndSet(null);
+				if (future != null && !future.isDone()) {
+					future.cancel(false);
+				}
+				// release the lambda to allow garbage collection
+				this.lambda.set(null);
+				this.nextPlannedExecution.set(OffsetDateTime.MIN);
+			} finally {
+				this.schedulingLock.unlock();
 			}
-			// release the lambda to allow garbage collection
-			this.lambda.set(null);
-			this.nextPlannedExecution.set(OffsetDateTime.MIN);
 		}
 	}
 
