@@ -59,7 +59,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
-import io.evitadb.utils.IOUtils.IOExceptionThrowingRunnable;
+import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -1494,7 +1494,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 							firstVersionToBeKept = pendingRemoval.version();
 						}
 						toRemove.add(pendingRemoval);
-					} catch (IOException ex) {
+					} catch (Exception ex) {
 						// failed to remove the file, we will try again later and continue with the next one
 						AbstractMutationLog.log.error(ex.getMessage(), ex);
 					}
@@ -1922,7 +1922,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	protected record PendingRemoval(
 		long version,
-		@Nonnull IOExceptionThrowingRunnable removeLambda
+		@Nonnull ExceptionThrowingRunnable removeLambda
 	) {
 
 		@Override
