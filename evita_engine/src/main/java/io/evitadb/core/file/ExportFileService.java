@@ -494,24 +494,30 @@ public class ExportFileService implements Closeable {
 			log.error("Failed to list files in the directory: {}", this.storageOptions.exportDirectory(), e);
 		}
 
-		// then check the size of the directory and delete oldest files until the directory size is below the limit
-		final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
-		// delete the oldest files until the directory size is below the limit
-		if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
-			final List<FileForFetch> filesByCreationDate = this.files.stream()
-				.sorted(Comparator.comparing(FileForFetch::created))
-				.toList();
-			long savedSize = 0L;
-			for (FileForFetch it : filesByCreationDate) {
-				log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-				final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory()).toFile().length();
-				deleteFile(it.fileId());
-				savedSize += it.totalSizeInBytes() + metadataFileSize;
-				// finish removing files if the directory size is below the limit
-				if (directorySize - savedSize <= this.storageOptions.exportDirectorySizeLimitBytes()) {
-					break;
+		try {
+			// then check the size of the directory and delete oldest files until the directory size is below the limit
+			final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
+			// delete the oldest files until the directory size is below the limit
+			if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
+				final List<FileForFetch> filesByCreationDate = this.files.stream()
+					.sorted(Comparator.comparing(FileForFetch::created))
+					.toList();
+				long savedSize = 0L;
+				for (FileForFetch it : filesByCreationDate) {
+					log.info("Purging the oldest file, because the export directory grew too big: {}", it);
+					final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory())
+						.toFile()
+						.length();
+					deleteFile(it.fileId());
+					savedSize += it.totalSizeInBytes() + metadataFileSize;
+					// finish removing files if the directory size is below the limit
+					if (directorySize - savedSize <= this.storageOptions.exportDirectorySizeLimitBytes()) {
+						break;
+					}
 				}
 			}
+		} catch (UnexpectedIOException e) {
+			log.error("Failed to calculate size of the directory: {}", this.storageOptions.exportDirectory(), e);
 		}
 	}
 

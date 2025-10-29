@@ -27,6 +27,7 @@ package io.evitadb.utils;
 import io.evitadb.exception.FolderAlreadyUsedException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -115,8 +116,8 @@ public class FolderLock implements Closeable {
 				"Failed to release and close the lock file " + this.lockFilePath + ".",
 				"Failed to release and close the lock file."
 			),
-			(IOUtils.IOExceptionThrowingRunnable) this.lockFileLock::release,
-			(IOUtils.IOExceptionThrowingRunnable) this.lockFileChannel::close
+			(ExceptionThrowingRunnable) this.lockFileLock::release,
+			(ExceptionThrowingRunnable) this.lockFileChannel::close
 		);
 		FileUtils.deleteFileIfExists(this.lockFilePath);
 		ACQUIRED_LOCKS.remove(this.lockFilePath.toAbsolutePath().toString());
