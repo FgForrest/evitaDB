@@ -35,7 +35,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.Closeable;
 import java.util.UUID;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
@@ -230,7 +229,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
 			this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
 		}
-		if (this.delegate instanceof Closeable closeable) {
+		if (this.delegate instanceof AutoCloseable closeable) {
 			IOUtils.closeQuietly(closeable::close);
 		}
 	}

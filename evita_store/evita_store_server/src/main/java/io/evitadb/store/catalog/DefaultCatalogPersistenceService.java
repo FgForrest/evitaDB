@@ -1186,6 +1186,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+
 		final long catalogVersion = this.bootstrapUsed.catalogVersion();
 		this.catalogWal = createWalIfAnyWalFilePresent(
 			catalogVersion, catalogName, this.walFileNameProvider,
@@ -1198,34 +1199,35 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
 			() -> CatalogOffsetIndexStoragePartPersistenceService.create(
 				this.catalogName,
-			catalogFilePath,
-			this.storageOptions,
-			this.transactionOptions,
-			this.bootstrapUsed,
-			this.recordTypeRegistry,
-			this.offHeapMemoryManager,
-			this.observableOutputKeeper,
-			VERSIONED_KRYO_FACTORY,
-			nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+				catalogFilePath,
+				this.storageOptions,
+				this.transactionOptions,
+				this.bootstrapUsed,
+				this.recordTypeRegistry,
+				this.offHeapMemoryManager,
+				this.observableOutputKeeper,
+				VERSIONED_KRYO_FACTORY,
+				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
 				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			),
 			this.bootstrapUsed.catalogVersion()
 		);
+
 		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
 			throw new StoredProtocolVersionNotSupportedException(
 				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
 			);
 		}
+
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
 			catalogStoragePartPersistenceService
 		);
 		this.catalogPersistenceServiceVersions = new long[]{catalogVersion};
 		this.warmUpVersionCardinality = catalogVersion == 0 ? 1 : 0;
-
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			catalogStoragePartPersistenceService.getCatalogHeader(catalogVersion).getEntityTypeFileIndexes().size()
-			);
+		);
 
 		try {
 			verifyCatalogNameMatches(catalogVersion, this.catalogStoragePath, catalogStoragePartPersistenceService);
@@ -2815,6 +2817,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			)
 		);
 	}
+
 	/**
 	 * Method stores solely the {@link CatalogBootstrap} record to the catalog bootstrap file. You probably want to use
 	 * more high-level method {@link #recordBootstrap(long, String, int, long, DataStoreMemoryBuffer)} or

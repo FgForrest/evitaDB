@@ -335,7 +335,6 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 				IOUtils.closeSafely(this.internalSubscriber::close);
 				// notify the publisher that this subscription is closed
 				this.onCloseCallback.accept(this);
-
 			}
 		}
 
