@@ -97,6 +97,10 @@ public class ExportFileService implements Closeable {
 	 * List of reserved temporary files that won't be purged automatically.
 	 */
 	private final CopyOnWriteArrayList<Path> reservedFiles = new CopyOnWriteArrayList<>();
+	/**
+	 * Task that periodically purges old files from the storage.
+	 */
+	private final DelayedAsyncTask purgeTask;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -164,13 +168,14 @@ public class ExportFileService implements Closeable {
 		this.folderLock = new FolderLock(this.storageOptions.exportDirectory());
 		this.reservedFiles.add(this.folderLock.lockFilePath());
 		// schedule automatic purging task
-		new DelayedAsyncTask(
+		this.purgeTask = new DelayedAsyncTask(
 			null,
 			"Export file service purging task",
 			scheduler,
 			this::purgeFiles,
 			5, TimeUnit.MINUTES
-		).schedule();
+		);
+		this.purgeTask.schedule();
 	}
 
 	/**
@@ -428,10 +433,15 @@ public class ExportFileService implements Closeable {
 	 */
 	@Override
 	public void close() {
+		// stop purging task
+		IOUtils.closeQuietly(this.purgeTask::close);
+		// delete reserved files
 		for (Path reservedFile : this.reservedFiles) {
 			FileUtils.deleteFileIfExists(reservedFile);
 		}
+		// purge old files
 		purgeFiles();
+		// release folder lock
 		IOUtils.close(
 			() -> new UnexpectedIOException(
 				"Failed to close the folder lock: " + this.folderLock,
