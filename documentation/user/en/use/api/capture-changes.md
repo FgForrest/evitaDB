@@ -54,11 +54,11 @@ The engine-level capture stream accepts <SourceClass>evita_api/src/main/java/io/
 Request allows you to specify the following parameters:
 
 <dl>
-  <dt>long <code>sinceVersion</code> (optional)</dt>
+  <dt>long `sinceVersion` (optional)</dt>
   <dd>
     The catalog version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalog (i.e. the changes made to the catalog in the future).
   </dd>
-  <dt>int <code>sinceIndex</code> (optional)</dt>
+  <dt>int `sinceIndex` (optional)</dt>
   <dd>
     The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. Index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
   </dd>
@@ -66,8 +66,8 @@ Request allows you to specify the following parameters:
   <dd>
     Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that particular type of the mutation occurred. Enumeration has the following values:
     <ul>
-        <li><code>HEADER</code> - only the header of the event is sent
-        <li><code>BODY</code> - the entire body of the mutation triggering the event is sent
+        <li>`HEADER` - only the header of the event is sent
+        <li>`BODY` - the entire body of the mutation triggering the event is sent
     </ul>
   </dd>
 </dl>
@@ -76,24 +76,24 @@ Engine capture events are represented by <SourceClass>evita_api/src/main/java/io
 <SourceClass></SourceClass>
 
 <dl>
-  <dt>long <code>version</code></dt>
+  <dt>long `version`</dt>
   <dd>
     The version of the evitaDB where the mutation occurs.
   </dd>
-  <dt>int <code>index</code></dt>
+  <dt>int `index`</dt>
   <dd>
     The index of the mutation within the same transaction. Index `0` is always infrastructure mutations of type <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
   </dd>
-  <dt><code>operation</code></dt>
+  <dt>`operation`</dt>
   <dd>
     Classification of the mutation defined by enumeration:
     <ul>
-        <li><code>UPSERT</code> - Create or update operation. If there was data with such identity before, it was updated. If not, it was created.</li>
-        <li><code>REMOVE</code> - Remove operation - i.e. there was data with such identity before, and it was removed.</li>
-        <li><code>TRANSACTION</code> - Delimiting operation signaling the beginning of a transaction.</li>
+        <li>`UPSERT` - Create or update operation. If there was data with such identity before, it was updated. If not, it was created.</li>
+        <li>`REMOVE` - Remove operation - i.e. there was data with such identity before, and it was removed.</li>
+        <li>`TRANSACTION` - Delimiting operation signaling the beginning of a transaction.</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> <code>body</code> (optional)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> `body` (optional)</dt>
   <dd>
     Optional body of the operation when it is requested by the requested <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
   </dd>
@@ -134,28 +134,28 @@ The catalog-level capture stream accepts <SourceClass>evita_api/src/main/java/io
 Request allows you to specify the following parameters:
 
 <dl>
-  <dt>long <code>sinceVersion</code> (optional)</dt>
+  <dt>long `sinceVersion` (optional)</dt>
   <dd>
     The catalog version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalog (i.e. the changes made to the catalog in the future).
   </dd>
-  <dt>int <code>sinceIndex</code> (optional)</dt>
+  <dt>int `sinceIndex` (optional)</dt>
   <dd>
     The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. Index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureCriteria.java</SourceClass>[] <code>criteria</code> (optional)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureCriteria.java</SourceClass>[] `criteria` (optional)</dt>
   <dd>
     Array of criteria that specify which changes you are interested in. If not specified, all changes are captured. If multiple criteria are specified, matching any of them is sufficient (OR logic). Each criterion consists of:
     <ul>
-        <li><code>area</code> - the capture area (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass>)
-        <li><code>site</code> - the capture site (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) providing fine-grained filtering
+        <li>`area` - the capture area (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass>)
+        <li>`site` - the capture site (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) providing fine-grained filtering
     </ul>
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass></dt>
   <dd>
     Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that particular type of the mutation occurred. Enumeration has the following values:
     <ul>
-        <li><code>HEADER</code> - only the header of the event is sent
-        <li><code>BODY</code> - the entire body of the mutation triggering the event is sent
+        <li>`HEADER` - only the header of the event is sent
+        <li>`BODY` - the entire body of the mutation triggering the event is sent
     </ul>
   </dd>
 </dl>
@@ -163,41 +163,41 @@ Request allows you to specify the following parameters:
 Catalog capture events are represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> instances that contain the following information:
 
 <dl>
-  <dt>long <code>version</code></dt>
+  <dt>long `version`</dt>
   <dd>
     The version of the catalog where the mutation occurs.
   </dd>
-  <dt>int <code>index</code></dt>
+  <dt>int `index`</dt>
   <dd>
     The index of the mutation within the same transaction. Index `0` is always infrastructure mutations of type <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass> <code>area</code></dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass> `area`</dt>
   <dd>
     The area of the operation that was performed:
     <ul>
-        <li><code>SCHEMA</code> - changes in the schema are captured</li>
-        <li><code>DATA</code> - changes in the data are captured</li>
-        <li><code>INFRASTRUCTURE</code> - infrastructural mutations that are neither schema nor data</li>
+        <li>`SCHEMA` - changes in the schema are captured</li>
+        <li>`DATA` - changes in the data are captured</li>
+        <li>`INFRASTRUCTURE` - infrastructural mutations that are neither schema nor data</li>
     </ul>
   </dd>
-  <dt>String <code>entityType</code> (optional)</dt>
+  <dt>String `entityType` (optional)</dt>
   <dd>
     The name of the entity type that was affected by the operation. This field is null when the operation is executed on the catalog schema itself.
   </dd>
-  <dt>Integer <code>entityPrimaryKey</code> (optional)</dt>
+  <dt>Integer `entityPrimaryKey` (optional)</dt>
   <dd>
     The primary key of the entity that was affected by the operation. Only present for data area operations.
   </dd>
-  <dt><code>operation</code></dt>
+  <dt>`operation`</dt>
   <dd>
     Classification of the mutation defined by enumeration:
     <ul>
-        <li><code>UPSERT</code> - Create or update operation. If there was data with such identity before, it was updated. If not, it was created.</li>
-        <li><code>REMOVE</code> - Remove operation - i.e. there was data with such identity before, and it was removed.</li>
-        <li><code>TRANSACTION</code> - Delimiting operation signaling the beginning of a transaction.</li>
+        <li>`UPSERT` - Create or update operation. If there was data with such identity before, it was updated. If not, it was created.</li>
+        <li>`REMOVE` - Remove operation - i.e. there was data with such identity before, and it was removed.</li>
+        <li>`TRANSACTION` - Delimiting operation signaling the beginning of a transaction.</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> <code>body</code> (optional)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> `body` (optional)</dt>
   <dd>
     Optional body of the operation when it is requested by the requested <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
   </dd>
@@ -218,28 +218,28 @@ Schema capture area tracks changes to the catalog schema and entity schemas. Thi
 The schema area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SchemaSite.java</SourceClass> for filtering, which allows you to specify:
 
 <dl>
-  <dt>String <code>entityType</code> (optional)</dt>
+  <dt>String `entityType` (optional)</dt>
   <dd>
     Filter by specific entity type name. If not specified, changes to all entity types are captured.
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] <code>operation</code> (optional)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] `operation` (optional)</dt>
   <dd>
     Filter by operation type. If not specified, all operations are captured. Possible values:
     <ul>
-      <li><code>UPSERT</code> - Create or update operation</li>
-      <li><code>REMOVE</code> - Remove operation</li>
+      <li>`UPSERT` - Create or update operation</li>
+      <li>`REMOVE` - Remove operation</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] <code>containerType</code> (optional)</dt>
+  <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] `containerType` (optional)</dt>
   <dd>
     Filter by container type. If not specified, changes to all container types are captured. Possible values:
     <ul>
-      <li><code>CATALOG</code> - Catalog-level schema changes</li>
-      <li><code>ENTITY</code> - Entity schema changes</li>
-      <li><code>ATTRIBUTE</code> - Attribute schema changes</li>
-      <li><code>ASSOCIATED_DATA</code> - Associated data schema changes</li>
-      <li><code>PRICE</code> - Price schema changes</li>
-      <li><code>REFERENCE</code> - Reference schema changes</li>
+      <li>`CATALOG` - Catalog-level schema changes</li>
+      <li>`ENTITY` - Entity schema changes</li>
+      <li>`ATTRIBUTE` - Attribute schema changes</li>
+      <li>`ASSOCIATED_DATA` - Associated data schema changes</li>
+      <li>`PRICE` - Price schema changes</li>
+      <li>`REFERENCE` - Reference schema changes</li>
     </ul>
   </dd>
 </dl>
@@ -255,34 +255,34 @@ Data capture area tracks changes to entity data within the catalog. This include
 The data area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/DataSite.java</SourceClass> for filtering, which allows you to specify:
 
 <dl>
-  <dt>String <code>entityType</code> (optional)</dt>
+  <dt>String `entityType` (optional)</dt>
   <dd>
     Filter by specific entity type name. If not specified, changes to all entity types are captured.
   </dd>
-  <dt>Integer <code>entityPrimaryKey</code> (optional)</dt>
+  <dt>Integer `entityPrimaryKey` (optional)</dt>
   <dd>
     Filter by specific entity primary key. If not specified, changes to all entities are captured.
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] <code>operation</code> (optional)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/Operation.java</SourceClass>[] `operation` (optional)</dt>
   <dd>
     Filter by operation type. If not specified, all operations are captured. Possible values:
     <ul>
-      <li><code>UPSERT</code> - Create or update operation</li>
-      <li><code>REMOVE</code> - Remove operation</li>
+      <li>`UPSERT` - Create or update operation</li>
+      <li>`REMOVE` - Remove operation</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] <code>containerType</code> (optional)</dt>
+  <dt><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ContainerType.java</SourceClass>[] `containerType` (optional)</dt>
   <dd>
     Filter by container type. If not specified, changes to all container types are captured. Possible values:
     <ul>
-      <li><code>ENTITY</code> - Entity-level changes</li>
-      <li><code>ATTRIBUTE</code> - Attribute value changes</li>
-      <li><code>ASSOCIATED_DATA</code> - Associated data value changes</li>
-      <li><code>PRICE</code> - Price changes</li>
-      <li><code>REFERENCE</code> - Reference changes</li>
+      <li>`ENTITY` - Entity-level changes</li>
+      <li>`ATTRIBUTE` - Attribute value changes</li>
+      <li>`ASSOCIATED_DATA` - Associated data value changes</li>
+      <li>`PRICE` - Price changes</li>
+      <li>`REFERENCE` - Reference changes</li>
     </ul>
   </dd>
-  <dt>String[] <code>containerName</code> (optional)</dt>
+  <dt>String[] `containerName` (optional)</dt>
   <dd>
     Filter by specific container name (e.g., specific attribute name like `name`, `code`). If not specified, changes to all containers are captured.
   </dd>
@@ -300,7 +300,7 @@ Infrastructure area does not use any capture site for filtering — currently, i
 <dl>
   <dt>No filtering parameters</dt>
   <dd>
-    Infrastructure area captures all transaction and system-level mutations without any filtering options. To capture infrastructure mutations, specify <code>CaptureArea.INFRASTRUCTURE</code> in your criteria without a capture site.
+    Infrastructure area captures all transaction and system-level mutations without any filtering options. To capture infrastructure mutations, specify `CaptureArea.INFRASTRUCTURE` in your criteria without a capture site.
   </dd>
 </dl>
 
