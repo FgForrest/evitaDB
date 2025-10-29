@@ -63,7 +63,7 @@ WAL files are a crucial part of the database and are used for the following:
 * applying a missed committed transaction to the indexes on the primary node (recovery after a crash).
 * change replication across multiple read nodes.
 * [point-in-time backup and restore (PITR)](../operate/backup-restore.md)
-* [change data capture (CDC)](../use/api/change-data-capture.md) — streaming changes to external systems
+* [change data capture (CDC)](../use/api/capture-changes.md) — streaming changes to external systems
 * auditing in evitaLab
 
 Up to this point, if an exception occurs, the transaction is effectively rolled back, but the world keeps spinning.

@@ -564,7 +564,7 @@ as a single page rendering or a single API call.
 Change data capture allows you to track changes happening in the database in near real-time. You can subscribe to changes
 happening to catalog schema or data changes happening to entities in specific catalogs. You can also observe top-level
 engine mutations such as catalog creation or removal. Feature is supported in all of your APIs — including web-based ones
-such as gRPC, REST and GraphQL. More details about this feature can be found in the [Change data capture](../use/api/change-data-capture.md) 
+such as gRPC, REST and GraphQL. More details about this feature can be found in the [Change data capture](../use/api/capture-changes.md) 
 chapter.
 
 ## Reference documentation
