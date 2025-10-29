@@ -66,8 +66,8 @@ Request allows you to specify the following parameters:
   <dd>
     Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that particular type of the mutation occurred. Enumeration has the following values:
     <ul>
-        <li>`HEADER` - only the header of the event is sent
-        <li>`BODY` - the entire body of the mutation triggering the event is sent
+        <li>`HEADER` - only the header of the event is sent</li>
+        <li>`BODY` - the entire body of the mutation triggering the event is sent</li>
     </ul>
   </dd>
 </dl>
@@ -146,16 +146,16 @@ Request allows you to specify the following parameters:
   <dd>
     Array of criteria that specify which changes you are interested in. If not specified, all changes are captured. If multiple criteria are specified, matching any of them is sufficient (OR logic). Each criterion consists of:
     <ul>
-        <li>`area` - the capture area (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass>)
-        <li>`site` - the capture site (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) providing fine-grained filtering
+        <li>`area` - the capture area (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureArea.java</SourceClass>)</li>
+        <li>`site` - the capture site (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) providing fine-grained filtering</li>
     </ul>
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass></dt>
   <dd>
     Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that particular type of the mutation occurred. Enumeration has the following values:
     <ul>
-        <li>`HEADER` - only the header of the event is sent
-        <li>`BODY` - the entire body of the mutation triggering the event is sent
+        <li>`HEADER` - only the header of the event is sent</li>
+        <li>`BODY` - the entire body of the mutation triggering the event is sent</li>
     </ul>
   </dd>
 </dl>
