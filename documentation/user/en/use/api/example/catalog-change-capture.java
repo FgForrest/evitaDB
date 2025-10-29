@@ -1,7 +1,7 @@
 // open a read-only session to access the catalog
 try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATALOG)) {
     // retrieve change history from the catalog
-    final Stream<ChangeCatalogCapture> changeStream = session.getMutationsHistory(
+    final ChangeCapturePublisher<ChangeCatalogCapture> changePublisher = session.registerChangeCatalogCapture(
         ChangeCatalogCaptureRequest.builder()
             // capture both schema and data changes
             .criteria(
@@ -19,15 +19,34 @@ try (final EvitaSessionContract session = evita.createReadOnlySession(TEST_CATAL
             .build()
     );
 
-    // process the change stream
-    changeStream.forEach(capture -> {
-        System.out.println(
-            "Catalog CDC event [version=" + capture.version() +
-            ", index=" + capture.index() +
-            ", area=" + capture.area() +
-            ", entityType=" + capture.entityType() +
-            ", operation=" + capture.operation() +
-            "]"
-        );
-    });
+    // subscribe one or more subscribers to the same publisher
+	changePublisher.subscribe(
+	    new Flow.Subscriber<>() {
+	        private Flow.Subscription subscription;
+
+	        @Override
+	        public void onSubscribe(Flow.Subscription subscription) {
+	            this.subscription = subscription;
+	            // request the first item
+	            subscription.request(1);
+	        }
+
+	        @Override
+	        public void onNext(ChangeSystemCapture item) {
+	            System.out.println("Catalog CDC event: " + item);
+	            // request the next item
+	            subscription.request(1);
+	        }
+
+	        @Override
+	        public void onError(Throwable throwable) {
+	            System.err.println("Error in catalog CDC subscription: " + throwable.getMessage());
+	        }
+
+	        @Override
+	        public void onComplete() {
+	            System.out.println("Catalog CDC subscription completed.");
+	        }
+	    }
+	);
 }

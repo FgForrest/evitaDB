@@ -1544,6 +1544,68 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRegisterChangeDataCaptureOutsideSession(EvitaClient evitaClient) {
+		final String newCollection = "newCollection";
+		final AtomicInteger productCount = new AtomicInteger();
+		final AtomicInteger productSchemaVersion = new AtomicInteger();
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertFalse(session.getAllEntityTypes().contains(newCollection));
+				productSchemaVersion.set(session.getEntitySchemaOrThrowException(Entities.PRODUCT).version());
+				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
+			}
+		);
+
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.criteria(
+							ChangeCatalogCaptureCriteria
+								.builder()
+								.schemaArea()
+								.build()
+						)
+						.build()
+				);
+			}
+		).subscribe(catalogSubscriber);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.renameCollection(
+					Entities.PRODUCT,
+					newCollection
+				);
+			}
+		);
+
+		assertEquals(1, catalogSubscriber.getEntityCollectionCreated(newCollection, 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT, 10, TimeUnit.SECONDS, 1));
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertTrue(session.getAllEntityTypes().contains(newCollection));
+				assertEquals(
+					productSchemaVersion.get() + 1, session.getEntitySchemaOrThrowException(newCollection).version());
+				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
+			}
+		);
+	}
+
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldUpdateCatalogWithAnotherProduct(EvitaContract evita, SealedEntitySchema productSchema) {

@@ -1708,6 +1708,54 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Tests is similar to test `shouldCreateAndReplaceCollectionInTransaction`, but it subscribes to the changes
+	 * outside the session where publisher was created.
+	 */
+	@Test
+	@DisplayName("Subscribe to change data capture outside session and drop entity collection in transaction")
+	void shouldBeAbleToRegisterChangeDataCaptureSubscriberOutsideSession() {
+		setupCatalogWithProductAndCategory();
+
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.goLiveAndClose();
+			}
+		);
+
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.build()
+				);
+			}
+		).subscribe(catalogSubscriber);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				session.deleteCollection(Entities.PRODUCT);
+			}
+		);
+
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT));
+
+		this.evita.queryCatalog(
+			TEST_CATALOG, session -> {
+				assertThrows(
+					CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
+				assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Tests that entity collections can be created and dropped within a transaction.
 	 *
 	 * The test verifies that:
