@@ -1147,7 +1147,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 	}
 
-	public DefaultCatalogPersistenceService(
+	private DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
 		@Nonnull DefaultCatalogPersistenceService formerService
 	) {
