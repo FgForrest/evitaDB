@@ -4,33 +4,33 @@ perex: |
     Change data capture (CDC) is a design pattern used to track and capture changes made to schema and data in a database. evitaDB supports CDC through all its APIs, allowing developers to monitor and respond to data changes very easily in near real-time in their preferred programming language. This document explains how to implement CDC using our API.
 date: '21.10.2025'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 preferredLang: 'java'
 ---
-Database maintains so-called [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging) that records all changes made to the database. This log is used to ensure data integrity and durability, but it can (and it actually is) also be leveraged to implement change data capture (CDC) functionality. Once the catalog is switched to `ACTIVE` (transactional) stage, clients can start consuming information about changes made to both the schema and the data in the catalog.
+The database maintains a so-called [Write-Ahead Log (WAL)](https://en.wikipedia.org/wiki/Write-ahead_logging) that records all changes made to the database. This log is used to ensure data integrity and durability, but it can (and actually is) also be leveraged to implement change data capture (CDC) functionality. Once the catalogue is switched to the `ACTIVE` (transactional) stage, clients can start consuming information about changes made to both the schema and the data in the catalogue.
 
-There is also a special CDC available for the entire database engine that allows clients to monitor high-level operations such as catalog creation, deletion, and other global events (for more details consult the [Control Engine chapter](control-engine.md)).
+There is also a special CDC available for the entire database engine that allows clients to monitor high-level operations such as catalogue creation, deletion, and other global events (for more details, consult the [Control Engine chapter](control-engine.md)).
 
 <Note type="warning">
 
-Change data capture is not available for catalogs in `WARMING_UP` stage since the WAL is not being recorded during that phase.
-This phase is considered as "introductory" and clients should not work (query) with the data in that phase anyway. Clients should wait until the catalog reaches `ACTIVE` stage and perceive all the data at that moment as a consistent snapshot of the first version of the catalog. 
+Change data capture is not available for catalogues in the `WARMING_UP` stage since the WAL is not being recorded during that phase.
+This phase is considered "introductory" and clients should not work (query) with the data in that phase anyway. Clients should wait until the catalogue reaches the `ACTIVE` stage and perceive all the data at that moment as a consistent snapshot of the first version of the catalogue. 
 
 </Note>
 
 <Note type="info">
 
-Engine and catalog-level CDCs cannot be combined into a single stream since they operate on different levels (engine vs. catalog). Catalog level CDC is always tied to particular catalog (name). If you'd need to capture all changes across all catalogs, you'd need to subscribe to engine-level CDC and then for each catalog separately to catalog-level CDC. The engine level CDC notifies about catalog creation/deletion events, so clients can dynamically subscribe/unsubscribe to catalog-level CDCs as catalogs are created/deleted.
+Engine and catalogue-level CDCs cannot be combined into a single stream since they operate on different levels (engine vs. catalogue). Catalogue-level CDC is always tied to a particular catalogue (name). If you need to capture all changes across all catalogues, you need to subscribe to engine-level CDC and then for each catalogue separately to catalogue-level CDC. The engine-level CDC notifies about catalogue creation/deletion events, so clients can dynamically subscribe/unsubscribe to catalogue-level CDCs as catalogues are created/deleted.
 
 </Note>
 
 The basic principle in all APIs is the same:
 
-1. clients define a predicate / condition that specifies which changes they are interested in,
-2. define a starting point in the form of a catalog version from which they want to start receiving changes,
+1. clients define a predicate/condition that specifies which changes they are interested in,
+2. define a starting point in the form of a catalogue version from which they want to start receiving changes,
 3. and subscribe to the change stream.
 
-From that point onward, clients will receive notifications about all changes that match their criteria. The changes are delivered in the order they were made, ensuring that clients can process them sequentially. The second step is optional — if no starting version is specified, the change stream will start from the current version of the catalog.
+From that point onwards, clients will receive notifications about all changes that match their criteria. The changes are delivered in the order they were made, ensuring that clients can process them sequentially. The second step is optional — if no starting version is specified, the change stream will start from the current version of the catalogue.
 
 ## Hierarchy of mutations
 
@@ -45,7 +45,7 @@ Not all mutations operate on the same level and some mutations may encapsulate o
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/LocalMutation.java</SourceClass>
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> (available in all change capture streams)
 
-When you don't specify any filtering criteria, you will receive all mutations in flattened form, i.e., you will receive all mutations regardless of their hierarchy. So for example, entity attribute upsert will be delivered once as a part of the entity upsert mutation and once as a standalone attribute upsert mutation. In practice client usually wants either high-level information about entity changes (so only entity mutations) or very specific low-level changes (e.g., only changes attribute of particular name). The approach with simple flattened stream that is filtered by a single predicate covers all these use-cases very well, and it is very easy to understand and implement.
+When you don't specify any filtering criteria, you will receive all mutations in flattened form, i.e. you will receive all mutations regardless of their hierarchy. So, for example, an entity attribute upsert will be delivered once as part of the entity upsert mutation and once as a standalone attribute upsert mutation. In practice, a client usually wants either high-level information about entity changes (so only entity mutations) or very specific low-level changes (e.g. only changes to attributes of a particular name). The approach with a simple flattened stream that is filtered by a single predicate covers all these use cases very well, and it is very easy to understand and implement.
 
 ## Engine change capture
 
@@ -56,15 +56,15 @@ Request allows you to specify the following parameters:
 <dl>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalog version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalog (i.e. the changes made to the catalog in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
-    The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. Index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
+    The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. The index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass></dt>
   <dd>
-    Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that particular type of the mutation occurred. Enumeration has the following values:
+    Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that a particular type of mutation occurred. The enumeration has the following values:
     <ul>
         <li>`HEADER` - only the header of the event is sent</li>
         <li>`BODY` - the entire body of the mutation triggering the event is sent</li>
@@ -73,7 +73,6 @@ Request allows you to specify the following parameters:
 </dl>
 
 Engine capture events are represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCapture.java</SourceClass> instances that contain the following information:
-<SourceClass></SourceClass>
 
 <dl>
   <dt>long `version`</dt>
@@ -103,7 +102,7 @@ Engine capture events are represented by <SourceClass>evita_api/src/main/java/io
 
 ### How to set up a new engine change capture
 
-Set up is quite straightforward and consists of three steps:
+Setup is quite straightforward and consists of three steps:
 
 1. create [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html) using <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass>
 2. define subscriber implementing [Java Flow Subscriber](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Subscriber.html)
@@ -111,36 +110,36 @@ Set up is quite straightforward and consists of three steps:
 
 Example of setting up the engine change capture in Java:
 
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture.java)
 
 </SourceCodeTabs>
 
-The subscriber will start receiving change events as soon as they occur in the engine. Subscriber `onComplete` method is never called since the change stream is infinite.
+The subscriber will start receiving change events as soon as they occur in the engine. The subscriber's `onComplete` method is never called since the change stream is infinite.
 
 <Note type="info">
 
-Currently, multiple engine mutations cannot be wrapped into a single transaction. Each engine operation is represented by a separate transaction mutation. So you can expect that the engine mutation stream will always contain transaction mutation, followed by a single top level engine mutation.
+Currently, multiple engine mutations cannot be wrapped into a single transaction. Each engine operation is represented by a separate transaction mutation. So, you can expect that the engine mutation stream will always contain a transaction mutation, followed by a single top-level engine mutation.
 
 </Note>
 
 </LS>
 
-## Catalog change capture
+## Catalogue change capture
 
-The catalog-level capture stream accepts <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass> for creating the [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html). One or more clients may then subscribe to this publisher to receive <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> instances representing the changes made to the catalog.
+The catalogue-level capture stream accepts <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass> for creating the [Java Flow Publisher](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/Flow.Publisher.html). One or more clients may then subscribe to this publisher to receive <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> instances representing the changes made to the catalogue.
 
 Request allows you to specify the following parameters:
 
 <dl>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalog version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalog (i.e. the changes made to the catalog in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
-    The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. Index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
+    The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. The index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureCriteria.java</SourceClass>[] `criteria` (optional)</dt>
   <dd>
@@ -152,7 +151,7 @@ Request allows you to specify the following parameters:
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass></dt>
   <dd>
-    Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that particular type of the mutation occurred. Enumeration has the following values:
+    Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that a particular type of mutation occurred. The enumeration has the following values:
     <ul>
         <li>`HEADER` - only the header of the event is sent</li>
         <li>`BODY` - the entire body of the mutation triggering the event is sent</li>
@@ -160,12 +159,12 @@ Request allows you to specify the following parameters:
   </dd>
 </dl>
 
-Catalog capture events are represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> instances that contain the following information:
+Catalogue capture events are represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> instances that contain the following information:
 
 <dl>
   <dt>long `version`</dt>
   <dd>
-    The version of the catalog where the mutation occurs.
+    The version of the catalogue where the mutation occurs.
   </dd>
   <dt>int `index`</dt>
   <dd>
@@ -205,15 +204,15 @@ Catalog capture events are represented by <SourceClass>evita_api/src/main/java/i
 
 ### Capture areas and sites
 
-Catalog CDC distinguishes between three different **capture areas** that correspond to different types of operations:
+Catalogue CDC distinguishes between three different **capture areas** that correspond to different types of operations:
 
 #### Schema capture area
 
-Schema capture area tracks changes to the catalog schema and entity schemas. This includes operations like:
+The schema capture area tracks changes to the catalogue schema and entity schemas. This includes operations like:
 
 - Creating, updating, or removing entity schemas
-- Modifying entity attributes, references, associated data definitions
-- Changing catalog-level schema settings
+- Modifying entity attributes, references, and associated data definitions
+- Changing catalogue-level schema settings
 
 The schema area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SchemaSite.java</SourceClass> for filtering, which allows you to specify:
 
@@ -234,7 +233,7 @@ The schema area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/request
   <dd>
     Filter by container type. If not specified, changes to all container types are captured. Possible values:
     <ul>
-      <li>`CATALOG` - Catalog-level schema changes</li>
+      <li>`CATALOG` - Catalogue-level schema changes</li>
       <li>`ENTITY` - Entity schema changes</li>
       <li>`ATTRIBUTE` - Attribute schema changes</li>
       <li>`ASSOCIATED_DATA` - Associated data schema changes</li>
@@ -246,11 +245,11 @@ The schema area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/request
 
 #### Data capture area
 
-Data capture area tracks changes to entity data within the catalog. This includes operations like:
+The data capture area tracks changes to entity data within the catalogue. This includes operations like:
 
 - Creating, updating, or removing entities
-- Modifying entity attributes, references, associated data values
-- Updating prices, hierarchical placement
+- Modifying entity attributes, references, and associated data values
+- Updating prices and hierarchical placement
 
 The data area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/DataSite.java</SourceClass> for filtering, which allows you to specify:
 
@@ -290,12 +289,12 @@ The data area uses <SourceClass>evita_api/src/main/java/io/evitadb/api/requestRe
 
 #### Infrastructure capture area
 
-Infrastructure capture area tracks transaction-related and other infrastructural mutations that don't fit into schema or data categories. This includes:
+The infrastructure capture area tracks transaction-related and other infrastructural mutations that don't fit into schema or data categories. This includes:
 
 - Transaction delimiting operations
 - System-level operations
 
-Infrastructure area does not use any capture site for filtering — currently, it captures all infrastructure mutations represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
+The infrastructure area does not use any capture site for filtering — currently, it captures all infrastructure mutations represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass>.
 
 <dl>
   <dt>No filtering parameters</dt>
@@ -306,21 +305,21 @@ Infrastructure area does not use any capture site for filtering — currently, i
 
 This area exists separately because transaction boundaries and system operations are orthogonal to both schema and data changes, and clients may need to track transaction boundaries independently for proper event grouping and consistency guarantees.
 
-### How to set up a new catalog change capture
+### How to set up a new catalogue change capture
 
-Setting up catalog change capture differs from engine change capture in that it operates on the catalog level.
+Setting up catalogue change capture differs from engine change capture in that it operates on the catalogue level.
 
 <LS to="j">
 
 The setup consists of:
 
-1. Open a session (read-only or read-write) to the catalog
+1. Open a session (read-only or read-write) to the catalogue
 2. Call `registerChangeCatalogCapture` with <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCaptureRequest.java</SourceClass>
 3. Process the returned stream of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> events
 
-Example of retrieving catalog change history in Java:
+Example of retrieving catalogue change history in Java:
 
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture.java)
 
@@ -338,9 +337,9 @@ Example of retrieving catalog change history in Java:
 
 </NoteTitle>
 
-No - you can let it be garbage collected. The publisher is just a factory for creating subscribers. Once the subscriber is created and subscribed, it maintains its own state and connection to the engine. Reference to the subscriber is kept in the evitaDB (client) instance, which prevents it from being garbage collected as long as the instance is alive.
+No — you can let it be garbage collected. The publisher is just a factory for creating subscribers. Once the subscriber is created and subscribed, it maintains its own state and connection to the engine. A reference to the subscriber is kept in the evitaDB (client) instance, which prevents it from being garbage collected as long as the instance is alive.
 
-You need to keep the reference to the publisher only if you plan to subscriber multiple subscribers to it.
+You only need to keep the reference to the publisher if you plan to subscribe multiple subscribers to it.
 
 </Note>
 
@@ -348,11 +347,11 @@ You need to keep the reference to the publisher only if you plan to subscriber m
 
 <NoteTitle toggles="true">
 
-##### Do I need a valid session to subscribe to the catalog change capture?
+##### Do I need a valid session to subscribe to the catalogue change capture?
 
 </NoteTitle>
 
-No, you need a session only to create the publisher. Once the publisher is created, subscribers can subscribe to it without an active session. The publisher opens up a dedicated session for each subscriber internally if the subscription is not created within an active session.
+No, you only need a session to create the publisher. Once the publisher is created, subscribers can subscribe to it without an active session. The publisher opens up a dedicated session for each subscriber internally if the subscription is not created within an active session.
 
 </Note>
 
@@ -364,7 +363,7 @@ No, you need a session only to create the publisher. Once the publisher is creat
 
 </NoteTitle>
 
-Publisher freezes the CDC request parameters (including the starting version) at the moment of its creation. If the request contains starting catalog version, each subscriber will receive changes starting from the version specified in the CDC request used to create the publisher, regardless of when the subscriber subscribes to the publisher. If the request does not contain starting version, each subscriber will receive changes starting from the next version of the catalog at the moment of its subscription.
+The publisher freezes the CDC request parameters (including the starting version) at the moment of its creation. If the request contains a starting catalogue version, each subscriber will receive changes starting from the version specified in the CDC request used to create the publisher, regardless of when the subscriber subscribes to the publisher. If the request does not contain a starting version, each subscriber will receive changes starting from the next version of the catalogue at the moment of its subscription.
 
 </Note>
 
@@ -376,6 +375,6 @@ Publisher freezes the CDC request parameters (including the starting version) at
 
 </NoteTitle>
 
-If your subscriber class implements [AutoCloseable](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/AutoCloseable.html) interface, you can rely on the evitaDB (client) instance to automatically close it when the client instance is closed. Close will be automatically called when subscription is canceled or when the client instance is closed.
+If your subscriber class implements the [AutoCloseable](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/AutoCloseable.html) interface, you can rely on the evitaDB (client) instance to automatically close it when the client instance is closed. Close will be automatically called when the subscription is cancelled or when the client instance is closed.
 
 </Note>
