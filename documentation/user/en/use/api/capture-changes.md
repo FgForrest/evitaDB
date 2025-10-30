@@ -30,7 +30,7 @@ The basic principle in all APIs is the same:
 2. define a starting point in the form of a catalogue version from which they want to start receiving changes,
 3. and subscribe to the change stream.
 
-From that point onwards, clients will receive notifications about all changes that match their criteria. The changes are delivered in the order they were made, ensuring that clients can process them sequentially. The second step is optional — if no starting version is specified, the change stream will start from the current version of the catalogue.
+From that point onwards, clients will receive notifications about all changes that match their criteria. The changes are delivered in the order they were made, ensuring that clients can process them sequentially. The second step is optional — if no starting version is specified, the change stream will start from the next version of the catalogue.
 
 ## Hierarchy of mutations
 
@@ -41,7 +41,7 @@ Not all mutations operate on the same level and some mutations may encapsulate o
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalCatalogSchemaMutation.java</SourceClass>
             - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalEntitySchemaMutation.java</SourceClass>
                 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass> 
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([complete listing](write-data.md), available in [catalog data change capture](#catalog-data-change-capture))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([complete listing](write-data.md), available in [catalog data change capture](#catalogue-change-capture))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/LocalMutation.java</SourceClass>
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> (available in all change capture streams)
 
@@ -62,7 +62,7 @@ Request allows you to specify the following parameters:
   <dd>
     The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. The index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass></dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass> `content`</dt>
   <dd>
     Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that a particular type of mutation occurred. The enumeration has the following values:
     <ul>
@@ -149,7 +149,7 @@ Request allows you to specify the following parameters:
         <li>`site` - the capture site (<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/CaptureSite.java</SourceClass>) providing fine-grained filtering</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass></dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass> `content`</dt>
   <dd>
     Enumeration that specifies whether the client wants detailed information about each mutation or only high-level information that a particular type of mutation occurred. The enumeration has the following values:
     <ul>

@@ -1,11 +1,12 @@
 // register for system-wide change capture
-final ChangeCapturePublisher<ChangeSystemCapture> changePublisher = evita.registerSystemChangeCapture(
-    // subscribe to all system changes
-    ChangeSystemCaptureRequest.builder()
-        // with all available content
-        .content(ChangeCaptureContent.BODY)
-        .build()
-);
+final ChangeCapturePublisher<ChangeSystemCapture> changePublisher =
+	evita.registerSystemChangeCapture(
+	    // subscribe to all system changes
+	    ChangeSystemCaptureRequest.builder()
+	        // with all available content
+	        .content(ChangeCaptureContent.BODY)
+	        .build()
+	);
 // subscribe one or more subscribers to the same publisher
 changePublisher.subscribe(
     new Flow.Subscriber<>() {
@@ -26,8 +27,10 @@ changePublisher.subscribe(
         }
 
         @Override
-        public void onError(Throwable throwable) {
-            System.err.println("Error in system CDC subscription: " + throwable.getMessage());
+        public void onError(Throwable onError) {
+            System.err.println(
+				"Error in system CDC subscription: " + onError.getMessage()
+            );
         }
 
         @Override
