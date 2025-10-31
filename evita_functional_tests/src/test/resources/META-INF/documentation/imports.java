@@ -108,6 +108,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.concurrent.Flow;
 import java.time.format.DateTimeFormatter;
+import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.ShortNumberRange;

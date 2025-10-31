@@ -325,6 +325,46 @@ Example of retrieving catalogue change history in Java:
 
 </SourceCodeTabs>
 
+You can find also additional helpful examples in the below:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Retrieving transaction delimiters and changes for all entities of a specific type
+
+</NoteTitle>
+
+This publisher will deliver all transaction delimiters and all changes made to entities of type `Product` starting from 
+the next version of the catalogue.
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
+
+[Requesting entity level changes in transaction blocks](/documentation/user/en/use/api/example/capture-entity-mutations-with-transaction.java)
+
+</SourceCodeTabs>
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Retrieving changes for attribute with name `quantityOnStock` of particular entity of type `Product`
+
+</NoteTitle>
+
+Following publisher will deliver all changes made to attribute `quantityOnStock` of entity type `Product` with primary 
+key `745` starting from the next version of the catalogue.
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
+
+[Requesting entity level changes in transaction blocks](/documentation/user/en/use/api/example/capture-attribute-mutation.java)
+
+</SourceCodeTabs>
+
+</Note>
+
 </LS>
 
 ### Frequently asked questions regarding a change capture mechanism
