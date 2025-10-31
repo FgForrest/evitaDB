@@ -9,17 +9,21 @@ preferredLang: 'java'
 ---
 
 <LS to="j">
-The Engine API is accessible from the main <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> interface. Control methods usually come in two flavors - one is asynchronous, returning <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/progress/Progress.java</SourceClass>, and the other is a synchronous blocking variant. The asynchronous methods are suffixed with `WithProgress` in their names. The `Progress` object allows you to monitor the operation progress and access its [CompletionStage](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/CompletionStage.html) using the `onCompletion()` method. Synchronous methods block the current thread until the operation is finished and return the result directly, but underneath they also use the asynchronous variant.
+The Engine API is accessible from the main <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> interface. Control methods usually come in two flavors - one is asynchronous, returning <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/progress/Progress.java</SourceClass>, and the other is a synchronous blocking variant. The asynchronous methods are suffixed with `WithProgress` in their names.
 
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
-
-[Defining a new catalog and making it inactive in a blocking fashion](/documentation/user/en/use/api/example/engine-control-blocking.java)
-
-</SourceCodeTabs>
+The non-blocking variants return `Progress` object allowing you to monitor the operation progress and access its [CompletionStage](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/CompletionStage.html) using the `onCompletion()` method. Synchronous methods block the current thread until the operation is finished and return the result directly, but underneath they also use the asynchronous variant.
 
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Making a catalog alive in an asynchronous fashion](/documentation/user/en/use/api/example/engine-control-nonblocking.java)
+
+</SourceCodeTabs>
+
+Now, let's look how to define a new catalog and make it inactive using the blocking approach:
+
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
+
+[Defining a new catalog and making it inactive in a blocking fashion](/documentation/user/en/use/api/example/engine-control-blocking.java)
 
 </SourceCodeTabs>
 
