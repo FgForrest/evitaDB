@@ -73,6 +73,7 @@ Although evitaDB requires a schema for each entity type, it supports automatic e
 specify otherwise, evitaDB learns about entity attributes, their data types and all necessary relations as you add new
 data. Once the attributes, associated data or other contours of the entity are known, they are enforced by evitaDB. This
 mechanism is somewhat similar to the schema-less approach, but results in a much more consistent data store.
+
 </Note>
 
 A collection is described by its [schema](schema.md#entity). Changes to the entity type definition can only be made
@@ -142,6 +143,19 @@ but it has two drawbacks:
 2. it's much slower for Boolean operations
 
 Since evitaDB is an in-memory database, we expect that the number of entities will not exceed two billion.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all top level entity mutations
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityUpsertMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityRemoveMutation.java</SourceClass>**
+
 </Note>
 
 ### Hierarchical placement
@@ -196,6 +210,18 @@ Hierarchy definition is part of main entity schema.
 
 </LS>
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all mutations related to hierarchy placement
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/parent/SetParentMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/parent/RemoveParentMutation.java</SourceClass>**
+
+</Note>
+
 <Note type="question">
 
 <NoteTitle toggles="true">
@@ -243,7 +269,7 @@ The attribute schema is described by:
 
 </LS>
 
-More details about attributes are described in the [schema definition chapter](schema.md#attribute).
+More details about attributes are described in the [schema definition chapter](schema.md#attributes).
 
 #### Localized attributes
 
@@ -261,6 +287,19 @@ values are allowed using a special type of [query](../query/basics.md) filtering
 [`inRange`](../query/filtering/range.md). This filtering constraint allows to filter entities that are inside the range
 boundaries.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all mutations related to attributes
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/UpsertAttributeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/RemoveAttributeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/ApplyDeltaAttributeMutation.java</SourceClass>**
+
+</Note>
+
 <Note type="question">
 
 <NoteTitle toggles="true">
@@ -274,6 +313,7 @@ constraint if **any** of the values in the array match the constraint predicate.
 where you can simply define multiple validity periods, for example, and the [`inRange`](../query/filtering/range.md)
 constraint will match all entities that have at least one period that includes the input date and time (this is another
 common use case in e-commerce systems).
+
 </Note>
 
 ### Sortable attribute compounds
@@ -290,7 +330,7 @@ storing all basic [data types](data-types.md#simple-data-types) and also [comple
 document like types.
 
 The [search query](../query/basics.md) must contain specific
-[requirement](../query/requirements/fetching.md#associated-data) to fetch the associated data along with the entity.
+[requirement](../query/requirements/fetching.md#associated-data-content) to fetch the associated data along with the entity.
 Associated data are stored and fetched separately by their name and *locale* (if the associated data is
 [localized](#localized-associated-data)).
 
@@ -315,6 +355,18 @@ More details about associated data are described in the [schema definition chapt
 Associated data value can contain localized values. It means that different values should be returned along with entity
 when certain locale is used in the [search query](../query/basics.md). Localized data is a standard part of most
 e-commerce systems and that's why evitaDB provides special treatment for it.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all mutations related to associated data
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/associatedData/UpsertAssociatedDataMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/associatedData/RemoveAssociatedDataMutation.java</SourceClass>**
+
+</Note>
 
 ### References
 
@@ -369,6 +421,21 @@ Reflected reference is represented by the interface:
 </LS>
 
 More details about references are described in the [schema definition chapter](schema.md#reference).
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all mutations related to references
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/InsertReferenceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/RemoveReferenceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/SetReferenceGroupMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/RemoveReferenceGroupMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/ReferenceAttributeMutation.java</SourceClass> which must have exactly one of the [attribute mutation](#list-of-all-mutations-related-to-attributes) nested**
+
+</Note>
 
 ### Prices
 
@@ -464,6 +531,7 @@ The price has the following structure:
 <LS to="j,c">
 
 <Note type="info">
+
 Price provider is represented by the interface:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PricesContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Data/IPrices.cs</SourceClass></LS>
@@ -480,6 +548,19 @@ Price schema is part of main entity schema:
 
 </LS>
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all mutations related to prices
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/UpsertPriceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/RemovePriceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/SetPriceInnerRecordHandlingMutation.java</SourceClass>**
+
+</Note>
+
 <Note type="question">
 
 <NoteTitle toggles="true">
@@ -488,7 +569,8 @@ Price schema is part of main entity schema:
 </NoteTitle>
 
 The algorithm is quite complex and needs a lot of examples to understand it. Therefore, there is
-a [separate chapter on this subject](../query/filtering/price.md#price-for-sale-computation-algorithm).
+a [separate chapter on this subject](../deep-dive/price-for-sale-calculation.md).
+
 </Note>
 
 More details about prices are described in the [schema definition chapter](schema.md#prices).
@@ -500,3 +582,14 @@ data. The scopes are used to handle so-called "soft deletes" - the application c
 archiving the entity, which simply moves the entity to the archive scope. The details of the archiving process are 
 described in the [Archiving](../use/schema.md#scopes) chapter and the reasons for this feature are explained in 
 the [dedicated blog post](https://evitadb.io/blog/15-soft-delete).
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all mutations related to scopes
+</NoteTitle>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/scope/SetEntityScopeMutation.java</SourceClass>**
+
+</Note>

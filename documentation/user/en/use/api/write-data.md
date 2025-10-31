@@ -603,56 +603,6 @@ You can also bootstrap an entity builder using a list of mutations:
 
 </LS>
 
-<Note type="info">
-
-<NoteTitle toggles="false">
-
-##### List of all supported data mutations
-</NoteTitle>
-
-Top level mutations:
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityUpsertMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityRemoveMutation.java</SourceClass>**
-
-Within `EntityUpsertMutation` you can use mutations:
-
-**Attribute mutations:**
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/UpsertAttributeMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/RemoveAttributeMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/ApplyDeltaAttributeMutation.java</SourceClass>**
-
-**Associated data mutations:**
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/associatedData/UpsertAssociatedDataMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/associatedData/RemoveAssociatedDataMutation.java</SourceClass>**
-
-**Hierarchy mutations:**
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/parent/SetParentMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/parent/RemoveParentMutation.java</SourceClass>**
-
-**Price mutations:**
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/UpsertPriceMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/RemovePriceMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/SetPriceInnerRecordHandlingMutation.java</SourceClass>**
-
-**Scope manipulating mutations:**
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/scope/SetEntityScopeMutation.java</SourceClass>**
-
-**Reference mutations:**
-
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/InsertReferenceMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/RemoveReferenceMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/SetReferenceGroupMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/RemoveReferenceGroupMutation.java</SourceClass>**
-- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/ReferenceAttributeMutation.java</SourceClass> which must have exactly of the attribute mutation nested**
-
-</Note>
-
 <LS to="j,g,r,c">
 
 ### Removal
