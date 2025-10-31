@@ -33,7 +33,7 @@ big advantages for the system:
 - **mutation represents an isolated change to the schema** - this means that the client making the schema change
   only sends deltas to the server, which saves a lot of network traffic and also implies server-side logic that doesn't
   need to resolve deltas internally
-- **mutation is directly used as a [WAL](../deep-dive/transactions.md#write-ahead-log) entry** - the mutation
+- **mutation is directly used as a [WAL](../deep-dive/transactions.md#2-write-ahead-log-persistence) entry** - the mutation
   represents an atomic operation in the transactional log that is distributed across the cluster, and it also
   represents a place where conflict resolution takes place (if the server receives similar mutations from two
   parallel sessions, it easily decides whether to throw a concurrent change exception - if the mutations are equal,
@@ -53,12 +53,13 @@ number, and if not, which one is newer.
 
 Hopefully not. We're aware that writing mutations is cumbersome, and provide better support in our drivers. The client
 drivers wrap the immutable schemas inside the builder objects, so you can just call alter methods on them and
-the builder will generate the list of mutations at the end. See [the example](#schema-definition-example).
+the builder will generate the list of mutations at the end. See [the example](api/schema-api.md#declarative-schema-definition).
 
 However, if you want to use evitaDB on a platform that is not yet supported and covered by a specific client driver,
 you have to work directly with our web APIs that only accept mutations, and you have no other options than to write
 the mutations directly or to write your own client driver. But you can open source it and help the community. Let us
 know about it!
+
 </Note>
 
 All schema mutations implement interface <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/SchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/ISchemaMutation.cs</SourceClass></LS>
@@ -87,7 +88,7 @@ dictionary of [global attribute schemas](#global-attribute-schema) that can be s
 ##### Name requirements and name variants
 </NoteTitle>
 
-Each named data object - [catalog](#catalog), [entity](#entity), [attribute](#attribute),
+Each named data object - [catalog](#catalog), [entity](#entity), [attribute](#attributes),
 [associated data](#associated-data) and [reference](#reference) must be uniquely identifiable by its name within its
 parent scope.
 
@@ -123,13 +124,11 @@ And [entity top level mutations](#entity).
 The catalog schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/ICatalogSchema.cs</SourceClass></LS>
 
-</LS>
-
 </Note>
 
 #### Global attribute schema
 
-Global attribute schema has the same structure as [attribute schema](#attribute) except for one additional
+Global attribute schema has the same structure as [attribute schema](#attributes) except for one additional
 characteristic. A global attribute can be made `uniqueGlobally`, which means that values of such an attribute must be
 unique across all entities and entity types in the entire catalog.
 
@@ -182,7 +181,7 @@ Entity schema contains information about the `name`, `description` and the:
 - [allowed locales and currencies](#locales-and-currencies)
 - [enabling hierarchical structure](#hierarchy-placement)
 - [enabling price information](#prices)
-- [attributes](#attribute)
+- [attributes](#attributes)
 - [sortable attribute compound](#sortable-attribute-compounds)
 - [associated data](#associated-data)
 - [references](#reference)
@@ -536,72 +535,9 @@ The associated data schema is described by: <LS to="j"><SourceClass>evita_api/sr
 
 ### Reference
 
-An entity type may have zero or more references. References can be managed or unmanaged. The managed references refer
-to entities within the same catalog and can be checked for consistency by evitaDB. The non-managed references refer
-to entities that are managed by external systems outside the scope of evitaDB. An entity can have a self-reference
-that refers to the same entity type. An entity type can have several references to the same entity type.
+An entity type may have zero or more references. References can be managed or unmanaged. The managed references refer to entities within the same catalog and can be checked for consistency by evitaDB. The non-managed references refer to entities that are managed by external systems outside the scope of evitaDB. An entity can have a self-reference that refers to the same entity type. An entity type can have several references to the same entity type.
 
-References can have zero or more attributes that apply only to a particular "link" between these two entity instances.
-[Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply
-for reference attributes as for regular entity attributes.
-
-References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does
-not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating
-a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected.
-The reflected reference may or may not inherit attributes from the original reference, and it may also define its own
-separate attributes. This can be described by the following ERD diagram:
-
-```mermaid
-erDiagram
-    A ||--o{ A_to_B : references
-    B ||--o{ A_to_B : references
-    A_to_B {
-        string A1
-        string A2
-    }
-    B ||--o{ B_to_A : references
-    A ||--o{ B_to_A : references
-    B_to_A {
-        string A1
-        string B2
-    }
-```
-
-Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also 
-works the other way around - when the reflected reference is manipulated, the original reference is updated.
-
-<Note type="warning">
-
-There is a subtle difference between the original reference and the reflected reference. The original reference can 
-exist even if the referenced entity does not (yet) exist (the reference is orphaned). On the other hand, when you create 
-a reflected reference, the referenced entity must exist. This is because the reflected reference immediately creates 
-the original reference, and the original reference must have a valid target. This behaviour is needed to maintain 
-consistency when moving entities between different [scopes](#scopes) that treat original and reflected references 
-differently.
-
-</Note>
-
-If the reference contains an attribute that is not defined on the other side, and the reference is created - the missing 
-attribute on the other side is created with its default value (if no such default value is defined, an exception is thrown).
-
-When another entity references an entity and the reference is marked as *indexed*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each referenced entity. This index will
-hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
-[`referencedEntityHaving`](../query/filtering/references.md) filter conditions and
-[`referenceProperty`](../query/ordering/reference.md) sorting.
-
-If the reference is marked as *faceted*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for
-the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md)
-computation. All reference instances of a given type are then inserted into the *facet reference index* (there is no
-way to exclude a reference from indexing in the facet reference index). References can (but don't have to) be organized
-into facet groups that refer to a *managed* or *non-managed* entity type.
-
-Each reference schema has a certain cardinality. The cardinality describes the expected number of relations of this
-type. In evitaDB we define only one-way relations from the perspective of the entity. We follow the ERD modeling
-[standards](https://www.gleek.io/blog/crows-foot-notation.html). Cardinality affects the design of the Web API schemas
-(returning only single references or arrays) and also helps us to protect the consistency of the data so that it
-conforms to the creator's mental model.
+References can have zero or more attributes that apply only to a particular "link" between these two entity instances. [Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply for reference attributes as for regular entity attributes.
 
 <Note type="info">
 
@@ -641,6 +577,58 @@ The reference schema is described by:
 </LS>
 
 </Note>
+
+#### Reference directionality
+
+References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected. The reflected reference may or may not inherit attributes from the original reference, and it may also define its own separate attributes. This can be described by the following ERD diagram:
+
+```mermaid
+erDiagram
+    A ||--o{ A_to_B : references
+    B ||--o{ A_to_B : references
+    A_to_B {
+        string A1
+        string A2
+    }
+    B ||--o{ B_to_A : references
+    A ||--o{ B_to_A : references
+    B_to_A {
+        string A1
+        string B2
+    }
+```
+
+Reflected references are automatically created, updated, and removed when the original reference is manipulated. It also works the other way around - when the reflected reference is manipulated, the original reference is updated.
+
+<Note type="warning">
+
+There is a subtle difference between the original reference and the reflected reference. The original reference can exist even if the referenced entity does not (yet) exist (the reference is orphaned). On the other hand, when you create a reflected reference, the referenced entity must exist. This is because the reflected reference immediately creates the original reference, and the original reference must have a valid target. This behaviour is needed to maintain 
+consistency when moving entities between different [scopes](#scopes) that treat original and reflected references differently.
+
+</Note>
+
+If the reference contains an attribute that is not defined on the other side, and the reference is created - the missing attribute on the other side is created with its default value (if no such default value is defined, an exception is thrown).
+
+#### Reference indexing
+
+You need to select the indexing level for each of the references defined in the entity schema. There are three levels of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceIndexType.java</SourceClass> available:
+
+<dl>
+    <dt>NONE</dt>
+    <dd>Reference has no index available. This means that the reference cannot be used in any query filtering or sorting. Use this type when you do not need to filter nor sort by reference existence or any of the reference attributes, and you want to minimize memory and disk usage.</dd>
+    <dt>FOR_FILTERING</dt>
+    <dd>Reference has only basic index available that is necessary for [`referencedEntityHaving`](../query/filtering/references.md) filter conditions and [`referenceProperty`](../query/ordering/reference.md) sorting constraint interpretation. This is the minimal indexing level that allows filtering by reference existence and reference attributes. Use this type when you need basic reference filtering capabilities but want to minimize memory and disk usage.	This is suitable for references that are not frequently used in complex queries or when storage optimization is more important than query performance.This is the recommended default indexing type for references and is sufficient for most use cases.</dd>
+    <dt>FOR_FILTERING_AND_PARTITIONING</dt>
+    <dd>Reference has basic index available that is necessary for [`referencedEntityHaving`](../query/filtering/references.md) filter conditions and [`referenceProperty`](../query/ordering/reference.md) sorting constraint interpretation, and also partitioning indexes for the main entity type (i.e. entity type that contains the reference schema), which may greatly speed up the query execution when the reference is part of the query filtering. This advanced indexing creates additional data structures that allow for more efficient query execution by partitioning the data based on the reference relationships. This can significantly improve performance for complex queries that involve reference filtering, especially when dealing with large datasets. Use this type when reference filtering is frequently used in queries and query performance is critical. Be aware that this option requires more memory and disk space compared to `FOR_FILTERING` level.</dd>
+</dl>
+
+Partitioning indexes are represented by <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> and such index is created for each reference used in any entity in the schema, and will contain subset of the attribute, price and other indexed reduced only to entities with the given reference. Let's describe it on an example - let's say we have entity type `Product` that has reference `categories` to entity type `Category`, which is indexed `FOR_FILTERING_AND_PARTITIONING`. Let's imagine that we need to find all products classified in a specific category that also meet ten other conditions (they are published, currently valid, have an available price in the user's price list and in EUR, etc.). We can evaluate such a query over one large index, where this information is available for all known products in the database, or (if we use partitioning) we can use a much smaller index, in which we can find all the necessary information only for products that have a valid link to the category for which we are evaluating this query. Logically, the response to the query will be significantly faster because the amount of data searched is significantly smaller. The downside of this approach is that it requires a relatively large amount of memory space.
+
+If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md) computation. All reference instances of a given type are then inserted into the *facet reference index* (there is no way to exclude a reference from indexing in the facet reference index). References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type.
+
+#### Reference cardinality
+
+Each reference schema has a certain cardinality. The cardinality describes the expected number of relations of this type. In evitaDB we define only one-way relations from the perspective of the entity. We follow the ERD modeling [standards](https://www.gleek.io/blog/crows-foot-notation.html). Cardinality affects the design of the Web API schemas (returning only single references or arrays) and also helps us to protect the consistency of the data so that it conforms to the creator's mental model.
 
 ## Scopes
 

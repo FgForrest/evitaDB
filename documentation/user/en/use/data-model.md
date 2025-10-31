@@ -370,35 +370,14 @@ e-commerce systems and that's why evitaDB provides special treatment for it.
 
 ### References
 
-The references, as the name suggests, refer to other entities (of the same or different entity type). The references
-allow entity filtering by the attributes defined on the reference relation or the attributes of the referenced entities.
-The references enable [statistics](../query/requirements/facet.md) computation if facet index is enabled for this
-referenced entity type. The reference is uniquely represented by
-<LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
-<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>
-positive number (max. 2<sup>63</sup>-1) and
-<LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS>
-<LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS>
-entity type and may represent a <Term>facet</Term> that is part of one or more
-<Term name="facet group">facet groups</Term>, also identified by
-<LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
-<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>. The reference identifier in an entity
-is unique and belongs to a single group id. Among multiple entities, the reference to the same referenced entity may be
-part of different groups.
+The references, as the name suggests, refer to other entities (of the same or different entity type). The references allow entity filtering by the attributes defined on the reference relation or the attributes of the referenced entities. The references enable [statistics](../query/requirements/facet.md) computation if facet index is enabled for this referenced entity type. The reference is primarily represented by <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> positive number (max. 2<sup>63</sup>-1) and <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS> entity type and may represent a <Term>facet</Term> that is part of one or more <Term name="facet group">facet groups</Term>, also identified by <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>. The reference identifier in an entity is unique and belongs to a single group id. Among multiple entities, the reference to the same referenced entity may be part of different groups.
 
-The referenced entity type can refer to another entity managed by evitaDB, or it can refer to any external entity that
-has a unique <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
-<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> key as its identifier. We
-expect that evitaDB will only partially manage data and that it will coexist with other systems in a runtime - such as
-content management systems, warehouse systems, ERPs and so on.
+The referenced entity type can refer to another entity managed by evitaDB, or it can refer to any external entity that has a unique <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS>
+<LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> key as its identifier. We expect that evitaDB will only partially manage data and that it will coexist with other systems in a runtime - such as content management systems, warehouse systems, ERPs and so on.
 
-References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does
-not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating
-a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected.
+References are unidirectional in nature, which means that if the reference points from entity A to entity B, it does not mean that entity B automatically references entity A. It is possible to set up a bi-directional reference by creating a so-called "reflected reference" on the other entity type and identifying the original reference that should be reflected.
 
-The references may carry additional key-value data related to this entity relationship (e.g. number of items present on
-the relationship to a stock). The data on references is subject to the same rules as
-[entity attributes](#attributes-unique-filterable-sortable-localized).
+The references may carry additional key-value data related to this entity relationship (e.g. number of items present on the relationship to a stock). The data on references is subject to the same rules as [entity attributes](#attributes-unique-filterable-sortable-localized).
 
 <LS to="j,c">
 
