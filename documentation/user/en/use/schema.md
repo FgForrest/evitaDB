@@ -120,6 +120,7 @@ Within `ModifyCatalogSchemaMutation` you can use mutations:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaDescriptionMutation.cs</SourceClass></LS>**
 
 And [entity top level mutations](#entity).
+
 <LS to="j,c">
 The catalog schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/ICatalogSchema.cs</SourceClass></LS>
@@ -168,7 +169,6 @@ And of course all [standard attribute mutations](#attributes).
 The global attribute schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/GlobalAttributeSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IGlobalAttributeSchema.cs</SourceClass></LS>
-
 </LS>
 
 </Note>
@@ -213,11 +213,9 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 </LS>
 
 <LS to="j,c">
-
 The entity schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass></LS>
-
 </LS>
 
 </Note>
@@ -431,7 +429,6 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 The attribute schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IAttributeSchema.cs</SourceClass></LS>
-
 </LS>
 
 </Note>
@@ -568,13 +565,11 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](#attributes).
 
 <LS to="j,c">
-
 The reference schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>> and
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReflectedReferenceSchemaContract.java</SourceClass></LS>
 <LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReflectedReferenceSchema.cs</SourceClass></LS>>
-
 </LS>
 
 </Note>
@@ -630,6 +625,10 @@ If the reference is marked as *faceted*, the special <SourceClass>evita_engine/s
 #### Reference cardinality
 
 Each reference schema has a certain cardinality. The cardinality describes the expected number of relations of this type. In evitaDB we define only one-way relations from the perspective of the entity. We follow the ERD modeling [standards](https://www.gleek.io/blog/crows-foot-notation.html). Cardinality affects the design of the Web API schemas (returning only single references or arrays) and also helps us to protect the consistency of the data so that it conforms to the creator's mental model.
+
+When you allow definition of *duplicate* references using one of the cardinality types: `ZERO_OR_MORE_WITH_DUPLICATES` or `ONE_OR_MORE_WITH_DUPLICATES`, you'd be able to define two references to the same target entity within a single entity instance. In such case you need to select at least one reference attribute that would make the two references distinguishable and set it as `representative`. The representative attribute would be then used to identify the specific reference when querying or manipulating the entity. If no representative attribute is defined, an exception is thrown when you try to create duplicate references.
+
+There are situations when duplicate references comes handy. Imagine you have an entity type `Product` that has a reference `medias` to entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such case you can define reference attribute `role` as `representative`, and then you'd be able to create multiple references to the same `Media` entity with different `role` values.
 
 ## Scopes
 
