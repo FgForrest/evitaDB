@@ -123,6 +123,7 @@ And [entity top level mutations](#entity).
 <LS to="j,c">
 The catalog schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/ICatalogSchema.cs</SourceClass></LS>
+</LS>
 
 </Note>
 
