@@ -3,7 +3,7 @@ title: Write data
 perex: |
     This article contains the main principles for authoring data in evitaDB, the description of the data API regarding
     entity upsert and deletion and related recommendations.
-date: '17.1.2023'
+date: '31.10.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'java'
@@ -12,7 +12,7 @@ preferredLang: 'java'
 <LS to="e">
 
 Unfortunately, it is currently not possible to write data using EvitaQL. This extension is also not planned to be
-implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API, gRPC and C#) are available.
+implemented soon because we believe that sufficient options (Java, GraphQL, REST API, gRPC and C#) are available.
 
 </LS>
 
@@ -56,6 +56,7 @@ state and must be manually switched to *transactional* mode by executing:
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.java)
+
 </SourceCodeTabs>
 
 The <LS to="j">`goLiveAndClose`</LS><LS to="c">`GoLiveAndClose`</LS>
@@ -74,6 +75,7 @@ by executing:
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
+
 </SourceCodeTabs>
 
 The <LS to="g">`switchCatalogToAliveState` mutation</LS><LS to="r">`/catalogs/{catalog-name}` endpoint with `PATCH` method</LS>
@@ -130,6 +132,7 @@ to the entity and then store the entity to the database:
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" langSpecificTabOnly local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.java)
+
 </SourceCodeTabs>
 
 When you read existing entity from the catalog, you obtain read-only
@@ -141,6 +144,7 @@ for updating the data:
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" langSpecificTabOnly local>
 
 [Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.java)
+
 </SourceCodeTabs>
 </LS>
 
@@ -164,7 +168,7 @@ and manually send evitaDB mutations with individual changes using one of the
 
 ### Versioning
 
-All model classes are versioned - in other words, when a model instance is modified, the version number of the new
+All model classes are versioned — in other words, when a model instance is modified, the version number of the new
 instance created from that modified state is incremented by one.
 
 </LS>
@@ -347,7 +351,7 @@ of the lambda function. If an exception occurs during the lambda execution and i
 (i.e. it's rethrown out of the lambda scope), the transaction is automatically rolled back. When lambda finishes 
 successfully, the transaction is automatically committed.
 
-This approach is not always acceptable - for example, if your application needs to be integrated into an existing
+This approach is not always acceptable — for example, if your application needs to be integrated into an existing
 framework that only provides a lifecycle callback methods, there is no way to "wrap" the entire business logic in
 the lambda function.
 
@@ -356,6 +360,7 @@ That's why there is an alternative - not so secure - approach to handling sessio
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Manual session and transaction handling](/documentation/user/en/use/api/example/manual-transaction-management.java)
+
 </SourceCodeTabs>
 
 <Note type="warning">
@@ -372,6 +377,7 @@ interface, so you can use them this way:
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Get advantage of Autocloseable behaviour](/documentation/user/en/use/api/example/autocloseable-transaction-management.java)
+
 </SourceCodeTabs>
 
 This approach is safe, but has the same disadvantage as using <LS to="j">`queryCatalog` / `updateCatalog`</LS>
@@ -385,6 +391,7 @@ For testing purposes, there is a special flag that can be used when opening a ne
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Opening dry-run session](/documentation/user/en/use/api/example/dry-run-session.java)
+
 </SourceCodeTabs>
 
 In this session, all transactions will automatically have a *rollback* flag set when they are opened, without the need
@@ -413,6 +420,7 @@ Usually the entity creation will look like this:
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.java)
+
 </SourceCodeTabs>
 
 This way, the created entity can be immediately checked against the schema. This form of code is a condensed version,
@@ -424,6 +432,7 @@ the builder wrapper), modify it, and finally collect the changes and send them t
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.java)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -504,6 +513,7 @@ There is an analogous builder that takes an existing entity and tracks changes m
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java" langSpecificTabOnly>
 
 [Detached existing entity example](/documentation/user/en/use/api/example/detached-existing-entity-instantiation.java)
+
 </SourceCodeTabs>
 
 </LS>
@@ -554,6 +564,7 @@ entity with the changes applied by defining requirements.
 <SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.graphql)
+
 </SourceCodeTabs>
 
 Because these <LS to="g">GraphQL mutations</LS><LS to="r">endpoints</LS>
@@ -565,9 +576,82 @@ argument.
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.graphql)
+
 </SourceCodeTabs>
 
 </LS>
+
+<LS to="j,c">
+
+#### Direct entity manipulation using mutations
+
+Except for using the builders, you can also create a list of mutations manually and send them to the server:
+
+<SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
+
+[Manual mutation handling](/documentation/user/en/use/api/example/manual-mutation-handling.java)
+
+</SourceCodeTabs>
+
+You can also bootstrap entity builder using list of mutations:
+
+<SourceCodeTabs setup="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java" langSpecificTabOnly local>
+
+[Manual mutation handling](/documentation/user/en/use/api/example/builder-bootstrap-using-mutations.java)
+
+</SourceCodeTabs>
+
+</LS>
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all supported data mutations
+</NoteTitle>
+
+Top level mutations:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityUpsertMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityRemoveMutation.java</SourceClass>**
+
+Within `EntityUpsertMutation` you can use mutations:
+
+**Attribute mutations:**
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/UpsertAttributeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/RemoveAttributeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/attribute/ApplyDeltaAttributeMutation.java</SourceClass>**
+
+**Associated data mutations:**
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/associatedData/UpsertAssociatedDataMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/associatedData/RemoveAssociatedDataMutation.java</SourceClass>**
+
+**Hierarchy mutations:**
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/parent/SetParentMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/parent/RemoveParentMutation.java</SourceClass>**
+
+**Price mutations:**
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/UpsertPriceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/RemovePriceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/price/SetPriceInnerRecordHandlingMutation.java</SourceClass>**
+
+**Scope manipulating mutations:**
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/scope/SetEntityScopeMutation.java</SourceClass>**
+
+**Reference mutations:**
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/InsertReferenceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/RemoveReferenceMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/SetReferenceGroupMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/RemoveReferenceGroupMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/reference/ReferenceAttributeMutation.java</SourceClass> which must have exactly of the attribute mutation nested**
+
+</Note>
 
 <LS to="j,g,r,c">
 
@@ -592,6 +676,7 @@ To remove one or multiple entities, you need to define a query that will match a
 <SourceCodeTabs setup="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Removing all entities which name starts with `A`](/documentation/user/en/use/api/example/delete-entities-by-query.java)
+
 </SourceCodeTabs>
 
 </LS>

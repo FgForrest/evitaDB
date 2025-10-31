@@ -132,6 +132,39 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 		this.indexed = price.indexed();
 	}
 
+	public UpsertPriceMutation(
+		@Nonnull PriceKey priceKey,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		@Nullable DateTimeRange validity,
+		boolean indexed
+	) {
+		super(priceKey, System.nanoTime());
+		this.innerRecordId = null;
+		this.priceWithoutTax = priceWithoutTax;
+		this.taxRate = taxRate;
+		this.priceWithTax = priceWithTax;
+		this.validity = validity;
+		this.indexed = indexed;
+	}
+
+	public UpsertPriceMutation(
+		@Nonnull PriceKey priceKey,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		super(priceKey, System.nanoTime());
+		this.innerRecordId = null;
+		this.priceWithoutTax = priceWithoutTax;
+		this.taxRate = taxRate;
+		this.priceWithTax = priceWithTax;
+		this.validity = null;
+		this.indexed = indexed;
+	}
+
 	private UpsertPriceMutation(
 		@Nonnull PriceKey priceKey,
 		@Nullable Integer innerRecordId,

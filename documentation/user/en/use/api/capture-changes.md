@@ -37,11 +37,11 @@ From that point onwards, clients will receive notifications about all changes th
 Not all mutations operate on the same level and some mutations may encapsulate others. For example, when an entity is upserted, it may contain multiple mutations within it (multiple attribute, associated data, price operations etc.). The hierarchy of mutations is as follows:
 
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> ([complete listing](control-engine.md), available in [engine change capture](#engine-change-capture))
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([complete listing](../schema.md), available in [catalog schema change capture](#catalog-schema-change-capture))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/CatalogBoundMutation.java</SourceClass> ([complete listing](../schema.md), available in [catalog schema change capture](#catalogue-change-capture))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalCatalogSchemaMutation.java</SourceClass>
             - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/LocalEntitySchemaMutation.java</SourceClass>
                 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass> 
-    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([complete listing](write-data.md), available in [catalog data change capture](#catalogue-change-capture))
+    - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/EntityMutation.java</SourceClass> ([complete listing](write-data.md#list-of-all-supported-data-mutations), available in [catalog data change capture](#catalogue-change-capture))
         - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/mutation/LocalMutation.java</SourceClass>
 - <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/transaction/TransactionMutation.java</SourceClass> (available in all change capture streams)
 

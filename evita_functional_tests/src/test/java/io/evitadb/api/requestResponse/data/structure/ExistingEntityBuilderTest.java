@@ -69,6 +69,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.HashSet;
@@ -293,6 +294,29 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		assertEquals("someValue", updatedInstance.getAttribute("newAttribute"));
+	}
+
+	@Test
+	void shouldAddNewAttributesViaMutationsInConstructor() {
+		final SealedEntity brand = new ExistingEntityBuilder(
+			this.initialEntity,
+			Arrays.asList(
+				new UpsertAttributeMutation("code", "siemens"),
+				new UpsertAttributeMutation("name", Locale.ENGLISH, "Siemens"),
+				new UpsertAttributeMutation("logo", "https://www.siemens.com/logo.png"),
+				new UpsertAttributeMutation("productCount", 1),
+				new UpsertPriceMutation(
+					new PriceKey(1, "basic", Currency.getInstance("CZK")),
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true
+				)
+			)
+		)
+		.toInstance();
+		assertEquals("siemens", brand.getAttribute("code"));
+		assertEquals("Siemens", brand.getAttribute("name", Locale.ENGLISH));
+		assertEquals("https://www.siemens.com/logo.png", brand.getAttribute("logo"));
+		assertEquals(Integer.valueOf(1), brand.getAttribute("productCount"));
+		assertPrice(brand, 1, "basic", Currency.getInstance("CZK"), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true);
 	}
 
 	@Test

@@ -1664,6 +1664,19 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 	}
 
+	@Override
+	public void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException {
+		assertActive();
+		executeInTransactionIfPossible(session -> {
+			final GrpcEntityMutation grpcEntityMutation = DelegatingEntityMutationConverter.INSTANCE.convert(mutation);
+			executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+					evitaSessionService.applyMutation(grpcEntityMutation)
+			);
+			return null;
+		});
+	}
+
 	@Nonnull
 	@Override
 	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {

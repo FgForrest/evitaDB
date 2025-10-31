@@ -661,7 +661,7 @@ public final class GrpcEvitaSessionAPI {
       "aledEntity\"y\n\027GrpcTransactionResponse\022\026\n" +
       "\016catalogVersion\030\001 \001(\003\022F\n\rtransactionId\030\002" +
       " \001(\0132/.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcUuid2\201+\n\023EvitaSessionService\022\230\001" +
+      "ated.GrpcUuid2\345+\n\023EvitaSessionService\022\230\001" +
       "\n\020GetCatalogSchema\022B.io.evitadb.external" +
       "Api.grpc.generated.GrpcGetCatalogSchemaR" +
       "equest\032@.io.evitadb.externalApi.grpc.gen" +
@@ -791,15 +791,18 @@ public final class GrpcEvitaSessionAPI {
       "Entity\022?.io.evitadb.externalApi.grpc.gen" +
       "erated.GrpcRestoreEntityRequest\032@.io.evi" +
       "tadb.externalApi.grpc.generated.GrpcRest" +
-      "oreEntityResponse\022j\n\020GetTransactionId\022\026." +
-      "google.protobuf.Empty\032>.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcTransactionRes" +
-      "ponse\022\301\001\n\034RegisterChangeCatalogCapture\022N" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcRegisterChangeCatalogCaptureRequest\032O" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcRegisterChangeCatalogCaptureResponse0" +
-      "\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "oreEntityResponse\022b\n\rApplyMutation\0229.io." +
+      "evitadb.externalApi.grpc.generated.GrpcE" +
+      "ntityMutation\032\026.google.protobuf.Empty\022j\n" +
+      "\020GetTransactionId\022\026.google.protobuf.Empt" +
+      "y\032>.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcTransactionResponse\022\301\001\n\034RegisterCh" +
+      "angeCatalogCapture\022N.io.evitadb.external" +
+      "Api.grpc.generated.GrpcRegisterChangeCat" +
+      "alogCaptureRequest\032O.io.evitadb.external" +
+      "Api.grpc.generated.GrpcRegisterChangeCat" +
+      "alogCaptureResponse0\001B\014P\001\252\002\007EvitaDBb\006pro" +
+      "to3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

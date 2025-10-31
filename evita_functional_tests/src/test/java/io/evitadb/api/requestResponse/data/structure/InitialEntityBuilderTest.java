@@ -181,7 +181,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
- @DisplayName("creates new entity with type and no primary key")
+    @DisplayName("creates new entity with type and no primary key")
 	void shouldCreateNewEntity() {
 		final InitialEntityBuilder builder = new InitialEntityBuilder("product");
 		final Entity product = builder.toMutation().orElseThrow().mutate(builder.getSchema(), null);

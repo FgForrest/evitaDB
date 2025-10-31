@@ -1352,6 +1352,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Override
+	public void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException {
+		assertActive();
+		executeInTransactionIfPossible(session -> {
+			this.catalog.applyMutation(this, mutation);
+			return null;
+		});
+	}
+
 	@Nonnull
 	@Override
 	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
