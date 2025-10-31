@@ -108,7 +108,7 @@ for a complete listing.
 ##### List of mutations related to catalog
 </NoteTitle>
 
-Top level mutations:
+Top-level mutations:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateCatalogSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/CreateCatalogSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveCatalogSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/RemoveCatalogSchemaMutation.cs</SourceClass></LS>**
@@ -116,10 +116,10 @@ Top level mutations:
 
 Within `ModifyCatalogSchemaMutation` you can use mutations:
 
-- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaNameMutation.cs</SourceClass></LS>>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaNameMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaDescriptionMutation.cs</SourceClass></LS>**
 
-And [entity top level mutations](#entity).
+And [entity top-level mutations](#entity).
 
 <LS to="j,c">
 The catalog schema is described by:
@@ -138,10 +138,10 @@ unique across all entities and entity types in the entire catalog.
 
 <NoteTitle toggles="true">
 
-##### What is the global uniqueness good for?
+##### What is global uniqueness good for?
 </NoteTitle>
 
-Well, it is useful for entity URL that we naturally want to be unique among all entities in the catalog. The global
+Well, it is useful for entity URLs that we naturally want to be unique among all entities in the catalog. The globally
 unique attribute allows us to ask evitaDB for an entity with a specific value without knowing its type in advance.
 This solves the use case when a new request arrives in your application and you need to check if there is an entity
 that matches it (no matter if it's a product, category, brand, group or whatever types you have in your project).
@@ -198,7 +198,7 @@ Entity schema can be made *deprecated*, which will be propagated to generated we
 
 <LS to="j,e,r,g">
 
-Top level entity mutations:
+Top-level entity mutations:
 
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateEntitySchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/CreateEntitySchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveEntitySchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/RemoveEntitySchemaMutation.cs</SourceClass></LS>**
@@ -244,7 +244,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 #### Evolution
 
 We recommend the schema-first approach, but there are cases where you don't want to bother with the schema and just want
-to insert and query the data (e.g. rapid prototyping). When a new [catalog](data-model.md#catalog) is created, it is set up
+to insert and query the data (e.g., rapid prototyping). When a new [catalog](data-model.md#catalog) is created, it is set up
 in "auto evolution" mode, where the schema adapts to the data on first insertion. If you want to control the schema
 strictly, you have to limit the evolution by changing the default schema. In strict mode, evitaDB throws an exception
 if the input data violates the schema.
@@ -284,9 +284,9 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 
 #### Locales and currencies
 
-The schema specifies a list of allowed currencies and locales. We assume that the list of allowed currencies / locales
-will be relatively small (units, max lower tens of them) and if the system knows them in advance, it can generate enums
-for each of them in a web APIs. This helps developers to write queries with auto-completion. There is another positive
+The schema specifies a list of allowed currencies and locales. We assume that the list of allowed currencies/locales
+will be relatively small (units, at most lower tens of them) and if the system knows them in advance, it can generate enums
+for each of them in web APIs. This helps developers write queries with auto-completion. There is another positive
 effect. E-commerce systems don't often extend the list of used currencies or locales (because there are usually a lot
 of manual operations involved), and having the allowed set guarded by the system eliminates the possibility of inserting
 invalid prices or localizations by mistake.
@@ -337,8 +337,8 @@ hold reduced attribute and price indices of the referencing entity, allowing qui
 The typical problem associated with creating a tree structure is the order in which nodes are attached to it. In
 order to have a consistent tree, one should start from the root nodes and gradually descend along the axis of their
 children. This isn't always easy to do when we need to copy an existing tree to an external system (for scripting
-purposes, it's much easier and more performance-effective to index in batch using the natural order of records). Similar
-situation is when the intermediate tree node needs to be removed, but its children do not. We can force developers to
+purposes, it's much easier and more performance-effective to index in batches using the natural order of records). A similar
+situation occurs when an intermediate tree node needs to be removed, but its children do not. We can force developers to
 rewire children to different parents before removing their parent, but they often don't have direct control over the
 order of operations and can't easily do that.
 
@@ -364,9 +364,9 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 ### Prices
 
 When prices are enabled, entities of this type can have a set of prices associated with them and can be
-[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints. Single entity
-can have zero or more prices (the system is designed for situation when entity has tens or hundreds of prices attached
-to it).For each combination of `priceList` and `currency` there is a special
+[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints. A single entity
+can have zero or more prices (the system is designed for situations where an entity has tens or hundreds of prices attached
+to it). For each combination of `priceList` and `currency` there is a special
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/price/PriceListAndCurrencyPriceSuperIndex.java</SourceClass>.
 
 <Note type="info">
@@ -384,7 +384,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 ### Attributes
 
-An entity type can have zero or more attributes. The system is designed for situation when entity has tens of
+An entity type can have zero or more attributes. The system is designed for situations where an entity has tens of
 attributes. You should pay attention to the number of `filterable` / `sortable` / `unique` attributes. There is a
 separate instance of
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java</SourceClass> for each filterable
@@ -444,10 +444,10 @@ The allowed decimal places setting is an optimization that allows rich numeric t
 as <LS to="j,e,r,g">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)</LS><LS to="c">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)</LS> for precise
 number representation) to be converted to the primitive <LS to="j,e,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS> type, which is much more
 compact and can be used for fast binary searches in array/bitset representation. The original rich format is still
-present in an attribute container, but internally the database uses the primitive form when an attribute is part of is
-part of filter or sort conditions.
+present in an attribute container, but internally the database uses the primitive form when an attribute is part of
+filter or sort conditions.
 
-If number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
+If a number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
 an exception is thrown and the entity update is refused.
 
 ### Sortable attribute compounds
@@ -497,13 +497,12 @@ The sortable attribute compound schema is described by:
 
 ### Associated data
 
-An entity type may have zero or more associated data. The system is designed for the situation when an entity has
-tens of associated data.
-
+An entity type may have zero or more associated data. The system is designed for situations where an entity has
+tens of associated data items.
 
 Associated data schema can be marked as `localized`, meaning that it only makes sense in a specific
 <LS to="j,e,r,g">[locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LS>
-<LS to="j,e,r,g">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo).</LS>.
+<LS to="c">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LS>.
 
 Associated data schema can be made *deprecated*, which will be propagated to generated web API documentation.
 
@@ -533,9 +532,9 @@ The associated data schema is described by: <LS to="j"><SourceClass>evita_api/sr
 
 ### Reference
 
-An entity type may have zero or more references. References can be managed or unmanaged. The managed references refer to entities within the same catalog and can be checked for consistency by evitaDB. The non-managed references refer to entities that are managed by external systems outside the scope of evitaDB. An entity can have a self-reference that refers to the same entity type. An entity type can have several references to the same entity type.
+An entity type may have zero or more references. References can be managed or unmanaged. Managed references refer to entities within the same catalog and can be checked for consistency by evitaDB. Unmanaged references refer to entities that are managed by external systems outside the scope of evitaDB. An entity can have a self-reference that refers to the same entity type. An entity type can have several references to the same entity type.
 
-References can have zero or more attributes that apply only to a particular "link" between these two entity instances. [Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply for reference attributes as for regular entity attributes.
+References can have zero or more attributes that apply only to a particular "link" between these two entity instances. A [global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply for reference attributes as for regular entity attributes.
 
 <Note type="info">
 
@@ -562,14 +561,14 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 
-The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](#attributes).
+The `ModifyReferenceAttributeSchemaMutation` expects nested [attribute mutations](#attributes).
 
 <LS to="j,c">
 The reference schema is described by:
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS>> and
+<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LS> and
 <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReflectedReferenceSchemaContract.java</SourceClass></LS>
-<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReflectedReferenceSchema.cs</SourceClass></LS>>
+<LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/IReflectedReferenceSchema.cs</SourceClass></LS>
 </LS>
 
 </Note>
@@ -598,7 +597,7 @@ Reflected references are automatically created, updated, and removed when the or
 
 <Note type="warning">
 
-There is a subtle difference between the original reference and the reflected reference. The original reference can exist even if the referenced entity does not (yet) exist (the reference is orphaned). On the other hand, when you create a reflected reference, the referenced entity must exist. This is because the reflected reference immediately creates the original reference, and the original reference must have a valid target. This behaviour is needed to maintain 
+There is a subtle difference between the original reference and the reflected reference. The original reference can exist even if the referenced entity does not (yet) exist (the reference is orphaned). On the other hand, when you create a reflected reference, the referenced entity must exist. This is because the reflected reference immediately creates the original reference, and the original reference must have a valid target. This behavior is needed to maintain
 consistency when moving entities between different [scopes](#scopes) that treat original and reflected references differently.
 
 </Note>
@@ -618,7 +617,7 @@ You need to select the indexing level for each of the references defined in the 
     <dd>Reference has basic index available that is necessary for [`referencedEntityHaving`](../query/filtering/references.md) filter conditions and [`referenceProperty`](../query/ordering/reference.md) sorting constraint interpretation, and also partitioning indexes for the main entity type (i.e. entity type that contains the reference schema), which may greatly speed up the query execution when the reference is part of the query filtering. This advanced indexing creates additional data structures that allow for more efficient query execution by partitioning the data based on the reference relationships. This can significantly improve performance for complex queries that involve reference filtering, especially when dealing with large datasets. Use this type when reference filtering is frequently used in queries and query performance is critical. Be aware that this option requires more memory and disk space compared to `FOR_FILTERING` level.</dd>
 </dl>
 
-Partitioning indexes are represented by <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> and such index is created for each reference used in any entity in the schema, and will contain subset of the attribute, price and other indexed reduced only to entities with the given reference. Let's describe it on an example - let's say we have entity type `Product` that has reference `categories` to entity type `Category`, which is indexed `FOR_FILTERING_AND_PARTITIONING`. Let's imagine that we need to find all products classified in a specific category that also meet ten other conditions (they are published, currently valid, have an available price in the user's price list and in EUR, etc.). We can evaluate such a query over one large index, where this information is available for all known products in the database, or (if we use partitioning) we can use a much smaller index, in which we can find all the necessary information only for products that have a valid link to the category for which we are evaluating this query. Logically, the response to the query will be significantly faster because the amount of data searched is significantly smaller. The downside of this approach is that it requires a relatively large amount of memory space.
+Partitioning indexes are represented by <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> and such an index is created for each reference used in any entity in the schema, and will contain a subset of the attribute, price and other indexes reduced only to entities with the given reference. Let's describe it with an example - let's say we have entity type `Product` that has reference `categories` to entity type `Category`, which is indexed `FOR_FILTERING_AND_PARTITIONING`. Let's imagine that we need to find all products classified in a specific category that also meet ten other conditions (they are published, currently valid, have an available price in the user's price list and in EUR, etc.). We can evaluate such a query over one large index, where this information is available for all known products in the database, or (if we use partitioning) we can use a much smaller index, in which we can find all the necessary information only for products that have a valid link to the category for which we are evaluating this query. Logically, the response to the query will be significantly faster because the amount of data searched is significantly smaller. The downside of this approach is that it requires a relatively large amount of memory space.
 
 If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md) computation. All reference instances of a given type are then inserted into the *facet reference index* (there is no way to exclude a reference from indexing in the facet reference index). References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type.
 
@@ -626,9 +625,9 @@ If the reference is marked as *faceted*, the special <SourceClass>evita_engine/s
 
 Each reference schema has a certain cardinality. The cardinality describes the expected number of relations of this type. In evitaDB we define only one-way relations from the perspective of the entity. We follow the ERD modeling [standards](https://www.gleek.io/blog/crows-foot-notation.html). Cardinality affects the design of the Web API schemas (returning only single references or arrays) and also helps us to protect the consistency of the data so that it conforms to the creator's mental model.
 
-When you allow definition of *duplicate* references using one of the cardinality types: `ZERO_OR_MORE_WITH_DUPLICATES` or `ONE_OR_MORE_WITH_DUPLICATES`, you'd be able to define two references to the same target entity within a single entity instance. In such case you need to select at least one reference attribute that would make the two references distinguishable and set it as `representative`. The representative attribute would be then used to identify the specific reference when querying or manipulating the entity. If no representative attribute is defined, an exception is thrown when you try to create duplicate references.
+When you allow definition of *duplicate* references using one of the cardinality types: `ZERO_OR_MORE_WITH_DUPLICATES` or `ONE_OR_MORE_WITH_DUPLICATES`, you'll be able to define two references to the same target entity within a single entity instance. In such a case you need to select at least one reference attribute that would make the two references distinguishable and set it as `representative`. The representative attribute would then be used to identify the specific reference when querying or manipulating the entity. If no representative attribute is defined, an exception is thrown when you try to create duplicate references.
 
-There are situations when duplicate references comes handy. Imagine you have an entity type `Product` that has a reference `medias` to entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such case you can define reference attribute `role` as `representative`, and then you'd be able to create multiple references to the same `Media` entity with different `role` values.
+There are situations when duplicate references come in handy. Imagine you have an entity type `Product` that has a reference `medias` to an entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such a case you can define reference attribute `role` as `representative`, and then you'll be able to create multiple references to the same `Media` entity with different `role` values.
 
 ## Scopes
 
@@ -645,11 +644,11 @@ the more indexes you maintain, the more memory and CPU resources you will consum
 
 ### Changes in reference behavior
 
-When you move an entity from one scope to another, the original references are retained, while the reflected references 
-are removed if either of the following conditions is not met
+When you move an entity from one scope to another, the original references are retained, while the reflected references
+are removed if either of the following conditions is not met:
 
 - the reflected reference schema is not marked as *indexed* in the target scope
-- the primary reference schema (i.e. the original reference being reflected) is not marked as *indexed* in the target scope.
+- the primary reference schema (i.e., the original reference being reflected) is not marked as *indexed* in the target scope.
 
 Reflected references are something that is maintained by the evitaDB engine, and it requires appropriate indexes to be 
 present in the target scope in order to work. By default, the archive scope does not maintain any indexes other than 
