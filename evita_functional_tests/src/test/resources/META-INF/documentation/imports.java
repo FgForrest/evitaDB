@@ -130,6 +130,9 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation ;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.progress.Progress;
+import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.data.NonSerializedData;

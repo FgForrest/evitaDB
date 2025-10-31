@@ -517,7 +517,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldUpdateCatalogWithAnotherProductAsynchronously() throws ExecutionException, InterruptedException, TimeoutException {
 		shouldUpdateCatalogWithAnotherProduct();
 
-		final int addedEntityPrimaryKey = evita.updateCatalogAsync(
+		final int addedEntityPrimaryKey = this.evita.updateCatalogAsync(
 				TEST_CATALOG,
 				session -> {
 					final SealedEntity upsertedEntity = session.upsertAndFetchEntity(
@@ -531,7 +531,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.get(1, TimeUnit.MINUTES)
 			.getPrimaryKeyOrThrowException();
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				// the entity will immediately available in indexes
