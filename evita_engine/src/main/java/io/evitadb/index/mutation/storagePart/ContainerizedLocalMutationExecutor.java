@@ -178,6 +178,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 	private Map<ComparableReferenceKey, ReferenceKey> assignedPrimaryKeys;
+	private Set<ReferenceKey> createdReferencePrimaryKeys = Collections.emptySet();
 	private Set<Locale> addedLocales;
 	private Set<Locale> removedLocales;
 
@@ -615,8 +616,16 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						}
 						return -1;
 					},
-					(index, reference) -> new Reference(
-						primaryReferenceKeys.get(index).referenceKey().internalPrimaryKey(), reference)
+					(index, reference) -> {
+						final Reference newReference = new Reference(
+							primaryReferenceKeys.get(index).referenceKey().internalPrimaryKey(),
+							reference
+						);
+						if (!this.createdReferencePrimaryKeys.isEmpty() && this.createdReferencePrimaryKeys.remove(reference.getReferenceKey())) {
+							this.createdReferencePrimaryKeys.add(newReference.getReferenceKey());
+						}
+						return newReference;
+					}
 				);
 				Assert.isPremiseValid(
 					primaryReferenceKeys.size() == replacedReferencesCount,
@@ -624,9 +633,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				);
 				// after that we can generate attribute mutations - the reference key is now stable
 				for (PrimaryReferenceKeyWithRepresentativeAttributes primaryReferenceKey : primaryReferenceKeys) {
+					final ReferenceKey refKey = primaryReferenceKey.referenceKey();
+					Assert.isPremiseValid(
+						refKey.isKnownInternalPrimaryKey(),
+						"Expected known internal primary key here!"
+					);
 					addMutations(
 						localMutations,
-						entityPrimaryKey, ownerEntityPrimaryKey, primaryReferenceKey.referenceKey(),
+						entityPrimaryKey, ownerEntityPrimaryKey,
+						this.createdReferencePrimaryKeys.contains(
+							new ReferenceKey(rrs.getName(), ownerEntityPrimaryKey, refKey.internalPrimaryKey())
+						),
+						refKey,
 						referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
 					);
 				}
@@ -642,11 +660,21 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							referenceSchema, new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey),
 							representativeAttributeValues
 						).ifPresent(
-							reference -> addMutations(
-								localMutations,
-								entityPrimaryKey, ownerEntityPrimaryKey, reference.getReferenceKey(),
-								referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
-							)
+							reference -> {
+								final ReferenceKey refKey = reference.getReferenceKey();
+								Assert.isPremiseValid(
+									refKey.isKnownInternalPrimaryKey(),
+									"Expected known internal primary key here!"
+								);
+								addMutations(
+									localMutations,
+									entityPrimaryKey,
+									ownerEntityPrimaryKey,
+									this.createdReferencePrimaryKeys.contains(refKey),
+									refKey,
+									referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
+								);
+							}
 						);
 					}
 				}
@@ -685,21 +713,24 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@SuppressWarnings("rawtypes") @Nonnull List<LocalMutation> localMutations,
 		int entityPrimaryKey,
 		int ownerEntityPrimaryKey,
+		boolean createReference,
 		@Nonnull ReferenceKey primaryReferenceKey,
 		@Nonnull String referencedSchemaName,
 		@Nonnull String referenceSchemaName,
 		@Nonnull Function<ReferenceKey, Stream<ReferenceAttributeMutation>> referenceAttributeSupplier
 	) {
-		localMutations.add(
-			new InsertReferenceMutation(
-				// reflected references copy internal PK of the reference they reflect
-				new ReferenceKey(
-					referencedSchemaName,
-					entityPrimaryKey,
-					primaryReferenceKey.internalPrimaryKey()
+		if (createReference) {
+			localMutations.add(
+				new InsertReferenceMutation(
+					// reflected references copy internal PK of the reference they reflect
+					new ReferenceKey(
+						referencedSchemaName,
+						entityPrimaryKey,
+						primaryReferenceKey.internalPrimaryKey()
+					)
 				)
-			)
-		);
+			);
+		}
 		referenceAttributeSupplier.apply(
 			new ReferenceKey(
 				referenceSchemaName,
@@ -829,6 +860,16 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	public void finishLocalMutationExecutionPhase() {
 		if (this.referencesStorageContainer != null) {
 			this.assignedPrimaryKeys = this.referencesStorageContainer.assignMissingIdsAndSort();
+			this.createdReferencePrimaryKeys = this.assignedPrimaryKeys.isEmpty() ?
+				Collections.emptySet() : new HashSet<>(this.assignedPrimaryKeys.values());
+		}
+		// when scope changes
+		if (this.initialEntityScope != this.entityContainer.getScope()) {
+			// all references are considered as new for the safe of reflected references propagation
+			this.createdReferencePrimaryKeys = Stream.of(getReferencesStoragePart(this.entityType, this.entityPrimaryKey).getReferences())
+				.filter(Droppable::exists)
+				.map(ReferenceContract::getReferenceKey)
+				.collect(Collectors.toCollection(HashSet::new));
 		}
 	}
 
@@ -1528,7 +1569,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								irm,
 								currentIndex,
 								processedMutations,
-								inputMutations
+								inputMutations,
+								crk -> Objects.requireNonNull(this.assignedPrimaryKeys.get(crk))
 							)
 						),
 						mutationCollector,
@@ -1552,7 +1594,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								rrm,
 								currentIndex,
 								processedMutations,
-								inputMutations
+								inputMutations,
+								crk -> Objects.requireNonNull(this.assignedPrimaryKeys.get(crk))
 							)
 						),
 						mutationCollector,

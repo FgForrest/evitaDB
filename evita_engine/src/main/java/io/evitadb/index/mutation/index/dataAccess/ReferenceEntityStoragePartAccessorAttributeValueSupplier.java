@@ -50,7 +50,8 @@ import java.util.stream.Stream;
 class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements ExistingAttributeValueSupplier {
 	private final WritableEntityStorageContainerAccessor containerAccessor;
 	private final ReferenceSchema referenceSchema;
-	private final RepresentativeReferenceKey referenceKey;
+	private final RepresentativeReferenceKey storedReferenceKey;
+	private final RepresentativeReferenceKey currentReferenceKey;
 	private final String entityType;
 	private final int entityPrimaryKey;
 	private final MemoizedLocalesObsoleteChecker memoizedLocalesObsoleteChecker;
@@ -60,15 +61,17 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	private int memoizedReferenceIndex = -1;
 
 	public ReferenceEntityStoragePartAccessorAttributeValueSupplier(
-		WritableEntityStorageContainerAccessor containerAccessor,
-		ReferenceSchema referenceSchema,
-		RepresentativeReferenceKey referenceKey,
-		String entityType,
+		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull RepresentativeReferenceKey storedReferenceKey,
+		@Nonnull RepresentativeReferenceKey currentReferenceKey,
+		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
 		this.containerAccessor = containerAccessor;
 		this.referenceSchema = referenceSchema;
-		this.referenceKey = referenceKey;
+		this.storedReferenceKey = storedReferenceKey;
+		this.currentReferenceKey = currentReferenceKey;
 		this.entityType = entityType;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.memoizedLocalesObsoleteChecker = new MemoizedLocalesObsoleteChecker(containerAccessor);
@@ -159,7 +162,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 								                    .getRepresentativeValues(reference)
 							) :
 							new RepresentativeReferenceKey(reference.getReferenceKey());
-					if (Objects.equals(theReferenceKey, this.referenceKey)) {
+					if (Objects.equals(theReferenceKey, this.currentReferenceKey) || Objects.equals(theReferenceKey, this.storedReferenceKey)) {
 						this.memoizedReference = Optional.of(reference);
 						this.memoizedReferenceIndex = i;
 						break;

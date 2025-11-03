@@ -95,7 +95,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 	 *
 	 * @param entitySchema entity schema of the target entity; required for validation of prices
 	 */
-	InitialPricesBuilder(EntitySchemaContract entitySchema) {
+	InitialPricesBuilder(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		this.prices = CollectionUtils.createHashMap(16);
 		this.priceInnerRecordHandling = PriceInnerRecordHandling.NONE;
@@ -321,7 +321,7 @@ public class InitialPricesBuilder implements PricesBuilder {
 	@Override
 	public Stream<? extends LocalMutation<?, ?>> buildChangeSet() {
 		return Stream.concat(
-			this.priceInnerRecordHandling == null ?
+			this.priceInnerRecordHandling == null || this.priceInnerRecordHandling == PriceInnerRecordHandling.UNKNOWN ?
 				Stream.empty() :
 				Stream.of(new SetPriceInnerRecordHandlingMutation(this.priceInnerRecordHandling)),
 			this.prices.entrySet().stream().map(it -> new UpsertPriceMutation(it.getKey(), it.getValue()))

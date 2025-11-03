@@ -601,7 +601,10 @@ public class DataGenerator {
 						(attributeName, value) -> {
 							final Serializable[] currentAVs = currentRRK.representativeAttributeValues();
 							final Serializable[] potentialAVs = Arrays.copyOf(currentAVs, currentAVs.length);
-							potentialAVs[rad.getAttributeNameIndex(attributeName).orElseThrow()] = (Serializable) value;
+							if (referenceAllowsDuplicates) {
+								potentialAVs[rad.getAttributeNameIndex(attributeName).orElseThrow()] =
+									(Serializable) value;
+							}
 							return !representativeKeys.contains(
 								new RepresentativeReferenceKey(
 									refBuilder.getReferenceKey(),
@@ -1759,16 +1762,22 @@ public class DataGenerator {
 			generateRandomAssociatedData(schema, genericFaker, detachedBuilder, usedLocales, allLocales);
 
 			// randomly delete prices
-			final List<Price.PriceKey> prices = detachedBuilder.getPrices().stream().map(PriceContract::priceKey).sorted().collect(Collectors.toList());
-			for (Price.PriceKey price : prices) {
-				if (genericFaker.random().nextInt(4) == 0) {
-					detachedBuilder.removePrice(price.priceId(), price.priceList(), price.currency());
+			if (detachedBuilder.getSchema().isWithPrice()) {
+				final List<Price.PriceKey> prices = detachedBuilder.getPrices()
+					.stream()
+					.map(PriceContract::priceKey)
+					.sorted()
+					.collect(Collectors.toList());
+				for (Price.PriceKey price : prices) {
+					if (genericFaker.random().nextInt(4) == 0) {
+						detachedBuilder.removePrice(price.priceId(), price.priceList(), price.currency());
+					}
 				}
+				generateRandomPrices(
+					schema, uniqueSequencer, genericFaker, allCurrencies, allPriceLists,
+					detachedBuilder, priceInnerRecordHandlingGenerator, priceIndexingDecider
+				);
 			}
-			generateRandomPrices(
-				schema, uniqueSequencer, genericFaker, allCurrencies, allPriceLists,
-				detachedBuilder, priceInnerRecordHandlingGenerator, priceIndexingDecider
-			);
 
 			// randomly delete references
 			final Collection<ReferenceKey> references =
