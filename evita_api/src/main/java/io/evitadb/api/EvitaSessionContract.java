@@ -25,15 +25,7 @@ package io.evitadb.api;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.EntityAlreadyRemovedException;
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
-import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.exception.TemporalDataNotAvailableException;
-import io.evitadb.api.exception.UnexpectedResultCountException;
-import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.exception.*;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.query.HeadConstraint;
@@ -1259,6 +1251,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	<T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
+
+	/**
+	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
+	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 *
+	 * @param mutation mutation to be applied
+	 * @throws InvalidMutationException when mutation is not applicable to the catalog
+	 */
+	void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not

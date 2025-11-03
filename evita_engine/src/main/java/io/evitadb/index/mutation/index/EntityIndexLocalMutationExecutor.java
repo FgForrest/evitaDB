@@ -179,7 +179,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * List of all mutations that are being processed right now.
 	 */
-	private List<? extends LocalMutation<?, ?>> localMutations;
+	@Nullable private List<? extends LocalMutation<?, ?>> localMutations;
 	/**
 	 * Memoized scope of the current entity.
 	 */
@@ -235,6 +235,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return this.memoizedScope;
 	}
 
+	/**
+	 * Prepares the necessary initial setup for the provided local mutations, ensuring
+	 * appropriate indexes and configurations are in place for further processing.
+	 * This involves maintaining undo actions when modifications occur and
+	 * initializing required components such as global indexes and sortable attribute compounds.
+	 *
+	 * @param localMutations the list of mutations that are applied locally; these mutations
+	 *                        are used to make changes to the current state and may include
+	 *                        accompanying undo actions for reversibility
+	 */
 	public void prepare(@Nonnull List<? extends LocalMutation<?, ?>> localMutations) {
 		this.localMutations = localMutations;
 
@@ -491,27 +501,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 			// then peek into all local mutations and update values according to them
 			// this prevents from reindexing data when local mutations are gradually applied one by one
-			for (LocalMutation<?, ?> localMutation : this.localMutations) {
-				if (localMutation instanceof ReferenceAttributeMutation ram &&
-					ReferenceKey.FULL_COMPARATOR.compare(ram.getReferenceKey(), referenceKey) == 0) {
-					final String attributeName = ram.getAttributeKey().attributeName();
-					final OptionalInt attributeNameIndex = rad.getAttributeNameIndex(attributeName);
-					if (attributeNameIndex.isPresent()) {
-						final int index = attributeNameIndex.getAsInt();
-						final AttributeMutation attributeMutation = ram.getAttributeMutation();
-						final AttributeValue updatedValue = attributeMutation
-							.mutateLocal(
-								entitySchema,
-								reference.flatMap(it -> it.getAttributeValue(attributeName))
-								         .orElse(null)
-							);
-						final Serializable newValue = updatedValue.exists() ? updatedValue.value() : null;
-						if (!Objects.equals(newValue, storedRAV[index])) {
-							//noinspection ArrayEquality
-							if (currentRAV == storedRAV) {
-								currentRAV = Arrays.copyOf(storedRAV, storedRAV.length);
+			if (this.localMutations != null) {
+				for (LocalMutation<?, ?> localMutation : this.localMutations) {
+					if (localMutation instanceof ReferenceAttributeMutation ram &&
+						ReferenceKey.FULL_COMPARATOR.compare(ram.getReferenceKey(), referenceKey) == 0) {
+						final String attributeName = ram.getAttributeKey().attributeName();
+						final OptionalInt attributeNameIndex = rad.getAttributeNameIndex(attributeName);
+						if (attributeNameIndex.isPresent()) {
+							final int index = attributeNameIndex.getAsInt();
+							final AttributeMutation attributeMutation = ram.getAttributeMutation();
+							final AttributeValue updatedValue = attributeMutation
+								.mutateLocal(
+									entitySchema,
+									reference.flatMap(it -> it.getAttributeValue(attributeName))
+										.orElse(null)
+								);
+							final Serializable newValue = updatedValue.exists() ? updatedValue.value() : null;
+							if (!Objects.equals(newValue, storedRAV[index])) {
+								//noinspection ArrayEquality
+								if (currentRAV == storedRAV) {
+									currentRAV = Arrays.copyOf(storedRAV, storedRAV.length);
+								}
+								currentRAV[index] = newValue;
 							}
-							currentRAV[index] = newValue;
 						}
 					}
 				}

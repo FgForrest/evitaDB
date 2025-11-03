@@ -25,6 +25,7 @@ package io.evitadb.core.executor;
 
 import io.evitadb.core.metric.event.system.BackgroundTaskFinishedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.LongSupplier;
 
 /**
@@ -110,6 +112,10 @@ public class DelayedAsyncTask implements Closeable {
 	 * The flag indicating whether the task has been closed. Closed task cannot be scheduled anymore.
 	 */
 	private final AtomicBoolean closed = new AtomicBoolean();
+	/**
+	 * Lock for scheduling to ensure thread-safety.
+	 */
+	private final ReentrantLock schedulingLock = new ReentrantLock();
 
 	public DelayedAsyncTask(
 		@Nullable String catalogName,
@@ -147,12 +153,18 @@ public class DelayedAsyncTask implements Closeable {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void scheduleImmediately() {
-		final OffsetDateTime now = OffsetDateTime.now();
-		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
-			scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
-		} else if (this.running.get()) {
-			// if this task is currently running, we need to schedule it again after it finishes
-			this.reSchedule.set(true);
+		assertNotClosed();
+		this.schedulingLock.lock();
+		try {
+			final OffsetDateTime now = OffsetDateTime.now();
+			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, now) == OffsetDateTime.MIN) {
+				scheduleTask(computeMinimalSchedulingGap(now.toInstant().toEpochMilli()));
+			} else if (this.running.get()) {
+				// if this task is currently running, we need to schedule it again after it finishes
+				this.reSchedule.set(true);
+			}
+		} finally {
+			this.schedulingLock.unlock();
 		}
 	}
 
@@ -162,35 +174,61 @@ public class DelayedAsyncTask implements Closeable {
 	 * The task is scheduled using the scheduler's schedule method.
 	 */
 	public void schedule() {
-		if (this.delay == Long.MAX_VALUE) {
-			// the task is manual task and will never be scheduled
-			return;
-		}
+		assertNotClosed();
 
-		final OffsetDateTime now = OffsetDateTime.now();
-		final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
-		if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
-			final long nowMillis = now.toInstant().toEpochMilli();
-			final long computedDelay = Math.max(
-				nextTick.toInstant().toEpochMilli() - nowMillis,
-				computeMinimalSchedulingGap(nowMillis)
-			);
-			scheduleTask(computedDelay);
-		} else if (this.running.get()) {
-			// if this task is currently running, we need to schedule it again after it finishes
-			this.reSchedule.set(true);
+		this.schedulingLock.lock();
+		try {
+			if (this.delay == Long.MAX_VALUE) {
+				// the task is manual task and will never be scheduled
+				return;
+			}
+
+			final OffsetDateTime now = OffsetDateTime.now();
+			final OffsetDateTime nextTick = now.plus(this.delay, this.delayUnits.toChronoUnit());
+			if (this.nextPlannedExecution.compareAndExchange(OffsetDateTime.MIN, nextTick) == OffsetDateTime.MIN) {
+				final long nowMillis = now.toInstant().toEpochMilli();
+				final long computedDelay = Math.max(
+					nextTick.toInstant().toEpochMilli() - nowMillis,
+					computeMinimalSchedulingGap(nowMillis)
+				);
+				scheduleTask(computedDelay);
+			} else if (this.running.get()) {
+				// if this task is currently running, we need to schedule it again after it finishes
+				this.reSchedule.set(true);
+			}
+		} finally {
+			this.schedulingLock.unlock();
 		}
 	}
 
 	@Override
 	public void close() throws IOException {
 		if (this.closed.compareAndSet(false, true)) {
-			final ScheduledFuture<?> future = this.scheduledFuture.getAndSet(null);
-			if (future != null && !future.isDone()) {
-				future.cancel(false);
+			this.schedulingLock.lock();
+			try {
+				final ScheduledFuture<?> future = this.scheduledFuture.getAndSet(null);
+				if (future != null && !future.isDone()) {
+					future.cancel(false);
+				}
+				// release the lambda to allow garbage collection
+				this.lambda.set(null);
+				this.nextPlannedExecution.set(OffsetDateTime.MIN);
+			} finally {
+				this.schedulingLock.unlock();
 			}
-			// release the lambda to allow garbage collection
-			this.lambda.set(null);
+		}
+	}
+
+	/**
+	 * Ensures that the task is not closed before proceeding with its execution or scheduling.
+	 * If the task is already marked as closed, this method throws a GenericEvitaInternalError
+	 * to indicate that the operation cannot be performed on a closed task.
+	 *
+	 * @throws GenericEvitaInternalError if the task is marked as closed
+	 */
+	private void assertNotClosed() {
+		if (this.closed.get()) {
+			throw new GenericEvitaInternalError("Cannot schedule task `" + this.taskName + "` that has been closed.");
 		}
 	}
 
@@ -223,8 +261,9 @@ public class DelayedAsyncTask implements Closeable {
 		if (lastFinishedExecutionTime.equals(OffsetDateTime.MIN)) {
 			return 0;
 		} else {
-			return Math.max(0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant()
-			                                                                                     .toEpochMilli())
+			return Math.max(
+				0, this.minimalSchedulingGap - (nowMillis - lastFinishedExecutionTime.toInstant()
+					.toEpochMilli())
 			);
 		}
 	}

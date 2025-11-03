@@ -236,7 +236,7 @@ package. Thus, we can specify the name of the package that contains the metrics 
 which will enable the collection of all events in that category (package). It is also possible to specify individual
 metrics by specifying the full name of their corresponding class (*package_path.class_name*).
 
-Internal metrics are documented in the [Metrics reference](#metrics-reference) section.
+Internal metrics are documented in the [Metrics reference](#reference-documentation) section.
 
 ### JFR events
 
@@ -558,6 +558,14 @@ The recorded traffic can be browsed and filtered in evitaLab and any query can b
 query console on the current dataset. Records can also be filtered by custom [labels](../query/header/label.md#label), 
 traceIds or protocol types. You can easily isolate sets of traffic records that relate to a single business case, such 
 as a single page rendering or a single API call.
+
+## Change data capture
+
+Change data capture allows you to track changes happening in the database in near real-time. You can subscribe to changes
+happening to catalog schema or data changes happening to entities in specific catalogs. You can also observe top-level
+engine mutations such as catalog creation or removal. Feature is supported in all of your APIs — including web-based ones
+such as gRPC, REST and GraphQL. More details about this feature can be found in the [Change data capture](../use/api/capture-changes.md) 
+chapter.
 
 ## Reference documentation
 

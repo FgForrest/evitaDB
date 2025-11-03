@@ -91,7 +91,7 @@
             <plugin>
                 <groupId>net.bytebuddy</groupId>
                 <artifactId>byte-buddy-maven-plugin</artifactId>
-                <version>1.14.17</version>
+                <version>1.17.8</version>
                 <executions>
                     <execution>
                         <id>transform-classes</id>

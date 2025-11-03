@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
@@ -101,6 +102,10 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * The supplier of the catalog header for the specified catalog version.
 	 */
 	private final LongFunction<DataFilesBulkInfo> dataFilesInfoFetcher;
+	/**
+	 * Flag indicating whether the maintainer has been closed.
+	 */
+	private final AtomicBoolean closed = new AtomicBoolean(false);
 
 	public ObsoleteFileMaintainer(
 		@Nonnull String catalogName,
@@ -134,6 +139,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		@Nonnull Path path,
 		@Nonnull Runnable removalLambda
 	) {
+		assertNotClosed();
 		final MaintainedFile fileToMaintain = new MaintainedFile(catalogVersion, path, removalLambda);
 		if (catalogVersion <= 0L) {
 			// version 0L represents catalog in WARM-UP (non-transactional) state where we apply all changes immediately
@@ -162,6 +168,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	@Override
 	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+		assertNotClosed();
 		// immediate file purging on catalog version exchange is not used when time travel is enabled
 		if (!this.timeTravelEnabled) {
 			if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() < lastKnownMinimalActiveVersion) {
@@ -174,17 +181,6 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		}
 	}
 
-	@Override
-	public void close() {
-		IOUtils.closeQuietly(this.purgeTask::close);
-		// clear all files immediately, database shuts down and there will be no active sessions
-		this.lastKnownMinimalActiveVersion.set(0L);
-		for (MaintainedFile maintainedFile : this.maintainedFiles) {
-			purgeFile(maintainedFile);
-		}
-		this.maintainedFiles.clear();
-	}
-
 	/**
 	 * Creates the WAL purge callback that is used to remove all files that are no longer used. The callback is used
 	 * when the WAL history is purged.
@@ -193,6 +189,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	@Nonnull
 	public WalPurgeCallback createWalPurgeCallback() {
+		assertNotClosed();
 		if (this.timeTravelEnabled) {
 			return new ObsoleteWalPurgeCallback(
 				this.catalogStoragePath,
@@ -202,6 +199,26 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		} else {
 			return WalPurgeCallback.NO_OP;
 		}
+	}
+
+	@Override
+	public void close() {
+		if (this.closed.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.purgeTask::close);
+			// clear all files immediately, database shuts down and there will be no active sessions
+			this.lastKnownMinimalActiveVersion.set(0L);
+			for (MaintainedFile maintainedFile : this.maintainedFiles) {
+				purgeFile(maintainedFile);
+			}
+			this.maintainedFiles.clear();
+		}
+	}
+
+	/**
+	 * Asserts that the maintainer is not closed.
+	 */
+	private void assertNotClosed() {
+		Assert.isPremiseValid(!this.closed.get(), "ObsoleteFileMaintainer is closed");
 	}
 
 	/**
@@ -224,15 +241,17 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	private long purgeObsoleteFiles() {
 		final long lastKnownMinimalActiveVersion = this.lastKnownMinimalActiveVersion.get();
 		/* TOBEDONE JNO - this is only for debugging purposes, we should rely on events instead */
-		log.debug(
-			"Purging obsolete files - last known minimal active version: {}\nFiles waiting for removal:\n{}",
-			lastKnownMinimalActiveVersion,
-			this.maintainedFiles.stream()
-				.map(MaintainedFile::path)
-				.map(Path::toString)
-				.map(path -> "\t - " + path)
-				.collect(Collectors.joining("\n"))
-		);
+		if (!this.maintainedFiles.isEmpty()) {
+			log.info(
+				"Purging obsolete files - last known minimal active version: {}\nFiles waiting for removal:\n{}",
+				lastKnownMinimalActiveVersion,
+				this.maintainedFiles.stream()
+					.map(MaintainedFile::path)
+					.map(Path::toString)
+					.map(path -> "\t - " + path)
+					.collect(Collectors.joining("\n"))
+			);
+		}
 		final List<MaintainedFile> itemsToRemove = new LinkedList<>();
 		long newFirstCatalogVersion = 0L;
 		for (MaintainedFile maintainedFile : this.maintainedFiles) {
@@ -263,7 +282,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 		// when time travel is enabled, the files are removed only when bootstrap records is purged
 		if (!this.timeTravelEnabled) {
 			if (maintainedFile.path().toFile().delete()) {
-				log.debug("Deleted obsolete file {}", maintainedFile.path());
+				/* TODO JNO - remove, just for debugging purposes */
+				log.info("Deleted obsolete file:" + maintainedFile.path(), new RuntimeException("Stack trace"));
 			} else {
 				log.warn("Could not delete obsolete file {}", maintainedFile.path());
 			}
@@ -351,7 +371,8 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 							)
 								.stream()
 								.flatMap(Arrays::stream)
-								.filter(file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
+								.filter(
+									file -> getIndexFromCatalogFileName(file.getName()) < firstUsedCatalogDataFileIndex)
 								.forEach(file -> {
 									if (file.delete()) {
 										log.debug("Deleted obsolete catalog file `{}`", file.getAbsolutePath());
@@ -367,15 +388,19 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 								.stream()
 								.flatMap(Arrays::stream)
 								.filter(file -> {
-									final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(file.getName());
-									final Integer firstUsedEntityFileIndex = entityFileIndex.get(result.entityTypePrimaryKey());
+									final EntityTypePrimaryKeyAndFileIndex result = getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(
+										file.getName());
+									final Integer firstUsedEntityFileIndex = entityFileIndex.get(
+										result.entityTypePrimaryKey());
 									return firstUsedEntityFileIndex == null || result.fileIndex() < firstUsedEntityFileIndex;
 								})
 								.forEach(file -> {
 									if (file.delete()) {
-										log.debug("Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
+										log.debug(
+											"Deleted obsolete entity collection file `{}`", file.getAbsolutePath());
 									} else {
-										log.warn("Could not delete entity collection file `{}`", file.getAbsolutePath());
+										log.warn(
+											"Could not delete entity collection file `{}`", file.getAbsolutePath());
 									}
 								});
 						}

@@ -574,7 +574,11 @@ public class MetricHandler {
 
 		@Override
 		protected void stopInternal() {
-			this.recordingStream.get().close();
+			final RecordingStream theStream = this.recordingStream.getAndSet(null);
+			if (theStream != null) {
+				theStream.disable("*");
+				theStream.close();
+			}
 		}
 
 		@Override

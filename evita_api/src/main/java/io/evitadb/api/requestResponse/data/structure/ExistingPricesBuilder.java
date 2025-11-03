@@ -495,15 +495,15 @@ public class ExistingPricesBuilder implements PricesBuilder {
 
 	/**
 	 * Returns all prices-for-sale for the active currency and price lists in the predicate.
-	 * Requires prices to be fetched with {@link PriceContentMode#ALL}.
+	 * Requires prices to be fetched with at least {@link PriceContentMode#RESPECTING_FILTER}.
 	 *
 	 * @throws ContextMissingException when predicate lacks currency or price lists
 	 */
 	@Nonnull
 	@Override
 	public List<PriceContract> getAllPricesForSale() {
-		assertPricesFetched(PriceContentMode.ALL);
-		if (this.pricePredicate.getCurrency() == null || this.pricePredicate.getPriceLists() == null) {
+		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
+		if (this.pricePredicate.getCurrency() == null || ArrayUtils.isEmpty(this.pricePredicate.getPriceLists())) {
 			throw new ContextMissingException();
 		}
 		return getAllPricesForSale(
@@ -803,13 +803,15 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * Ensures that price data were fetched with at least the required content mode before operations.
 	 *
 	 * @param requiredMode minimal acceptable {@link PriceContentMode}
-	 * @throws IllegalArgumentException when prices were not fetched with sufficient content mode
+	 * @throws ContextMissingException when prices were not fetched with sufficient content mode
 	 */
 	private void assertPricesFetched(@Nonnull PriceContentMode requiredMode) {
 		Assert.isTrue(
 			this.pricePredicate.getPriceContentMode().ordinal() >= requiredMode.ordinal(),
-			"Prices were not fetched and cannot be updated." +
-				" Please enrich the entity first or load it with `" + requiredMode + " ` price requirement."
+			() -> new ContextMissingException(
+				"Prices were not fetched and cannot be updated." +
+					" Please enrich the entity first or load it with `" + requiredMode + " ` price requirement."
+			)
 		);
 	}
 

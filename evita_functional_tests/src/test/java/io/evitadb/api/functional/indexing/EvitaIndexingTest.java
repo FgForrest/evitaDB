@@ -39,10 +39,17 @@ import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -80,6 +87,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -122,21 +130,76 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_INHERITED = "inherited";
 	private static final String ATTRIBUTE_CATEGORY_MARKET = "market";
 	private static final String ATTRIBUTE_PRODUCT_CATEGORY_VARIANT = "variant";
-	private static final AttributeSchema ATTRIBUTE_EAN_SCHEMA = AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false);
+	private static final AttributeSchema ATTRIBUTE_EAN_SCHEMA = AttributeSchema._internalBuild(
+		ATTRIBUTE_EAN, String.class, false);
 	private Evita evita;
+
+	public static void assertPrice(
+		@Nonnull PricesContract updatedInstance,
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(
+			() -> fail("Price not found!"));
+		assertEquals(priceWithoutTax, price.priceWithoutTax());
+		assertEquals(taxRate, price.taxRate());
+		assertEquals(priceWithTax, price.priceWithTax());
+		assertEquals(indexed, price.indexed());
+	}
+
+	@Nullable
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
+		return getGlobalIndex(collection, Scope.LIVE);
+	}
+
+	@Nullable
+	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
+		);
+	}
+
+	@Nullable
+	static EntityIndex getReferencedEntityIndex(
+		@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
+		return getReferencedEntityIndex(collection, Scope.LIVE, entityType, recordId);
+	}
+
+	@Nullable
+	static EntityIndex getReferencedEntityIndex(
+		@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY,
+				scope,
+				new RepresentativeReferenceKey(new ReferenceKey(entityType, recordId))
+			)
+		);
+	}
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
 		assertNotNull(categoryIndex);
 		assertTrue(categoryIndex.getUniqueIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getRecordIds().contains(recordId));
 		assertTrue(categoryIndex.getFilterIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getAllRecords().contains(recordId));
-		assertTrue(ArrayUtils.contains(categoryIndex.getSortIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getSortedRecords(), recordId));
-		assertTrue(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE).getIndexedPriceEntityIds().contains(recordId));
+		assertTrue(ArrayUtils.contains(
+			categoryIndex.getSortIndex(null, ATTRIBUTE_EAN_SCHEMA, null).getSortedRecords(), recordId));
+		assertTrue(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE)
+			           .getIndexedPriceEntityIds()
+			           .contains(recordId));
 		// EUR price is not indexed
 		assertNull(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_EUR, PriceInnerRecordHandling.NONE));
 	}
 
 	@Nullable
-	private static EntityReferenceContract fetchProductInLocale(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Locale locale) {
+	private static EntityReferenceContract fetchProductInLocale(
+		@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Locale locale) {
 		return session.queryOneEntityReference(
 			query(
 				collection(Entities.PRODUCT),
@@ -224,7 +287,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.withReflectedReferenceToEntity(
 				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
 				whichIs -> whichIs.withAttributesInheritedExcept(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED)
-					.withAttribute(ATTRIBUTE_CATEGORY_MARKET, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("CZ"))
+					.withAttribute(
+						ATTRIBUTE_CATEGORY_MARKET, String.class,
+						thatIs -> thatIs.filterable().sortable().withDefaultValue("CZ")
+					)
 			)
 			.updateVia(session);
 		session
@@ -232,8 +298,14 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.withReferenceToEntity(
 				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 				whichIs -> whichIs.indexedForFilteringAndPartitioning()
-					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().withDefaultValue("default"))
-					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable().nullable())
+					.withAttribute(
+						ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class,
+						thatIs -> thatIs.filterable().sortable().withDefaultValue("default")
+					)
+					.withAttribute(
+						ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class,
+						thatIs -> thatIs.filterable().sortable().nullable()
+					)
 			)
 			.updateVia(session);
 	}
@@ -243,7 +315,9 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	 *
 	 * @param session the session to use for schema creation
 	 */
-	private static void createEntangledSchemaWithInheritedAttributesWithoutDefaults(@Nonnull EvitaSessionContract session) {
+	private static void createEntangledSchemaWithInheritedAttributesWithoutDefaults(
+		@Nonnull EvitaSessionContract session
+	) {
 		session.defineEntitySchema(Entities.CATEGORY)
 			.withReflectedReferenceToEntity(
 				REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, Entities.PRODUCT, REFERENCE_PRODUCT_CATEGORY,
@@ -256,8 +330,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.withReferenceToEntity(
 				REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_ONE,
 				whichIs -> whichIs.indexedForFilteringAndPartitioning()
-					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
-					.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
+					.withAttribute(
+						ATTRIBUTE_PRODUCT_CATEGORY_NOT_INHERITED, String.class,
+						thatIs -> thatIs.filterable().sortable()
+					)
+					.withAttribute(
+						ATTRIBUTE_PRODUCT_CATEGORY_INHERITED, String.class, thatIs -> thatIs.filterable().sortable())
 			)
 			.updateVia(session);
 	}
@@ -265,10 +343,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	/**
 	 * Asserts the values of inherited and non-inherited attributes for specified product and category entities.
 	 *
-	 * @param session the session to use for entity fetching
+	 * @param session             the session to use for entity fetching
 	 * @param productNotInherited expected value for the non-inherited product attribute
-	 * @param productInherited expected value for the inherited product attribute
-	 * @param categoryMarket expected value for the category market attribute
+	 * @param productInherited    expected value for the inherited product attribute
+	 * @param categoryMarket      expected value for the category market attribute
 	 */
 	private static void assertInheritedAttributesValues(
 		@Nonnull EvitaSessionContract session,
@@ -286,43 +364,14 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		}
 
 		final SealedEntity category = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-		final ReferenceContract productsInCategory = category.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow();
+		final ReferenceContract productsInCategory = category.getReference(
+			REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow();
 		assertEquals(categoryMarket, productsInCategory.getAttribute(ATTRIBUTE_CATEGORY_MARKET));
 		if (productInherited != null) {
 			assertEquals(productInherited, productsInCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
 		} else {
 			assertNull(productsInCategory.getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_INHERITED));
 		}
-	}
-
-	@Nullable
-	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection) {
-		return getGlobalIndex(collection, Scope.LIVE);
-	}
-
-	@Nullable
-	static EntityIndex getGlobalIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
-		);
-	}
-
-	@Nullable
-	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull String entityType, int recordId) {
-		return getReferencedEntityIndex(collection, Scope.LIVE, entityType, recordId);
-	}
-
-	@Nullable
-	static EntityIndex getReferencedEntityIndex(@Nonnull EntityCollectionContract collection, @Nonnull Scope scope, @Nonnull String entityType, int recordId) {
-		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				scope,
-				new RepresentativeReferenceKey(new ReferenceKey(entityType, recordId))
-			)
-		);
 	}
 
 	private static int[] getAllCategories(EvitaSessionContract session) {
@@ -338,7 +387,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.toArray();
 	}
 
-	private static int countProductsWithPriceListCurrencyCombination(EvitaSessionContract session, String priceList, Currency currency) {
+	private static int countProductsWithPriceListCurrencyCombination(
+		EvitaSessionContract session, String priceList, Currency currency) {
 		return session.query(
 				query(
 					collection(Entities.PRODUCT),
@@ -371,6 +421,62 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST_EXPORT);
 	}
 
+	@DisplayName("Update catalog with direct mutations.")
+	@Test
+	void shouldApplyDirectMutations() {
+		this.evita.defineCatalog(TEST_CATALOG)
+			.withEntitySchema(
+				Entities.PRODUCT,
+				whichIs -> whichIs
+					.withDescription("My fabulous product.")
+					.withoutGeneratedPrimaryKey()
+					.withAttribute("code", String.class)
+					.withAttribute("name", String.class, thatIs -> thatIs.localized())
+					.withAttribute("logo", String.class)
+					.withAttribute("productCount", Integer.class)
+					.withPriceInCurrency(CURRENCY_CZK)
+			)
+			.updateViaNewSession(this.evita);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.applyMutation(
+					new EntityUpsertMutation(
+						Entities.PRODUCT,
+						1000,
+						EntityExistence.MUST_NOT_EXIST,
+						List.of(
+							new UpsertAttributeMutation("code", "siemens"),
+							new UpsertAttributeMutation("name", Locale.ENGLISH, "Siemens"),
+							new UpsertAttributeMutation("logo", "https://www.siemens.com/logo.png"),
+							new UpsertAttributeMutation("productCount", 1),
+							new UpsertPriceMutation(
+								new PriceKey(1, "basic", CURRENCY_CZK),
+								BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true
+							)
+						)
+					)
+				);
+			}
+		);
+		final SealedEntity fetchedEntity = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntity(Entities.PRODUCT, 1000, entityFetchAllContent()).orElseThrow();
+			}
+		);
+		assertEquals(1000, fetchedEntity.getPrimaryKey());
+		assertEquals("siemens", fetchedEntity.getAttribute("code"));
+		assertEquals("Siemens", fetchedEntity.getAttribute("name", Locale.ENGLISH));
+		assertEquals("https://www.siemens.com/logo.png", fetchedEntity.getAttribute("logo"));
+		assertEquals(Integer.valueOf(1), fetchedEntity.getAttribute("productCount"));
+		assertPrice(
+			fetchedEntity, 1, "basic", Currency.getInstance("CZK"), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN,
+			true
+		);
+	}
+
 	@DisplayName("Update catalog in warm-up mode with another product - synchronously.")
 	@Test
 	void shouldUpdateCatalogWithAnotherProduct() {
@@ -398,7 +504,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(Entities.PRODUCT, addedEntity.getPrimaryKey());
+				final Optional<SealedEntity> fetchedEntity = session.getEntity(
+					Entities.PRODUCT, addedEntity.getPrimaryKey());
 				assertTrue(fetchedEntity.isPresent());
 				assertEquals(addedEntity, fetchedEntity.get());
 			}
@@ -410,21 +517,21 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void shouldUpdateCatalogWithAnotherProductAsynchronously() throws ExecutionException, InterruptedException, TimeoutException {
 		shouldUpdateCatalogWithAnotherProduct();
 
-		final int addedEntityPrimaryKey = evita.updateCatalogAsync(
-			TEST_CATALOG,
-			session -> {
-				final SealedEntity upsertedEntity = session.upsertAndFetchEntity(
-					session.createNewEntity(Entities.PRODUCT)
-				);
-				assertNotNull(upsertedEntity);
-				return upsertedEntity;
-			},
-			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
-		).toCompletableFuture()
+		final int addedEntityPrimaryKey = this.evita.updateCatalogAsync(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity upsertedEntity = session.upsertAndFetchEntity(
+						session.createNewEntity(Entities.PRODUCT)
+					);
+					assertNotNull(upsertedEntity);
+					return upsertedEntity;
+				},
+				CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
+			).toCompletableFuture()
 			.get(1, TimeUnit.MINUTES)
 			.getPrimaryKeyOrThrowException();
 
-		evita.queryCatalog(
+		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				// the entity will immediately available in indexes
@@ -498,7 +605,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
 					assertTrue(product.isPresent());
 
-					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute(
+						"name");
 					assertTrue(productNameAttribute.isPresent());
 					assertTrue(productNameAttribute.get().isLocalized());
 				}
@@ -531,7 +639,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SealedEntitySchema productSchema = session.getEntitySchema(Entities.PRODUCT).orElseThrow();
 
 					assertEquals("My fabulous product.", productSchema.getDescription());
-					final AttributeSchemaContract attributeSchema = productSchema.getAttribute("someAttribute").orElseThrow();
+					final AttributeSchemaContract attributeSchema = productSchema.getAttribute("someAttribute")
+						.orElseThrow();
 					assertTrue(attributeSchema.isFilterable());
 					assertTrue(attributeSchema.isNullable());
 					assertFalse(attributeSchema.isSortable());
@@ -576,13 +685,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 					assertEquals("My fabulous product.", productSchema.getDescription());
 
-					final AttributeSchemaContract alreadyExistingAttributeSchema = productSchema.getAttribute(ATTRIBUTE_NAME).orElseThrow();
+					final AttributeSchemaContract alreadyExistingAttributeSchema = productSchema.getAttribute(
+						ATTRIBUTE_NAME).orElseThrow();
 					assertEquals(String.class, alreadyExistingAttributeSchema.getType());
 					assertFalse(alreadyExistingAttributeSchema.isFilterable());
 					assertFalse(alreadyExistingAttributeSchema.isNullable());
 					assertFalse(alreadyExistingAttributeSchema.isSortable());
 
-					final AttributeSchemaContract attributeSchema = productSchema.getAttribute("someAttribute").orElseThrow();
+					final AttributeSchemaContract attributeSchema = productSchema.getAttribute("someAttribute")
+						.orElseThrow();
 					assertEquals(String.class, alreadyExistingAttributeSchema.getType());
 					assertTrue(attributeSchema.isFilterable());
 					assertTrue(attributeSchema.isNullable());
@@ -966,21 +1077,25 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.defineEntitySchema(Entities.PRODUCT)
 					.withReferenceToEntity(
 						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
-						thatIs -> thatIs.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
+						thatIs -> thatIs.withAttribute(
+							ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
 					)
 					.updateVia(session);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1)
-						.setReference(Entities.BRAND, 1, thatIs -> thatIs
-							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Siemens")
-							.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "Siemens")
+						.setReference(
+							Entities.BRAND, 1, thatIs -> thatIs
+								.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Siemens")
+								.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "Siemens")
 						)
-						.setReference(Entities.BRAND, 2, thatIs -> thatIs.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Škoda"))
-						.setReference(Entities.BRAND, 3, thatIs -> thatIs
-							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Tesla")
-							.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Tesla")
-							.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Tesla")
+						.setReference(
+							Entities.BRAND, 2, thatIs -> thatIs.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Škoda"))
+						.setReference(
+							Entities.BRAND, 3, thatIs -> thatIs
+								.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Tesla")
+								.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Tesla")
+								.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Tesla")
 						)
 				);
 			}
@@ -1012,9 +1127,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
-					.setReference(Entities.BRAND, 1, thatIs -> thatIs
-						.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
-						.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))
+					.setReference(
+						Entities.BRAND, 1, thatIs -> thatIs
+							.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
+							.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
+					)
 					.upsertVia(session);
 			}
 		);
@@ -1141,8 +1258,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE,
 						thatIs -> thatIs
 							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.withDefaultValue("01"))
-							.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, whichIs -> whichIs.localized().withDefaultValue("A"))
-							.withAttribute(ATTRIBUTE_BRAND_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
+							.withAttribute(
+								ATTRIBUTE_BRAND_NAME, String.class,
+								whichIs -> whichIs.localized().withDefaultValue("A")
+							)
+							.withAttribute(
+								ATTRIBUTE_BRAND_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
 					)
 					.updateVia(session);
 
@@ -1166,7 +1287,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAllWithAttributes())
+				final SealedEntity product = session.getEntity(
+						Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAllWithAttributes())
 					.orElseThrow();
 
 				assertEquals("01", product.getAttribute(ATTRIBUTE_EAN));
@@ -1209,7 +1331,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				this.evita.queryCatalog(
 					TEST_CATALOG,
 					differentSession -> {
-						final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
+						final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT)
+							.orElseThrow();
 						assertTrue(theSchema.isWithGeneratedPrimaryKey());
 						assertTrue(theSchema.getAttributes().isEmpty());
 						assertNull(differentSession.getEntity(Entities.PRODUCT, 1).orElse(null));
@@ -1229,7 +1352,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			this.evita.queryCatalog(
 				TEST_CATALOG,
 				differentSession -> {
-					final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT).orElseThrow();
+					final SealedEntitySchema theSchema = differentSession.getEntitySchema(Entities.PRODUCT)
+						.orElseThrow();
 					assertFalse(theSchema.isWithGeneratedPrimaryKey());
 					assertFalse(theSchema.getAttributes().isEmpty());
 				}
@@ -1261,7 +1385,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
+				final SealedEntity product = session.getEntity(
+						Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
@@ -1278,7 +1403,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
-						session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
+						session.getEntity(
+								Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 							.orElseThrow()
 							.openForWrite()
 							.removeAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH)
@@ -1303,7 +1429,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
+				final SealedEntity product = session.getEntity(
+						Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
@@ -1325,13 +1452,17 @@ class EvitaIndexingTest implements EvitaTestSupport {
 							.defineEntitySchema(Entities.PRODUCT)
 							.withAttribute(ATTRIBUTE_EAN, String.class)
 							.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
-							.withAttribute(ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
+							.withAttribute(
+								ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
 							.withReferenceTo(
 								Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE,
 								thatIs -> thatIs
 									.withAttribute(ATTRIBUTE_BRAND_EAN, String.class)
 									.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, whichIs -> whichIs.localized())
-									.withAttribute(ATTRIBUTE_BRAND_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
+									.withAttribute(
+										ATTRIBUTE_BRAND_DESCRIPTION, String.class,
+										whichIs -> whichIs.localized().nullable()
+									)
 							)
 					);
 
@@ -1381,7 +1512,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						thatIs -> thatIs
 							.withAttribute(ATTRIBUTE_BRAND_EAN, String.class)
 							.withAttribute(ATTRIBUTE_BRAND_NAME, String.class, whichIs -> whichIs.localized())
-							.withAttribute(ATTRIBUTE_BRAND_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
+							.withAttribute(
+								ATTRIBUTE_BRAND_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
 					)
 					.updateVia(session);
 
@@ -1469,9 +1601,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
-				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "B")))).isPresent());
-				assertFalse(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "V")))).isPresent());
+				assertTrue(session.queryOneEntityReference(
+					query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
+				assertTrue(session.queryOneEntityReference(
+					query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "B")))).isPresent());
+				assertFalse(session.queryOneEntityReference(
+					query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "V")))).isPresent());
 			}
 		);
 	}
@@ -1517,7 +1652,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.updateEntitySchema(
 					session
 						.defineEntitySchema(Entities.PRODUCT)
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
+						.withAttribute(
+							ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
 				);
 
 				session
@@ -1534,9 +1670,24 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH)))).isPresent());
-				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.GERMAN)))).isPresent());
-				assertFalse(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.FRENCH)))).isPresent());
+				assertTrue(session.queryOneEntityReference(query(
+					collection(Entities.PRODUCT), filterBy(
+						attributeEquals(ATTRIBUTE_NAME, "A"),
+						entityLocaleEquals(Locale.ENGLISH)
+					)
+				)).isPresent());
+				assertTrue(session.queryOneEntityReference(query(
+					collection(Entities.PRODUCT), filterBy(
+						attributeEquals(ATTRIBUTE_NAME, "A"),
+						entityLocaleEquals(Locale.GERMAN)
+					)
+				)).isPresent());
+				assertFalse(session.queryOneEntityReference(query(
+					collection(Entities.PRODUCT), filterBy(
+						attributeEquals(ATTRIBUTE_NAME, "A"),
+						entityLocaleEquals(Locale.FRENCH)
+					)
+				)).isPresent());
 			}
 		);
 	}
@@ -1550,7 +1701,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					session.updateEntitySchema(
 						session
 							.defineEntitySchema(Entities.PRODUCT)
-							.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
+							.withAttribute(
+								ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
 					);
 
 					session
@@ -1608,9 +1760,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
-				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "B")))).isPresent());
-				assertFalse(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "V")))).isPresent());
+				assertTrue(
+					session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
+				assertTrue(
+					session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "B")))).isPresent());
+				assertFalse(
+					session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "V")))).isPresent());
 			}
 		);
 	}
@@ -1665,7 +1820,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			session -> {
 				session.getCatalogSchema()
 					.openForWrite()
-					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
+					.withAttribute(
+						ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
 					.updateVia(session);
 
 				session
@@ -1692,9 +1848,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH)))).isPresent());
-				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.GERMAN)))).isPresent());
-				assertFalse(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.FRENCH)))).isPresent());
+				assertTrue(session.queryOneEntityReference(
+						query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH))))
+					           .isPresent());
+				assertTrue(session.queryOneEntityReference(
+						query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.GERMAN))))
+					           .isPresent());
+				assertFalse(session.queryOneEntityReference(
+						query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.FRENCH))))
+					            .isPresent());
 			}
 		);
 	}
@@ -1707,7 +1869,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session -> {
 					session.getCatalogSchema()
 						.openForWrite()
-						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
+						.withAttribute(
+							ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
 						.updateVia(session);
 
 					session
@@ -1761,7 +1924,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				assertTrue(
-					session.getEntitySchemaOrThrowException("whatever").getAttribute("whatever").orElseThrow().isSortable()
+					session.getEntitySchemaOrThrowException("whatever")
+						.getAttribute("whatever")
+						.orElseThrow()
+						.isSortable()
 				);
 			}
 		);
@@ -1778,7 +1944,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.openForWrite()
 						.withEntitySchema(
 							"whatever",
-							whichIs -> whichIs.withAttribute("whatever", Predecessor.class, AttributeSchemaEditor::filterable)
+							whichIs -> whichIs.withAttribute(
+								"whatever", Predecessor.class, AttributeSchemaEditor::filterable)
 						)
 						.updateVia(session);
 				}
@@ -1818,7 +1985,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 							"whatever",
 							thatIs -> thatIs.withReferenceToEntity(
 								"whatever", "whatever", Cardinality.ZERO_OR_MORE,
-								whichIs -> whichIs.withAttribute("whatever", ReferencedEntityPredecessor.class, AttributeSchemaEditor::filterable)
+								whichIs -> whichIs.withAttribute(
+									"whatever", ReferencedEntityPredecessor.class, AttributeSchemaEditor::filterable)
 							)
 						)
 						.updateVia(session);
@@ -1884,7 +2052,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			TEST_CATALOG,
 			session -> {
 				assertTrue(
-					session.getEntitySchemaOrThrowException("whatever").getAttribute("whatever").orElseThrow().isFilterable()
+					session.getEntitySchemaOrThrowException("whatever")
+						.getAttribute("whatever")
+						.orElseThrow()
+						.isFilterable()
 				);
 			}
 		);
@@ -1900,7 +2071,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.defineEntitySchema(Entities.PRODUCT)
 						.withAssociatedData(ATTRIBUTE_EAN, String.class)
 						.withAssociatedData(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
-						.withAssociatedData(ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
+						.withAssociatedData(
+							ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized().nullable())
 						.updateVia(session);
 
 					session
@@ -2195,7 +2367,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, 1)
 					.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
 					.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
-					.setPrice(2, PRICE_LIST_BASIC, CURRENCY_EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false);
+					.setPrice(
+						2, PRICE_LIST_BASIC, CURRENCY_EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, false);
 
 				session.upsertEntity(product);
 
@@ -2349,7 +2522,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						Entities.CATEGORY,
 						Entities.CATEGORY,
 						Cardinality.ZERO_OR_MORE,
-						thatIs -> thatIs.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class))
+						thatIs -> thatIs.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+					)
 					.withReferenceToEntity(
 						Entities.BRAND,
 						Entities.BRAND,
@@ -2391,7 +2565,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.nullable())
 					.withSortableAttributeCompound(
 						attributeCodeEan,
-						AttributeElement.attributeElement(ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+						AttributeElement.attributeElement(
+							ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						AttributeElement.attributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					)
 					.updateVia(session);
@@ -2412,7 +2587,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final EntityIndex globalIndex = getGlobalIndex(productCollection);
 					assertNotNull(globalIndex);
 
-					final SortIndex sortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
+					final SortIndex sortIndex = globalIndex.getSortIndex(
+						productSchema, null, codeEanCompoundSchema, null);
 					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
 						assertNull(sortIndex);
 					} else {
@@ -2466,7 +2642,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNotNull(sortIndex);
 
 				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
-				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
+				assertArrayEquals(
+					new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -2513,7 +2690,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
 					.withSortableAttributeCompound(
 						attributeCodeEan,
-						AttributeElement.attributeElement(ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+						AttributeElement.attributeElement(
+							ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
 						AttributeElement.attributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					)
 					.updateVia(session);
@@ -2545,10 +2723,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex updatedGlobalIndex = getGlobalIndex(productCollection);
 				assertNotNull(updatedGlobalIndex);
 
-				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
+				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(
+					productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
 				assertNotNull(englishSortIndex);
 
-				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
+				assertArrayEquals(
+					new int[]{1}, englishSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2560,17 +2740,22 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex updatedGlobalIndexAgain = getGlobalIndex(productCollection);
 				assertNotNull(updatedGlobalIndexAgain);
 
-				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
+				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(
+					productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
 				assertNotNull(englishSortIndexAgain);
 
-				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
+				assertArrayEquals(
+					new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Serializable[]{"ABC", null}).getArray());
 
-				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA);
+				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(
+					productSchema, null, codeEanCompoundSchema, Locale.CANADA);
 				assertNotNull(canadianSortIndex);
 
-				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
+				assertArrayEquals(
+					new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
-				final SealedEntity finalEntity = session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
+				final SealedEntity finalEntity = session.getEntity(
+						Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow();
 
 				final Set<Locale> finalAttributeLocales = finalEntity.getAttributeLocales();
@@ -2607,11 +2792,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityIndex globalIndex = getGlobalIndex(productCollection);
 				assertNotNull(globalIndex);
 
-				final SortIndex sortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA);
+				final SortIndex sortIndex = globalIndex.getSortIndex(
+					productSchema, null, codeEanCompoundSchema, Locale.CANADA);
 				assertNotNull(sortIndex);
 
 				assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).isEmpty());
-				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
+				assertArrayEquals(
+					new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -2645,12 +2832,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				assertNotNull(globalIndex);
 				assertNull(globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null));
 
-				final SortIndex englishSortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
+				final SortIndex englishSortIndex = globalIndex.getSortIndex(
+					productSchema, null, codeEanCompoundSchema, Locale.ENGLISH);
 				assertNull(englishSortIndex);
 
-				final SortIndex canadianSortIndex = globalIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, Locale.CANADA);
+				final SortIndex canadianSortIndex = globalIndex.getSortIndex(
+					productSchema, null, codeEanCompoundSchema, Locale.CANADA);
 				assertNotNull(canadianSortIndex);
-				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
+				assertArrayEquals(
+					new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2691,8 +2881,14 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				session
 					.defineEntitySchema(Entities.PRODUCT)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexedForFilteringAndPartitioning())
-					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE, whichIs -> whichIs.indexedForFilteringAndPartitioning())
+					.withReferenceToEntity(
+						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					)
+					.withReferenceToEntity(
+						Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					)
 					.updateVia(session);
 
 				final String attributeCodeEan = ATTRIBUTE_CODE + StringUtils.capitalize(ATTRIBUTE_EAN);
@@ -2717,10 +2913,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final Consumer<EntityIndex> verifyIndexContents = entityIndex -> {
 					assertNotNull(entityIndex);
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
+					final SortIndex sortIndex = entityIndex.getSortIndex(
+						productSchema, null, codeEanCompoundSchema, null);
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
+					assertArrayEquals(
+						new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 				};
 
 				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
@@ -2758,10 +2956,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final Consumer<EntityIndex> verifyIndexContentsContains = entityIndex -> {
 					assertNotNull(entityIndex);
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, null, codeEanCompoundSchema, null);
+					final SortIndex sortIndex = entityIndex.getSortIndex(
+						productSchema, null, codeEanCompoundSchema, null);
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
+					assertArrayEquals(
+						new int[]{1}, sortIndex.getRecordsEqualTo(new Serializable[]{"ABC", "123"}).getArray());
 				};
 
 				assertNull(getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10));
@@ -2801,8 +3001,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
 							.withSortableAttributeCompound(
 								attributeCodeEan,
-								AttributeElement.attributeElement(ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
-								AttributeElement.attributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+								AttributeElement.attributeElement(
+									ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+								AttributeElement.attributeElement(
+									ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 							)
 					)
 					.withReferenceToEntity(
@@ -2812,8 +3014,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 							.withAttribute(ATTRIBUTE_EAN, String.class, thatIs -> thatIs.nullable())
 							.withSortableAttributeCompound(
 								attributeCodeEan,
-								AttributeElement.attributeElement(ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
-								AttributeElement.attributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+								AttributeElement.attributeElement(
+									ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+								AttributeElement.attributeElement(
+									ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 							)
 					)
 					.updateVia(session);
@@ -2839,7 +3043,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.getSortableAttributeCompound(attributeCodeEan)
 						.orElseThrow();
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, referenceSchema, compoundSchema, null);
+					final SortIndex sortIndex = entityIndex.getSortIndex(
+						productSchema, referenceSchema, compoundSchema, null);
 					if (ArrayUtils.isEmptyOrItsValuesNull(expected)) {
 						assertNull(sortIndex);
 					} else {
@@ -2945,8 +3150,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 							.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
 							.withSortableAttributeCompound(
 								attributeCodeEan,
-								AttributeElement.attributeElement(ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
-								AttributeElement.attributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+								AttributeElement.attributeElement(
+									ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+								AttributeElement.attributeElement(
+									ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 							)
 					)
 					.withReferenceToEntity(
@@ -2957,8 +3164,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 							.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized().nullable())
 							.withSortableAttributeCompound(
 								attributeCodeEan,
-								AttributeElement.attributeElement(ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
-								AttributeElement.attributeElement(ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+								AttributeElement.attributeElement(
+									ATTRIBUTE_CODE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
+								AttributeElement.attributeElement(
+									ATTRIBUTE_EAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 							)
 					)
 					.updateVia(session);
@@ -3015,11 +3224,13 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
-					.setReference(Entities.CATEGORY, 10, whichIs -> whichIs
-						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product")
+					.setReference(
+						Entities.CATEGORY, 10, whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "The product")
 					)
-					.setReference(Entities.BRAND, 20, whichIs -> whichIs
-						.setAttribute(ATTRIBUTE_NAME, Locale.CANADA, "The product")
+					.setReference(
+						Entities.BRAND, 20, whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_NAME, Locale.CANADA, "The product")
 					)
 					.upsertVia(session);
 
@@ -3039,13 +3250,15 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
-					.setReference(Entities.CATEGORY, 10, whichIs -> whichIs
-						.setAttribute(ATTRIBUTE_CODE, "The product")
-						.setAttribute(ATTRIBUTE_EAN, Locale.ENGLISH, "123")
+					.setReference(
+						Entities.CATEGORY, 10, whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_CODE, "The product")
+							.setAttribute(ATTRIBUTE_EAN, Locale.ENGLISH, "123")
 					)
-					.setReference(Entities.BRAND, 20, whichIs -> whichIs
-						.setAttribute(ATTRIBUTE_CODE, "The CA product")
-						.setAttribute(ATTRIBUTE_EAN, Locale.CANADA, "456")
+					.setReference(
+						Entities.BRAND, 20, whichIs -> whichIs
+							.setAttribute(ATTRIBUTE_CODE, "The CA product")
+							.setAttribute(ATTRIBUTE_EAN, Locale.CANADA, "456")
 					)
 					.upsertVia(session);
 
@@ -3085,7 +3298,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 						.getSortableAttributeCompound(attributeCodeEan)
 						.orElseThrow();
 
-					final SortIndex sortIndex = entityIndex.getSortIndex(productSchema, referenceSchema, compoundSchema, locale);
+					final SortIndex sortIndex = entityIndex.getSortIndex(
+						productSchema, referenceSchema, compoundSchema, locale);
 					assertNotNull(sortIndex);
 
 					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
@@ -3141,9 +3355,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
-					.setReference(Entities.CATEGORY, 10, whichIs -> whichIs
-						.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
-						.removeAttribute(ATTRIBUTE_EAN, Locale.ENGLISH)
+					.setReference(
+						Entities.CATEGORY, 10, whichIs -> whichIs
+							.removeAttribute(ATTRIBUTE_NAME, Locale.ENGLISH)
+							.removeAttribute(ATTRIBUTE_EAN, Locale.ENGLISH)
 					)
 					.upsertVia(session);
 
@@ -3165,7 +3380,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
-						.getSortIndex(productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
+						.getSortIndex(
+							productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
 				);
 				assertNotNull(
 					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
@@ -3175,15 +3391,17 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
 					.openForWrite()
-					.setReference(Entities.BRAND, 20, whichIs -> whichIs
-						.removeAttribute(ATTRIBUTE_NAME, Locale.CANADA)
-						.removeAttribute(ATTRIBUTE_EAN, Locale.CANADA)
+					.setReference(
+						Entities.BRAND, 20, whichIs -> whichIs
+							.removeAttribute(ATTRIBUTE_NAME, Locale.CANADA)
+							.removeAttribute(ATTRIBUTE_EAN, Locale.CANADA)
 					)
 					.upsertVia(session);
 
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.CATEGORY, 10)
-						.getSortIndex(productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
+						.getSortIndex(
+							productSchema, categoryReferenceSchema, categoryCodeEanCompoundSchema, Locale.ENGLISH)
 				);
 				assertNull(
 					getReferencedEntityIndex(productCollection, Entities.BRAND, 20)
@@ -3230,7 +3448,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.withReferenceToEntity(
 						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioning()
-							.withAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class, thatIs -> thatIs.filterable())
+							.withAttribute(
+								ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class, thatIs -> thatIs.filterable())
 					)
 					.updateVia(session);
 
@@ -3243,14 +3462,26 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 10)
-						.setReference(REFERENCE_PRODUCT_CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true))
-						.setReference(REFERENCE_PRODUCT_CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false))
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true)
+						)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 2,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false)
+						)
 				);
 
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 11)
-						.setReference(REFERENCE_PRODUCT_CATEGORY, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false))
-						.setReference(REFERENCE_PRODUCT_CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true))
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 1,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, false)
+						)
+						.setReference(
+							REFERENCE_PRODUCT_CATEGORY, 2,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, true)
+						)
 				);
 			}
 		);
@@ -3258,13 +3489,27 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		this.evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent()).orElseThrow();
-				assertTrue(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
-				assertFalse(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+				final SealedEntity category1 = session.getEntity(Entities.CATEGORY, 1, entityFetchAllContent())
+					.orElseThrow();
+				assertTrue(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					           .orElseThrow()
+					           .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					           .booleanValue());
+				assertFalse(category1.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11)
+					            .orElseThrow()
+					            .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					            .booleanValue());
 
-				final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent()).orElseThrow();
-				assertFalse(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
-				assertTrue(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11).orElseThrow().getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class).booleanValue());
+				final SealedEntity category2 = session.getEntity(Entities.CATEGORY, 2, entityFetchAllContent())
+					.orElseThrow();
+				assertFalse(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 10)
+					            .orElseThrow()
+					            .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					            .booleanValue());
+				assertTrue(category2.getReference(REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY, 11)
+					           .orElseThrow()
+					           .getAttribute(ATTRIBUTE_PRODUCT_CATEGORY_VARIANT, Boolean.class)
+					           .booleanValue());
 			}
 		);
 	}

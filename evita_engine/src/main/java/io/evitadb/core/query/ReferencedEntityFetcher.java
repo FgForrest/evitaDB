@@ -2050,7 +2050,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull
 		@Override
 		public Optional<SealedEntity> getExistingEntity(@Nonnull String referenceName, int primaryKey) {
-			return this.entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getReferencedEntity);
+			final ReferenceKey referenceKey = new ReferenceKey(referenceName, primaryKey);
+			return this.entityDecorator.getReferenceWithoutCheckingPredicate(referenceKey)
+				.flatMap(ReferenceContract::getReferencedEntity);
 		}
 
 		@Nonnull

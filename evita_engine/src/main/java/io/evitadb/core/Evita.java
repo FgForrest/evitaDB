@@ -1103,7 +1103,7 @@ public final class Evita implements EvitaContract {
 		this.catalogSessionRegistries.compute(
 			catalogName,
 			(__, existingRegistry) -> {
-				if (existingRegistry != null) {
+				if (existingRegistry != null && existingRegistry != sessionRegistry) {
 					throw new GenericEvitaInternalError(
 						"Catalog session registry for catalog `" + catalogName + "` already exists! " +
 							"Cannot overwrite it with another one!"

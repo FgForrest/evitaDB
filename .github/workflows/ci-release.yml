@@ -17,6 +17,7 @@ on:
       - evita_external_api/evita_external_api_lab/src/main/resources/META-INF/lab/gui/dist/**
       - evita*/**/pom.xml
       - pom.xml
+      - .github/workflows/*
 
 jobs:
   build:
@@ -70,15 +71,44 @@ jobs:
 
     - name: Resolve new release version
       id: release_version
-      uses: lukashornych/semantic-calendar-version@bb0a07cf0ca71a0b2b4fed52114e28092e5cac81 #v1.2.0
-      with:
-        prefix: 'v'
-        year_switch_mode: 'OnMinor'
-        minor-identifier: '/feat(?:\\([^)]+\\))?:/'
-        hotfix-branch-pattern: 'release_.*'
+      run: |
+        # Check if released_version.txt exists (from workflow artifact)
+        if [ -f "released_version.txt" ]; then
+          VERSION=$(cat released_version.txt)
+          echo "Using version from released_version.txt: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        else
+          # Extract version from branch name (e.g., release_2025-7 -> 2025.7)
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          echo "Branch name: $BRANCH_NAME"
+
+          # Extract major.minor from branch name
+          MAJOR_MINOR=$(echo "$BRANCH_NAME" | sed 's/release_//' | sed 's/-/./')
+          echo "Extracted major.minor: $MAJOR_MINOR"
+
+          # Get all tags matching this major.minor version
+          git fetch --tags
+          TAGS=$(git tag -l "v${MAJOR_MINOR}.*" | sort -V)
+          echo "Found tags: $TAGS"
+
+          # Extract patch numbers and find the max
+          MAX_PATCH=-1
+          for tag in $TAGS; do
+            PATCH=$(echo "$tag" | sed 's/.*\.//')
+            if [ "$PATCH" -gt "$MAX_PATCH" ]; then
+              MAX_PATCH=$PATCH
+            fi
+          done
+
+          # Increment patch number
+          NEW_PATCH=$((MAX_PATCH + 1))
+          VERSION="v${MAJOR_MINOR}.${NEW_PATCH}"
+          echo "Calculated new version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        fi
 
     - name: Setup Java JDK
-      uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1  # setup JDK 17 for building
+      uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0  # setup JDK 17 for building
       with:
         distribution: 'temurin'
         java-version: '17'
@@ -96,7 +126,7 @@ jobs:
         echo $NEW_VERSION > version.txt
         echo "Version: $(cat version.txt)"
         mvn versions:set -DnewVersion=$NEW_VERSION
-        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true deploy --file pom.xml
+        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true javadoc:jar source:jar deploy --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
@@ -153,14 +183,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       if: success()
       with:
         name: version.txt

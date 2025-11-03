@@ -33,6 +33,7 @@ import io.evitadb.api.exception.ReferenceCardinalityViolatedException.Cardinalit
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditMode;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;

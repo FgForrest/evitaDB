@@ -1128,6 +1128,37 @@ public final class EvitaSessionServiceGrpc {
     return getRestoreEntityMethod;
   }
 
+  private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityMutation,
+      com.google.protobuf.Empty> getApplyMutationMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ApplyMutation",
+      requestType = io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.class,
+      responseType = com.google.protobuf.Empty.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityMutation,
+      com.google.protobuf.Empty> getApplyMutationMethod() {
+    io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, com.google.protobuf.Empty> getApplyMutationMethod;
+    if ((getApplyMutationMethod = EvitaSessionServiceGrpc.getApplyMutationMethod) == null) {
+      synchronized (EvitaSessionServiceGrpc.class) {
+        if ((getApplyMutationMethod = EvitaSessionServiceGrpc.getApplyMutationMethod) == null) {
+          EvitaSessionServiceGrpc.getApplyMutationMethod = getApplyMutationMethod =
+              io.grpc.MethodDescriptor.<io.evitadb.externalApi.grpc.generated.GrpcEntityMutation, com.google.protobuf.Empty>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ApplyMutation"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcEntityMutation.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaSessionServiceMethodDescriptorSupplier("ApplyMutation"))
+              .build();
+        }
+      }
+    }
+    return getApplyMutationMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
       io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse> getGetTransactionIdMethod;
 
@@ -1617,6 +1648,16 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Applies single mutation to the entity.
+     * </pre>
+     */
+    default void applyMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation request,
+        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getApplyMutationMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -2070,6 +2111,17 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Applies single mutation to the entity.
+     * </pre>
+     */
+    public void applyMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation request,
+        io.grpc.stub.StreamObserver<com.google.protobuf.Empty> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getApplyMutationMethod(), getCallOptions()), request, responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -2473,6 +2525,16 @@ public final class EvitaSessionServiceGrpc {
     public io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse restoreEntity(io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest request) throws io.grpc.StatusException {
       return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
           getChannel(), getRestoreEntityMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
+     * Applies single mutation to the entity.
+     * </pre>
+     */
+    public com.google.protobuf.Empty applyMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation request) throws io.grpc.StatusException {
+      return io.grpc.stub.ClientCalls.blockingV2UnaryCall(
+          getChannel(), getApplyMutationMethod(), getCallOptions(), request);
     }
 
     /**
@@ -2881,6 +2943,16 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Applies single mutation to the entity.
+     * </pre>
+     */
+    public com.google.protobuf.Empty applyMutation(io.evitadb.externalApi.grpc.generated.GrpcEntityMutation request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getApplyMutationMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -3282,6 +3354,17 @@ public final class EvitaSessionServiceGrpc {
 
     /**
      * <pre>
+     * Applies single mutation to the entity.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<com.google.protobuf.Empty> applyMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcEntityMutation request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getApplyMutationMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure that opens a transaction.
      * </pre>
      */
@@ -3327,8 +3410,9 @@ public final class EvitaSessionServiceGrpc {
   private static final int METHODID_DELETE_ENTITIES = 32;
   private static final int METHODID_ARCHIVE_ENTITY = 33;
   private static final int METHODID_RESTORE_ENTITY = 34;
-  private static final int METHODID_GET_TRANSACTION_ID = 35;
-  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 36;
+  private static final int METHODID_APPLY_MUTATION = 35;
+  private static final int METHODID_GET_TRANSACTION_ID = 36;
+  private static final int METHODID_REGISTER_CHANGE_CATALOG_CAPTURE = 37;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -3486,6 +3570,10 @@ public final class EvitaSessionServiceGrpc {
         case METHODID_RESTORE_ENTITY:
           serviceImpl.restoreEntity((io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse>) responseObserver);
+          break;
+        case METHODID_APPLY_MUTATION:
+          serviceImpl.applyMutation((io.evitadb.externalApi.grpc.generated.GrpcEntityMutation) request,
+              (io.grpc.stub.StreamObserver<com.google.protobuf.Empty>) responseObserver);
           break;
         case METHODID_GET_TRANSACTION_ID:
           serviceImpl.getTransactionId((com.google.protobuf.Empty) request,
@@ -3759,6 +3847,13 @@ public final class EvitaSessionServiceGrpc {
               io.evitadb.externalApi.grpc.generated.GrpcRestoreEntityResponse>(
                 service, METHODID_RESTORE_ENTITY)))
         .addMethod(
+          getApplyMutationMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              io.evitadb.externalApi.grpc.generated.GrpcEntityMutation,
+              com.google.protobuf.Empty>(
+                service, METHODID_APPLY_MUTATION)))
+        .addMethod(
           getGetTransactionIdMethod(),
           io.grpc.stub.ServerCalls.asyncUnaryCall(
             new MethodHandlers<
@@ -3855,6 +3950,7 @@ public final class EvitaSessionServiceGrpc {
               .addMethod(getDeleteEntitiesMethod())
               .addMethod(getArchiveEntityMethod())
               .addMethod(getRestoreEntityMethod())
+              .addMethod(getApplyMutationMethod())
               .addMethod(getGetTransactionIdMethod())
               .addMethod(getRegisterChangeCatalogCaptureMethod())
               .build();

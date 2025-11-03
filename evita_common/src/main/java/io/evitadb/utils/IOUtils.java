@@ -111,26 +111,26 @@ public class IOUtils {
 	}
 
 	/**
-	 * Executes lambda logic encapsulated in {@link IOExceptionThrowingRunnable} instances, suppressing
+	 * Executes lambda logic encapsulated in {@link ExceptionThrowingRunnable} instances, suppressing
 	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
 	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
 	 *
 	 * @param <T>               the type of exception that will be thrown if any {@link IOException} occurs
 	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
 	 *                          {@link IOException} thrown during the execution of the provided runnables
-	 * @param consumer          varargs of {@link IOExceptionThrowingRunnable} instances which encapsulate
+	 * @param consumer          varargs of {@link ExceptionThrowingRunnable} instances which encapsulate
 	 *                          the resources/actions to be closed or executed
 	 * @throws T                the consolidated exception containing any {@link IOException}s that were
 	 *                          thrown by the provided runnables
 	 */
 	public static <T extends RuntimeException> void executeSafely(
 		@Nonnull Supplier<T> exceptionFactory,
-		@Nonnull IOExceptionThrowingRunnable consumer
+		@Nonnull ExceptionThrowingRunnable consumer
 	) throws T {
 		T exception = null;
 		try {
 			consumer.run();
-		} catch (IOException e) {
+		} catch (Exception e) {
 			exception = exceptionFactory.get();
 			exception.addSuppressed(e);
 		}
@@ -179,7 +179,7 @@ public class IOUtils {
 	 *                          {@link IOException} thrown during the execution of the provided runnables
 	 * @param consumer          varargs of {@link IOExceptionThrowingConsumer} instances which encapsulate
 	 *                          the resources/actions to be closed or executed
-	 * @throws T                the consolidated exception containing any {@link IOException}s that were
+	 * @throws U                the consolidated exception containing any {@link Exception}s that were
 	 *                          thrown by the provided runnables
 	 */
 	public static <S, T, U extends RuntimeException> void executeSafely(
@@ -234,24 +234,24 @@ public class IOUtils {
 	}
 
 	/**
-	 * Closes multiple resources encapsulated in {@link IOExceptionThrowingRunnable} instances, suppressing
+	 * Closes multiple resources encapsulated in {@link ExceptionThrowingRunnable} instances, suppressing
 	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
 	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
 	 *
 	 * @param <T>               the type of exception that will be thrown if any {@link IOException} occurs
 	 * @param exceptionFactory  a supplier that provides an exception of type {@code T}, used to wrap any
 	 *                          {@link IOException} thrown during the execution of the provided runnables
-	 * @param runnable          varargs of {@link IOExceptionThrowingRunnable} instances which encapsulate
+	 * @param runnable          varargs of {@link ExceptionThrowingRunnable} instances which encapsulate
 	 *                          the resources/actions to be closed or executed
 	 * @throws T                the consolidated exception containing any {@link IOException}s that were
 	 *                          thrown by the provided runnables
 	 */
 	public static <T extends RuntimeException> void close(
 		@Nonnull Supplier<T> exceptionFactory,
-		@Nonnull IOExceptionThrowingRunnable... runnable
+		@Nonnull ExceptionThrowingRunnable... runnable
 	) throws T {
 		T exception = null;
-		for (IOExceptionThrowingRunnable lambda : runnable) {
+		for (ExceptionThrowingRunnable lambda : runnable) {
 			try {
 				lambda.run();
 			} catch (Exception e) {
@@ -269,7 +269,7 @@ public class IOUtils {
 	 * and aggregating any {@link Throwable} that occurs during execution. If any exceptions are thrown, they
 	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
 	 *
-	 * Unlike {@link #close(Supplier, IOExceptionThrowingRunnable...)}, this method catches any {@link Throwable}
+	 * Unlike {@link #close(Supplier, ExceptionThrowingRunnable...)}, this method catches any {@link Throwable}
 	 * rather than just {@link Exception}, providing a more robust safety net for resource cleanup.
 	 *
 	 * @param <T>               the type of exception that will be thrown if any exception occurs
@@ -299,7 +299,7 @@ public class IOUtils {
 	}
 
 	/**
-	 * Executes the provided {@link IOExceptionThrowingRunnable} instances, ensuring that exceptions thrown
+	 * Executes the provided {@link ExceptionThrowingRunnable} instances, ensuring that exceptions thrown
 	 * during their execution are logged but not propagated. This method is typically used for safely closing
 	 * resources without allowing individual close failures to disrupt the overall process.
 	 *
@@ -310,9 +310,9 @@ public class IOUtils {
 	 * @throws T if a runtime exception specific to the implementation needs propagation
 	 */
 	public static <T extends RuntimeException> void closeQuietly(
-		@Nonnull IOExceptionThrowingRunnable... runnable
+		@Nonnull ExceptionThrowingRunnable... runnable
 	) throws T {
-		for (IOExceptionThrowingRunnable lambda : runnable) {
+		for (ExceptionThrowingRunnable lambda : runnable) {
 			try {
 				lambda.run();
 			} catch (Exception e) {
@@ -327,7 +327,7 @@ public class IOUtils {
 	 * during their execution are logged but not propagated. This method is typically used for safely closing
 	 * resources without allowing individual close failures to disrupt the overall process.
 	 *
-	 * Unlike {@link #closeQuietly(IOExceptionThrowingRunnable...)}, this method catches any {@link Throwable}
+	 * Unlike {@link #closeQuietly(ExceptionThrowingRunnable...)}, this method catches any {@link Throwable}
 	 * rather than just {@link Exception}, providing a more robust safety net for resource cleanup.
 	 *
 	 * @param runnable the runnable instances, which may throw any exception during execution
@@ -351,25 +351,25 @@ public class IOUtils {
 
 	/**
 	 * Represents a functional interface that can be used to encapsulate a block of code
-	 * that may throw an {@link IOException}. This interface is effectively a specialized
+	 * that may throw an {@link Exception}. This interface is effectively a specialized
 	 * form of {@link Runnable} for operations where checked I/O exceptions need to be handled.
 	 *
 	 * Implementations of this interface enable the execution of operations with the awareness
-	 * and explicit handling of {@link IOException}. This is especially useful in scenarios
+	 * and explicit handling of {@link Exception}. This is especially useful in scenarios
 	 * where multiple such operations need to be executed or wrapped with exception aggregation,
 	 * for example, in utility methods like resource handling or cleanup.
 	 *
 	 * Method {@code run} is similar to the {@link Runnable#run()} method but allows an
-	 * {@link IOException} to be thrown.
+	 * {@link Exception} to be thrown.
 	 *
 	 * Functional-style programming can make use of this interface to define inline behaviors
-	 * for operations expected to throw {@link IOException}. It can also be integrated with
+	 * for operations expected to throw {@link Exception}. It can also be integrated with
 	 * various utility methods that leverage this interface for exception handling and resource management.
 	 */
 	@FunctionalInterface
-	public interface IOExceptionThrowingRunnable {
+	public interface ExceptionThrowingRunnable {
 
-		void run() throws IOException;
+		void run() throws Exception;
 
 	}
 

@@ -159,7 +159,7 @@ public class SystemChangeObserver
 
 	@Override
 	public void close() {
-		if (this.active.compareAndSet(false, true)) {
+		if (this.active.compareAndSet(true, false)) {
 			IOUtils.closeQuietly(
 				this.sharedPublisher::close,
 				this.cleaner::close

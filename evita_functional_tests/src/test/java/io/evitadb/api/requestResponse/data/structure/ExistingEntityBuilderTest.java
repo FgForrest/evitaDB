@@ -69,6 +69,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.HashSet;
@@ -296,6 +297,29 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
+	void shouldAddNewAttributesViaMutationsInConstructor() {
+		final SealedEntity brand = new ExistingEntityBuilder(
+			this.initialEntity,
+			Arrays.asList(
+				new UpsertAttributeMutation("code", "siemens"),
+				new UpsertAttributeMutation("name", Locale.ENGLISH, "Siemens"),
+				new UpsertAttributeMutation("logo", "https://www.siemens.com/logo.png"),
+				new UpsertAttributeMutation("productCount", 1),
+				new UpsertPriceMutation(
+					new PriceKey(1, "basic", Currency.getInstance("CZK")),
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true
+				)
+			)
+		)
+		.toInstance();
+		assertEquals("siemens", brand.getAttribute("code"));
+		assertEquals("Siemens", brand.getAttribute("name", Locale.ENGLISH));
+		assertEquals("https://www.siemens.com/logo.png", brand.getAttribute("logo"));
+		assertEquals(Integer.valueOf(1), brand.getAttribute("productCount"));
+		assertPrice(brand, 1, "basic", Currency.getInstance("CZK"), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true);
+	}
+
+	@Test
 	void shouldSetDefaultValueInsteadOfRemovingAttribute() {
 		final SealedEntity updatedInstance = this.builder
 			.removeAttribute("string")
@@ -501,19 +525,22 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final SealedEntity updatedInstance = entityBuilder.toInstance();
 		assertEquals(1, updatedInstance.getReferences(BRAND_TYPE).size());
 
-		updatedInstance.getReference(BRAND_TYPE, 1).ifPresent(reference -> {
-			assertEquals(
-				"Whatever", reference.getGroup()
-				                     .filter(Droppable::exists)
-				                     .map(GroupEntityReference::getType)
-				                     .orElse(null)
-			);
-			assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
-			assertEquals("someValue", reference.getAttribute("newAttribute"));
-			assertEquals("Brand A", reference.getAttribute("brandName"));
-			assertEquals("008", reference.getAttribute("brandCode"));
-			assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
-		});
+		updatedInstance.getReference(BRAND_TYPE, 1)
+			.ifPresent(
+				reference -> {
+					assertEquals(
+						"Whatever",
+						reference.getGroup()
+							.filter(Droppable::exists)
+							.map(GroupEntityReference::getType)
+							.orElse(null)
+					);
+					assertEquals(9, reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null));
+					assertEquals("someValue", reference.getAttribute("newAttribute"));
+					assertEquals("Brand A", reference.getAttribute("brandName"));
+					assertEquals("008", reference.getAttribute("brandCode"));
+					assertTrue(reference.getAttributeValue("brandCountry").filter(Droppable::exists).isEmpty());
+				});
 	}
 
 	@Test

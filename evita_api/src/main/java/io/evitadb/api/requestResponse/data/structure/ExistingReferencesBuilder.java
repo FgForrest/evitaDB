@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.ReferenceEditMode;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -360,10 +361,11 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				throw ContextMissingException.referenceContextMissing();
 			}
 
+			final Collection<ReferenceContract> references = this.baseReferences.getReferences();
 			final List<ReferenceContract> result = new ArrayList<>(
-				Math.max(16, this.baseReferences.getReferences().size()));
+				Math.max(16, references.size()));
 
-			for (ReferenceContract baseRef : this.baseReferences.getReferences()) {
+			for (ReferenceContract baseRef : references) {
 				if (!baseRef.exists()) {
 					continue;
 				}
@@ -446,7 +448,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 * or the original reference if enrichment is not possible
 	 */
 	@Nonnull
-	private ReferenceContract retainRichDataIfPossible(@Nonnull ReferenceContract reference) {
+	private ReferenceDecorator retainRichDataIfPossible(@Nonnull ReferenceContract reference) {
 		final Optional<ReferenceContract> originalReference =
 			reference.getReferenceKey().isKnownInternalPrimaryKey() ?
 				this.richReferenceFetcher.apply(reference.getReferenceKey()) : empty();
@@ -471,10 +473,19 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				reference,
 				entityValid ? originalReferencedEntity.get() : null,
 				entityGroupValid ? originalReferencedEntityGroup.get() : null,
-				this.referencePredicate.getAttributePredicate(reference.getReferenceName())
+				reference.getReferenceKey().isKnownInternalPrimaryKey() ?
+					this.referencePredicate.getAttributePredicate(reference.getReferenceName()) :
+					this.referencePredicate.getAllAttributePredicate()
 			);
+		} else if (reference instanceof ReferenceDecorator referenceDecorator) {
+			return referenceDecorator;
 		} else {
-			return reference;
+			return new ReferenceDecorator(
+				reference, null, null,
+				reference.getReferenceKey().isKnownInternalPrimaryKey() ?
+					this.referencePredicate.getAttributePredicate(reference.getReferenceName()) :
+					this.referencePredicate.getAllAttributePredicate()
+			);
 		}
 	}
 
@@ -531,7 +542,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 						if (mutatedReference == null) {
 							return null;
 						} else {
-							return retainRichDataIfPossible(mutatedReference);
+							return (ReferenceContract) retainRichDataIfPossible(mutatedReference);
 						}
 					})
 					.orElseGet(() -> this.richReferenceFetcher.apply(referenceKey).orElse(it))
@@ -1484,15 +1495,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 
 		// register a new reference
 		final Cardinality schemaCardinality = referenceSchema.getCardinality();
-		final int currentReferenceCount = referenceBundle.count() + 1;
-		final boolean lowCardinality = schemaCardinality.getMax() < currentReferenceCount;
+		final boolean bundleContainsReference = referenceBundle.containsReferenceKey(referenceKey);
+		final int newReferenceCount = referenceBundle.count() + (bundleContainsReference ? 0 : 1);
+		final boolean lowCardinality = schemaCardinality.getMax() < newReferenceCount;
 		final boolean hasDuplicates = referenceMutationIndex.size() > 1;
 		final boolean duplicateMismatch = hasDuplicates && !schemaCardinality.allowsDuplicates();
 		if (lowCardinality || duplicateMismatch) {
 			if (!this.entitySchema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
 				throw new ReferenceCardinalityViolatedException(
 					this.entitySchema.getName(),
-					List.of(new CardinalityViolation(referenceName, schemaCardinality, currentReferenceCount, duplicateMismatch))
+					List.of(new CardinalityViolation(referenceName, schemaCardinality, newReferenceCount, duplicateMismatch))
 				);
 			} else {
 				// we need to promote the cardinality in all insert reference mutations

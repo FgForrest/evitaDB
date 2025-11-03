@@ -45,7 +45,7 @@ public record ChangeSystemCapture(
 	long version,
 	int index,
 	@Nonnull Operation operation,
-	@Nullable EngineMutation body
+	@Nullable EngineMutation<?> body
 ) implements ChangeCapture {
 
 	/**

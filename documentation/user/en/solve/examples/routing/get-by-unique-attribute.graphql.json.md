@@ -27,7 +27,7 @@
               "displaySize" : "13.30000",
               "depthInMm" : null,
               "codeShort" : "macbook-pro-13-2022",
-              "published" : "2025-10-08T20:05:52.574+02:00",
+              "published" : "2025-10-23T13:30:08.667+02:00",
               "isAlias" : false,
               "saleEnded" : null,
               "minOrderQuantity" : "1.00000",

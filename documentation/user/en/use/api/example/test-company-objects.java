@@ -1,4 +1,4 @@
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class PrefilledDataSetAndCustomDataTest {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewDataAndCustomObjects";
 	private static final String ENTITY_BRAND = "Brand";
@@ -7,7 +7,7 @@ public class PrefilledDataSetAndCustomDataTest {
 	DataCarrier setUpData(EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_BRAND);
 		final String testBrandName = "Siemens";
-		final EntityReference brandReference = session
+		final EntityReferenceContract brandReference = session
 			.createNewEntity(ENTITY_BRAND)
 			.setAttribute(
 				"name", Locale.ENGLISH, testBrandName

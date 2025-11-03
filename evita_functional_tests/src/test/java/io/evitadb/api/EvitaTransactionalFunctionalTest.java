@@ -689,6 +689,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 				// start evita again and wait for the WAL to be processed
 				final Evita secondInstance = new Evita(cfg);
+				secondInstance.waitUntilFullyInitialized();
 
 				// now shut down evitaDB again
 				secondInstance.close();
@@ -696,6 +697,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			// now we can browse the history
 			try (Evita thirdInstance = new Evita(cfg)) {
+				thirdInstance.waitUntilFullyInitialized();
+
 				final CatalogContract catalog = thirdInstance.getCatalogInstance(TEST_CATALOG).orElseThrow();
 
 				final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
@@ -1277,6 +1280,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.build()
 		)
 		) {
+			evita.waitUntilFullyInitialized();
+
 			final AtomicReference<SealedEntity> theEntityRef = new AtomicReference<>();
 			CommitProgress commitProgress = null;
 			AtomicReference<Consumer<CommitProgress>> commitProgressConsumer = new AtomicReference<>(null);
@@ -1390,6 +1395,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.cache(originalConfiguration.cache())
 				.build()
 		)) {
+			evita.waitUntilFullyInitialized();
 			automaticallyGenerateEntitiesInParallel(evita, productSchema, null);
 		}
 	}
@@ -1446,6 +1452,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			);
 
 			log.info("Original catalog finished with version: " + originalCatalogVersion);
+			evita.activateCatalog(restoredCatalogName);
 
 			evita.queryCatalog(
 				restoredCatalogName,
@@ -1525,7 +1532,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 				evita, productSchema, theEvita -> {
-					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, true));
+					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false));
 				}
 			);
 
@@ -1543,6 +1550,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			log.info("Original catalog finished with version: " + originalCatalogVersion);
 
+			evita.activateCatalog(restoredCatalogName);
 			evita.queryCatalog(
 				restoredCatalogName,
 				session -> {
@@ -1772,11 +1780,17 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				// close the evita
 				evita.close();
 
+				log.info("Re-initializing evita to verify persistence of data.");
+
 				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+					restartedEvita.waitUntilFullyInitialized();
+
 					assertInstanceOf(
 						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
 						"Catalog should be loaded from the disk!"
 					);
+
+					log.info("evitaDB restarted and fully initialized");
 
 					catalogChecker.accept(restartedEvita, expectedLastVersion, TEST_CATALOG);
 
@@ -1802,10 +1816,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 									try (final InputStream inputStream = Files.newInputStream(backupPath)) {
 										restartedEvita.management().restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
 											.getFutureResult().get(2, TimeUnit.MINUTES);
+										restartedEvita.activateCatalog(restoredCatalogName);
 									}
 									// connect to it and check existence of the first record
 									catalogChecker.accept(restartedEvita, record.catalogVersion(), restoredCatalogName);
+
+									// drop the restored catalog
+									restartedEvita.deleteCatalogIfExists(restoredCatalogName);
 								} catch (Exception e) {
+									log.error("Exception thrown during backup & restore test!", e);
 									throw new RuntimeException(e);
 								}
 							}
@@ -1816,11 +1835,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				log.error("Exception thrown within test!", ex);
 				fail(ex);
 			} finally {
+				log.info("Closing evita instance (state is {}).", evita.isActive() ? "active" : "closed");
 				if (evita.isActive()) {
 					evita.close();
 				}
 			}
 		} finally {
+			log.info("Cleaning test directories.");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		}
@@ -1993,6 +2014,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				evita.close();
 
 				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+					restartedEvita.waitUntilFullyInitialized();
+
 					assertInstanceOf(
 						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
 						"Catalog should be loaded from the disk!"

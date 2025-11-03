@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data.structure;
+package io.evitadb.api.requestResponse.data;
 
 
 /**
@@ -29,7 +29,7 @@ package io.evitadb.api.requestResponse.data.structure;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-enum ReferenceEditMode {
+public enum ReferenceEditMode {
 
 	/**
 	 * Client code starts redefining the whole reference from scratch.

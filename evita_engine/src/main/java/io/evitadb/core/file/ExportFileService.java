@@ -97,6 +97,10 @@ public class ExportFileService implements Closeable {
 	 * List of reserved temporary files that won't be purged automatically.
 	 */
 	private final CopyOnWriteArrayList<Path> reservedFiles = new CopyOnWriteArrayList<>();
+	/**
+	 * Task that periodically purges old files from the storage.
+	 */
+	private final DelayedAsyncTask purgeTask;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -164,13 +168,14 @@ public class ExportFileService implements Closeable {
 		this.folderLock = new FolderLock(this.storageOptions.exportDirectory());
 		this.reservedFiles.add(this.folderLock.lockFilePath());
 		// schedule automatic purging task
-		new DelayedAsyncTask(
+		this.purgeTask = new DelayedAsyncTask(
 			null,
 			"Export file service purging task",
 			scheduler,
 			this::purgeFiles,
 			5, TimeUnit.MINUTES
-		).schedule();
+		);
+		this.purgeTask.schedule();
 	}
 
 	/**
@@ -428,10 +433,15 @@ public class ExportFileService implements Closeable {
 	 */
 	@Override
 	public void close() {
+		// stop purging task
+		IOUtils.closeQuietly(this.purgeTask::close);
+		// delete reserved files
 		for (Path reservedFile : this.reservedFiles) {
 			FileUtils.deleteFileIfExists(reservedFile);
 		}
+		// purge old files
 		purgeFiles();
+		// release folder lock
 		IOUtils.close(
 			() -> new UnexpectedIOException(
 				"Failed to close the folder lock: " + this.folderLock,
@@ -494,24 +504,30 @@ public class ExportFileService implements Closeable {
 			log.error("Failed to list files in the directory: {}", this.storageOptions.exportDirectory(), e);
 		}
 
-		// then check the size of the directory and delete oldest files until the directory size is below the limit
-		final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
-		// delete the oldest files until the directory size is below the limit
-		if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
-			final List<FileForFetch> filesByCreationDate = this.files.stream()
-				.sorted(Comparator.comparing(FileForFetch::created))
-				.toList();
-			long savedSize = 0L;
-			for (FileForFetch it : filesByCreationDate) {
-				log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-				final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory()).toFile().length();
-				deleteFile(it.fileId());
-				savedSize += it.totalSizeInBytes() + metadataFileSize;
-				// finish removing files if the directory size is below the limit
-				if (directorySize - savedSize <= this.storageOptions.exportDirectorySizeLimitBytes()) {
-					break;
+		try {
+			// then check the size of the directory and delete oldest files until the directory size is below the limit
+			final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
+			// delete the oldest files until the directory size is below the limit
+			if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
+				final List<FileForFetch> filesByCreationDate = this.files.stream()
+					.sorted(Comparator.comparing(FileForFetch::created))
+					.toList();
+				long savedSize = 0L;
+				for (FileForFetch it : filesByCreationDate) {
+					log.info("Purging the oldest file, because the export directory grew too big: {}", it);
+					final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory())
+						.toFile()
+						.length();
+					deleteFile(it.fileId());
+					savedSize += it.totalSizeInBytes() + metadataFileSize;
+					// finish removing files if the directory size is below the limit
+					if (directorySize - savedSize <= this.storageOptions.exportDirectorySizeLimitBytes()) {
+						break;
+					}
 				}
 			}
+		} catch (UnexpectedIOException e) {
+			log.error("Failed to calculate size of the directory: {}", this.storageOptions.exportDirectory(), e);
 		}
 	}
 
