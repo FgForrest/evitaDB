@@ -61,6 +61,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -359,8 +360,9 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		@Nonnull EntitySchema entitySchema,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingDataFactory(this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey)
-			.getEntityAttributeValueSupplier();
+		return new EntityStoragePartExistingDataFactory(
+			this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey, Map.of()
+		).getEntityAttributeValueSupplier();
 	}
 
 	@Test

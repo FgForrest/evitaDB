@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -78,7 +79,8 @@ public class CopyExistingEntityBuilder extends InitialEntityBuilder {
 			externalEntity.getAssociatedDataValues(),
 			externalEntity.getReferences(),
 			externalEntity.getPriceInnerRecordHandling(),
-			externalEntity.getPrices()
+			externalEntity.getSchema().isWithPrice() ?
+				externalEntity.getPrices() : List.of()
 		);
 	}
 

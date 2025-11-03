@@ -288,7 +288,7 @@ class BuilderReferenceBundle {
 			this.representativeAttributeDefinition = reference
 				.getReferenceSchema()
 				.map(schema -> {
-					if (schema instanceof ReferenceSchema referenceSchema) {
+					if (schema instanceof ReferenceSchema referenceSchema && schema.getCardinality().allowsDuplicates()) {
 						return referenceSchema.getRepresentativeAttributeDefinition();
 					} else {
 						return new RepresentativeAttributeDefinition(
