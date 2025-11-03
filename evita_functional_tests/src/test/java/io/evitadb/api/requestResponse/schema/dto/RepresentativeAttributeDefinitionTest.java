@@ -32,6 +32,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +79,8 @@ class RepresentativeAttributeDefinitionTest {
 		final RepresentativeAttributeDefinition rad =
 			new RepresentativeAttributeDefinition(prepareAttributes());
 
-		final List<String> names = rad.getAttributeNames();
-		assertEquals(List.of("alpha", "beta"), names);
+		final Collection<String> names = rad.getAttributeNames();
+		assertEquals(List.of("alpha", "beta"), List.of(names.toArray()));
 
 		final Serializable[] defaults = rad.getDefaultValues();
 		assertArrayEquals(new Serializable[]{"A", "B"}, defaults);

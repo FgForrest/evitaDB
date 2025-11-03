@@ -51,6 +51,7 @@ import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static io.evitadb.index.mutation.index.ReferenceIndexMutator.attributeUpdate;
@@ -160,7 +161,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		@Nonnull EntitySchema entitySchema,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingDataFactory(this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey);
+		return new EntityStoragePartExistingDataFactory(
+			this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey, Map.of()
+		);
 	}
 
 }

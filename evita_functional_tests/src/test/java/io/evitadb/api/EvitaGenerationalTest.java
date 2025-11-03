@@ -75,7 +75,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @CommonsLog
 class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport {
-	public static final String ATTRIBUTE_CODE = "code";
 	/**
 	 * Seed for data generation.
 	 */
@@ -86,6 +85,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
 	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
 	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
+	private static final String ATTRIBUTE_CODE = "code";
 	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
 	 */
@@ -341,6 +341,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 					this.evita = new Evita(
 						getEvitaConfiguration()
 					);
+					this.evita.waitUntilFullyInitialized();
 				}
 
 				return new TestState(

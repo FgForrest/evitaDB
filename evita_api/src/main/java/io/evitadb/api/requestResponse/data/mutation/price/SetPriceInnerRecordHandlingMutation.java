@@ -65,7 +65,9 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 	}
 
 	private SetPriceInnerRecordHandlingMutation(
-		long decisiveTimestamp, PriceInnerRecordHandling priceInnerRecordHandling) {
+		long decisiveTimestamp,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling
+	) {
 		this.decisiveTimestamp = decisiveTimestamp;
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}

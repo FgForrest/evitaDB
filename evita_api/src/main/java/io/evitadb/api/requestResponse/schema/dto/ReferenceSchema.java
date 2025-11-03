@@ -452,7 +452,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					)
 				)
 		);
-		this.representativeAttributeDefinition = new RepresentativeAttributeDefinition(this.attributes);
+		this.representativeAttributeDefinition = this.cardinality.allowsDuplicates() ?
+			new RepresentativeAttributeDefinition(this.attributes) :
+			new RepresentativeAttributeDefinition(Collections.emptyMap());
 		this.attributeNameIndex = _internalGenerateNameVariantIndex(
 			this.attributes.values(), AttributeSchemaContract::getNameVariants
 		);
