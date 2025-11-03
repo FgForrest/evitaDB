@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeU
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
@@ -56,7 +54,7 @@ public interface SetAttributeSchemaGloballyUniqueMutationDescriptor extends Attr
 			""")
 		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES_INPUT = PropertyDescriptor.extend(UNIQUE_GLOBALLY_IN_SCOPES)
+	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_GLOBALLY_IN_SCOPES)
 		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 

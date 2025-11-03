@@ -73,7 +73,7 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 			""")
 		.type(nonNullListRef(AttributeElementDescriptor.THIS))
 		.build();
-	PropertyDescriptor ATTRIBUTE_ELEMENTS_INPUT = PropertyDescriptor.extend(ATTRIBUTE_ELEMENTS)
+	PropertyDescriptor ATTRIBUTE_ELEMENTS_INPUT = PropertyDescriptor.from(ATTRIBUTE_ELEMENTS)
 		.type(nonNullListRef(AttributeElementDescriptor.THIS_INPUT))
 		.build();
 

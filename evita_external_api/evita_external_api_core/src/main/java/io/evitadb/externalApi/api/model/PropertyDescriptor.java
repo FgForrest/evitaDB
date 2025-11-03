@@ -72,9 +72,8 @@ public record PropertyDescriptor(@Nonnull String name,
 	/**
 	 * Creates new descriptor extending all properties of specified one.
 	 */
-	// todo lho rename to `from`
 	@Nonnull
-	public static PropertyDescriptorBuilder extend(@Nonnull PropertyDescriptor propertyDescriptor) {
+	public static PropertyDescriptorBuilder from(@Nonnull PropertyDescriptor propertyDescriptor) {
 		return builder()
 			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description())

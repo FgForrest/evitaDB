@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquen
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
@@ -56,7 +54,7 @@ public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSch
 			""")
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.extend(UNIQUE_IN_SCOPES)
+	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_IN_SCOPES)
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 

@@ -76,7 +76,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			""")
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.extend(UNIQUE_IN_SCOPES)
+	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_IN_SCOPES)
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
@@ -95,7 +95,7 @@ public interface CreateGlobalAttributeSchemaMutationDescriptor extends Attribute
 			""")
 		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES_INPUT = PropertyDescriptor.extend(UNIQUE_GLOBALLY_IN_SCOPES)
+	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_GLOBALLY_IN_SCOPES)
 		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()

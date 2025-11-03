@@ -62,7 +62,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
             """)
 		// type is expected to be a list of non-hierarchical version of this entity
 		.build();
-	PropertyDescriptor PRICE_FOR_SALE = PropertyDescriptor.extend(EntityDescriptor.PRICE_FOR_SALE)
+	PropertyDescriptor PRICE_FOR_SALE = PropertyDescriptor.from(EntityDescriptor.PRICE_FOR_SALE)
 		.type(nullableRef(PriceForSaleDescriptor.THIS))
 		.build();
 	PropertyDescriptor ALL_PRICES_FOR_SALE = PropertyDescriptor.builder()

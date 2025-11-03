@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTy
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
@@ -63,7 +61,7 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			""")
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.extend(INDEXED_IN_SCOPES)
+	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 

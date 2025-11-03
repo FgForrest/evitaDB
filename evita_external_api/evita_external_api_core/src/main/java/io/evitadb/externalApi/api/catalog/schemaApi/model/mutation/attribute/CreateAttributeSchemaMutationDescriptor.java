@@ -75,7 +75,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			""")
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.extend(UNIQUE_IN_SCOPES)
+	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_IN_SCOPES)
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()

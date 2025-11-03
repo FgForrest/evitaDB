@@ -124,7 +124,7 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			""")
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
 		.build();
-	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.extend(INDEXED_IN_SCOPES)
+	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
