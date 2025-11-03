@@ -43,13 +43,17 @@ public class UnionDescriptorToOpenApiUnionTransformer implements UnionDescriptor
 	public OpenApiUnion.Builder apply(UnionDescriptor unionDescriptor) {
 		final OpenApiUnion.Builder unionBuilder = OpenApiUnion.newUnion();
 
-		unionBuilder.name(unionDescriptor.name());
+		if (unionDescriptor.isNameStatic()) {
+			unionBuilder.name(unionDescriptor.name());
+		}
 		unionBuilder.description(unionDescriptor.description());
 		unionBuilder.type(OpenApiObjectUnionType.ONE_OF);
-		unionBuilder.discriminator(unionDescriptor.discriminator().name());
+		if (unionDescriptor.discriminator() != null) {
+			unionBuilder.discriminator(unionDescriptor.discriminator());
+		}
 
 		unionDescriptor.types().forEach(typeDescriptor -> {
-			unionBuilder.object(OpenApiTypeReference.typeRefTo(typeDescriptor.name()));
+			unionBuilder.type(OpenApiTypeReference.typeRefTo(typeDescriptor.name()));
 		});
 
 		return unionBuilder;

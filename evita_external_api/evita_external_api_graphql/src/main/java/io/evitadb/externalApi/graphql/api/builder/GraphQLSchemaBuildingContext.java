@@ -31,6 +31,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -81,7 +82,7 @@ public class GraphQLSchemaBuildingContext {
 	 * Holds {@link MappingTypeResolver}s whose type mappings are being build gradually with schema.
 	 */
 	@Nonnull
-	private final Map<Class<MappingTypeResolver<?>>, MappingTypeResolver<?>> mappingTypeResolvers;
+	private final Map<RegistryKey<?>, MappingTypeResolver<?>> mappingTypeResolvers;
 
     public GraphQLSchemaBuildingContext(@Nonnull GraphQLOptions config, @Nonnull Evita evita) {
         this.config = config;
@@ -118,18 +119,41 @@ public class GraphQLSchemaBuildingContext {
 	/**
 	 * Adds a new mapping type resolver to be able to add type mappings during schema building.
 	 */
-	public void addMappingTypeResolver(@Nonnull GraphQLInterfaceType interfaceType, @Nonnull MappingTypeResolver<?> resolver) {
-		//noinspection unchecked
-		this.mappingTypeResolvers.put((Class<MappingTypeResolver<?>>) resolver.getClass(), resolver);
+	public <K> void addMappingTypeResolver(
+		@Nonnull GraphQLInterfaceType interfaceType,
+		@Nonnull RegistryKey<K> resolverKey,
+		@Nonnull MappingTypeResolver<K> resolver
+	) {
+		Assert.isPremiseValid(
+			!this.mappingTypeResolvers.containsKey(resolverKey),
+			() -> new GraphQLSchemaBuildingError("There is already registered mapping type resolver with key `" + resolverKey + "`.")
+		);
+		this.mappingTypeResolvers.put(resolverKey, resolver);
 		this.registryBuilder.typeResolver(interfaceType, resolver);
 	}
 
+	/**
+	 * Adds a new mapping type resolver to be able to add type mappings during schema building.
+	 */
+	public <K> void addMappingTypeResolver(
+		@Nonnull GraphQLUnionType unionType,
+		@Nonnull RegistryKey<K> resolverKey,
+		@Nonnull MappingTypeResolver<K> resolver
+	) {
+		Assert.isPremiseValid(
+			!this.mappingTypeResolvers.containsKey(resolverKey),
+			() -> new GraphQLSchemaBuildingError("There is already registered mapping type resolver with key `" + resolverKey + "`.")
+		);
+		this.mappingTypeResolvers.put(resolverKey, resolver);
+		this.registryBuilder.typeResolver(unionType, resolver);
+	}
+
 	@Nonnull
-	public <K, T extends MappingTypeResolver<K>> T getMappingTypeResolver(@Nonnull Class<? extends MappingTypeResolver<K>> resolverClass) {
+	public <K, T extends MappingTypeResolver<K>> T getMappingTypeResolver(@Nonnull RegistryKey<K> resolverKey) {
 		//noinspection unchecked
-		final T resolver = (T) this.mappingTypeResolvers.get(resolverClass);
+		final T resolver = (T) this.mappingTypeResolvers.get(resolverKey);
 		if (resolver == null) {
-			throw new GraphQLSchemaBuildingError("No mapping type resolver of type `" + resolverClass.getName() + "` is registered.");
+			throw new GraphQLSchemaBuildingError("No mapping type resolver for specified key is registered.");
 		}
 		return resolver;
 	}

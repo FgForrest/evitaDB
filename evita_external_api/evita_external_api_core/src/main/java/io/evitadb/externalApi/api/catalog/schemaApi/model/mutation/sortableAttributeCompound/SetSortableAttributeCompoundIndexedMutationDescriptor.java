@@ -23,17 +23,16 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.SetSortableAttributeCompoundSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor representing {@link SetReferenceSchemaIndexedMutation}.
+ * Descriptor representing {@link SetSortableAttributeCompoundSchemaIndexedMutation}.
  *
  * Note: this descriptor has static structure.
  *
@@ -50,15 +49,15 @@ public interface SetSortableAttributeCompoundIndexedMutationDescriptor extends S
 		.type(nullable(Scope[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetSortableAttributeCompoundIndexedMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetSortableAttributeCompoundSchemaIndexedMutation.class)
 		.description("""
 			Mutation is responsible for setting set of scopes for indexing value in a `SortableAttributeCompoundSchema` in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(INDEXED_IN_SCOPES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetSortableAttributeCompoundIndexedMutationInput")
-		.staticProperties(List.of(NAME, INDEXED_IN_SCOPES))
 		.build();
 }

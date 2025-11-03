@@ -59,18 +59,6 @@ public interface AttributeElementDescriptor {
 		.type(nonNull(OrderBehaviour.class))
 		.build();
 
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
-		.name("InputAttributeElement")
-		.description("""
-			Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the
-			sorting and the behaviour of the null values. The attribute name refers to the existing attribute defined in the
-			schema.
-			""")
-		.staticProperty(ATTRIBUTE_NAME)
-		.staticProperty(DIRECTION)
-		.staticProperty(BEHAVIOUR)
-		.build();
-
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("AttributeElement")
 		.description("""
@@ -81,5 +69,13 @@ public interface AttributeElementDescriptor {
 		.staticProperty(ATTRIBUTE_NAME)
 		.staticProperty(DIRECTION)
 		.staticProperty(BEHAVIOUR)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+		.name("InputAttributeElement")
+		.description("""
+			Attribute element is a part of the sortable compound. It defines the attribute name, the direction of the
+			sorting and the behaviour of the null values. The attribute name refers to the existing attribute defined in the
+			schema.
+			""")
 		.build();
 }

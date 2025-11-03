@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -48,16 +49,15 @@ public interface DisallowLocaleInEntitySchemaMutationDescriptor extends EntitySc
 		.type(nonNull(Locale[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("DisallowLocaleInEntitySchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(DisallowLocaleInEntitySchemaMutation.class)
 		.description("""
 			Mutation is responsible for removing one or more locales from a `EntitySchema.locales`
 			in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, LOCALES))
+		.staticProperty(LOCALES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("DisallowLocaleInEntitySchemaMutationInput")
-		.staticProperties(List.of(LOCALES))
 		.build();
 }

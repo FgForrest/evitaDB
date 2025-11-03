@@ -47,6 +47,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
+	exports io.evitadb.externalApi.api.transaction.model.mutation;
 	exports io.evitadb.externalApi.dataType;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model;
 	exports io.evitadb.externalApi.api.catalog.model;
@@ -90,5 +91,4 @@ module evita.external.api.core {
 	requires io.netty.common;
 	requires jdk.jfr;
 	requires org.reactivestreams;
-	requires evita.external.api.core;
 }

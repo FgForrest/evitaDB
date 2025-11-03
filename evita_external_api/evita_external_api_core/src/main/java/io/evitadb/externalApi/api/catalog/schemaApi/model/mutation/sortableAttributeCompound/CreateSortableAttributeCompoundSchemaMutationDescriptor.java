@@ -71,6 +71,9 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 		.description("""
 			Defines list of individual elements forming this compound.
 			""")
+		.type(nonNullListRef(AttributeElementDescriptor.THIS))
+		.build();
+	PropertyDescriptor ATTRIBUTE_ELEMENTS_INPUT = PropertyDescriptor.extend(ATTRIBUTE_ELEMENTS)
 		.type(nonNullListRef(AttributeElementDescriptor.THIS_INPUT))
 		.build();
 
@@ -88,5 +91,6 @@ public interface CreateSortableAttributeCompoundSchemaMutationDescriptor extends
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateSortableAttributeCompoundSchemaMutationInput")
+		.staticProperty(ATTRIBUTE_ELEMENTS_INPUT)
 		.build();
 }

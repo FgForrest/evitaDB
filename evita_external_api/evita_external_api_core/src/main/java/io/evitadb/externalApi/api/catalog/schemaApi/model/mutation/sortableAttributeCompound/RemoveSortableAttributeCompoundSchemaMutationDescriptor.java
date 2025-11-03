@@ -26,7 +26,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttr
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import java.util.List;
 
 /**
  * Descriptor representing {@link RemoveSortableAttributeCompoundSchemaMutation}.
@@ -37,16 +36,15 @@ import java.util.List;
  */
 public interface RemoveSortableAttributeCompoundSchemaMutationDescriptor extends SortableAttributeCompoundSchemaMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveSortableAttributeCompoundSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveSortableAttributeCompoundSchemaMutation.class)
 		.description("""
 			Mutation is responsible for removing an existing `SortableAttributeCompound` in the
 			`EntitySchema` or `ReferenceSchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME))
+		.staticProperty(NAME)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("RemoveSortableAttributeCompoundSchemaMutationInput")
-		.staticProperties(List.of(NAME))
 		.build();
 }

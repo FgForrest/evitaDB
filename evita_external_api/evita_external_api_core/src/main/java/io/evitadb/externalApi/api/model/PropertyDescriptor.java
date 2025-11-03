@@ -72,6 +72,7 @@ public record PropertyDescriptor(@Nonnull String name,
 	/**
 	 * Creates new descriptor extending all properties of specified one.
 	 */
+	// todo lho rename to `from`
 	@Nonnull
 	public static PropertyDescriptorBuilder extend(@Nonnull PropertyDescriptor propertyDescriptor) {
 		return builder()
@@ -80,6 +81,16 @@ public record PropertyDescriptor(@Nonnull String name,
 			.deprecate(propertyDescriptor.deprecate())
 			.type(propertyDescriptor.type())
 			.defaultValue(propertyDescriptor.defaultValue());
+	}
+
+	/**
+	 * Returns the raw name of the property (either static name or template).
+	 *
+	 * Note: for internal purposes only.
+	 */
+	@Nonnull
+	String rawName() {
+		return this.name;
 	}
 
 	@Nonnull

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation;
 
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -65,29 +66,24 @@ public interface EntityUpsertMutationDescriptor extends MutationDescriptor {
 			""")
 		.type(nonNull(EntityExistence.class))
 		.build();
-	// todo lho input version
 	PropertyDescriptor LOCAL_MUTATIONS = PropertyDescriptor.builder()
 		.name("localMutations")
 		.description("""
 			All local mutations that should be applied to the entity.
 			""")
-		.type(nonNullListRef(LocalMutationInputAggregateDescriptor.THIS))
+		.type(nonNullListRef(LocalMutationUnionDescriptor.THIS))
 		.build();
 
-	// todo lho register in api
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("EntityUpsertMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(EntityUpsertMutation.class)
 		.description("""
 			EntityUpsertMutation represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
 			and all its internal data are marked as TRUE for dropped, stored to the storage file and
 			removed from the mem-table.
 			""")
-		.staticProperties(List.of(
-			MUTATION_TYPE,
-			ENTITY_PRIMARY_KEY,
-			ENTITY_TYPE,
-			ENTITY_EXISTENCE,
-			LOCAL_MUTATIONS
-		))
+		.staticProperty(ENTITY_PRIMARY_KEY)
+		.staticProperty(ENTITY_TYPE)
+		.staticProperty(ENTITY_EXISTENCE)
+		.staticProperty(LOCAL_MUTATIONS)
 		.build();
 }

@@ -24,12 +24,11 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -123,6 +122,9 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 			
 			Returns array of scopes and their corresponding reference index types in which this reference is indexed.
 			""")
+		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.extend(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
@@ -141,39 +143,25 @@ public interface CreateReferenceSchemaMutationDescriptor extends ReferenceSchema
 		.type(nullable(Scope[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateReferenceSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(CreateReferenceSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticProperties(List.of(
-			MUTATION_TYPE,
-			NAME,
-			DESCRIPTION,
-			DEPRECATION_NOTICE,
-			CARDINALITY,
-			REFERENCED_ENTITY_TYPE,
-			REFERENCED_ENTITY_TYPE_MANAGED,
-			REFERENCED_GROUP_TYPE,
-			REFERENCED_GROUP_TYPE_MANAGED,
-			INDEXED_IN_SCOPES,
-			FACETED_IN_SCOPES
-		))
+		.staticProperty(NAME)
+		.staticProperty(DESCRIPTION)
+		.staticProperty(DEPRECATION_NOTICE)
+		.staticProperty(CARDINALITY)
+		.staticProperty(REFERENCED_ENTITY_TYPE)
+		.staticProperty(REFERENCED_ENTITY_TYPE_MANAGED)
+		.staticProperty(REFERENCED_GROUP_TYPE)
+		.staticProperty(REFERENCED_GROUP_TYPE_MANAGED)
+		.staticProperty(INDEXED_IN_SCOPES)
+		.staticProperty(FACETED_IN_SCOPES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReferenceSchemaMutationInput")
-		.staticProperties(List.of(
-			NAME,
-			DESCRIPTION,
-			DEPRECATION_NOTICE,
-			CARDINALITY,
-			REFERENCED_ENTITY_TYPE,
-			REFERENCED_ENTITY_TYPE_MANAGED,
-			REFERENCED_GROUP_TYPE,
-			REFERENCED_GROUP_TYPE_MANAGED,
-			INDEXED_IN_SCOPES,
-			FACETED_IN_SCOPES
-		))
+		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.build();
 }

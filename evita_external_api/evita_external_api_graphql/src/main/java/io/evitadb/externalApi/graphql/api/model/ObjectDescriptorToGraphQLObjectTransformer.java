@@ -60,7 +60,6 @@ public class ObjectDescriptorToGraphQLObjectTransformer implements ObjectDescrip
 			.forEach(objectBuilder::field);
 
 		if (objectDescriptor.interfaceDescriptor() != null) {
-			// todo lho register to type resolver?
 			objectBuilder.withInterface(GraphQLTypeReference.typeRef(objectDescriptor.interfaceDescriptor().name()));
 		}
 

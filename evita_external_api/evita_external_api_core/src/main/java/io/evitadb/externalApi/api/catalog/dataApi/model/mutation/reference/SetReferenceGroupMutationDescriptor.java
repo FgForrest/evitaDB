@@ -59,26 +59,17 @@ public interface SetReferenceGroupMutationDescriptor extends ReferenceMutationDe
 		.build();
 
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetReferenceGroupMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetReferenceGroupMutation.class)
 		.description("""
 			This mutation allows to create / update group of the reference.
 			""")
-		.staticProperties(List.of(
-			MUTATION_TYPE,
-			NAME,
-			PRIMARY_KEY,
-			GROUP_TYPE,
-			GROUP_PRIMARY_KEY
-		))
+		.staticProperty(NAME)
+		.staticProperty(PRIMARY_KEY)
+		.staticProperty(GROUP_TYPE)
+		.staticProperty(GROUP_PRIMARY_KEY)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetReferenceGroupMutationInput")
-		.staticProperties(List.of(
-			NAME,
-			PRIMARY_KEY,
-			GROUP_TYPE,
-			GROUP_PRIMARY_KEY
-		))
 		.build();
 }

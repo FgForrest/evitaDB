@@ -60,15 +60,17 @@ public interface UpsertAttributeMutationDescriptor extends AttributeMutationDesc
 		.type(nullableRef(SCALAR_ENUM))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("UpsertAttributeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(UpsertAttributeMutation.class)
 		.description("""
 			Upsert attribute mutation will either update existing attribute or create new one.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALE, VALUE, VALUE_TYPE))
+		.staticProperty(NAME)
+		.staticProperty(LOCALE)
+		.staticProperty(VALUE)
+		.staticProperty(VALUE_TYPE)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("UpsertAttributeMutationInput")
-		.staticProperties(List.of(NAME, LOCALE, VALUE, VALUE_TYPE))
 		.build();
 }

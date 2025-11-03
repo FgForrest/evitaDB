@@ -24,11 +24,10 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -51,16 +50,15 @@ public interface AllowEvolutionModeInCatalogSchemaMutationDescriptor extends Mut
 		.type(nonNull(CatalogEvolutionMode[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("AllowEvolutionModeInCatalogSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(AllowEvolutionModeInCatalogSchemaMutation.class)
 		.description("""
 			Mutation is responsible for adding one or more modes to a `CatalogSchema.catalogEvolutionMode`
 			in `CatalogSchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.staticProperty(EVOLUTION_MODES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("AllowEvolutionModeInCatalogSchemaMutationInput")
-		.staticProperties(List.of(EVOLUTION_MODES))
 		.build();
 }

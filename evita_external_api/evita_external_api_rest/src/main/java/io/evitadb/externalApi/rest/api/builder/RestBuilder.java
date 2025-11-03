@@ -35,6 +35,7 @@ import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiInterfaceTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.UnionDescriptorToOpenApiUnionTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
@@ -72,6 +73,7 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 	@Nonnull protected final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 	@Nonnull protected final UnionDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToOpenApiInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
 
@@ -85,6 +87,7 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(this.propertyBuilderTransformer);
 		this.unionBuilderTransformer = new UnionDescriptorToOpenApiUnionTransformer();
 		this.dictionaryBuilderTransformer = new ObjectDescriptorToOpenApiDictionaryTransformer();
+		this.interfaceBuilderTransformer = new ObjectDescriptorToOpenApiInterfaceTransformer(this.propertyBuilderTransformer);
 		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(this.propertyDataTypeBuilderTransformer);
 		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(this.propertyDataTypeBuilderTransformer);
 	}

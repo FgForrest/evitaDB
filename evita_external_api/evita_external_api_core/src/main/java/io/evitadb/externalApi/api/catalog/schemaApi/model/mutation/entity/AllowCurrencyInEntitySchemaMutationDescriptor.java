@@ -23,11 +23,11 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.AllowCurrencyInEntitySchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.Currency;
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -48,16 +48,15 @@ public interface AllowCurrencyInEntitySchemaMutationDescriptor extends EntitySch
 		.type(nonNull(Currency[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("AllowCurrencyInEntitySchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(AllowCurrencyInEntitySchemaMutation.class)
 		.description("""
 			Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies`
 			in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, CURRENCIES))
+		.staticProperty(CURRENCIES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("AllowCurrencyInEntitySchemaMutationInput")
-		.staticProperties(List.of(CURRENCIES))
 		.build();
 }

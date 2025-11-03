@@ -172,7 +172,7 @@ public class GraphQLManager {
 		final GraphQLSchema schema = new SystemGraphQLSchemaBuilder(this.graphQLConfig, this.evita).build();
 		final long schemaBuildDuration = System.currentTimeMillis() - schemaBuildStartTime;
 
-		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(this.evita, schema).build(this.graphQLConfig));
+		this.graphQLRouter.registerSystemApi(new SystemGraphQLBuilder(schema).build(this.graphQLConfig));
 		final long instanceBuildDuration = System.currentTimeMillis() - instanceBuildStartTime;
 
 		// build metrics

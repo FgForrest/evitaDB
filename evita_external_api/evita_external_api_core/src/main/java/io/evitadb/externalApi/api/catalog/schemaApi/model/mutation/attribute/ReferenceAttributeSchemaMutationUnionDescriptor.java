@@ -27,7 +27,7 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 /**
- * TODO lho docs
+ * Union descriptor of all possible types of schema mutations for reference attributes.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

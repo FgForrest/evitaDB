@@ -35,21 +35,15 @@ import java.util.List;
  */
 public interface RestoreCatalogSchemaMutationDescriptor extends EngineMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RestoreCatalogSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RestoreCatalogSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new catalog schema in INACTIVE state.
 			This mutation is used for restoring catalogs from backups or other restoration scenarios.
 			""")
-		.staticProperties(List.of(
-			MUTATION_TYPE,
-			CATALOG_NAME
-		))
+		.staticProperty(CATALOG_NAME)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("RestoreCatalogSchemaMutationInput")
-		.staticProperties(List.of(
-			CATALOG_NAME
-		))
 		.build();
 }

@@ -78,9 +78,4 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	public CatalogSchemaContract getSchema() {
 		return this.catalog.getSchema();
 	}
-
-	public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
-		registerType(entityObject);
-		getMappingTypeResolver(EntityDtoTypeResolver.class).registerTypeMapping(entityType, entityObject);
-	}
 }

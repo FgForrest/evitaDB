@@ -32,6 +32,8 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -40,12 +42,17 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
@@ -74,6 +81,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Req
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionsDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.GetEntityDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.GetUnknownEntityDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.ListEntitiesDataFetcher;
@@ -201,6 +209,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		buildCurrencyEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
 		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(QueryLabelDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+
+		buildMutationInterface();
 		buildInputMutations();
 		buildOutputMutations();
 
@@ -296,11 +306,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		}
 
 		// build entity object specific to this schema
-		// default entity object with all fields
+		// default entity object with all fields, we need it present in entity interface resolver
 		collectionBuildingContext.registerEntityObject(this.entityObjectBuilder.build(collectionBuildingContext));
-		// non-hierarchical version of entity object with missing recursive parent entities
-		collectionBuildingContext.registerEntityObject(
-			this.entityObjectBuilder.build(collectionBuildingContext, EntityObjectVariant.NON_HIERARCHICAL));
+		// Non-hierarchical version of entity object with missing recursive parent entities.
+		// It is used only in specific placed, we don't need it in type resolver
+		this.buildingContext.registerType(this.entityObjectBuilder.build(collectionBuildingContext, EntityObjectVariant.NON_HIERARCHICAL));
 
 		return collectionBuildingContext;
 	}
@@ -781,14 +791,15 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	private void buildOutputMutations() {
-		registerOutputMutations(
-			SetEntityScopeMutationDescriptor.THIS,
+		final Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations = registerOutputMutations(
 			RemoveAssociatedDataMutationDescriptor.THIS,
 			UpsertAssociatedDataMutationDescriptor.THIS,
 			ApplyDeltaAttributeMutationDescriptor.THIS,
 			RemoveAttributeMutationDescriptor.THIS,
 			UpsertAttributeMutationDescriptor.THIS,
+			RemoveParentMutationDescriptor.THIS,
 			SetParentMutationDescriptor.THIS,
+			SetEntityScopeMutationDescriptor.THIS,
 			SetPriceInnerRecordHandlingMutationDescriptor.THIS,
 			RemovePriceMutationDescriptor.THIS,
 			UpsertPriceMutationDescriptor.THIS,
@@ -796,9 +807,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			RemoveReferenceMutationDescriptor.THIS,
 			SetReferenceGroupMutationDescriptor.THIS,
 			RemoveReferenceGroupMutationDescriptor.THIS,
-			ReferenceAttributeMutationDescriptor.THIS
+			ReferenceAttributeMutationDescriptor.THIS,
+			EntityUpsertMutationDescriptor.THIS,
+			EntityRemoveMutationDescriptor.THIS
 		);
 
-		// todo lho union?
+		registerMutationUnion(AttributeMutationUnionDescriptor.THIS, registeredOutputMutations);
+		registerMutationUnion(LocalMutationUnionDescriptor.THIS, registeredOutputMutations);
 	}
 }

@@ -54,20 +54,24 @@ public interface SetAttributeSchemaGloballyUniqueMutationDescriptor extends Attr
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
+		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor UNIQUE_GLOBALLY_IN_SCOPES_INPUT = PropertyDescriptor.extend(UNIQUE_GLOBALLY_IN_SCOPES)
 		.type(nullableListRef(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetAttributeSchemaGloballyUniqueMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetAttributeSchemaGloballyUniqueMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `GlobalAttributeSchema.uniqueGlobally`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `GlobalAttributeSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, UNIQUE_GLOBALLY_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetAttributeSchemaGloballyUniqueMutationInput")
-		.staticProperties(List.of(NAME, UNIQUE_GLOBALLY_IN_SCOPES))
+		.staticProperty(UNIQUE_GLOBALLY_IN_SCOPES_INPUT)
 		.build();
 }

@@ -90,7 +90,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 		.type(nullableRef(PriceDescriptor.THIS))
 		.build();
 
-	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.from(THIS_CLASSIFIER)
+	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.implementing(THIS_CLASSIFIER)
 		.name("NonHierarchical*")
 		.build();
 }

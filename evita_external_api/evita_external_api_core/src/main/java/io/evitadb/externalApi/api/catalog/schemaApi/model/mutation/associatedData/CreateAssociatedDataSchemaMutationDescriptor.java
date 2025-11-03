@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
@@ -83,16 +82,20 @@ public interface CreateAssociatedDataSchemaMutationDescriptor extends Associated
 		.type(nullable(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateAssociatedDataSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(CreateAssociatedDataSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new `AssociatedDataSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, DESCRIPTION, DEPRECATION_NOTICE, TYPE, LOCALIZED, NULLABLE))
+		.staticProperty(NAME)
+		.staticProperty(DESCRIPTION)
+		.staticProperty(DEPRECATION_NOTICE)
+		.staticProperty(TYPE)
+		.staticProperty(LOCALIZED)
+		.staticProperty(NULLABLE)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateAssociatedDataSchemaMutationInput")
-		.staticProperties(List.of(NAME, DESCRIPTION, DEPRECATION_NOTICE, TYPE, LOCALIZED, NULLABLE))
 		.build();
 }

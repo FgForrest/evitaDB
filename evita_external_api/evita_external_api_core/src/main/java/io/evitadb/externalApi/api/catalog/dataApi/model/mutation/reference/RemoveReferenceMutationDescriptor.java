@@ -37,15 +37,15 @@ import java.util.List;
  */
 public interface RemoveReferenceMutationDescriptor extends ReferenceMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveReferenceMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveReferenceMutation.class)
 		.description("""
 			This mutation allows to remove a reference from the entity.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY))
+		.staticProperty(NAME)
+		.staticProperty(PRIMARY_KEY)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("RemoveReferenceMutationInput")
-		.staticProperties(List.of(NAME, PRIMARY_KEY))
 		.build();
 }

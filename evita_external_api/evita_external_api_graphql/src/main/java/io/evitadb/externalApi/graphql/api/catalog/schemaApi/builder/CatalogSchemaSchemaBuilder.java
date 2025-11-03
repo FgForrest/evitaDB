@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
@@ -34,12 +35,17 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemasDescripto
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -60,6 +66,8 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribing
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 
 import javax.annotation.Nonnull;
+
+import java.util.Map;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLNonNull.nonNull;
@@ -85,47 +93,10 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		this.buildingContext.registerType(buildEntitySchemaObject());
 		this.buildingContext.registerType(buildCatalogSchemaObject());
 
-		buildInputMutations();
-		buildOutputMutations();
-
 		// build catalog field
 		this.buildingContext.registerQueryField(buildCatalogSchemaField());
 		this.buildingContext.registerMutationField(buildUpdateCatalogSchemaField());
 		this.buildingContext.registerSubscriptionField(buildOnCatalogSchemaChangeField());
-	}
-
-	private void buildInputMutations() {
-		registerInputMutations(
-			// catalog schema mutations
-			ModifyEntitySchemaMutationDescriptor.THIS_INPUT,
-			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS_INPUT,
-			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
-			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS_INPUT,
-
-			// global attribute schema mutations
-			CreateGlobalAttributeSchemaMutationDescriptor.THIS_INPUT,
-			SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS_INPUT,
-
-			LocalCatalogSchemaMutationInputAggregateDescriptor.THIS_INPUT
-
-			// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		);
-	}
-
-	private void buildOutputMutations() {
-		registerOutputMutations(
-			// catalog schema mutations
-			ModifyEntitySchemaMutationDescriptor.THIS,
-			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
-			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
-			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
-
-			// global attribute schema mutations
-			CreateGlobalAttributeSchemaMutationDescriptor.THIS,
-			SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS
-		);
-
-		// todo lho union?
 	}
 
 	/*

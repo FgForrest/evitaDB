@@ -61,19 +61,23 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			
 			Returns array of scopes and their corresponding reference index types in which this reference is indexed.
 			""")
+		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.extend(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetReferenceSchemaIndexedMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetReferenceSchemaIndexedMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(INDEXED_IN_SCOPES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetReferenceSchemaIndexedMutationInput")
-		.staticProperties(List.of(NAME, INDEXED_IN_SCOPES))
+		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.build();
 }

@@ -25,7 +25,9 @@ package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLInputObjectType;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
+import graphql.schema.GraphQLUnionType;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -38,10 +40,15 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.TypeDescriptor;
+import io.evitadb.externalApi.api.model.UnionDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.model.*;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -52,11 +59,13 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import static graphql.schema.GraphQLEnumType.newEnum;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Common ancestor for all {@link graphql.schema.GraphQLSchema} builders.
@@ -70,6 +79,8 @@ import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCA
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContext> {
+
+	protected static final RegistryKey<Class<? extends Mutation>> MUTATION_INTERFACE_TYPE_RESOLVER_REGISTRY_KEY = new RegistryKey<>();
 
 	@Nonnull protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
 	@Nonnull protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
@@ -171,6 +182,16 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		scalarBuilder.value(apiName, javaType);
 	}
 
+	protected void buildMutationInterface() {
+		final GraphQLInterfaceType mutationInterface = MutationDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
+		this.buildingContext.registerType(mutationInterface);
+		this.buildingContext.addMappingTypeResolver(
+			mutationInterface,
+			MUTATION_INTERFACE_TYPE_RESOLVER_REGISTRY_KEY,
+			new MutationDtoTypeResolver(120)
+		);
+	}
+
 	protected void registerInputMutations(@Nonnull ObjectDescriptor... mutationDescriptors) {
 		for (final ObjectDescriptor mutationDescriptor : mutationDescriptors) {
 			final GraphQLInputObjectType mutationType = mutationDescriptor.to(this.inputObjectBuilderTransformer).build();
@@ -178,7 +199,10 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		}
 	}
 
-	protected void registerOutputMutations(@Nonnull ObjectDescriptor... mutationDescriptors) {
+	@Nonnull
+	protected Map<Class<? extends Mutation>, GraphQLObjectType> registerOutputMutations(@Nonnull ObjectDescriptor... mutationDescriptors) {
+		final Map<Class<? extends Mutation>, GraphQLObjectType> builtMutationObjects = createHashMap(mutationDescriptors.length);
+
 		for (final ObjectDescriptor mutationDescriptor : mutationDescriptors) {
 			final GraphQLObjectType mutationType = mutationDescriptor.to(this.objectBuilderTransformer).build();
 			this.buildingContext.registerType(mutationType);
@@ -186,10 +210,36 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 				throw new GraphQLSchemaBuildingError("Mutation descriptor " + mutationDescriptor.getClass().getName() + " does not represent a Mutation class.");
 			}
 			//noinspection unchecked
-			this.buildingContext.getMappingTypeResolver(MutationDtoTypeResolver.class).registerTypeMapping(
+			this.buildingContext.getMappingTypeResolver(MUTATION_INTERFACE_TYPE_RESOLVER_REGISTRY_KEY).registerTypeMapping(
 				(Class<? extends Mutation>) mutationDescriptor.representedClass(),
 				mutationType
 			);
+			//noinspection unchecked
+			builtMutationObjects.put((Class<? extends Mutation>) mutationDescriptor.representedClass(), mutationType);
 		}
+
+		return builtMutationObjects;
+	}
+
+	protected void registerMutationUnion(
+		@Nonnull UnionDescriptor unionDescriptor,
+		@Nonnull Map<Class<? extends Mutation>, GraphQLObjectType> outputMutationObjectRegistry
+	) {
+		final GraphQLUnionType union = unionDescriptor.to(this.unionBuilderTransformer).build();
+		this.buildingContext.registerType(union);
+
+		final MutationDtoTypeResolver resolver = new MutationDtoTypeResolver(unionDescriptor.types().size());
+		for (TypeDescriptor type : unionDescriptor.types()) {
+			// we need to pair the built GraphQL mutation object for the type descriptor to the union type resolver
+			@SuppressWarnings("unchecked") final Class<? extends Mutation> mutationClass = (Class<? extends Mutation>) ((ObjectDescriptor) type).representedClass();
+			final GraphQLObjectType mutationObject = outputMutationObjectRegistry.get(mutationClass);
+			Assert.isPremiseValid(
+				mutationObject != null,
+				() -> new GraphQLSchemaBuildingError("Mutation object for class `" + mutationClass.getName() + "` could not be found.")
+			);
+			resolver.registerTypeMapping(mutationClass, mutationObject);
+		}
+
+		this.buildingContext.addMappingTypeResolver(union, new RegistryKey<>(), resolver);
 	}
 }

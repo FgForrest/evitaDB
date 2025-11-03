@@ -26,13 +26,17 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
@@ -64,7 +68,6 @@ import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiEnumTransf
 import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
@@ -198,9 +201,6 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum());
 		this.buildingContext.registerType(enumFrom(DataChunkType.class));
-
-		buildInputMutations();
-		buildOutputMutations();
 
 		this.buildingContext.registerType(CollectionDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
@@ -374,7 +374,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			}
 
 			final OpenApiUnion.Builder localizedEntityUnionBuilder = EntityUnion.THIS_LOCALIZED.to(this.unionBuilderTransformer);
-			entityObjects.forEach(localizedEntityUnionBuilder::object);
+			entityObjects.forEach(localizedEntityUnionBuilder::type);
 
 			return Optional.of(localizedEntityUnionBuilder.build());
 		} else {
@@ -383,7 +383,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 				return Optional.empty();
 			}
 			final OpenApiUnion.Builder entityUnionBuilder = EntityUnion.THIS.to(this.unionBuilderTransformer);
-			entityObjects.forEach(entityUnionBuilder::object);
+			entityObjects.forEach(entityUnionBuilder::type);
 
 			return Optional.of(entityUnionBuilder.build());
 		}
@@ -432,48 +432,5 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.build();
 
 		return Optional.of(currencyEnum);
-	}
-
-	private void buildInputMutations() {
-		registerMutations(
-			SetEntityScopeMutationDescriptor.THIS_INPUT,
-			RemoveAssociatedDataMutationDescriptor.THIS_INPUT,
-			UpsertAssociatedDataMutationDescriptor.THIS_INPUT,
-			ApplyDeltaAttributeMutationDescriptor.THIS_INPUT,
-			RemoveAttributeMutationDescriptor.THIS_INPUT,
-			UpsertAttributeMutationDescriptor.THIS_INPUT,
-			SetParentMutationDescriptor.THIS_INPUT,
-			SetPriceInnerRecordHandlingMutationDescriptor.THIS_INPUT,
-			RemovePriceMutationDescriptor.THIS_INPUT,
-			UpsertPriceMutationDescriptor.THIS_INPUT,
-			InsertReferenceMutationDescriptor.THIS_INPUT,
-			RemoveReferenceMutationDescriptor.THIS_INPUT,
-			SetReferenceGroupMutationDescriptor.THIS_INPUT,
-			RemoveReferenceGroupMutationDescriptor.THIS_INPUT,
-			ReferenceAttributeMutationDescriptor.THIS_INPUT,
-			ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT
-		);
-	}
-
-	private void buildOutputMutations() {
-		registerMutations(
-			SetEntityScopeMutationDescriptor.THIS,
-			RemoveAssociatedDataMutationDescriptor.THIS,
-			UpsertAssociatedDataMutationDescriptor.THIS,
-			ApplyDeltaAttributeMutationDescriptor.THIS,
-			RemoveAttributeMutationDescriptor.THIS,
-			UpsertAttributeMutationDescriptor.THIS,
-			SetParentMutationDescriptor.THIS,
-			SetPriceInnerRecordHandlingMutationDescriptor.THIS,
-			RemovePriceMutationDescriptor.THIS,
-			UpsertPriceMutationDescriptor.THIS,
-			InsertReferenceMutationDescriptor.THIS,
-			RemoveReferenceMutationDescriptor.THIS,
-			SetReferenceGroupMutationDescriptor.THIS,
-			RemoveReferenceGroupMutationDescriptor.THIS,
-			ReferenceAttributeMutationDescriptor.THIS
-		);
-
-		// todo lho union?
 	}
 }

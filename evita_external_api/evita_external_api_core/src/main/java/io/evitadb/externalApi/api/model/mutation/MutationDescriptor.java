@@ -42,11 +42,11 @@ public interface MutationDescriptor {
 	PropertyDescriptor MUTATION_TYPE = PropertyDescriptor.builder()
 		.name("mutationType")
 		.description("The mutation type. Can be used as discriminator.")
-		.type(nullable(String.class)) // todo lho must be nonnull but only in output types
+		.type(nonNull(String.class))
 		.build();
 
 	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
-		.name("Mutation")
+		.name("EvitaMutation") // cannot be plain `Mutation` because GraphQL uses `Mutation` as a root type name for GQL mutation queries
 		.description("This interface denotes all mutation operations that can be cast on Evita data objects.")
 		.staticProperty(MUTATION_TYPE)
 		.build();

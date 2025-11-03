@@ -24,10 +24,9 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowEvolutionModeInEntitySchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -50,16 +49,15 @@ public interface DisallowEvolutionModeInEntitySchemaMutationDescriptor extends E
 		.type(nonNull(EvolutionMode[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("DisallowEvolutionModeInEntitySchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(DisallowEvolutionModeInEntitySchemaMutation.class)
 		.description("""
 			Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode`
 			in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.staticProperty(EVOLUTION_MODES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("DisallowEvolutionModeInEntitySchemaMutationInput")
-		.staticProperties(List.of(EVOLUTION_MODES))
 		.build();
 }

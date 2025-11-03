@@ -60,4 +60,6 @@ public abstract class MappingTypeResolver<K> implements TypeResolver {
 			.orElseThrow(
 				() -> new GraphQLQueryResolvingInternalError("Missing output type for key `" + key + "`."));
 	}
+
+	public static class RegistryKey<K> {}
 }

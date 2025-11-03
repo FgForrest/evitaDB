@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -48,17 +47,17 @@ public interface SetAssociatedDataSchemaLocalizedMutationDescriptor extends Asso
 		.type(nonNull(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetAssociatedDataSchemaLocalizedMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetAssociatedDataSchemaLocalizedMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `AssociatedDataSchema.localized`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, LOCALIZED))
+		.staticProperty(NAME)
+		.staticProperty(LOCALIZED)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetAssociatedDataSchemaLocalizedMutationInput")
-		.staticProperties(List.of(NAME, LOCALIZED))
 		.build();
 }

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -46,26 +47,28 @@ public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationD
 		.description("""
 			One attribute mutation to update / insert / delete single attribute of the reference.
 			""")
-		// todo lho proper output version with propertype, union type of mutations?
-		.type(nonNullRef(ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT))
+		.type(nonNullRef(AttributeMutationUnionDescriptor.THIS))
 		.build();
 	PropertyDescriptor ATTRIBUTE_MUTATION_INPUT = PropertyDescriptor.builder()
 		.name("attributeMutation")
 		.description("""
 			One attribute mutation to update / insert / delete single attribute of the reference.
 			""")
+		// todo lho proper scoped?
 		.type(nonNullRef(ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ReferenceAttributeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ReferenceAttributeMutation.class)
 		.description("""
 			This mutation allows to create / update / remove attribute of the reference.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY, ATTRIBUTE_MUTATION))
+		.staticProperty(NAME)
+		.staticProperty(PRIMARY_KEY)
+		.staticProperty(ATTRIBUTE_MUTATION)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ReferenceAttributeMutationInput")
-		.staticProperties(List.of(NAME, PRIMARY_KEY, ATTRIBUTE_MUTATION_INPUT))
+		.staticProperty(ATTRIBUTE_MUTATION_INPUT)
 		.build();
 }

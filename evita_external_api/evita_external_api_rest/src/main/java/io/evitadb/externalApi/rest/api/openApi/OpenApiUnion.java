@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.openApi;
 
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Discriminator;
@@ -65,15 +66,15 @@ public class OpenApiUnion implements OpenApiComplexType {
 	@Nonnull
 	private final OpenApiObjectUnionType type;
 	/**
-	 * Name of discriminator of union objects.
+	 * Siscriminator of union objects.
 	 */
 	@Nullable
-	private final String discriminator;
+	private final PropertyDescriptor discriminator;
 	/**
 	 * Objects that are combined to form new (this) object.
 	 */
 	@Nonnull
-	private final List<OpenApiTypeReference> objects;
+	private final List<OpenApiTypeReference> types;
 
 	/**
 	 * Create new empty builder of object.
@@ -96,12 +97,12 @@ public class OpenApiUnion implements OpenApiComplexType {
 	public Schema<Object> toSchema() {
 		final Schema<Object> schema = new Schema<>();
 		switch (this.type) {
-			case ONE_OF -> this.objects.forEach(it -> schema.addOneOfItem(it.toSchema()));
-			case ANY_OF -> this.objects.forEach(it -> schema.addAnyOfItem(it.toSchema()));
-			case ALL_OF -> this.objects.forEach(it -> schema.addAllOfItem(it.toSchema()));
+			case ONE_OF -> this.types.forEach(it -> schema.addOneOfItem(it.toSchema()));
+			case ANY_OF -> this.types.forEach(it -> schema.addAnyOfItem(it.toSchema()));
+			case ALL_OF -> this.types.forEach(it -> schema.addAllOfItem(it.toSchema()));
 		}
 		if (this.discriminator != null) {
-			schema.discriminator(new Discriminator().propertyName(this.discriminator));
+			schema.discriminator(new Discriminator().propertyName(this.discriminator.name()));
 		}
 
 		schema.name(this.name);
@@ -125,12 +126,12 @@ public class OpenApiUnion implements OpenApiComplexType {
 		@Nonnull
 		private OpenApiObjectUnionType type = OpenApiObjectUnionType.ONE_OF;
 		@Nullable
-		private String discriminator;
+		private PropertyDescriptor discriminator;
 		@Nonnull
-		private final List<OpenApiTypeReference> objects;
+		private final List<OpenApiTypeReference> types;
 
 		private Builder() {
-			this.objects = new LinkedList<>();
+			this.types = new LinkedList<>();
 		}
 
 		private Builder(@Nonnull OpenApiUnion existingObject) {
@@ -140,7 +141,7 @@ public class OpenApiUnion implements OpenApiComplexType {
 				existingObject.deprecationNotice,
 				existingObject.type,
 				existingObject.discriminator,
-				existingObject.objects
+				existingObject.types
 			);
 		}
 
@@ -173,7 +174,7 @@ public class OpenApiUnion implements OpenApiComplexType {
 		}
 
 		/**
-		 * Sets type of union (used only if {@link #object(OpenApiTypeReference)} is used as well). Default is {@link OpenApiObjectUnionType#ONE_OF}.
+		 * Sets type of union (used only if {@link #type(OpenApiTypeReference)} is used as well). Default is {@link OpenApiObjectUnionType#ONE_OF}.
 		 */
 		@Nonnull
 		public Builder type(@Nonnull OpenApiObjectUnionType unionType) {
@@ -182,20 +183,20 @@ public class OpenApiUnion implements OpenApiComplexType {
 		}
 
 		/**
-		 * Sets name of union discriminator (used only if {@link #object(OpenApiTypeReference)} is used as well).
+		 * Sets name of union discriminator (used only if {@link #type(OpenApiTypeReference)} is used as well).
 		 */
 		@Nonnull
-		public Builder discriminator(@Nonnull String unionDiscriminator) {
+		public Builder discriminator(@Nonnull PropertyDescriptor unionDiscriminator) {
 			this.discriminator = unionDiscriminator;
 			return this;
 		}
 
 		/**
-		 * Adds union object. Make sure to set correct {@link #type(OpenApiObjectUnionType)} and {@link #discriminator(String)}.
+		 * Adds union type. Make sure to set correct {@link #type(OpenApiObjectUnionType)} and {@link #discriminator(PropertyDescriptor)}.
 		 */
 		@Nonnull
-		public Builder object(@Nonnull OpenApiTypeReference unionObject) {
-			this.objects.add(unionObject);
+		public Builder type(@Nonnull OpenApiTypeReference unionObject) {
+			this.types.add(unionObject);
 			return this;
 		}
 
@@ -206,10 +207,10 @@ public class OpenApiUnion implements OpenApiComplexType {
 				() -> new OpenApiBuildingError("Missing object name.")
 			);
 			Assert.isPremiseValid(
-				!this.objects.isEmpty(),
-				() -> new OpenApiBuildingError("Missing union objects")
+				!this.types.isEmpty(),
+				() -> new OpenApiBuildingError("Missing union types")
 			);
-			return new OpenApiUnion(this.name, this.description, this.deprecationNotice, this.type, this.discriminator, this.objects);
+			return new OpenApiUnion(this.name, this.description, this.deprecationNotice, this.type, this.discriminator, this.types);
 		}
 	}
 }

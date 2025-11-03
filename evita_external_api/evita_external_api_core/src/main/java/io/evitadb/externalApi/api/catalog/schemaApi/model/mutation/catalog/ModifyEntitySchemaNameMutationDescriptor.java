@@ -23,11 +23,10 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -62,15 +61,16 @@ public interface ModifyEntitySchemaNameMutationDescriptor extends MutationDescri
 		.type(nonNull(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyEntitySchemaNameMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyEntitySchemaNameMutation.class)
 		.description("""
 			Mutation is responsible for renaming an existing `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, NEW_NAME, OVERWRITE_TARGET))
+		.staticProperty(NAME)
+		.staticProperty(NEW_NAME)
+		.staticProperty(OVERWRITE_TARGET)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyEntitySchemaNameMutationInput")
-		.staticProperties(List.of(NAME, NEW_NAME, OVERWRITE_TARGET))
 		.build();
 }

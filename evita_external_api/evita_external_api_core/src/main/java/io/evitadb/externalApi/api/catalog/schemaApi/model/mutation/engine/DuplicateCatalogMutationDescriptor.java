@@ -44,20 +44,17 @@ public interface DuplicateCatalogMutationDescriptor extends EngineMutationDescri
 		.type(nonNull(String.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("DuplicateCatalogMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(DuplicateCatalogMutation.class)
 		.description("""
 			Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
 			This mutation creates a new catalog with the specified name containing all the data and schema
 			from the source catalog. The source catalog must exist and be in a valid state for duplication.
 			""")
-		.staticProperty(MUTATION_TYPE)
 		.staticProperty(CATALOG_NAME)
 		.staticProperty(NEW_CATALOG_NAME)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("DuplicateCatalogMutationInput")
-		.staticProperty(CATALOG_NAME)
-		.staticProperty(NEW_CATALOG_NAME)
 		.build();
 }

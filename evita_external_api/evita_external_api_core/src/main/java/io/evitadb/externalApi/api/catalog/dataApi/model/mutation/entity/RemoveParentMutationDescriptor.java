@@ -38,15 +38,13 @@ import java.util.List;
  */
 public interface RemoveParentMutationDescriptor extends MutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveParentMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveParentMutation.class)
 		.description("""
 			This mutation allows to remove `parent` from the `entity`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE))
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("RemoveParentMutationInput")
-		.staticProperties(List.of())
 		.build();
 }

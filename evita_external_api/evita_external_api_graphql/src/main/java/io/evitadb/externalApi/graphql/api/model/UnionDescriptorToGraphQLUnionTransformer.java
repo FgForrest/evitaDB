@@ -42,7 +42,9 @@ public class UnionDescriptorToGraphQLUnionTransformer implements UnionDescriptor
 	public GraphQLUnionType.Builder apply(UnionDescriptor unionDescriptor) {
 		final GraphQLUnionType.Builder unionBuilder = GraphQLUnionType.newUnionType();
 
-		unionBuilder.name(unionDescriptor.name());
+		if (unionDescriptor.isNameStatic()) {
+			unionBuilder.name(unionDescriptor.name());
+		}
 		if (unionDescriptor.description() != null) {
 			unionBuilder.description(unionDescriptor.description());
 		}

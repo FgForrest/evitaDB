@@ -26,8 +26,6 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import java.util.List;
-
 /**
  * Descriptor for {@link MakeCatalogAliveMutation}
  *
@@ -35,17 +33,16 @@ import java.util.List;
  */
 public interface MakeCatalogAliveMutationDescriptor extends EngineMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("MakeCatalogAliveMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(MakeCatalogAliveMutation.class)
 		.description("""
 			Mutation that transitions a catalog to the "live" state, making it transactional.
 			When a catalog goes live, it becomes fully operational and can participate in transactions.
 			This is a one-way operation that changes the catalog's operational state.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, CATALOG_NAME))
+		.staticProperty(CATALOG_NAME)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("MakeCatalogAliveMutationInput")
-		.staticProperties(List.of(CATALOG_NAME))
 		.build();
 }

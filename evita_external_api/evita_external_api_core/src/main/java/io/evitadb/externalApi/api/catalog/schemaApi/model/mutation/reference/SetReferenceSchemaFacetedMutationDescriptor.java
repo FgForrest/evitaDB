@@ -57,17 +57,17 @@ public interface SetReferenceSchemaFacetedMutationDescriptor extends ReferenceSc
 		.type(nullable(Scope[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetReferenceSchemaFacetedMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetReferenceSchemaFacetedMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReferenceSchema.faceted`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, FACETED_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(FACETED_IN_SCOPES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetReferenceSchemaFacetedMutationInput")
-		.staticProperties(List.of(NAME, FACETED_IN_SCOPES))
 		.build();
 }

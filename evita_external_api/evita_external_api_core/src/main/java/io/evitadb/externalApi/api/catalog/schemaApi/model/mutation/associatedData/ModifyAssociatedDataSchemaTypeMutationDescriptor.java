@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
@@ -50,17 +49,17 @@ public interface ModifyAssociatedDataSchemaTypeMutationDescriptor extends Associ
 		.type(nonNullRef(SCALAR_ENUM))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyAssociatedDataSchemaTypeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyAssociatedDataSchemaTypeMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `AssociatedDataSchema.type`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, TYPE))
+		.staticProperty(NAME)
+		.staticProperty(TYPE)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyAssociatedDataSchemaTypeMutationInput")
-		.staticProperties(List.of(NAME, TYPE))
 		.build();
 }

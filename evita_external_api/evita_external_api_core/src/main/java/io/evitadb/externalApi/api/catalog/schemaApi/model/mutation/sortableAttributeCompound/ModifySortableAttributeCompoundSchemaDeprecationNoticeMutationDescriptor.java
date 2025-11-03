@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -50,16 +49,16 @@ public interface ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationD
 		.type(nullable(String.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `SortableAttributeCompoundSchema.deprecationNotice`
 			in `EntitySchema` or `ReferenceSchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, DEPRECATION_NOTICE))
+		.staticProperty(NAME)
+		.staticProperty(DEPRECATION_NOTICE)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationInput")
-		.staticProperties(List.of(NAME, DEPRECATION_NOTICE))
 		.build();
 }

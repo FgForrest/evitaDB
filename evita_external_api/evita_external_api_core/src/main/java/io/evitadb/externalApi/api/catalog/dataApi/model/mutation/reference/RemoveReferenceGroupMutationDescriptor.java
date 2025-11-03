@@ -37,15 +37,15 @@ import java.util.List;
  */
 public interface RemoveReferenceGroupMutationDescriptor extends ReferenceMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveReferenceGroupMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveReferenceGroupMutation.class)
 		.description("""
 			This mutation allows to remove group in the reference.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY))
+		.staticProperty(NAME)
+		.staticProperty(PRIMARY_KEY)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("RemoveReferenceGroupMutationInput")
-		.staticProperties(List.of(NAME, PRIMARY_KEY))
 		.build();
 }

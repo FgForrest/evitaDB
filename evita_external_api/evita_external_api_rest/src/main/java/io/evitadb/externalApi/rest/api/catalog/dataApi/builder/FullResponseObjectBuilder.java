@@ -52,7 +52,6 @@ import io.evitadb.externalApi.rest.api.model.UnionDescriptorToOpenApiUnionTransf
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
@@ -122,8 +121,8 @@ public class FullResponseObjectBuilder {
 		final OpenApiUnion dataChunkObject = DataChunkUnionDescriptor.THIS
 			.to(this.unionBuilderTransformer)
 			.name(constructEntityDataChunkAggregateObjectName(entitySchema, localized))
-			.object(buildRecordPageObject(entitySchema, localized))
-			.object(buildRecordStripObject(entitySchema, localized))
+			.type(buildRecordPageObject(entitySchema, localized))
+			.type(buildRecordStripObject(entitySchema, localized))
 			.build();
 
 		return this.buildingContext.registerType(dataChunkObject);

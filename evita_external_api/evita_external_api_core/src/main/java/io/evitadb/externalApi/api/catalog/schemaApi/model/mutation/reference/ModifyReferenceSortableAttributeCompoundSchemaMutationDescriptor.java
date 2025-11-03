@@ -23,7 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -40,25 +42,33 @@ import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.no
  */
 public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
-	// todo lho input version
 	PropertyDescriptor SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.builder()
 		.name("sortableAttributeCompoundSchemaMutation")
 		.description("""
             Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
 			""")
+		.type(nonNullRef(ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor.THIS))
+		.build();
+	PropertyDescriptor SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_INPUT = PropertyDescriptor.builder()
+		.name("sortableAttributeCompoundSchemaMutation")
+		.description("""
+            Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
+			""")
+		// todo lho should be scoped to reference sortable attribute compounds only
 		.type(nonNullRef(AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyReferenceSortableAttributeCompoundSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyReferenceSortableAttributeCompoundSchemaMutation.class)
 		.description("""
 			Mutation is a holder for a single `SortableAttributeCompoundSchema` that affect any
 			of `ReferenceSchema.sortableAttributeCompound` in the `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
+		.staticProperty(NAME)
+		.staticProperty(SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyReferenceSortableAttributeCompoundSchemaMutationInput")
-		.staticProperties(List.of(NAME, SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION))
+		.staticProperty(SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION_INPUT)
 		.build();
 }

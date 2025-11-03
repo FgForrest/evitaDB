@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.system.builder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInterfaceType;
@@ -37,11 +38,16 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.UnusableCatalog;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetEntityScopeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
@@ -55,8 +61,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetRe
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
@@ -74,23 +85,30 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.TypeDescriptor;
+import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.ChangeCatalogCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.DataSiteDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.SchemaSiteDescriptor;
@@ -162,6 +180,9 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Override
     @Nonnull
 	public GraphQLSchema build() {
+		final GraphQLEnumType scalarEnum = buildScalarEnum();
+		this.buildingContext.registerType(scalarEnum);
+		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 		this.buildingContext.registerType(buildNameVariantsObject());
 
 		final GraphQLObjectType catalogObject = buildCatalogObject();
@@ -169,6 +190,10 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		final GraphQLObjectType unusableCatalogObject = buildUnusableCatalogObject();
 		this.buildingContext.registerType(unusableCatalogObject);
 		this.buildingContext.registerType(buildCatalogUnion(catalogObject, unusableCatalogObject));
+		this.buildingContext.registerType(ScopedAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedGlobalAttributeUniquenessTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ScopedReferenceIndexTypeDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		buildMutationInterface();
 		buildOutputMutations();
@@ -195,28 +220,24 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return this.buildingContext.buildGraphQLSchema();
 	}
 
-	private void buildMutationInterface() {
-		final GraphQLInterfaceType mutationInterface = MutationDescriptor.THIS_INTERFACE.to(this.interfaceBuilderTransformer).build();
-		this.buildingContext.registerType(mutationInterface);
-		this.buildingContext.addMappingTypeResolver(mutationInterface, new MutationDtoTypeResolver(120));
-	}
-
 	private void buildOutputMutations() {
-		registerOutputMutations(
+		final Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations = registerOutputMutations(
+			// infrastructure mutations
+
+			TransactionMutationDescriptor.THIS,
+
 			// schema mutations
 
 			// entity schema mutations
 			AllowCurrencyInEntitySchemaMutationDescriptor.THIS,
 			AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS,
 			AllowLocaleInEntitySchemaMutationDescriptor.THIS,
-			CreateEntitySchemaMutationDescriptor.THIS,
 			DisallowCurrencyInEntitySchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS,
 			DisallowLocaleInEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS,
 			ModifyEntitySchemaDescriptionMutationDescriptor.THIS,
 			ModifyEntitySchemaNameMutationDescriptor.THIS,
-			RemoveEntitySchemaMutationDescriptor.THIS,
 			SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS,
 			SetEntitySchemaWithHierarchyMutationDescriptor.THIS,
 			SetEntitySchemaWithPriceMutationDescriptor.THIS,
@@ -248,7 +269,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			SetAttributeSchemaUniqueMutationDescriptor.THIS,
 
 			// sortable attribute compound schema mutations
-			AttributeElementDescriptor.THIS_INPUT,
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS,
 			ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS,
@@ -266,13 +286,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			ModifyReferenceSchemaNameMutationDescriptor.THIS,
 			ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS,
 			ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS,
+			ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor.THIS,
 			ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS,
 			RemoveReferenceSchemaMutationDescriptor.THIS,
 			SetReferenceSchemaFacetedMutationDescriptor.THIS,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
 
 			// catalog schema mutations
+			CreateCatalogSchemaMutationDescriptor.THIS,
+			ModifyCatalogSchemaMutationDescriptor.THIS,
+			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
+			RemoveEntitySchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaDescriptionMutationDescriptor.THIS,
 			AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
 			DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS,
@@ -283,13 +308,14 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 			// data mutations
 
-			SetEntityScopeMutationDescriptor.THIS,
 			RemoveAssociatedDataMutationDescriptor.THIS,
 			UpsertAssociatedDataMutationDescriptor.THIS,
 			ApplyDeltaAttributeMutationDescriptor.THIS,
 			RemoveAttributeMutationDescriptor.THIS,
 			UpsertAttributeMutationDescriptor.THIS,
+			RemoveParentMutationDescriptor.THIS,
 			SetParentMutationDescriptor.THIS,
+			SetEntityScopeMutationDescriptor.THIS,
 			SetPriceInnerRecordHandlingMutationDescriptor.THIS,
 			RemovePriceMutationDescriptor.THIS,
 			UpsertPriceMutationDescriptor.THIS,
@@ -297,11 +323,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			RemoveReferenceMutationDescriptor.THIS,
 			SetReferenceGroupMutationDescriptor.THIS,
 			RemoveReferenceGroupMutationDescriptor.THIS,
-			ReferenceAttributeMutationDescriptor.THIS
+			ReferenceAttributeMutationDescriptor.THIS,
+			EntityUpsertMutationDescriptor.THIS,
+			EntityRemoveMutationDescriptor.THIS
 		);
 
-		// todo lho unions?
+		registerMutationUnion(LocalEntitySchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
+		registerMutationUnion(ReferenceAttributeSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
+		registerMutationUnion(ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
+		registerMutationUnion(LocalCatalogSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
 
+		registerMutationUnion(AttributeMutationUnionDescriptor.THIS, registeredOutputMutations);
+		registerMutationUnion(LocalMutationUnionDescriptor.THIS, registeredOutputMutations);
 	}
 
 	@Nonnull

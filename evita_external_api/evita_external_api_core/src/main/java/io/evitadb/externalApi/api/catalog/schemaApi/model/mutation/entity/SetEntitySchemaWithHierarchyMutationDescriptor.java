@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -67,16 +68,16 @@ public interface SetEntitySchemaWithHierarchyMutationDescriptor extends EntitySc
 		.type(nullable(Scope[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetEntitySchemaWithHierarchyMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetEntitySchemaWithHierarchyMutation.class)
 		.description("""
 			Mutation is responsible for setting a `EntitySchema.withHierarchy`
 			in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, WITH_HIERARCHY, INDEXED_IN_SCOPES))
+		.staticProperty(WITH_HIERARCHY)
+		.staticProperty(INDEXED_IN_SCOPES)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("SetEntitySchemaWithHierarchyMutationInput")
-		.staticProperties(List.of(WITH_HIERARCHY, INDEXED_IN_SCOPES))
 		.build();
 }

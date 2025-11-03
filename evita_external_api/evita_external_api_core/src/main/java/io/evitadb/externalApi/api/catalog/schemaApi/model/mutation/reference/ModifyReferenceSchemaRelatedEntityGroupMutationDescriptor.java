@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaRelatedEntityGroupMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -57,16 +58,17 @@ public interface ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor exten
 		.type(nonNull(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyReferenceSchemaRelatedEntityGroupMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyReferenceSchemaRelatedEntityGroupMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReferenceSchema.referencedGroupType`
 			in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, REFERENCED_GROUP_TYPE, REFERENCED_GROUP_TYPE_MANAGED))
+		.staticProperty(NAME)
+		.staticProperty(REFERENCED_GROUP_TYPE)
+		.staticProperty(REFERENCED_GROUP_TYPE_MANAGED)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyReferenceSchemaRelatedEntityGroupMutationInput")
-		.staticProperties(List.of(NAME, REFERENCED_GROUP_TYPE, REFERENCED_GROUP_TYPE_MANAGED))
 		.build();
 }

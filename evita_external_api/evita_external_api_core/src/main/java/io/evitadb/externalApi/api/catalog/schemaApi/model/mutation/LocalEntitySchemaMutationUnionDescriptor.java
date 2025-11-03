@@ -33,7 +33,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedDat
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
@@ -46,7 +45,7 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 /**
- * TODO lho docs
+ * Union descriptor of all possible types of schema mutations for entity schema modification.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -57,6 +56,8 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.description("Lists all possible types of schema mutations for entity schema modification.")
 		.discriminator(MutationDescriptor.MUTATION_TYPE)
 
+		.type(ModifyEntitySchemaNameMutationDescriptor.THIS)
+
 		.type(AllowCurrencyInEntitySchemaMutationDescriptor.THIS)
 		.type(AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS)
 		.type(AllowLocaleInEntitySchemaMutationDescriptor.THIS)
@@ -65,7 +66,6 @@ public interface LocalEntitySchemaMutationUnionDescriptor {
 		.type(DisallowLocaleInEntitySchemaMutationDescriptor.THIS)
 		.type(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS)
 		.type(ModifyEntitySchemaDescriptionMutationDescriptor.THIS)
-		.type(ModifyEntitySchemaNameMutationDescriptor.THIS)
 		.type(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS)
 		.type(SetEntitySchemaWithHierarchyMutationDescriptor.THIS)
 		.type(SetEntitySchemaWithPriceMutationDescriptor.THIS)

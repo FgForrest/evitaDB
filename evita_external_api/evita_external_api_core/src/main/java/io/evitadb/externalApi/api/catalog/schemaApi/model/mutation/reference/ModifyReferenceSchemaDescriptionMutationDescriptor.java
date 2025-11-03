@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDescriptionMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -48,17 +49,17 @@ public interface ModifyReferenceSchemaDescriptionMutationDescriptor extends Refe
 		.type(nullable(String.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyReferenceSchemaDescriptionMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyReferenceSchemaDescriptionMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReferenceSchema.description`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, NAME, DESCRIPTION))
+		.staticProperty(NAME)
+		.staticProperty(DESCRIPTION)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyReferenceSchemaDescriptionMutationInput")
-		.staticProperties(List.of(NAME, DESCRIPTION))
 		.build();
 }

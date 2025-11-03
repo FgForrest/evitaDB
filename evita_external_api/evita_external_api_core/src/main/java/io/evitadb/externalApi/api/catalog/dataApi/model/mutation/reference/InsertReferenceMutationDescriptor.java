@@ -59,26 +59,17 @@ public interface InsertReferenceMutationDescriptor extends ReferenceMutationDesc
 		.build();
 
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("InsertReferenceMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(InsertReferenceMutation.class)
 		.description("""
 			This mutation allows to create a reference in the entity.
 			""")
-		.staticProperties(List.of(
-			MUTATION_TYPE,
-			NAME,
-			PRIMARY_KEY,
-			CARDINALITY,
-			REFERENCED_ENTITY_TYPE
-		))
+		.staticProperty(NAME)
+		.staticProperty(PRIMARY_KEY)
+		.staticProperty(CARDINALITY)
+		.staticProperty(REFERENCED_ENTITY_TYPE)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("InsertReferenceMutationInput")
-		.staticProperties(List.of(
-			NAME,
-			PRIMARY_KEY,
-			CARDINALITY,
-			REFERENCED_ENTITY_TYPE
-		))
 		.build();
 }

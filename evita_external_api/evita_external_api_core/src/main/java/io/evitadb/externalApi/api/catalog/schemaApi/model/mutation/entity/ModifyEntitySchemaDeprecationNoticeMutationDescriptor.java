@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDeprecationNoticeMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -48,16 +49,15 @@ public interface ModifyEntitySchemaDeprecationNoticeMutationDescriptor extends E
 		.type(nullable(String.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyEntitySchemaDeprecationNoticeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyEntitySchemaDeprecationNoticeMutation.class)
 		.description("""
 			Mutation is responsible for setting a `EntitySchema.deprecationNotice`
 			in `EntitySchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, DEPRECATION_NOTICE))
+		.staticProperty(DEPRECATION_NOTICE)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyEntitySchemaDeprecationNoticeMutationInput")
-		.staticProperties(List.of(DEPRECATION_NOTICE))
 		.build();
 }

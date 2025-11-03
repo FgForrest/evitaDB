@@ -50,7 +50,7 @@ import java.util.stream.Stream;
 public record UnionDescriptor(
 	@Nonnull String name,
 	@Nullable String description,
-	@Nonnull PropertyDescriptor discriminator,
+	@Nullable PropertyDescriptor discriminator,
 	@Nonnull List<TypeDescriptor> types
 ) implements TypeDescriptor {
 
@@ -58,7 +58,7 @@ public record UnionDescriptor(
 	public UnionDescriptor(
 		@Nonnull String name,
 		@Nullable String description,
-		@Nonnull PropertyDescriptor discriminator,
+		@Nullable PropertyDescriptor discriminator,
 		@Nullable @Singular List<TypeDescriptor> types
 	) {
 		Assert.isPremiseValid(

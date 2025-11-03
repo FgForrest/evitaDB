@@ -35,10 +35,13 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * API-independent descriptor of single object in schema-based external APIs. This generic object description can be transformed
@@ -72,9 +75,26 @@ public record ObjectDescriptor(@Nonnull String name,
 		);
 		this.name = name != null ? name : representedClass.getSimpleName();
 		this.description = description;
-		this.staticProperties = staticProperties != null ? staticProperties : List.of();
+		this.staticProperties = normalizeProperties(staticProperties);
 		this.interfaceDescriptor = interfaceDescriptor;
 		this.representedClass = representedClass;
+	}
+
+	@Nonnull
+	private static List<PropertyDescriptor> normalizeProperties(@Nullable List<PropertyDescriptor> staticProperties) {
+		if (staticProperties == null) {
+			return List.of();
+		}
+
+		// leave only the last occurrence for each the property name, allows overriding properties when inheriting existing
+		// objects
+		final Map<String, PropertyDescriptor> normalizedProperties = createHashMap(staticProperties.size());
+		for (PropertyDescriptor propertyDescriptor : staticProperties) {
+			final String rawName = propertyDescriptor.rawName();
+			normalizedProperties.put(rawName, propertyDescriptor);
+		}
+
+		return List.copyOf(normalizedProperties.values());
 	}
 
 	/**

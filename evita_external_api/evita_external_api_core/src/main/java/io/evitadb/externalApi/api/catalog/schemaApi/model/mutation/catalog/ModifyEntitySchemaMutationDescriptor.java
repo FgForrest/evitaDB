@@ -23,14 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -67,16 +65,17 @@ public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor
 		.type(nonNullListRef(EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyEntitySchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyEntitySchemaMutation.class)
 		.description("""
 			Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within
 			the `CatalogSchema`.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, ENTITY_TYPE, SCHEMA_MUTATIONS))
+		.staticProperty(ENTITY_TYPE)
+		.staticProperty(SCHEMA_MUTATIONS)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("ModifyEntitySchemaMutationInput")
-		.staticProperties(List.of(ENTITY_TYPE, SCHEMA_MUTATIONS_INPUT))
+		.staticProperty(SCHEMA_MUTATIONS_INPUT) // overrides inherited SCHEMA_MUTATIONS
 		.build();
 }

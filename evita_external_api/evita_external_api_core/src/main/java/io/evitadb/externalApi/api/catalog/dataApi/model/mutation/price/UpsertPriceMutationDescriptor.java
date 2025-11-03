@@ -94,36 +94,22 @@ public interface UpsertPriceMutationDescriptor extends PriceMutationDescriptor {
 		.build();
 
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("UpsertPriceMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(UpsertPriceMutation.class)
 		.description("""
 			This mutation allows to create / update `price` of the entity.
 			""")
-		.staticProperties(List.of(
-			MUTATION_TYPE,
-			PRICE_ID,
-			PRICE_LIST,
-			CURRENCY,
-			INNER_RECORD_ID,
-			PRICE_WITHOUT_TAX,
-			TAX_RATE,
-			PRICE_WITH_TAX,
-			VALIDITY,
-			INDEXED
-		))
+		.staticProperty(PRICE_ID)
+		.staticProperty(PRICE_LIST)
+		.staticProperty(CURRENCY)
+		.staticProperty(INNER_RECORD_ID)
+		.staticProperty(PRICE_WITHOUT_TAX)
+		.staticProperty(TAX_RATE)
+		.staticProperty(PRICE_WITH_TAX)
+		.staticProperty(VALIDITY)
+		.staticProperty(INDEXED)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("UpsertPriceMutationInput")
-		.staticProperties(List.of(
-			PRICE_ID,
-			PRICE_LIST,
-			CURRENCY,
-			INNER_RECORD_ID,
-			PRICE_WITHOUT_TAX,
-			TAX_RATE,
-			PRICE_WITH_TAX,
-			VALIDITY,
-			INDEXED
-		))
 		.build();
 }

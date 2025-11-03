@@ -37,15 +37,16 @@ import java.util.List;
  */
 public interface RemovePriceMutationDescriptor extends PriceMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemovePriceMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemovePriceMutation.class)
 		.description("""
 			This mutation allows to remove existing `price` of the entity.
 			""")
-		.staticProperties(List.of(MUTATION_TYPE, PRICE_ID, PRICE_LIST, CURRENCY))
+		.staticProperty(PRICE_ID)
+		.staticProperty(PRICE_LIST)
+		.staticProperty(CURRENCY)
 		.build();
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("RemovePriceMutationInput")
-		.staticProperties(List.of(PRICE_ID, PRICE_LIST, CURRENCY))
 		.build();
 }
