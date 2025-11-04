@@ -25,11 +25,9 @@ package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
@@ -54,8 +52,7 @@ public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationD
 		.description("""
 			One attribute mutation to update / insert / delete single attribute of the reference.
 			""")
-		// todo lho proper scoped?
-		.type(nonNullRef(ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT))
+		.type(nonNullRef(AttributeMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)

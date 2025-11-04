@@ -46,6 +46,7 @@ import java.util.concurrent.CompletableFuture;
  * message processing, subscription management, and connection termination. It implements
  * custom [WebSocket subprotocol]() to enable real-time subscriptions.
  *
+ * @see RestWebSocketExecutor
  * @author Lukáš Hornych, 2023
  */
 @Slf4j

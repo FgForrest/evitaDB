@@ -24,12 +24,10 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
@@ -54,8 +52,7 @@ public interface ModifyReferenceSortableAttributeCompoundSchemaMutationDescripto
 		.description("""
             Nested sortable attribute compound schema mutation that mutates reference sortable attribute compounds of targeted reference.
 			""")
-		// todo lho should be scoped to reference sortable attribute compounds only
-		.type(nonNullRef(AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT))
+		.type(nonNullRef(ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)

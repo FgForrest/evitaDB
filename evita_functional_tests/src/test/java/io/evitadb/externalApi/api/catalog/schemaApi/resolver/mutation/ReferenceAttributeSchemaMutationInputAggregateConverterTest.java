@@ -23,16 +23,17 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -40,39 +41,40 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SortableAttributeCompoundSchemaMutationInputAggregateConverter}
+ * Tests for {@link ReferenceAttributeSchemaMutationInputAggregateConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-class SortableAttributeCompoundSchemaMutationInputAggregateConverterTest {
+class ReferenceAttributeSchemaMutationInputAggregateConverterTest {
 
-	private SortableAttributeCompoundSchemaMutationInputAggregateConverter converter;
+	private ReferenceAttributeSchemaMutationInputAggregateConverter converter;
 
 	@BeforeEach
 	void init() {
-		this.converter = new SortableAttributeCompoundSchemaMutationInputAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
+		this.converter = new ReferenceAttributeSchemaMutationInputAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> expectedMutations = List.of(
-			new ModifySortableAttributeCompoundSchemaDescriptionMutation("code", "desc"),
-			new ModifySortableAttributeCompoundSchemaNameMutation("code", "betterCode")
+		final List<AttributeSchemaMutation> expectedMutations = List.of(
+			new ModifyAttributeSchemaDescriptionMutation("code", "desc"),
+			new ModifyAttributeSchemaNameMutation("code", "betterCode")
 		);
 
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = this.converter.convertFromInput(
+		final List<AttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(
-					SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+					ReferenceAttributeSchemaMutationInputAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifyAttributeSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 					.build())
 				.e(
-					SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION.name(), map()
+					ReferenceAttributeSchemaMutationInputAggregateDescriptor.MODIFY_ATTRIBUTE_SCHEMA_NAME_MUTATION.name(), map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "betterCode")
 					.build())
@@ -80,10 +82,9 @@ class SortableAttributeCompoundSchemaMutationInputAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations);
 	}
-
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<ReferenceSortableAttributeCompoundSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
+		final List<AttributeSchemaMutation> convertedMutations = this.converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 

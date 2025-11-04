@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInE
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,17 +46,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link EntitySchemaMutationInputAggregateConverter}
+ * Tests for {@link LocalEntitySchemaMutationInputAggregateConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-class EntitySchemaMutationInputAggregateConverterTest {
+class LocalEntitySchemaMutationInputAggregateConverterTest {
 
-	private EntitySchemaMutationInputAggregateConverter converter;
+	private LocalEntitySchemaMutationInputAggregateConverter converter;
 
 	@BeforeEach
 	void init() {
-		this.converter = new EntitySchemaMutationInputAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
+		this.converter = new LocalEntitySchemaMutationInputAggregateConverter(PassThroughMutationObjectMapper.INSTANCE, TestMutationResolvingExceptionFactory.INSTANCE);
 	}
 
 	@Test
@@ -69,11 +69,11 @@ class EntitySchemaMutationInputAggregateConverterTest {
 		final List<LocalEntitySchemaMutation> convertedMutations1 = this.converter.convertFromInput(
 			map()
 				.e(
-					EntitySchemaMutationInputAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
+					LocalEntitySchemaMutationInputAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(Locale.ENGLISH))
 					.build())
 				.e(
-					EntitySchemaMutationInputAggregateDescriptor.DISALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION.name(), map()
+					LocalEntitySchemaMutationInputAggregateDescriptor.DISALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of(Currency.getInstance("EUR")))
 					.build())
 				.build()
@@ -83,11 +83,11 @@ class EntitySchemaMutationInputAggregateConverterTest {
 		final List<LocalEntitySchemaMutation> convertedMutations2 = this.converter.convertFromInput(
 			map()
 				.e(
-					EntitySchemaMutationInputAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
+					LocalEntitySchemaMutationInputAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en"))
 					.build())
 				.e(
-					EntitySchemaMutationInputAggregateDescriptor.DISALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION.name(), map()
+					LocalEntitySchemaMutationInputAggregateDescriptor.DISALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of("EUR"))
 					.build())
 				.build()

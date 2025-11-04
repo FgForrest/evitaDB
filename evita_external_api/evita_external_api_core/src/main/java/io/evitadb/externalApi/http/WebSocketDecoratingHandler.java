@@ -28,12 +28,18 @@ import com.linecorp.armeria.common.util.Unwrappable;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Handler that decorates another {@link WebSocketHandler}. Creates a new {@link WebSocketHandler} that decorates this
+ * {@link WebSocketHandler} with the specified {@link WebSocketDecoratingHandler}.
+ * Useful for enriching existing {@link WebSocketHandler} with custom logic.
  *
+ * @see com.linecorp.armeria.server.SimpleDecoratingHttpService
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public interface WebSocketDecoratingHandler extends WebSocketHandler, Unwrappable {
 
+	/**
+	 * Retrieves the underlying {@link WebSocketHandler}.
+	 */
 	@Nonnull
 	default WebSocketHandler unwrapWebSocketHandler() {
 		final WebSocketHandler webSocketHandler = this.unwrap().as(WebSocketHandler.class);

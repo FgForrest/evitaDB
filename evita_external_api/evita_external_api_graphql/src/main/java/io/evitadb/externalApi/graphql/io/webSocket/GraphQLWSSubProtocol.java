@@ -71,19 +71,22 @@ class GraphQLWSSubProtocol {
 
     private boolean connectionInitiated;
 
-    private final ServiceRequestContext ctx;
-    private final AtomicReference<GraphQL> graphQL;
-    private final ObjectMapper objectMapper;
-    private final Map<String, Object> upgradeCtx;
-    private Map<String, Object> connectionCtx = Map.of();
+    @Nonnull private final ServiceRequestContext ctx;
+    @Nonnull private final AtomicReference<GraphQL> graphQL;
+	@Nonnull private final GraphQLInstanceType instanceType;
+    @Nonnull private final ObjectMapper objectMapper;
+    @Nonnull private final Map<String, Object> upgradeCtx;
+    @Nonnull private Map<String, Object> connectionCtx = Map.of();
 
     public GraphQLWSSubProtocol(
         @Nonnull ServiceRequestContext ctx,
         @Nonnull AtomicReference<GraphQL> graphQL,
+		@Nonnull GraphQLInstanceType instanceType,
 	    @Nonnull ObjectMapper objectMapper
     ) {
         this.ctx = ctx;
         this.graphQL = graphQL;
+		this.instanceType = instanceType;
 		this.objectMapper = objectMapper;
         this.upgradeCtx = Map.of("com.linecorp.armeria.graphql.context.key", ctx);
     }
@@ -141,8 +144,8 @@ class GraphQLWSSubProtocol {
                             // Subscription already exists
                             throw new GraphqlWebSocketCloseException(4409, "Already subscribed");
                         }
-                        // todo lho
-                        final ExecutedEvent executedEvent = new ExecutedEvent(GraphQLInstanceType.DATA);
+
+                        final ExecutedEvent executedEvent = new ExecutedEvent(this.instanceType);
                         final String operationName = toStringFromJson(payload.get("operationName"));
                         final String query = toStringFromJson(payload.get("query"));
                         final Map<String, Object> variables = toMapFromJson(payload.get("variables"));
@@ -167,7 +170,7 @@ class GraphQLWSSubProtocol {
 
                         future.handleAsync((executionResult, throwable) -> {
                             handleExecutionResult(out, id, executionResult, throwable);
-                            executedEvent.finishResultSerialization(); // todo lho
+                            executedEvent.finishResultSerialization();
                             return null;
                         }, this.ctx.eventLoop());
                     } catch (GraphqlWebSocketCloseException e) {

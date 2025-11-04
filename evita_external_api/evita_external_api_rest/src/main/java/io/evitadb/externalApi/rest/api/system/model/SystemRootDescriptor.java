@@ -97,7 +97,5 @@ public interface SystemRootDescriptor {
         .description("""
             Opens WebSocket connection to system change capture stream.
             """)
-        // todo lho type???
-        .type(nonNull(Boolean.class))
         .build();
 }

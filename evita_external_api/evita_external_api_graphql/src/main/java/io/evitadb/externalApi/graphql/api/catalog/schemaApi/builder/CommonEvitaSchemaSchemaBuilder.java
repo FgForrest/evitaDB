@@ -32,12 +32,12 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -209,7 +209,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaSortableMutationDescriptor.THIS_INPUT,
 			UseGlobalAttributeSchemaMutationDescriptor.THIS_INPUT,
-			AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			ReferenceAttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS_INPUT,
 
 			// sortable attribute compound schema mutations
@@ -219,7 +219,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS_INPUT,
 			SetSortableAttributeCompoundIndexedMutationDescriptor.THIS_INPUT,
 			RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
-			SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT,
 
 			// reference schema mutations
 			CreateReferenceSchemaMutationDescriptor.THIS_INPUT,
@@ -237,7 +237,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
 
-			EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT,
 
 			// catalog schema mutations
 			ModifyEntitySchemaMutationDescriptor.THIS_INPUT,

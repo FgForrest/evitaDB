@@ -32,6 +32,7 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import graphql.GraphQL;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+import io.evitadb.externalApi.graphql.io.GraphQLInstanceType;
 import io.evitadb.externalApi.http.RoutableWebSocket;
 import io.evitadb.externalApi.http.WebSocketHandler;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,9 @@ public class GraphQLWebSocketHandler implements WebSocketHandler, HttpService {
 	private final AtomicReference<GraphQL> graphQL;
 
 	@Nonnull
+	private final GraphQLInstanceType instanceType;
+
+	@Nonnull
 	private final ObjectMapper objectMapper;
 
 	@Nullable
@@ -64,10 +68,12 @@ public class GraphQLWebSocketHandler implements WebSocketHandler, HttpService {
 
 	public GraphQLWebSocketHandler(
 		@Nonnull AtomicReference<GraphQL> graphQL,
+		@Nonnull GraphQLInstanceType instanceType,
 		@Nonnull ObjectMapper objectMapper,
 		@Nullable HttpService fallbackService
 	) {
 		this.graphQL = graphQL;
+		this.instanceType = instanceType;
 		this.objectMapper = objectMapper;
 		this.fallbackService = fallbackService;
 	}
@@ -80,7 +86,7 @@ public class GraphQLWebSocketHandler implements WebSocketHandler, HttpService {
 		}
 
 		final WebSocketWriter outgoing = WebSocket.streaming();
-		final GraphQLWSSubProtocol protocol = new GraphQLWSSubProtocol(ctx, this.graphQL, this.objectMapper);
+		final GraphQLWSSubProtocol protocol = new GraphQLWSSubProtocol(ctx, this.graphQL, this.instanceType, this.objectMapper);
 		in.incomingWebSocket().subscribe(new GraphQLWebSocketSubscriber(protocol, outgoing));
 		return outgoing;
 	}

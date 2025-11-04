@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.model.mutation;
 import java.util.Map;
 
 /**
- * TODO lho docs
+ * Convertion context for converting a tree of {@link io.evitadb.api.requestResponse.mutation.Mutation}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

@@ -54,7 +54,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.PriceMutationDescriptor;
@@ -212,7 +212,7 @@ class GraphQLEntityUpsertMutationFactoryTest {
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(
-							ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
 				.build()
 		);
@@ -311,7 +311,7 @@ class GraphQLEntityUpsertMutationFactoryTest {
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(
-							ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
 				.build()
 		);

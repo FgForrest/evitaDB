@@ -184,7 +184,8 @@ public class GraphQLRouter implements HttpService, WebSocketHandler {
 			CorsService.standaloneFilter(
 				new GraphQLWebSocketHandler(
 					registeredApi.graphQLReference(),
-					objectMapper,
+					registeredApi.instanceType(),
+					this.objectMapper,
 					new GraphQLSchemaHandler(
 						this.evita,
 						registeredApi.graphQLReference()

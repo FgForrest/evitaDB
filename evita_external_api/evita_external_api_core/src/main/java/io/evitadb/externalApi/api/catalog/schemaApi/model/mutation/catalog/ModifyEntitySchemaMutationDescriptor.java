@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -61,8 +61,7 @@ public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor
 		.description("""
             Collection of mutations that should be applied on current version of the schema.
 			""")
-		// todo lho this should be scoped to LocalEntitySchemaMutation
-		.type(nonNullListRef(EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT))
+		.type(nonNullListRef(LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)

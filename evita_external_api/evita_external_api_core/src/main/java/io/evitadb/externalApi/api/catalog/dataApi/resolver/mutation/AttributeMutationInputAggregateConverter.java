@@ -37,10 +37,10 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor.THIS_INPUT;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**

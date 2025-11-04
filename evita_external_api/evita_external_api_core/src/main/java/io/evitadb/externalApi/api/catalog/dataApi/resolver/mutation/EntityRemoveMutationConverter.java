@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExc
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Converter for {@link EntityRemoveMutation}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

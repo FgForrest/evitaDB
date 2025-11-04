@@ -21,27 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
+package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationInputAggregateConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import lombok.AccessLevel;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.*;
+import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -50,14 +43,14 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SortableAttributeCompoundSchemaMutationInputAggregateConverter extends
+public class ReferenceSortableAttributeCompoundSchemaMutationInputAggregateConverter extends
 	MutationInputAggregateConverter<ReferenceSortableAttributeCompoundSchemaMutation, SortableAttributeCompoundSchemaMutationConverter<ReferenceSortableAttributeCompoundSchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, SortableAttributeCompoundSchemaMutationConverter<ReferenceSortableAttributeCompoundSchemaMutation>> converters = createHashMap(15);
 
-	public SortableAttributeCompoundSchemaMutationInputAggregateConverter(
+	public ReferenceSortableAttributeCompoundSchemaMutationInputAggregateConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
@@ -74,6 +67,6 @@ public class SortableAttributeCompoundSchemaMutationInputAggregateConverter exte
 	@Nonnull
 	@Override
 	protected String getMutationAggregateName() {
-		return SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT.name();
+		return ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT.name();
 	}
 }

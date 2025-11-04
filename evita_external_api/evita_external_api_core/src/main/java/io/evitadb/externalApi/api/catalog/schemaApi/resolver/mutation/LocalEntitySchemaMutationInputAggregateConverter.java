@@ -28,8 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationInputAggregateConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.CreateAssociatedDataSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationConverter;
@@ -53,7 +52,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor.*;
+import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -62,14 +61,14 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class EntitySchemaMutationInputAggregateConverter extends
+public class LocalEntitySchemaMutationInputAggregateConverter extends
 	MutationInputAggregateConverter<LocalEntitySchemaMutation, SchemaMutationConverter<LocalEntitySchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, SchemaMutationConverter<LocalEntitySchemaMutation>> converters = createHashMap(55);
 
-	public EntitySchemaMutationInputAggregateConverter(@Nonnull MutationObjectMapper objectParser,
+	public LocalEntitySchemaMutationInputAggregateConverter(@Nonnull MutationObjectMapper objectParser,
 	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 
@@ -140,6 +139,6 @@ public class EntitySchemaMutationInputAggregateConverter extends
 	@Nonnull
 	@Override
 	protected String getMutationAggregateName() {
-		return EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT.name();
+		return LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT.name();
 	}
 }

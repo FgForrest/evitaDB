@@ -38,7 +38,7 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ReferenceAttributeMutationInputAggregateDescriptor {
+public interface AttributeMutationInputAggregateDescriptor {
 
 	PropertyDescriptor APPLY_DELTA_ATTRIBUTE_MUTATION = PropertyDescriptor.nullableFromObject(
 		"applyDeltaAttributeMutation",
@@ -55,9 +55,9 @@ public interface ReferenceAttributeMutationInputAggregateDescriptor {
 
 
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
-		.name("ReferenceAttributeMutationInputAggregate")
+		.name("AttributeMutationInputAggregate")
 		.description("""
-				Contains all possible attribute mutations for references.
+				Contains all possible attribute mutations.
 				""")
 		.staticProperties(List.of(
 			APPLY_DELTA_ATTRIBUTE_MUTATION,

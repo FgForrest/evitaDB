@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,28 +21,19 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
+package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 
-import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
 /**
- * Descriptor of aggregate object containing all implementations of {@link SortableAttributeCompoundSchemaMutation}
- * for schema-based external APIs.
+ * Aggregation descriptor for {@link io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation}s
  *
- * Note: this descriptor has static structure.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface SortableAttributeCompoundSchemaMutationInputAggregateDescriptor {
+public interface ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor {
 
 	PropertyDescriptor CREATE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
 		"removeSortableAttributeCompoundSchemaMutation",
@@ -83,5 +74,4 @@ public interface SortableAttributeCompoundSchemaMutationInputAggregateDescriptor
 			REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION
 		))
 		.build();
-
 }

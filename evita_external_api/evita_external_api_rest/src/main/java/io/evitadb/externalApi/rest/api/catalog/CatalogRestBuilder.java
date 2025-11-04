@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
@@ -47,11 +47,11 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -278,7 +278,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetReferenceGroupMutationDescriptor.THIS_INPUT,
 			RemoveReferenceGroupMutationDescriptor.THIS_INPUT,
 			ReferenceAttributeMutationDescriptor.THIS_INPUT,
-			ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT
+			AttributeMutationInputAggregateDescriptor.THIS_INPUT
 		);
 
 		registerMutations(
@@ -323,7 +323,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetAttributeSchemaSortableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaUniqueMutationDescriptor.THIS_INPUT,
 			UseGlobalAttributeSchemaMutationDescriptor.THIS_INPUT,
-			AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			ReferenceAttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT,
 
 			// sortable attribute compound schema mutations
 			CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
@@ -332,7 +332,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS_INPUT,
 			SetSortableAttributeCompoundIndexedMutationDescriptor.THIS_INPUT,
 			RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS_INPUT,
-			SortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor.THIS_INPUT,
 
 			// reference schema mutations
 			CreateReferenceSchemaMutationDescriptor.THIS_INPUT,
@@ -350,7 +350,7 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 			SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT,
 			SetReferenceSchemaIndexedMutationDescriptor.THIS_INPUT,
 
-			EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT,
+			LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT,
 
 			// catalog schema mutations
 			ModifyEntitySchemaMutationDescriptor.THIS_INPUT,

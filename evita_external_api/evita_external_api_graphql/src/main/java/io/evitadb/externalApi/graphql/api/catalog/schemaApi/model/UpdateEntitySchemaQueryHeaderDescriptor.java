@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
@@ -42,6 +42,6 @@ public interface UpdateEntitySchemaQueryHeaderDescriptor {
 		.description("""
 			Individual mutations to apply to entity schema.
 			""")
-		.type(nonNullListRef(EntitySchemaMutationInputAggregateDescriptor.THIS_INPUT))
+		.type(nonNullListRef(LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 }

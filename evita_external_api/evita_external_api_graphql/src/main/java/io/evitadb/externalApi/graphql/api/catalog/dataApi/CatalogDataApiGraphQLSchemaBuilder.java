@@ -47,7 +47,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
@@ -821,7 +821,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			SetReferenceGroupMutationDescriptor.THIS_INPUT,
 			RemoveReferenceGroupMutationDescriptor.THIS_INPUT,
 			ReferenceAttributeMutationDescriptor.THIS_INPUT,
-			ReferenceAttributeMutationInputAggregateDescriptor.THIS_INPUT
+			AttributeMutationInputAggregateDescriptor.THIS_INPUT
 		);
 	}
 

@@ -34,12 +34,15 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
- * Loose extension of the {@link com.linecorp.armeria.server.HttpService} but can be used as standalone unit.
+ * Handler of incoming routable {@link WebSocket}s.
  *
- * Version of the {@link com.linecorp.armeria.server.websocket.WebSocketServiceHandler} with routing
- * capabilities.
+ * Usually extends an existing {@link com.linecorp.armeria.server.HttpService} with WebSocket capabilities.
+ * But can be used as a standalone unit as well.
  *
+ * The reason for this is because Armeria's {@link com.linecorp.armeria.server.websocket.WebSocketServiceHandler} doesn't
+ * support nesting these handlers into routers.
+ *
+ * @see WebSocketEnablingService
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public interface WebSocketHandler {

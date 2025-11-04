@@ -36,7 +36,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
@@ -93,13 +93,13 @@ class AttributeMutationInputAggregateConverterTest {
 		final List<AttributeMutation> convertedMutations = this.converter.convertFromInput(
 			map()
 				.e(
-					ReferenceAttributeMutationInputAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
+					AttributeMutationInputAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 					.e(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), List.of(0, 20)))
 				.e(
-					ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+					AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 					.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.e(AttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH))
 				.build(),

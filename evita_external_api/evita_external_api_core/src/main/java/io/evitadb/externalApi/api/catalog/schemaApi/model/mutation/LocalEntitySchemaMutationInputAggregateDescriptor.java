@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
 
-import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
@@ -49,14 +49,14 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 /**
- * Descriptor of aggregate object containing all implementations of {@link EntitySchemaMutation}
+ * Descriptor of aggregate object containing all implementations of {@link LocalEntitySchemaMutation}
  * for schema-based external APIs.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface EntitySchemaMutationInputAggregateDescriptor {
+public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 
 	/**
 	 * Entity schema mutations
@@ -304,11 +304,13 @@ public interface EntitySchemaMutationInputAggregateDescriptor {
 	);
 
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
-		.name("EntitySchemaMutationInputAggregate")
+		.name("LocalEntitySchemaMutationInputAggregate")
 		.description("""
             Contains all possible entity schema mutations.
             """)
 		.staticProperties(List.of(
+		    MODIFY_ENTITY_SCHEMA_NAME_MUTATION,
+
 			ALLOW_CURRENCY_IN_ENTITY_SCHEMA_MUTATION,
 			ALLOW_EVOLUTION_MODE_IN_ENTITY_SCHEMA_MUTATION,
 			ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION,
@@ -317,8 +319,6 @@ public interface EntitySchemaMutationInputAggregateDescriptor {
 			DISALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION,
 			MODIFY_ENTITY_SCHEMA_DEPRECATION_NOTICE_MUTATION,
 			MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION,
-			MODIFY_ENTITY_SCHEMA_NAME_MUTATION,
-			REMOVE_ENTITY_SCHEMA_MUTATION,
 			SET_ENTITY_SCHEMA_WITH_GENERATED_PRIMARY_KEY_MUTATION,
 			SET_ENTITY_SCHEMA_WITH_HIERARCHY_MUTATION,
 			SET_ENTITY_SCHEMA_WITH_PRICE_MUTATION,

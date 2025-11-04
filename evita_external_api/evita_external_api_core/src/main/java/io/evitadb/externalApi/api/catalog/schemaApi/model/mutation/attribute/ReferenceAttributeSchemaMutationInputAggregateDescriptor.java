@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
+package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -38,7 +37,7 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface AttributeSchemaMutationInputAggregateDescriptor {
+public interface ReferenceAttributeSchemaMutationInputAggregateDescriptor {
 
 	PropertyDescriptor CREATE_ATTRIBUTE_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(
 		"createAttributeSchemaMutation",
@@ -109,6 +108,7 @@ public interface AttributeSchemaMutationInputAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION
 		))

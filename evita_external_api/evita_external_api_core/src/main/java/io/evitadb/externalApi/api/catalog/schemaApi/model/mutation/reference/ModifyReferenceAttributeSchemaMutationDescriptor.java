@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -53,8 +53,7 @@ public interface ModifyReferenceAttributeSchemaMutationDescriptor extends Refere
 		.description("""
             Nested attribute schema mutation that mutates reference attributes of targeted reference.
 			""")
-		// todo lho this should be scoped to reference attribtues only
-		.type(nonNullRef(AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT))
+		.type(nonNullRef(ReferenceAttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)

@@ -32,11 +32,11 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
  */
 public interface CatalogUnionDescriptor {
 
-	// todo lho discriminator?
 	UnionDescriptor THIS = UnionDescriptor.builder()
 		.name("CatalogUnion")
 		.description("""
 			Contains all possible catalog instance implementations.
 			""")
+		.discriminator(CatalogContractDescriptor.UNUSABLE)
 		.build();
 }

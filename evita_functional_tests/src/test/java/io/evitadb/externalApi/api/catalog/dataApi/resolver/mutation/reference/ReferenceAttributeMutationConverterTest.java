@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceMutationDescriptor;
@@ -110,7 +110,7 @@ class ReferenceAttributeMutationConverterTest {
 				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 					.e(
-						ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+						AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 						.build())
 					.build())
@@ -133,7 +133,7 @@ class ReferenceAttributeMutationConverterTest {
 				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 					.e(
-						ReferenceAttributeMutationInputAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
+						AttributeMutationInputAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
 						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_ALT_CODE)
 						.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 						.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class)
@@ -158,7 +158,7 @@ class ReferenceAttributeMutationConverterTest {
 				.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 				.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 					.e(
-						ReferenceAttributeMutationInputAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
+						AttributeMutationInputAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
 						.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 						.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 						.build())
@@ -178,7 +178,7 @@ class ReferenceAttributeMutationConverterTest {
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(
-							ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.build())
@@ -193,7 +193,7 @@ class ReferenceAttributeMutationConverterTest {
 					.e(ReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(
-							ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.build())
@@ -225,11 +225,11 @@ class ReferenceAttributeMutationConverterTest {
 					.e(ReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(
-							ReferenceAttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
+							AttributeMutationInputAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 							.build())
 						.e(
-							ReferenceAttributeMutationInputAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
+							AttributeMutationInputAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
 							.e(AttributeMutationDescriptor.NAME.name(), ATTRIBUTE_ALT_CODE)
 							.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
 							.e(UpsertAttributeMutationDescriptor.VALUE_TYPE.name(), String.class)

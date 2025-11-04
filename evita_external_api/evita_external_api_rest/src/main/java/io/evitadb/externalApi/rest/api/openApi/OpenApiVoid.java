@@ -21,27 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
+package io.evitadb.externalApi.rest.api.openApi;
 
-import graphql.TypeResolutionEnvironment;
-import graphql.schema.GraphQLObjectType;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.swagger.v3.oas.models.media.Schema;
+
+import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link MappingTypeResolver} for resolving GraphQL type for {@link Mutation}s.
+ * Placeholder type for endpoints which wish to force no content response (e.g. WebSocket redirecting endpoints).
+ *
+ * Note: Must be transformed to OpenAPI schema specifically, cannot be transformed directly using {@link #toSchema()} as
+ * it doesn't have any directly usable OpenAPI representation.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public class MutationDtoTypeResolver extends MappingTypeResolver<Class<? extends Mutation>> {
+public class OpenApiVoid implements OpenApiSimpleType {
 
-	public MutationDtoTypeResolver(int numberOfSupportedMutations) {
-		super(numberOfSupportedMutations);
-	}
+	public static final OpenApiVoid INSTANCE = new OpenApiVoid();
 
+	@Nonnull
 	@Override
-	public GraphQLObjectType getType(TypeResolutionEnvironment env) {
-		final Mutation mutation = env.getObject();
-		return getOutputType(mutation.getClass());
+	public Schema<?> toSchema() {
+		throw new OpenApiBuildingError("Void type cannot be transformed to OpenAPI schema directly.");
 	}
 }

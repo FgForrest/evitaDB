@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaD
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.ModifyEntitySchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -70,7 +70,7 @@ class ModifyEntitySchemaMutationConverterTest {
 				.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 					map()
 						.e(
-							EntitySchemaMutationInputAggregateDescriptor.MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+							LocalEntitySchemaMutationInputAggregateDescriptor.MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 							.e(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 							.build())
 						.build()
@@ -101,7 +101,7 @@ class ModifyEntitySchemaMutationConverterTest {
 					.e(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
 							.e(
-								EntitySchemaMutationInputAggregateDescriptor.MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), map()
+								LocalEntitySchemaMutationInputAggregateDescriptor.MODIFY_ENTITY_SCHEMA_DESCRIPTION_MUTATION.name(), map()
 								.e(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 								.build())
 							.build()

@@ -21,21 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
+package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationInputAggregateConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
 import lombok.AccessLevel;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationInputAggregateDescriptor.*;
+import static io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -44,14 +43,14 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class AttributeSchemaMutationInputAggregateConverter extends
+public class ReferenceAttributeSchemaMutationInputAggregateConverter extends
 	MutationInputAggregateConverter<AttributeSchemaMutation, AttributeSchemaMutationConverter<AttributeSchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, AttributeSchemaMutationConverter<AttributeSchemaMutation>> converters = createHashMap(15);
 
-	public AttributeSchemaMutationInputAggregateConverter(
+	public ReferenceAttributeSchemaMutationInputAggregateConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
@@ -75,6 +74,6 @@ public class AttributeSchemaMutationInputAggregateConverter extends
 	@Nonnull
 	@Override
 	protected String getMutationAggregateName() {
-		return AttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT.name();
+		return ReferenceAttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT.name();
 	}
 }

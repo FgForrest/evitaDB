@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,43 +23,36 @@
 
 package io.evitadb.externalApi.api.system.model;
 
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.api.CatalogState;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
  * Descriptor of {@link io.evitadb.api.CatalogContract}.
  *
- * Note: this descriptor has static structure.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface UnusableCatalogDescriptor extends CatalogContractDescriptor {
-
-    PropertyDescriptor CATALOG_STORAGE_PATH = PropertyDescriptor.builder()
-        .name("catalogStoragePath")
-        .description("""
-            Path to original catalog.
+public interface CatalogContractDescriptor {
+	PropertyDescriptor NAME = PropertyDescriptor.builder()
+		.name("name")
+		.description("""
+            Name of the catalog. Name must be unique across all catalogs inside same evitaDB instance.
             """)
-        .type(nonNull(String.class))
-        .build();
-    PropertyDescriptor CAUSE = PropertyDescriptor.builder()
-        .name("cause")
-        .description("""
-            Cause of catalog corruption.
+		.type(nonNull(String.class))
+		.build();
+	PropertyDescriptor CATALOG_STATE = PropertyDescriptor.builder()
+		.name("catalogState")
+		.description("""
+            State of this catalog instance.
             """)
-        .type(nonNull(String.class))
-        .build();
-
-    ObjectDescriptor THIS = ObjectDescriptor.builder()
-        .name("UnusableCatalog")
-        .description("""
-            Catalog instance that cannot be loaded into a memory due an error.
-            The original exception and catalog path are accessible via. `catalogStoragePath` and `cause` properties.
-            """)
-        .staticProperties(List.of(NAME, CATALOG_STATE, CATALOG_STORAGE_PATH, CAUSE, UNUSABLE))
-        .build();
+		.type(nonNull(CatalogState.class))
+		.build();
+	PropertyDescriptor UNUSABLE = PropertyDescriptor.builder()
+		.name("unusable")
+		.description("""
+			Whether this catalog is in unusable state or can be freely used.
+			""")
+		.type(nonNull(Boolean.class))
+		.build();
 }

@@ -34,7 +34,10 @@ import java.util.Optional;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * TODO lho docs
+ * Simple {@link TypeResolver} implementation where a Java object to GraphQL object mapping is predefined during
+ * the schema building phase.
+ *
+ * Implementations can define custom keys that are searched in the input Java object to find the target GraphQL object.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
