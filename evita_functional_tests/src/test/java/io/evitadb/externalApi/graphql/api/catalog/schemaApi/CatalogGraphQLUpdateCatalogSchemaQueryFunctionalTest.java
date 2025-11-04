@@ -421,7 +421,9 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 							{
 								createEntitySchemaMutation: {
 									entityType: "%s"
-								},
+								}
+							},
+							{
 								modifyEntitySchemaMutation: {
 									entityType: "%s",
 									schemaMutations: [
