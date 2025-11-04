@@ -28,7 +28,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor for arguments of {@link SystemRootDescriptor#ON_SYSTEM_CHANGE} subscription.
+ * Descriptor for arguments of {@link SystemRootDescriptor#ON_SYSTEM_CHANGE_UNTYPED} subscription.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

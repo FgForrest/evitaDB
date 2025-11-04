@@ -25,7 +25,9 @@ package io.evitadb.externalApi.graphql.api.system;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
@@ -52,7 +54,9 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	ExternalApiWebSocketFunctionTestsSupport {
 
 	private static final String ON_SYSTEM_CHANGE_PATH = "payload.data.onSystemChange";
+	private static final String ON_SYSTEM_CHANGE_UNTYPED_PATH = "payload.data.onSystemChangeUntyped";
 	private static final String ON_CATALOG_CHANGE_PATH = "payload.data.onCatalogChange";
+	private static final String ON_CATALOG_CHANGE_UNTYPED_PATH = "payload.data.onCatalogChangeUntyped";
 	public static final String GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API = "GraphQLEmptySystemForSystemApi";
 
 	@Override
@@ -99,9 +103,38 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
 					.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
-						.isEqualTo(Operation.TRANSACTION);
+					.isEqualTo(Operation.TRANSACTION);
 				assertNextEvent(receivedEvents.get(2), subscriptionId)
 					.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.isEqualTo(Operation.UPSERT);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive system capture without body (untyped)")
+	void shouldReceiveSystemCaptureWithoutBodyUntyped(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(subscriptionId, "onSystemChangeUntyped { version index operation }"));
+				wait(2000);
+
+				// apply operation to trigger a new event
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+						.isEqualTo(Operation.TRANSACTION);
+				assertNextEvent(receivedEvents.get(2), subscriptionId)
+					.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 						.isEqualTo(Operation.UPSERT);
 			}
 		);
@@ -142,6 +175,39 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive system capture without body with entire history (untyped)")
+	void shouldReceiveSystemCaptureWithoutBodyWithEntireHistoryUntyped(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				final long startVersion = evita.getEngineState().version() + 1;
+
+				// apply operation to trigger a new event
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onSystemChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
+				));
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.isEqualTo(Operation.TRANSACTION);
+				assertNextEvent(receivedEvents.get(2), subscriptionId)
+					.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.isEqualTo(Operation.UPSERT);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
 	@DisplayName("Should receive system capture with body")
 	void shouldReceiveSystemCaptureWithBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
@@ -158,7 +224,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onSystemChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
+					"onSystemChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body { ... on CreateCatalogSchemaMutation { mutationType } ... on TransactionMutation { mutationType } } }"
 				));
 			},
 			3, receivedEvents -> {
@@ -167,20 +233,60 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					.and(
 						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.TRANSACTION),
-						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY))
-							.isNotNull()
+						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(TransactionMutation.class.getSimpleName())
 					);
 				assertNextEvent(receivedEvents.get(2), subscriptionId)
 					.and(
 						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
 						it -> it.node(resultPath(ON_SYSTEM_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
-							.isEqualTo("CreateCatalogSchemaMutation")
+							.isEqualTo(CreateCatalogSchemaMutation.class.getSimpleName())
 					);
 			}
 		);
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive system capture with body (untyped)")
+	void shouldReceiveSystemCaptureWithBodyUntyped(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				final long startVersion = evita.getEngineState().version() + 1;
+
+				// apply operation to trigger a new event
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onSystemChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
+				));
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.TRANSACTION),
+						it -> it.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(TransactionMutation.class.getSimpleName())
+					);
+				assertNextEvent(receivedEvents.get(2), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT),
+						it -> it.node(resultPath(ON_SYSTEM_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(CreateCatalogSchemaMutation.class.getSimpleName())
+					);
+			}
+		);
+	}
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
 	@DisplayName("Should receive catalog capture without body")
@@ -227,6 +333,50 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 	@Test
 	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive catalog capture without body (untyped)")
+	void shouldReceiveCatalogCaptureWithoutBodyUntyped(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+		final String newEntityType = "myEntityType";
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				// prepare data
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
+
+				// open subscription
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onCatalogChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
+				));
+
+				// apply operation to trigger a new event
+				evita.updateCatalog(
+					newCatalogName,
+					session -> {
+						session.defineEntitySchema(newEntityType).updateVia(session);
+					}
+				);
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.isEqualTo(Operation.TRANSACTION);
+				assertNextEvent(receivedEvents.get(2), subscriptionId)
+					.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.isEqualTo(Operation.UPSERT);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
 	@DisplayName("Should receive catalog capture with body")
 	void shouldReceiveCatalogCaptureWithBody(Evita evita, GraphQLTester tester) {
 		final String subscriptionId = createSubscriptionId();
@@ -254,7 +404,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				writer.write(createConnectionInitMessage());
 				writer.write(createSubscriptionQueryMessage(
 					subscriptionId,
-					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation body }"
+					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation body { ... on CreateEntitySchemaMutation { mutationType } ... on TransactionMutation { mutationType } } }"
 				));
 			},
 			3, receivedEvents -> {
@@ -263,15 +413,67 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 					.and(
 						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.TRANSACTION),
-						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY))
-							.isNotNull()
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(TransactionMutation.class.getSimpleName())
 					);
 				assertNextEvent(receivedEvents.get(2), subscriptionId)
 					.and(
 						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
 						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
-							.isEqualTo("CreateEntitySchemaMutation")
+							.isEqualTo(CreateEntitySchemaMutation.class.getSimpleName())
+					);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive catalog capture with body (untyped)")
+	void shouldReceiveCatalogCaptureWithBodyUntyped(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+		final String newEntityType = "myEntityType";
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				// prepare data
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
+
+				// apply operation to trigger a new event
+				evita.updateCatalog(
+					newCatalogName,
+					session -> {
+						session.defineEntitySchema(newEntityType).updateVia(session);
+					}
+				);
+
+				// open subscription
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onCatalogChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation body }"
+				));
+			},
+			3, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.TRANSACTION),
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(TransactionMutation.class.getSimpleName())
+					);
+				assertNextEvent(receivedEvents.get(2), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT),
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(CreateEntitySchemaMutation.class.getSimpleName())
 					);
 			}
 		);
@@ -311,7 +513,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						"catalogName: \\\"" + newCatalogName + "\\\"," +
 						"criteria: { area: SCHEMA, schemaSite: { containerType: ENTITY } }" +
 						")" +
-						" { version index operation body }"
+						" { version index operation body { ... on CreateEntitySchemaMutation { mutationType } } }"
 				));
 			},
 			2, receivedEvents -> {
@@ -321,7 +523,57 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
 						it -> it.node(resultPath(ON_CATALOG_CHANGE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
-							.isEqualTo("CreateEntitySchemaMutation")
+							.isEqualTo(CreateEntitySchemaMutation.class.getSimpleName())
+					);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should receive catalog capture filtered by criteria (untyped)")
+	void shouldReceiveCatalogCaptureFilteredByCriteriaUntyped(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+		final String newEntityType = "myEntityType";
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				// prepare data
+				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
+				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+
+				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
+
+				// apply operation to trigger a new event
+				evita.updateCatalog(
+					newCatalogName,
+					session -> {
+						session.defineEntitySchema(newEntityType).updateVia(session);
+					}
+				);
+
+				// open subscription
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onCatalogChangeUntyped(" +
+						"sinceVersion: \\\"" + startVersion + "\\\", " +
+						"catalogName: \\\"" + newCatalogName + "\\\"," +
+						"criteria: { area: SCHEMA, schemaSite: { containerType: ENTITY } }" +
+						")" +
+						" { version index operation body }"
+				));
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT),
+						it -> it.node(resultPath(ON_CATALOG_CHANGE_UNTYPED_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+							.isEqualTo(CreateEntitySchemaMutation.class.getSimpleName())
 					);
 			}
 		);

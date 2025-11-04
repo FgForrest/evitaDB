@@ -21,16 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher;
+package io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingEntityMutationConverter;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingLocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingInfrastructureMutationConverter;
@@ -40,14 +45,19 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation.
+ * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation for untyped subscriptions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ChangeCatalogSchemaCaptureBodyDataFetcher implements DataFetcher<Object> {
+public class ChangeCatalogCaptureUntypedBodyDataFetcher implements DataFetcher<Object> {
 
+	@Nonnull
+	private final DelegatingLocalMutationConverter localMutationConverter;
+	@Nonnull
+	private final DelegatingEntityMutationConverter entityMutationConverter;
 	@Nonnull
 	private final DelegatingLocalCatalogSchemaMutationConverter localCatalogSchemaMutationConverter;
 	@Nonnull
@@ -55,16 +65,18 @@ public class ChangeCatalogSchemaCaptureBodyDataFetcher implements DataFetcher<Ob
 	@Nonnull
 	private final DelegatingInfrastructureMutationConverter infrastructureMutationConverter;
 
-	public ChangeCatalogSchemaCaptureBodyDataFetcher() {
+	public ChangeCatalogCaptureUntypedBodyDataFetcher(@Nonnull ObjectMapper objectMapper) {
 		final PassThroughMutationObjectMapper mutationObjectMapper = PassThroughMutationObjectMapper.INSTANCE;
 		final GraphQLMutationResolvingExceptionFactory exceptionFactory = GraphQLMutationResolvingExceptionFactory.INSTANCE;
+		this.localMutationConverter = new DelegatingLocalMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);
+		this.entityMutationConverter = new DelegatingEntityMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);
 		this.localCatalogSchemaMutationConverter = new DelegatingLocalCatalogSchemaMutationConverter(mutationObjectMapper, exceptionFactory);
 		this.entitySchemaMutationConverter = new DelegatingEntitySchemaMutationConverter(mutationObjectMapper, exceptionFactory);
 		this.infrastructureMutationConverter = new DelegatingInfrastructureMutationConverter(mutationObjectMapper, exceptionFactory);
 	}
 
 	@Override
-	@Nonnull
+	@Nullable
 	public Object get(DataFetchingEnvironment environment) throws Exception {
 		final ChangeCatalogCapture capture = environment.getSource();
 		Assert.isPremiseValid(
@@ -78,8 +90,12 @@ public class ChangeCatalogSchemaCaptureBodyDataFetcher implements DataFetcher<Ob
 		);
 
 		final Object convertedBody;
-		if (body instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
-			convertedBody = this.localCatalogSchemaMutationConverter.convertToOutput(localCatalogSchemaMutation);
+		if (body instanceof EntityMutation entityMutation) {
+			convertedBody = this.entityMutationConverter.convertToOutput(entityMutation);
+		} else if (body instanceof LocalMutation<?, ?> localMutation) {
+			convertedBody = this.localMutationConverter.convertToOutput(localMutation);
+		} else if (body instanceof LocalCatalogSchemaMutation catalogSchemaMutation) {
+			convertedBody = this.localCatalogSchemaMutationConverter.convertToOutput(catalogSchemaMutation);
 		} else if (body instanceof EntitySchemaMutation entitySchemaMutation) {
 			convertedBody = this.entitySchemaMutationConverter.convertToOutput(entitySchemaMutation);
 		} else if (body instanceof TransactionMutation transactionMutation) {

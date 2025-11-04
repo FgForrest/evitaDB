@@ -42,6 +42,17 @@ public interface GraphQLCatalogSchemaApiRootDescriptor {
             """)
 		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
 		.build();
+	EndpointDescriptor ON_CATALOG_SCHEMA_UNTYPED_CHANGE = EndpointDescriptor.builder()
+		.operation("onSchemaChangeUntyped")
+		.description("""
+            Subscribes client to a stream of catalog schema changes which are sent over as individual capture events.
+            
+            Same as `onSchemaChange` but the mutation is sent as a generic JSON object instead of the interface type. Useful when
+            the client needs to somehow handle all of the mutation implementations, but doesn't want to specify the exact
+            fields for each implementation.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS_GENERIC))
+		.build();
 
 	EndpointDescriptor ON_COLLECTION_SCHEMA_CHANGE = EndpointDescriptor.builder()
 		.operation("on*SchemaChange")
@@ -49,5 +60,16 @@ public interface GraphQLCatalogSchemaApiRootDescriptor {
             Subscribes client to a stream of specific collection schema changes which are sent over as individual capture events.
             """)
 		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
+		.build();
+	EndpointDescriptor ON_COLLECTION_SCHEMA_UNTYPED_CHANGE = EndpointDescriptor.builder()
+		.operation("on*SchemaChangeUntyped")
+		.description("""
+            Subscribes client to a stream of specific collection schema changes which are sent over as individual capture events.
+            
+            Same as `on*SchemaChange` but the mutation is sent as a generic JSON object instead of the interface type. Useful when
+            the client needs to somehow handle all of the mutation implementations, but doesn't want to specify the exact
+            fields for each implementation.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS_GENERIC))
 		.build();
 }

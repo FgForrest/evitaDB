@@ -45,11 +45,11 @@ import javax.annotation.Nonnull;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation.
+ * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation for untyped subscriptions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ChangeCatalogDataCaptureBodyDataFetcher implements DataFetcher<Object> {
+public class ChangeCatalogDataCaptureUntypedBodyDataFetcher implements DataFetcher<Object> {
 
 	@Nonnull
 	private final DelegatingLocalMutationConverter localMutationConverter;
@@ -58,7 +58,7 @@ public class ChangeCatalogDataCaptureBodyDataFetcher implements DataFetcher<Obje
 	@Nonnull
 	private final DelegatingInfrastructureMutationConverter infrastructureMutationConverter;
 
-	public ChangeCatalogDataCaptureBodyDataFetcher(@Nonnull ObjectMapper objectMapper) {
+	public ChangeCatalogDataCaptureUntypedBodyDataFetcher(@Nonnull ObjectMapper objectMapper) {
 		final PassThroughMutationObjectMapper mutationObjectMapper = PassThroughMutationObjectMapper.INSTANCE;
 		final GraphQLMutationResolvingExceptionFactory exceptionFactory = GraphQLMutationResolvingExceptionFactory.INSTANCE;
 		this.localMutationConverter = new DelegatingLocalMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);

@@ -32,8 +32,6 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
-import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -64,7 +62,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -81,7 +78,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Req
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.GetEntityDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.GetUnknownEntityDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.ListEntitiesDataFetcher;
@@ -89,17 +85,14 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.L
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.QueryEntitiesDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.DeleteEntitiesMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.UpsertEntityMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureBodyDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.ChangeCatalogDataCaptureUntypedBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnCatalogDataChangeCaptureSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.subscribingDataFetcher.OnCollectionDataChangeCaptureSubscribingDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
-import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -207,7 +200,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private void buildCommonTypes() {
 		buildLocaleEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
 		buildCurrencyEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
-		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
+		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildGenericChangeCatalogCaptureObject());
 		this.buildingContext.registerType(QueryLabelDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
 		buildMutationInterface();
@@ -234,6 +228,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		// "onDataChange" field
 		this.buildingContext.registerSubscriptionField(buildOnCatalogDataChangeField());
+		this.buildingContext.registerSubscriptionField(buildOnCatalogDataChangeUntypedField());
 
 		// collection-specific fields
 		this.buildingContext.getEntitySchemas().forEach(entitySchema -> {
@@ -259,6 +254,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 			// collection specific "onDataChange" field
 			this.buildingContext.registerSubscriptionField(buildCollectionOnDataChangeField(collectionBuildingContext));
+			this.buildingContext.registerSubscriptionField(buildCollectionOnDataChangeUntypedField(collectionBuildingContext));
 		});
 
 		// register gathered custom constraint types
@@ -716,16 +712,15 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+	private GraphQLObjectType buildGenericChangeCatalogCaptureObject() {
 		this.buildingContext.registerDataFetcher(
-			ChangeCatalogCaptureDescriptor.THIS,
-			ChangeCatalogCaptureDescriptor.BODY,
-			new ChangeCatalogDataCaptureBodyDataFetcher(CDO_OBJECT_MAPPER)
+			ChangeCatalogCaptureDescriptor.THIS_GENERIC,
+			ChangeCatalogCaptureDescriptor.BODY_UNTYPED,
+			new ChangeCatalogDataCaptureUntypedBodyDataFetcher(CDO_OBJECT_MAPPER)
 		);
 
-		return ChangeCatalogCaptureDescriptor.THIS
+		return ChangeCatalogCaptureDescriptor.THIS_GENERIC
 			.to(this.objectBuilderTransformer)
-			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
 			.build();
 	}
 
@@ -747,10 +742,50 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
+	private BuiltFieldDescriptor buildOnCatalogDataChangeUntypedField() {
+		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_CATALOG_DATA_CHANGE_UNTYPED
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogDataChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onDataChangeField,
+			new OnCatalogDataChangeCaptureSubscribingDataFetcher(this.buildingContext.getEvita())
+		);
+	}
+
+	@Nonnull
 	private BuiltFieldDescriptor buildCollectionOnDataChangeField(
 		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext
 	) {
 		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE
+			.to(new EndpointDescriptorToGraphQLFieldTransformer(
+				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
+			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
+			.argument(OnCollectionDataChangeHeaderDescriptor.ENTITY_PRIMARY_KEY.to(this.argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onDataChangeField,
+			new OnCollectionDataChangeCaptureSubscribingDataFetcher(
+				this.buildingContext.getEvita(), collectionBuildingContext.getSchema()
+			)
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildCollectionOnDataChangeUntypedField(
+		@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext
+	) {
+		final GraphQLFieldDefinition onDataChangeField = GraphQLCatalogDataApiRootDescriptor.ON_COLLECTION_DATA_CHANGE_UNTYPED
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(
 				this.propertyDataTypeBuilderTransformer, collectionBuildingContext.getSchema()))
 			.argument(OnCollectionDataChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))

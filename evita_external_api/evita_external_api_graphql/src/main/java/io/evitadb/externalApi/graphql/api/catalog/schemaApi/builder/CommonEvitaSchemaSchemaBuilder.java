@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLEnumType;
-import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
@@ -66,20 +65,15 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
-import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureBodyDataFetcher;
-import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureUntypedBodyDataFetcher;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 
 import java.util.Map;
-
-import static graphql.schema.GraphQLNonNull.nonNull;
 
 /**
  * Implementation of {@link PartialGraphQLSchemaBuilder} for building common types and fields used in both {@link CatalogSchemaSchemaBuilder}
@@ -123,7 +117,8 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		buildInputMutations();
 		buildOutputMutations();
 
-		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
+		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildGenericChangeCatalogCaptureObject());
 	}
 
 	@Nonnull
@@ -160,16 +155,15 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+	private GraphQLObjectType buildGenericChangeCatalogCaptureObject() {
 		this.buildingContext.registerDataFetcher(
-			ChangeCatalogCaptureDescriptor.THIS,
-			ChangeCatalogCaptureDescriptor.BODY,
-			new ChangeCatalogSchemaCaptureBodyDataFetcher()
+			ChangeCatalogCaptureDescriptor.THIS_GENERIC,
+			ChangeCatalogCaptureDescriptor.BODY_UNTYPED,
+			new ChangeCatalogSchemaCaptureUntypedBodyDataFetcher()
 		);
 
-		return ChangeCatalogCaptureDescriptor.THIS
+		return ChangeCatalogCaptureDescriptor.THIS_GENERIC
 			.to(this.objectBuilderTransformer)
-			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
 			.build();
 	}
 

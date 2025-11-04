@@ -32,17 +32,30 @@ import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.Delegating
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
 /**
- * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation.
+ * Returns converted {@link ChangeSystemCapture#body()} to correct GraphQL representation for untyped subscriptions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ChangeSystemCaptureBodyDataFetcher implements DataFetcher<Object> {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class ChangeSystemCaptureUntypedBodyDataFetcher implements DataFetcher<Object> {
+
+	private static ChangeSystemCaptureUntypedBodyDataFetcher INSTANCE = null;
+
+	@Nonnull
+	public static ChangeSystemCaptureUntypedBodyDataFetcher getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new ChangeSystemCaptureUntypedBodyDataFetcher();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	private final DelegatingEngineMutationConverter bodyConverter = new DelegatingEngineMutationConverter(

@@ -47,6 +47,7 @@ import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.MutationDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.model.*;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.MutationTypeDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 
@@ -204,16 +205,28 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		final Map<Class<? extends Mutation>, GraphQLObjectType> builtMutationObjects = createHashMap(mutationDescriptors.length);
 
 		for (final ObjectDescriptor mutationDescriptor : mutationDescriptors) {
-			final GraphQLObjectType mutationType = mutationDescriptor.to(this.objectBuilderTransformer).build();
-			this.buildingContext.registerType(mutationType);
 			if (!Mutation.class.isAssignableFrom(mutationDescriptor.representedClass())) {
 				throw new GraphQLSchemaBuildingError("Mutation descriptor " + mutationDescriptor.getClass().getName() + " does not represent a Mutation class.");
 			}
+
+			// create an object
+			final GraphQLObjectType mutationType = mutationDescriptor.to(this.objectBuilderTransformer).build();
+			this.buildingContext.registerType(mutationType);
+
+			// register additional field data fetchers
+			this.buildingContext.registerDataFetcher(
+				mutationDescriptor.name(),
+				MutationDescriptor.MUTATION_TYPE,
+				MutationTypeDataFetcher.getInstance()
+			);
+
+			// register dto mapping
 			//noinspection unchecked
 			this.buildingContext.getMappingTypeResolver(MUTATION_INTERFACE_TYPE_RESOLVER_REGISTRY_KEY).registerTypeMapping(
 				(Class<? extends Mutation>) mutationDescriptor.representedClass(),
 				mutationType
 			);
+
 			//noinspection unchecked
 			builtMutationObjects.put((Class<? extends Mutation>) mutationDescriptor.representedClass(), mutationType);
 		}

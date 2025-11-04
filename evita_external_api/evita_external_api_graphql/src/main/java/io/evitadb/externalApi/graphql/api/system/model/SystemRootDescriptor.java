@@ -118,12 +118,23 @@ public interface SystemRootDescriptor {
         .type(nonNull(Boolean.class))
         .build();
 
-    EndpointDescriptor ON_SYSTEM_CHANGE = EndpointDescriptor.builder()
-        .operation("onSystemChange")
-        .description("""
+	EndpointDescriptor ON_SYSTEM_CHANGE = EndpointDescriptor.builder()
+		.operation("onSystemChange")
+		.description("""
             Subscribes client to a stream of change system captures that match the request.
             """)
-        .type(nonNullRef(ChangeSystemCaptureDescriptor.THIS))
+		.type(nonNullRef(ChangeSystemCaptureDescriptor.THIS))
+		.build();
+    EndpointDescriptor ON_SYSTEM_CHANGE_UNTYPED = EndpointDescriptor.builder()
+        .operation("onSystemChangeUntyped")
+        .description("""
+            Subscribes client to a stream of change system captures that match the request.
+            
+            Same as `onSystemChange` but the mutation is sent as a generic JSON object instead of the interface type. Useful when
+            the client needs to somehow handle all of the mutation implementations, but doesn't want to specify the exact
+            fields for each implementation.
+            """)
+        .type(nonNullRef(ChangeSystemCaptureDescriptor.THIS_GENERIC))
         .build();
 	EndpointDescriptor ON_CATALOG_CHANGE = EndpointDescriptor.builder()
 		.operation("onCatalogChange")
@@ -131,5 +142,16 @@ public interface SystemRootDescriptor {
             Subscribes client to a stream of change catalog captures that match the request.
             """)
 		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
+		.build();
+	EndpointDescriptor ON_CATALOG_CHANGE_UNTYPED = EndpointDescriptor.builder()
+		.operation("onCatalogChangeUntyped")
+		.description("""
+            Subscribes client to a stream of change catalog captures that match the request.
+            
+            Same as `onCatalogChange` but the mutation is sent as a generic JSON object instead of the interface type. Useful when
+            the client needs to somehow handle all of the mutation implementations, but doesn't want to specify the exact
+            fields for each implementation.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS_GENERIC))
 		.build();
 }
