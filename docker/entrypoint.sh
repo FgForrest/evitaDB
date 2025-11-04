@@ -25,6 +25,41 @@
 set -e
 
 if [ "$1" = "" ]; then
+    # Iterate over files in /entrypoint.d directory (sorted by name)
+    # and act according to their extension:
+    #   .envsh    - source the script into current shell
+    #   .sh       - execute the script in a subshell
+    if [ -n "$(find "/entrypoint.d" -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null)" ]; then
+        echo "Process scripts in /entrypoint.d"
+        for f in $(find "/entrypoint.d" -mindepth 1 -maxdepth 1 -type f | sort); do
+            case "$f" in
+                *.envsh)
+                    if [ -x "$f" ]; then
+                        echo "$f";
+                        . "$f"
+                    else
+                        echo "Ignore script, not executable: $f";
+                    fi
+                    ;;
+                *.sh)
+                    if [ -x "$f" ]; then
+                        echo "Execute script: $f";
+                        "$f"
+                    else
+                        echo "Ignore script, not executable: $f";
+                    fi
+                    ;;
+                *)
+                    echo "Ignore file, unknown type: $f";
+                    ;;
+            esac
+        done
+    else
+        echo "Skip customization, nothing found in /entrypoint.d"
+    fi
+    echo
+
+    # start evitaDB
     set -x
     exec java \
         -javaagent:${EVITA_BIN_DIR}${EVITA_JAR_NAME} \
