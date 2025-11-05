@@ -29,6 +29,8 @@ import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContex
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.CatalogSchemaObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.EntitySchemaObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.SchemaApiEndpointBuilder;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateCatalogSchemaRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateEntitySchemaRequestDescriptor;
 
 import javax.annotation.Nonnull;
 
@@ -67,9 +69,10 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 
 	private void buildCommonTypes() {
 		this.buildingContext.registerType(NameVariantsDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpdateEntitySchemaRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(UpdateCatalogSchemaRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		this.entitySchemaObjectBuilder.buildCommonTypes();
-		this.catalogSchemaObjectBuilder.buildCommonTypes();
 	}
 
 	private void buildEndpoints() {

@@ -48,11 +48,10 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.Hierarc
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
-import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiUnionTransformer;
+import io.evitadb.externalApi.rest.api.model.UnionDescriptorToOpenApiUnionTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
@@ -84,7 +83,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
-	@Nonnull private final ObjectDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
+	@Nonnull private final UnionDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 
 	public void buildCommonTypes() {
@@ -122,10 +121,8 @@ public class FullResponseObjectBuilder {
 		final OpenApiUnion dataChunkObject = DataChunkUnionDescriptor.THIS
 			.to(this.unionBuilderTransformer)
 			.name(constructEntityDataChunkAggregateObjectName(entitySchema, localized))
-			.type(OpenApiObjectUnionType.ONE_OF)
-			.discriminator(DataChunkUnionDescriptor.DISCRIMINATOR.name())
-			.object(buildRecordPageObject(entitySchema, localized))
-			.object(buildRecordStripObject(entitySchema, localized))
+			.type(buildRecordPageObject(entitySchema, localized))
+			.type(buildRecordStripObject(entitySchema, localized))
 			.build();
 
 		return this.buildingContext.registerType(dataChunkObject);

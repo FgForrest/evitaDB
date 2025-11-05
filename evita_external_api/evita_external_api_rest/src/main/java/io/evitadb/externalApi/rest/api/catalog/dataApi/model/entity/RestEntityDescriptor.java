@@ -24,10 +24,9 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 
 /**
  * Extension of {@link EntityDescriptor} with REST-specific properties.

@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Extension of {@link io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor} for GraphQL API.
@@ -43,11 +43,35 @@ public interface GraphQLCatalogDataApiRootDescriptor {
 		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
 		.build();
 
+	EndpointDescriptor ON_CATALOG_DATA_CHANGE_UNTYPED = EndpointDescriptor.builder()
+		.operation("onDataChangeUntyped")
+		.description("""
+            Subscribes client to a stream of data changes for entire catalog which are sent over as individual capture events.
+            
+            Same as `onDataChange` but the mutation is sent as a generic JSON object instead of the interface type. Useful when
+            the client needs to somehow handle all of the mutation implementations, but doesn't want to specify the exact
+            fields for each implementation.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS_GENERIC))
+		.build();
+
 	EndpointDescriptor ON_COLLECTION_DATA_CHANGE = EndpointDescriptor.builder()
 		.operation("on*DataChange")
 		.description("""
             Subscribes client to a stream of data changes for specific collection which are sent over as individual capture events.
             """)
 		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
+		.build();
+
+	EndpointDescriptor ON_COLLECTION_DATA_CHANGE_UNTYPED = EndpointDescriptor.builder()
+		.operation("on*DataChangeUntyped")
+		.description("""
+            Subscribes client to a stream of data changes for specific collection which are sent over as individual capture events.
+            
+            Same as `on*DataChange` but the mutation is sent as a generic JSON object instead of the interface type. Useful when
+            the client needs to somehow handle all of the mutation implementations, but doesn't want to specify the exact
+            fields for each implementation.
+            """)
+		.type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS_GENERIC))
 		.build();
 }

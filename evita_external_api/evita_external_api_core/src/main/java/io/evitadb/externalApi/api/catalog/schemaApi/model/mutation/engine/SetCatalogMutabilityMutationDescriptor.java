@@ -46,17 +46,17 @@ public interface SetCatalogMutabilityMutationDescriptor extends EngineMutationDe
 		.type(nonNull(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetCatalogMutabilityMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetCatalogMutabilityMutation.class)
 		.description("""
 			Mutation that sets the mutability state of a catalog.
 			This mutation allows controlling whether a particular catalog should be read-only or read-write.
 			The mutability state determines whether the catalog can be modified or is in read-only mode.
 			""")
-        .staticFields(List.of(
-            MUTATION_TYPE,
-            CATALOG_NAME,
-            MUTABLE
-        ))
+		.staticProperty(CATALOG_NAME)
+		.staticProperty(MUTABLE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetCatalogMutabilityMutationInput")
 		.build();
 }

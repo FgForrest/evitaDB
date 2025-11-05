@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 import java.util.List;
@@ -36,11 +37,14 @@ import java.util.List;
  */
 public interface UseGlobalAttributeSchemaMutationDescriptor extends AttributeSchemaMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("UseGlobalAttributeSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(UseGlobalAttributeSchemaMutation.class)
 		.description("""
 			Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperty(NAME)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("UseGlobalAttributeSchemaMutationInput")
 		.build();
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -54,6 +56,11 @@ public class TargetEntityDataFetcher implements DataFetcher<EntityClassifier> {
 	@Override
 	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
 		// we just pass the global entity as the target entity, because the global entity is the target entity on the server side
-		return environment.getSource();
+		final EntityClassifier targetEntity = environment.getSource();
+		Assert.isPremiseValid(
+			targetEntity != null,
+			() -> new GraphQLQueryResolvingInternalError("Cannot resolve target entity.")
+		);
+		return targetEntity;
 	}
 }

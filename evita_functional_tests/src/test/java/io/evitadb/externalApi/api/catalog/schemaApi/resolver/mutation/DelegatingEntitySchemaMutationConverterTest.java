@@ -24,14 +24,10 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEntitySchemaMutation;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;

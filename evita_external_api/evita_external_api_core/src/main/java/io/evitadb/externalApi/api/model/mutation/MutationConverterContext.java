@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.model.mutation;
 import java.util.Map;
 
 /**
- * TODO lho docs
+ * Convertion context for converting a tree of {@link io.evitadb.api.requestResponse.mutation.Mutation}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -34,11 +34,6 @@ public interface MutationConverterContext {
 
 	Map<String, Object> EMPTY = Map.of();
 
-	/**
-	 * Provides {@link io.evitadb.api.requestResponse.schema.CatalogSchemaContract} instance to children.
-	 */
-	// todo lho remove?
-	String CATALOG_SCHEMA_KEY = "catalogSchema";
 	/**
 	 * Provides {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} instance to children.
 	 */

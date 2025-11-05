@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithPriceMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -81,12 +82,17 @@ public interface SetEntitySchemaWithPriceMutationDescriptor extends EntitySchema
 		.type(nonNull(Integer.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetEntitySchemaWithPriceMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetEntitySchemaWithPriceMutation.class)
 		.description("""
 			Mutation is responsible for setting a `EntitySchema.withPrice`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, WITH_PRICE, INDEXED_IN_SCOPES, INDEXED_PRICE_PLACES))
+		.staticProperty(WITH_PRICE)
+		.staticProperty(INDEXED_IN_SCOPES)
+		.staticProperty(INDEXED_PRICE_PLACES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetEntitySchemaWithPriceMutationInput")
 		.build();
 }

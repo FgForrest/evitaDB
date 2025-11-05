@@ -86,8 +86,54 @@ To avoid unnecessary memory consumption, events are discarded from the subscript
 
 ### gRPC implementation
 
-Our Java client builds on top of our gRPC API, so when you use the publisher/subscriber API in the Java client, under the hood it uses gRPC streaming to receive events from the server. On the client, we set up a gRPC stream the moment the `subscribe(...)` method is called on the publisher. Creating a publisher instance only creates a new definition in the client memory, ready to create a new gRPC subscription by passing the filtering criteria to the server, but it doesn't actually communicate with the server yet.
+Our Java client builds on top of our gRPC API, so when you use the publisher/subscriber API in the Java client, 
+under the hood it uses gRPC streaming to receive events from the server. On the client, we set up a gRPC stream the 
+moment the `subscribe(...)` method is called on the publisher. Creating a publisher instance only creates a new 
+definition in the client memory, ready to create a new gRPC subscription by passing the filtering criteria to the server,
+but it doesn't actually communicate with the server yet.
 
-The Java Flow API and gRPC streaming API are translated on the client side using adapter classes that implement the Flow API interfaces and use gRPC streaming stubs to communicate with the server. Backpressure handling is implemented using gRPC flow control mechanisms, so when the subscriber requests more items, we request more items from the gRPC stream. When the subscriber is slow, we stop requesting more items from the gRPC stream, which automatically stops the server from sending more items.
+The Java Flow API and gRPC streaming API are translated on the client side using adapter classes that implement the 
+Flow API interfaces and use gRPC streaming stubs to communicate with the server. Backpressure handling is implemented 
+using gRPC flow control mechanisms, so when the subscriber requests more items, we request more items from the gRPC stream. 
+When the subscriber is slow, we stop requesting more items from the gRPC stream, which automatically stops the server from sending more items.
 
-Thanks to gRPC streaming capabilities, we can cancel the subscription from the client side at any time, which closes the gRPC stream and releases all resources on the server side as well. The CDC implementation is not limited to Java clients only. Any gRPC-capable client can implement the CDC subscriber using the same filtering criteria and receive the same events as the Java client.
+Thanks to gRPC streaming capabilities, we can cancel the subscription from the client side at any time, which closes the 
+gRPC stream and releases all resources on the server side as well. The CDC implementation is not limited to Java clients 
+only. Any gRPC-capable client can implement the CDC subscriber using the same filtering criteria and receive the same 
+events as the Java client.
+
+### GraphQL implementation
+
+Our GraphQL API uses the [subscriptions API](https://graphql.org/learn/subscriptions/) to 
+provide a way to subscribe to CDC events. We have chosen the [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md)
+protocol to implement the subscriptions so that existing GraphQL clients can easily connect to the stream. 
+
+Under the hood, the WebSocket stream from a client is translated to the Java Flow API stream to receive events from the engine.
+When the client opens a WebSocket stream with subscription, it requests a new publisher with a CDC stream from the evitaDB
+engine which sends all future events back through the WebSocket stream to the client. 
+
+Backpressure handling is implemented using WebSocket flow control mechanisms, so when the client requests more events,
+we request more events from the Java Flow stream. When the client is slow, we stop requesting more events from the 
+Java Flow stream.
+Thanks to the WebSocket streaming capabilities, we can cancel the subscription from the client side at any time, which closes
+the Java Flow stream on the server side and releases all resources.
+
+### REST implementation
+
+Our REST API is implemented similarly as the GraphQL API. However, the OpenAPI specification doesn't directly specify
+any standard for real-time updates APIs, nor is it possible to document one within the base OpenAPI specification. Therefore,
+we have decided to create a [custom WebSocket specification](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md) 
+based on the [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol. 
+Although the base OpenAPI specification doesn't allow us to directly document the custom protocol, for now, we have
+included the CDC types in the OpenAPI specification so that there is at least some building ground for the client developers 
+(e.g., mutation objects, CDC event objects, etc.).
+
+Under the hood, the WebSocket stream from a client is translated to the Java Flow API stream to receive events from the engine.
+When the client opens a WebSocket stream with subscription, it requests a new publisher with a CDC stream from the evitaDB
+engine which sends all future events back through the WebSocket stream to the client.
+
+Backpressure handling is implemented using WebSocket flow control mechanisms, so when the client requests more events,
+we request more events from the Java Flow stream. When the client is slow, we stop requesting more events from the
+Java Flow stream.
+Thanks to the WebSocket streaming capabilities, we can cancel the subscription from the client side at any time, which closes
+the Java Flow stream on the server side and releases all resources.

@@ -23,11 +23,10 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -49,14 +48,18 @@ public interface ModifyAttributeSchemaDefaultValueMutationDescriptor extends Att
 		.type(nullable(Any.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyAttributeSchemaDefaultValueMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyAttributeSchemaDefaultValueMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `AttributeSchema.defaultValue`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, DEFAULT_VALUE))
+		.staticProperty(NAME)
+		.staticProperty(DEFAULT_VALUE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyAttributeSchemaDefaultValueMutationInput")
 		.build();
 }

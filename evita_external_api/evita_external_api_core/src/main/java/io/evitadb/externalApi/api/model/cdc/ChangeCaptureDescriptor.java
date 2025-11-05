@@ -25,8 +25,11 @@ package io.evitadb.externalApi.api.model.cdc;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
+import io.evitadb.externalApi.dataType.GenericObject;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor interface that defines common property descriptors for {@link io.evitadb.api.requestResponse.cdc.ChangeCapture}
@@ -71,6 +74,9 @@ public interface ChangeCaptureDescriptor {
 	        Optional body of the operation when it is requested initial request. Carries information about what exactly
 			happened.
 			""")
-		// type is expected to be list of mutations, but the representation varies across APIs
+		.type(nonNullRef(MutationDescriptor.THIS_INTERFACE))
+		.build();
+	PropertyDescriptor BODY_UNTYPED = PropertyDescriptor.from(BODY)
+		.type(nonNull(GenericObject.class))
 		.build();
 }

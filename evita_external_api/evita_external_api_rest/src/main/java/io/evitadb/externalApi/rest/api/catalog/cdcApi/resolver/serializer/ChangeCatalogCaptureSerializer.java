@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.DelegatingLocalMutationConverter;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingLocalCatalogSchemaMutationConverter;
@@ -81,13 +82,12 @@ public class ChangeCatalogCaptureSerializer {
 	public ObjectNode serialize(@Nonnull ChangeCatalogCapture capture) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 
-		// todo lho descriptor?
-		rootNode.putIfAbsent("version", this.objectJsonSerializer.serializeObject(capture.version()));
-		rootNode.putIfAbsent("index", this.objectJsonSerializer.serializeObject(capture.index()));
-		rootNode.putIfAbsent("area", this.objectJsonSerializer.serializeObject(capture.area()));
-		rootNode.putIfAbsent("entityType", capture.entityType() != null ? this.objectJsonSerializer.serializeObject(capture.entityType()) : null);
-		rootNode.putIfAbsent("entityType", capture.entityPrimaryKey() != null ? this.objectJsonSerializer.serializeObject(capture.entityPrimaryKey()) : null);
-		rootNode.putIfAbsent("operation", this.objectJsonSerializer.serializeObject(capture.operation()));
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(capture.version()));
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.INDEX.name(), this.objectJsonSerializer.serializeObject(capture.index()));
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.AREA.name(), this.objectJsonSerializer.serializeObject(capture.area()));
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.ENTITY_TYPE.name(), capture.entityType() != null ? this.objectJsonSerializer.serializeObject(capture.entityType()) : null);
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.ENTITY_TYPE.name(), capture.entityPrimaryKey() != null ? this.objectJsonSerializer.serializeObject(capture.entityPrimaryKey()) : null);
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.OPERATION.name(), this.objectJsonSerializer.serializeObject(capture.operation()));
 
 		if (capture.body() != null) {
 			final JsonNode convertedBody;
@@ -104,7 +104,7 @@ public class ChangeCatalogCaptureSerializer {
 			} else {
 				throw new RestQueryResolvingInternalError("Unsupported entity mutation: " + capture.body());
 			}
-			rootNode.putIfAbsent("body", convertedBody);
+			rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.BODY.name(), convertedBody);
 		}
 
 		return rootNode;

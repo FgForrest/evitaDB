@@ -31,9 +31,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTy
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -110,6 +108,9 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			
 			Returns array of scopes and their corresponding reference index types in which this reference is indexed.
 			""")
+		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
@@ -146,22 +147,23 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 		.type(nullable(String[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateReflectedReferenceSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(CreateReflectedReferenceSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `ReflectedReferenceSchema` alone.
 			""")
-		.staticFields(List.of(
-			MUTATION_TYPE,
-			NAME,
-			DESCRIPTION,
-			DEPRECATION_NOTICE,
-			CARDINALITY,
-			REFERENCED_ENTITY_TYPE,
-			REFLECTED_REFERENCE_NAME,
-			INDEXED_IN_SCOPES,
-			FACETED_IN_SCOPES
-		))
+		.staticProperty(NAME)
+		.staticProperty(DESCRIPTION)
+		.staticProperty(DEPRECATION_NOTICE)
+		.staticProperty(CARDINALITY)
+		.staticProperty(REFERENCED_ENTITY_TYPE)
+		.staticProperty(REFLECTED_REFERENCE_NAME)
+		.staticProperty(INDEXED_IN_SCOPES)
+		.staticProperty(FACETED_IN_SCOPES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("CreateReflectedReferenceSchemaMutationInput")
+		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.build();
 }

@@ -34,11 +34,10 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExc
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 import java.util.List;
 
 /**
- * TODO lho docs
+ * Converter for {@link EntityUpsertMutation}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

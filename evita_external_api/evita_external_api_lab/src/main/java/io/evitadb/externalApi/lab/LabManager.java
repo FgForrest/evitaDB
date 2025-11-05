@@ -31,7 +31,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.http.CorsEndpoint;
 import io.evitadb.externalApi.http.CorsService;
-import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.lab.configuration.LabOptions;
 import io.evitadb.externalApi.lab.gui.resolver.GuiHandler;
 import io.evitadb.externalApi.lab.io.LabExceptionHandler;
@@ -79,7 +78,7 @@ public class LabManager {
 
 	@Nonnull
 	public HttpService getLabRouter() {
-		return this.labRouter.decorate(PathNormalizingHandler::new);
+		return this.labRouter;
 	}
 
 	/**

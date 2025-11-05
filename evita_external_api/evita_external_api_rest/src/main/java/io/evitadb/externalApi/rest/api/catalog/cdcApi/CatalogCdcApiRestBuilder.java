@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.cdcApi;
 
+import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.builder.CdcApiEndpointBuilder;
@@ -30,7 +31,7 @@ import io.evitadb.externalApi.rest.api.catalog.cdcApi.builder.CdcApiEndpointBuil
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Builds CDC API part of catalog's REST API. Building of whole REST API is handled by {@link io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -45,7 +46,10 @@ public class CatalogCdcApiRestBuilder extends PartialRestBuilder<CatalogRestBuil
 
 	@Override
 	public void build() {
-		// todo lho define mutation types for the CDC even if not used directly?
+		registerMutations(
+			TransactionMutationDescriptor.THIS
+		);
+
 		buildEndpoints();
 	}
 

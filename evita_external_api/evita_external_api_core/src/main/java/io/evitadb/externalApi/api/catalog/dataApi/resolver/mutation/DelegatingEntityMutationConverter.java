@@ -42,7 +42,7 @@ import java.util.Map;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * TODO lho docs
+ * Mutation converter for entity mutation unions.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

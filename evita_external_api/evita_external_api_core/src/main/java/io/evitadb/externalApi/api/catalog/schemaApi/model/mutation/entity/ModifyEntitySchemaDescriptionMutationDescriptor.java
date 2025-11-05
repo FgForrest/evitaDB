@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -48,12 +49,15 @@ public interface ModifyEntitySchemaDescriptionMutationDescriptor extends EntityS
 		.type(nullable(String.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyEntitySchemaDescriptionMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyEntitySchemaDescriptionMutation.class)
 		.description("""
 			Mutation is responsible for setting a `EntitySchema.description`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, DESCRIPTION))
+		.staticProperty(DESCRIPTION)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyEntitySchemaDescriptionMutationInput")
 		.build();
 }

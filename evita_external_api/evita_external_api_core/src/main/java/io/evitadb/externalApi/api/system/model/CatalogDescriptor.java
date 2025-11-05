@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.api.system.model;
 
-import io.evitadb.api.CatalogState;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -31,7 +30,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 import java.util.UUID;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -41,7 +40,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogDescriptor {
+public interface CatalogDescriptor extends CatalogContractDescriptor {
 
 	PropertyDescriptor CATALOG_ID = PropertyDescriptor.builder()
 		.name("catalogId")
@@ -51,13 +50,6 @@ public interface CatalogDescriptor {
 			""")
 		.type(nonNull(UUID.class))
 		.build();
-    PropertyDescriptor NAME = PropertyDescriptor.builder()
-        .name("name")
-        .description("""
-            Name of the catalog. Name must be unique across all catalogs inside same evitaDB instance.
-            """)
-        .type(nonNull(String.class))
-        .build();
     PropertyDescriptor NAME_VARIANTS = PropertyDescriptor.builder()
         .name("nameVariants")
         .description("""
@@ -77,13 +69,6 @@ public interface CatalogDescriptor {
             """)
         .type(nonNull(Long.class))
         .build();
-    PropertyDescriptor CATALOG_STATE = PropertyDescriptor.builder()
-        .name("catalogState")
-        .description("""
-            State of this catalog instance.
-            """)
-        .type(nonNull(CatalogState.class))
-        .build();
     PropertyDescriptor SUPPORTS_TRANSACTION = PropertyDescriptor.builder()
         .name("supportsTransaction")
         .description("""
@@ -98,14 +83,6 @@ public interface CatalogDescriptor {
             """)
         .type(nonNull(String[].class))
         .build();
-	PropertyDescriptor UNUSABLE = PropertyDescriptor
-		.builder()
-		.name("unusable")
-		.description("""
-             Whether this catalog is unusable or can be freely used.
-             """)
-		.type(nonNull(Boolean.class))
-		.build();
 
     ObjectDescriptor THIS = ObjectDescriptor.builder()
         .name("Catalog")
@@ -118,7 +95,7 @@ public interface CatalogDescriptor {
             connected with single client. In the e-commerce world catalog means "single e-shop" although it may not be the truth
             in every case. Catalog manages set of entity collection uniquely identified by their name.
             """)
-        .staticFields(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES,
+        .staticProperties(List.of(CATALOG_ID, NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES,
                               UNUSABLE
         ))
         .build();

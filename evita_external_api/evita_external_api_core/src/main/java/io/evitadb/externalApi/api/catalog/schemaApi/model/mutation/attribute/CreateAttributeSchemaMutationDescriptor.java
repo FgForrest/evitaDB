@@ -23,17 +23,16 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -74,6 +73,9 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
+		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_IN_SCOPES)
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor FILTERABLE_IN_SCOPES = PropertyDescriptor.builder()
@@ -152,26 +154,27 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 		.build();
 
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateAttributeSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(CreateAttributeSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` alone.
 			""")
-		.staticFields(List.of(
-			MUTATION_TYPE,
-			NAME,
-			DESCRIPTION,
-			DEPRECATION_NOTICE,
-			UNIQUE_IN_SCOPES,
-			FILTERABLE_IN_SCOPES,
-			SORTABLE_IN_SCOPES,
-			LOCALIZED,
-			NULLABLE,
-			REPRESENTATIVE,
-			TYPE,
-			DEFAULT_VALUE,
-			INDEXED_DECIMAL_PLACES
-		))
+		.staticProperty(NAME)
+		.staticProperty(DESCRIPTION)
+		.staticProperty(DEPRECATION_NOTICE)
+		.staticProperty(UNIQUE_IN_SCOPES)
+		.staticProperty(FILTERABLE_IN_SCOPES)
+		.staticProperty(SORTABLE_IN_SCOPES)
+		.staticProperty(LOCALIZED)
+		.staticProperty(NULLABLE)
+		.staticProperty(REPRESENTATIVE)
+		.staticProperty(TYPE)
+		.staticProperty(DEFAULT_VALUE)
+		.staticProperty(INDEXED_DECIMAL_PLACES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("CreateAttributeSchemaMutationInput")
+		.staticProperty(UNIQUE_IN_SCOPES_INPUT)
 		.build();
 }

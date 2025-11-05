@@ -37,12 +37,16 @@ import java.util.List;
  */
 public interface RemoveAssociatedDataMutationDescriptor extends AssociatedDataMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveAssociatedDataMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveAssociatedDataMutation.class)
 		.description("""
 			Remove associated data mutation will drop existing associatedData - ie.generates new version of the associated data with tombstone
 			on it.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE))
+		.staticProperty(NAME)
+		.staticProperty(LOCALE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("RemoveAssociatedDataMutationInput")
 		.build();
 }

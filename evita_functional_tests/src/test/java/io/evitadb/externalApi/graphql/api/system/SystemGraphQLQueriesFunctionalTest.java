@@ -219,17 +219,4 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 			.e(CatalogDescriptor.UNUSABLE.name(), false)
 			.build();
 	}
-
-	/* TODO LHO - toto není nikde použité?! */
-	@Nonnull
-	private static Map<String, Object> createUnusableCatalogDto(@Nonnull UnusableCatalog catalog) {
-		return map()
-			.e(TYPENAME_FIELD, UnusableCatalogDescriptor.THIS.name())
-			.e(UnusableCatalogDescriptor.CATALOG_ID.name(), catalog.getCatalogId().toString())
-			.e(UnusableCatalogDescriptor.NAME.name(), catalog.getName())
-			.e(UnusableCatalogDescriptor.CATALOG_STORAGE_PATH.name(), catalog.getCatalogStoragePath().toFile())
-			.e(UnusableCatalogDescriptor.CAUSE.name(), catalog.getCause().toString())
-			.e(UnusableCatalogDescriptor.UNUSABLE.name(), true)
-			.build();
-	}
 }

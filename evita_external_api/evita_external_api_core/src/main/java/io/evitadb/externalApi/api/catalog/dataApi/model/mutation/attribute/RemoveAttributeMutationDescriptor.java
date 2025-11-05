@@ -37,12 +37,16 @@ import java.util.List;
  */
 public interface RemoveAttributeMutationDescriptor extends AttributeMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveAttributeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveAttributeMutation.class)
 		.description("""
 			Remove attribute mutation will drop existing attribute - ie.generates new version of the attribute with tombstone
 			on it.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE))
+		.staticProperty(NAME)
+		.staticProperty(LOCALE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("RemoveAttributeMutationInput")
 		.build();
 }

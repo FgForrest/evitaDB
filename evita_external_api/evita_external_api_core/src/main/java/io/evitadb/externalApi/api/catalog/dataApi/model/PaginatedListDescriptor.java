@@ -83,7 +83,7 @@ public interface PaginatedListDescriptor extends DataChunkDescriptor {
 		.description("""
 			Page of records according to pagination rules in input query.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			PAGE_SIZE,
 			PAGE_NUMBER,
 			LAST_PAGE_NUMBER,

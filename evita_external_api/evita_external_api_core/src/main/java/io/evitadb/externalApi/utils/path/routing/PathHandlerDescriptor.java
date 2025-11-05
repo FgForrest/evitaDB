@@ -34,7 +34,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Basically a union for {@link HttpService} and {@link WebSocketHandler} to hold a specific handler at a specified path.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

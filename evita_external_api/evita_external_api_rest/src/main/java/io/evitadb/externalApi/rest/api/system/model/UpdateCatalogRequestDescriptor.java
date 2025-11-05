@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,6 +67,6 @@ public interface UpdateCatalogRequestDescriptor {
 		.description("""
 			Requests creation of new catalog.
 			""")
-		.staticFields(List.of(NAME, OVERWRITE_TARGET, CATALOG_STATE))
+		.staticProperties(List.of(NAME, OVERWRITE_TARGET, CATALOG_STATE))
 		.build();
 }
