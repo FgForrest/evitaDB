@@ -47,6 +47,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
@@ -87,6 +89,7 @@ import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogEndpointBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.CatalogCdcApiRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.cdcApi.model.ChangeCatalogCaptureRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogDataApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogSchemaApiRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -140,9 +143,17 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 	private void buildCommonTypes() {
 		this.buildingContext.registerType(buildScalarEnum());
 		this.buildingContext.registerType(ErrorDescriptor.THIS.to(this.objectBuilderTransformer).build());
+
+		buildInputMutations();
+
+		// these objects are not used by the endpoints directly, but are used within the WebSocket protocol for CDC streams,
+		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documention
+		// for client developers.
+		this.buildingContext.registerType(DataSiteDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(SchemaSiteDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ChangeCatalogCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		buildMutationInterface();
-		buildInputMutations();
 		buildOutputMutations();
 	}
 

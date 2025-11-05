@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
+package io.evitadb.externalApi.api.catalog.model.cdc;
 
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;

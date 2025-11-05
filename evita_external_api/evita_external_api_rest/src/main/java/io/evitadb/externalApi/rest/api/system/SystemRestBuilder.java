@@ -92,6 +92,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.api.system.builder.SystemEndpointBuilder;
 import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
+import io.evitadb.externalApi.rest.api.system.model.ChangeSystemCaptureRequestDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.UpdateCatalogRequestDescriptor;
@@ -152,9 +153,12 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ChangeSystemCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
+		// these objects are not used by the endpoints directly, but are used within the WebSocket protocol for CDC streams,
+		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documention
+		// for client developers.
+		this.buildingContext.registerType(ChangeSystemCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(ChangeSystemCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		buildMutationInterface();
 		buildOutputMutations();
 	}

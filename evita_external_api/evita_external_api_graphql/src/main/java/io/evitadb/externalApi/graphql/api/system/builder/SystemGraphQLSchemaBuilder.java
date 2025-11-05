@@ -99,9 +99,9 @@ import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutation
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.ChangeCatalogCaptureCriteriaDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.DataSiteDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.SchemaSiteDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureCriteriaDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.DataSiteDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.SchemaSiteDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.AsyncDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;

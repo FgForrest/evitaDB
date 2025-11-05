@@ -21,29 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.system.model;
+package io.evitadb.externalApi.rest.api.catalog.cdcApi.model;
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureCriteriaDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
- * Descriptor for arguments of {@link SystemRootDescriptor#ON_CATALOG_CHANGE_UNTYPED} subscription.
+ * Descriptor for {@link ChangeCatalogCaptureRequest}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-public interface OnCatalogChangeCaptureSubscriptionHeaderDescriptor {
+public interface ChangeCatalogCaptureRequestDescriptor {
 
-	PropertyDescriptor CATALOG_NAME = PropertyDescriptor.builder()
-		.name("catalogName")
-		.description("""
-			Specifies source catalog for the changes stream.
-			""")
-		.type(nonNull(String.class))
-		.build();
 	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
 		.name("sinceVersion")
 		.description("""
@@ -67,5 +62,25 @@ public interface OnCatalogChangeCaptureSubscriptionHeaderDescriptor {
 			matching any of them is sufficient (OR).
 			""")
 		.type(nullableListRef(ChangeCatalogCaptureCriteriaDescriptor.THIS))
+		.build();
+	PropertyDescriptor CONTENT = PropertyDescriptor.builder()
+		.name("content")
+		.description("""
+             Specifies the requested content of the capture, by default, only the header information is sent
+             """)
+		.type(nullable(ChangeCaptureContent.class))
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.representedClass(ChangeCatalogCaptureRequest.class)
+		.description("""
+             Record describing the capture request for the CDC stream of `ChangeCatalogCapture`.
+			 The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
+			 CDC stream.
+             """)
+		.staticProperty(SINCE_VERSION)
+		.staticProperty(SINCE_INDEX)
+		.staticProperty(CRITERIA)
+		.staticProperty(CONTENT)
 		.build();
 }

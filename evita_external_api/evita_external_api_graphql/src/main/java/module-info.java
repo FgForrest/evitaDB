@@ -71,6 +71,5 @@ module evita.external.api.graphql {
 	requires evita.query;
 	requires evita.engine;
 	requires evita.external.api.core;
-	requires evita.external.api.graphql;
 
 }

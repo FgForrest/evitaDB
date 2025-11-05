@@ -91,5 +91,4 @@ module evita.external.api.core {
 	requires io.netty.common;
 	requires jdk.jfr;
 	requires org.reactivestreams;
-	requires evita.external.api.core;
 }
