@@ -58,6 +58,7 @@ import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
+import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
@@ -119,6 +120,7 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -1087,11 +1089,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 	) {
 		try {
+			final ProcessingScope<? extends Index<?>> currentProcessingScope = this.getProcessingScope();
 			this.scope.push(
 				new ProcessingScope<>(
 					indexType,
 					targetIndexSupplier,
-					this.getProcessingScope().getScopes(),
+					currentProcessingScope.getScopes(),
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -1099,6 +1102,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					entityNestedQueryComparator,
 					attributeSchemaAccessor,
 					attributeValueAccessor,
+					currentProcessingScope.getReferencedEntityExpansionFunction(),
 					suppressedConstraints
 				)
 			);
@@ -1465,6 +1469,12 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		@Nullable
 		private Formula superSetFormula;
+		/**
+		 * Function that allows to expand referenced entity primary keys from the input bitmap of base primary keys.
+		 * Used for hierarchical entity structures.
+		 */
+		@Nullable
+		@Getter private UnaryOperator<Bitmap> referencedEntityExpansionFunction;
 
 		/**
 		 * Recursively examines all children of the specified parent constraint using the provided lambda function.
@@ -1561,6 +1571,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+			@Nullable UnaryOperator<Bitmap> referencedEntityExpansionFunction,
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this.indexType = indexType;
@@ -1580,6 +1591,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			this.nestedQueryFormulaEnricher = nestedQueryFormulaEnricher == null ? Function.identity() : nestedQueryFormulaEnricher;
 			this.entityNestedQueryComparator = entityNestedQueryComparator;
 			this.indexSupplier = targetIndexSupplier;
+			this.referencedEntityExpansionFunction = referencedEntityExpansionFunction;
 			this.indexes = null;
 		}
 
@@ -1767,6 +1779,36 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				return lambda.get();
 			} finally {
 				this.requiredScopes.pop();
+			}
+		}
+
+		/**
+		 * Executes the given supplier within the context of the specified referenced entity expansion function.
+		 * This method ensures that the specified function is applied for the duration of the supplier's execution
+		 * and then restores the previous function afterwards.
+		 *
+		 * The function is used when {@link ReferencedEntityIndexPrimaryKeyTranslatingFormula} translates original
+		 * referenced entity primary keys to list of available indexes. This is necessary for correct handling of
+		 * hierarchical entity structures, that should take their children into an account.
+		 *
+		 * @param referencedEntityExpansionFunction function that expands referenced entity primary keys
+		 * @param lambda the supplier function to be executed within the specified context
+		 * @return the result produced by the supplier
+		 * @param <S> type of result returned by the supplier
+		 */
+		public <S> S doWithReferencedEntityExpansionFunction(
+			@Nonnull UnaryOperator<Bitmap> referencedEntityExpansionFunction,
+			@Nonnull Supplier<S> lambda
+		) {
+			try {
+				Assert.isPremiseValid(
+					this.referencedEntityExpansionFunction == null,
+					"Referenced entity expansion function is already set!"
+				);
+				this.referencedEntityExpansionFunction = referencedEntityExpansionFunction;
+				return lambda.get();
+			} finally {
+				this.referencedEntityExpansionFunction = null;
 			}
 		}
 
