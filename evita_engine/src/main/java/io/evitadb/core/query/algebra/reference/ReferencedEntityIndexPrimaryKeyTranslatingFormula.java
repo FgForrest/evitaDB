@@ -45,6 +45,7 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.UnaryOperator;
 
 /**
  * Translates referenced entity primary keys produced by the inner formula into primary keys of
@@ -95,29 +96,35 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 	 * {@code index.size}.
 	 */
 	private final int worstCardinality;
+	/**
+	 * Optional expansion function that will expand the inner formula result before applying the translation.
+	 */
+	private final UnaryOperator<Bitmap> expansionFunction;
 
 	/**
 	 * Internal constructor used by cloning and tests.
 	 *
-	 * @param referencedEntitySuperSet optional superset of referenced entity primary keys to limit
-	 *        the translation; may be {@code null}
+	 * @param referencedEntitySuperSet                    optional superset of referenced entity primary keys to limit
+	 *                                                    the translation; may be {@code null}
 	 * @param referencedEntityTypeSuperSetTransactionalId transactional ids of contributing
-	 *        {@link GlobalEntityIndex} instances used for cache-key hashing
-	 * @param referencedEntityTypeIndex target index for the translation
-	 * @param worstCardinality worst-case estimate of the result cardinality
-	 * @param innerFormula inner formula producing referenced entity primary keys
+	 *                                                    {@link GlobalEntityIndex} instances used for cache-key hashing
+	 * @param referencedEntityTypeIndex                   target index for the translation
+	 * @param worstCardinality                            worst-case estimate of the result cardinality
+	 * @param innerFormula                                inner formula producing referenced entity primary keys
 	 */
 	ReferencedEntityIndexPrimaryKeyTranslatingFormula(
 		@Nullable Bitmap referencedEntitySuperSet,
 		@Nonnull long[] referencedEntityTypeSuperSetTransactionalId,
 		@Nonnull ReferencedTypeEntityIndex referencedEntityTypeIndex,
 		int worstCardinality,
+		@Nonnull UnaryOperator<Bitmap> expansionFunction,
 		@Nonnull Formula innerFormula
 	) {
 		this.referencedEntitySuperSet = referencedEntitySuperSet;
 		this.referencedEntityTypeSuperSetTransactionalIds = referencedEntityTypeSuperSetTransactionalId;
 		this.referencedEntityTypeIndex = referencedEntityTypeIndex;
 		this.worstCardinality = worstCardinality;
+		this.expansionFunction = expansionFunction;
 		this.initFields(innerFormula);
 	}
 
@@ -144,7 +151,8 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 		@Nonnull BiFunction<String, Scope, Optional<GlobalEntityIndex>> referencedEntitySuperSetSupplier,
 		@Nonnull ReferencedTypeEntityIndex referencedTypeEntityIndex,
 		@Nonnull Formula innerFormula,
-		@Nonnull Set<Scope> scopes
+		@Nonnull Set<Scope> scopes,
+		@Nullable UnaryOperator<Bitmap> expansionFunction
 	) {
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			RoaringBitmap bitmap = null;
@@ -178,6 +186,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 			this.referencedEntityTypeSuperSetTransactionalIds = ArrayUtils.EMPTY_LONG_ARRAY;
 		}
 
+		this.expansionFunction = expansionFunction != null ? expansionFunction : UnaryOperator.identity();
 		this.referencedEntityTypeIndex = referencedTypeEntityIndex;
 		this.worstCardinality = this.referencedEntitySuperSet == null ?
 			referencedTypeEntityIndex.getSize() :
@@ -227,7 +236,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final Bitmap referencedEntityIds = this.innerFormulas[0].compute();
+		final Bitmap referencedEntityIds = this.expansionFunction.apply(this.innerFormulas[0].compute());
 		final int cnt = referencedEntityIds.size();
 		if (cnt == 0) {
 			return EmptyBitmap.INSTANCE;
@@ -255,6 +264,7 @@ public class ReferencedEntityIndexPrimaryKeyTranslatingFormula extends AbstractF
 			this.referencedEntityTypeSuperSetTransactionalIds,
 			this.referencedEntityTypeIndex,
 			this.worstCardinality,
+			this.expansionFunction,
 			innerFormulas[0]
 		);
 	}

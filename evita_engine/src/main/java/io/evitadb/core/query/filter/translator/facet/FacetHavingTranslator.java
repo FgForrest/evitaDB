@@ -35,6 +35,7 @@ import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
@@ -51,6 +52,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -64,6 +66,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -238,39 +241,51 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 					filterByVisitor, facetHaving.getChildren(), referenceSchema, scopes
 				);
 
-				final Formula mainFacetIds = filterByVisitor.getReferencedRecordIdFormula(
-					entitySchema,
-					referenceSchema,
-					facetFiltering.mainFiltering()
+				final Bitmap finalFacetIds = processingScope.doWithReferencedEntityExpansionFunction(
+					facetFiltering.includeChildren() ?
+						mainFacetIdsBitmap -> {
+							if (mainFacetIdsBitmap.isEmpty()) {
+								return mainFacetIdsBitmap;
+							} else {
+								final int[] mainFacetIds = mainFacetIdsBitmap.getArray();
+								final HierarchyWithin hierarchyWithin = Objects.requireNonNull(
+										facetFiltering.hierarchyFiltering())
+									.apply(mainFacetIds);
+								final Formula resultFormula = FormulaFactory.or(
+									Stream.concat(
+										Stream.of(new ConstantFormula(mainFacetIdsBitmap)),
+										Arrays.stream(Objects.requireNonNull(facetFiltering.targetIndex()))
+											.map(targetIndex ->
+												     HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
+													     hierarchyWithin,
+													     Objects.requireNonNull(targetIndex),
+													     mainFacetIds,
+													     filterByVisitor.getQueryContext(),
+													     scopes,
+													     referenceSchema,
+													     Objects.requireNonNull(facetFiltering.targetSchema())
+												     )
+											)
+									).toArray(Formula[]::new)
+								);
+								resultFormula.initialize(filterByVisitor.getInternalExecutionContext());
+								return resultFormula.compute();
+							}
+						} :
+						UnaryOperator.identity(),
+					() -> {
+						final Formula finalFacetIdsFormula = filterByVisitor.getReferencedRecordIdFormula(
+							entitySchema,
+							referenceSchema,
+							facetFiltering.mainFiltering()
+						);
+
+						// initialize the formula before compute is called
+						finalFacetIdsFormula.initialize(filterByVisitor.getInternalExecutionContext());
+						// calculate result
+						return finalFacetIdsFormula.compute();
+					}
 				);
-
-				final Formula finalFacetIds;
-				if (facetFiltering.includeChildren()) {
-					final HierarchyWithin hierarchyWithin = Objects.requireNonNull(facetFiltering.hierarchyFiltering())
-						.apply(mainFacetIds.compute().getArray());
-					finalFacetIds = FormulaFactory.or(
-						Stream.concat(
-							Stream.of(mainFacetIds),
-							Arrays.stream(Objects.requireNonNull(facetFiltering.targetIndex()))
-								.map(targetIndex ->
-									HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
-										hierarchyWithin,
-										Objects.requireNonNull(targetIndex),
-										mainFacetIds.compute().getArray(),
-										filterByVisitor.getQueryContext(),
-										scopes,
-										referenceSchema,
-										Objects.requireNonNull(facetFiltering.targetSchema())
-									)
-								)
-						).toArray(Formula[]::new)
-					);
-				} else {
-					finalFacetIds = mainFacetIds;
-				}
-
-				// initialize the formula before compute is called
-				finalFacetIds.initialize(filterByVisitor.getInternalExecutionContext());
 				// first collect all formulas
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),
@@ -287,7 +302,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 							);
 						}
 					},
-					finalFacetIds.compute()
+					finalFacetIds
 				).stream();
 			});
 
