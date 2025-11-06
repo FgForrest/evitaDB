@@ -102,7 +102,6 @@ import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.HeaderInfoSupplier;
@@ -1744,9 +1743,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
 					.recordLength();
 			}
-		} finally {
-			this.walWriteLock.unlock();
-		}
 		} finally {
 			this.walWriteLock.unlock();
 		}
