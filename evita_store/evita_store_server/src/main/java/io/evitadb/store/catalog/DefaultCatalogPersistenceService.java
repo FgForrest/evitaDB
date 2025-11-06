@@ -1746,6 +1746,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		} finally {
 			this.walWriteLock.unlock();
 		}
+		} finally {
+			this.walWriteLock.unlock();
+		}
 	}
 
 	@Nonnull
