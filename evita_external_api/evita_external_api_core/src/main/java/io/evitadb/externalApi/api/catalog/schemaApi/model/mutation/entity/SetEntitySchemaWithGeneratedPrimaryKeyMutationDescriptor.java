@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -51,12 +52,15 @@ public interface SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor extend
 		.type(nonNull(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetEntitySchemaWithGeneratedPrimaryKeyMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetEntitySchemaWithGeneratedPrimaryKeyMutation.class)
 		.description("""
 			Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, WITH_GENERATED_PRIMARY_KEY))
+		.staticProperty(WITH_GENERATED_PRIMARY_KEY)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetEntitySchemaWithGeneratedPrimaryKeyMutationInput")
 		.build();
 }

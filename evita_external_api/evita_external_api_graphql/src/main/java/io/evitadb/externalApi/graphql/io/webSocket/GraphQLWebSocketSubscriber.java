@@ -31,7 +31,6 @@ import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@SuppressWarnings("ReactiveStreamsSubscriberImplementation")
 final class GraphQLWebSocketSubscriber implements Subscriber<WebSocketFrame> {
     private static final Logger logger = LoggerFactory.getLogger(GraphQLWebSocketSubscriber.class);
 
@@ -47,7 +46,7 @@ final class GraphQLWebSocketSubscriber implements Subscriber<WebSocketFrame> {
 
     @Override
     public void onSubscribe(Subscription s) {
-        subscription = s;
+	    this.subscription = s;
         s.request(1);
     }
 
@@ -62,37 +61,37 @@ final class GraphQLWebSocketSubscriber implements Subscriber<WebSocketFrame> {
     @Override
     public void onNext(WebSocketFrame webSocketFrame) {
         logger.trace("onNext: {}", webSocketFrame);
-        assert subscription != null;
+        assert this.subscription != null;
         switch (webSocketFrame.type()) {
             case BINARY:
-                graphqlWSSubProtocol.handleBinary(outgoing);
+	            this.graphqlWSSubProtocol.handleBinary(this.outgoing);
                 break;
             case TEXT:
                 // Parse the graphql-ws sub protocol. Maybe this could be done in a different thread so not
                 // to block the publisher?
-                graphqlWSSubProtocol.handleText(webSocketFrame.text(), outgoing);
+	            this.graphqlWSSubProtocol.handleText(webSocketFrame.text(), this.outgoing);
                 /*
                 It is RECOMMENDED that Subscribers request the upper limit of what they are able to process,
                 as requesting only one element at a time results in an inherently
                 inefficient "stop-and-wait" protocol.
                  */
-                subscription.request(1);
+	            this.subscription.request(1);
                 break;
             case PING:
-                outgoing.writePong();
-                subscription.request(1);
+	            this.outgoing.writePong();
+	            this.subscription.request(1);
                 break;
             case CLOSE:
-                outgoing.close();
+	            this.outgoing.close();
                 break;
             // PONG is a noop
             case PONG:
-                subscription.request(1);
+	            this.subscription.request(1);
                 break;
             // Continuation is not mentioned in the spec. Should never happen.
             case CONTINUATION:
                 logger.trace("Ignoring frame type: {}", webSocketFrame.type());
-                subscription.request(1);
+	            this.subscription.request(1);
                 break;
             default:
                 // Should never reach here.
@@ -107,8 +106,8 @@ final class GraphQLWebSocketSubscriber implements Subscriber<WebSocketFrame> {
         the Subscription cancelled after having received the signal.
          */
         logger.trace("onError", t);
-        graphqlWSSubProtocol.cancel();
-        subscription = null;
+	    this.graphqlWSSubProtocol.cancel();
+	    this.subscription = null;
     }
 
     @Override
@@ -118,7 +117,7 @@ final class GraphQLWebSocketSubscriber implements Subscriber<WebSocketFrame> {
         the Subscription cancelled after having received the signal.
          */
         logger.trace("onComplete");
-        graphqlWSSubProtocol.cancel();
-        subscription = null;
+	    this.graphqlWSSubProtocol.cancel();
+	    this.subscription = null;
     }
 }

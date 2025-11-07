@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
@@ -66,7 +66,7 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<Catal
 	}
 
 	@Nonnull
-	private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
+	private final LocalCatalogSchemaMutationInputAggregateConverter mutationAggregateResolver = new LocalCatalogSchemaMutationInputAggregateConverter(
 		PassThroughMutationObjectMapper.INSTANCE,
 		GraphQLMutationResolvingExceptionFactory.INSTANCE
 	);

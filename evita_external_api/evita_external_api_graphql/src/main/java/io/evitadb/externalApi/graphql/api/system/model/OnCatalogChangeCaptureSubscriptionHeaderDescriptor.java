@@ -23,15 +23,15 @@
 
 package io.evitadb.externalApi.graphql.api.system.model;
 
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.ChangeCatalogCaptureCriteriaDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor for arguments of {@link SystemRootDescriptor#ON_CATALOG_CHANGE} subscription.
+ * Descriptor for arguments of {@link SystemRootDescriptor#ON_CATALOG_CHANGE_UNTYPED} subscription.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

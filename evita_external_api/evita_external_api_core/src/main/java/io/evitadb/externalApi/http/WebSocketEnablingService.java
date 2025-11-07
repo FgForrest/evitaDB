@@ -33,7 +33,12 @@ import com.linecorp.armeria.server.websocket.WebSocketServiceHandler;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Service that enables WebSocket traffic for the entire server. If it detects an incoming WebSocket upgrade,
+ * it will delegate the traffic to the defined {@link WebSocketHandler}. Otherwise, it will delegate the traffic
+ * to a standard HTTP service.
+ *
+ * This mechanism is in place because the Armeria server requires the {@link WebSocketService} to be registered as a
+ * root service, which is not possible with the evitaDB's dynamic routing.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -50,7 +55,7 @@ public class WebSocketEnablingService implements WebSocketService, WebSocketServ
 		this.webSocketTrafficHandler = webSocketTrafficHandler;
 
 		this.webSocketResolver = WebSocketService.builder(this)
-	         .subprotocols("*") // todo lho
+	         .subprotocols("*") // the actual supported subprotocols are defined by target handlers
 	         .fallbackService(httpTrafficHandler) // handles non-websocket traffic, just a pass-through basically
 	         .build();
 	}

@@ -92,7 +92,8 @@ public class RoutingHandlerService implements HttpService, WebSocketHandler {
 		if (matcher == null) {
 			return handleNoMatch(ctx, req);
 		}
-		PathTemplateMatcher.PathMatchResult<PathHandlerDescriptor> match = matcher.match(req.uri().getPath());
+		final String path = URLUtils.normalizeSlashes(req.uri().getPath());
+		PathTemplateMatcher.PathMatchResult<PathHandlerDescriptor> match = matcher.match(path);
 		if (match == null || !match.getValue().isHttpService()) {
 			return handleNoMatch(ctx, req);
 		}
@@ -127,7 +128,8 @@ public class RoutingHandlerService implements HttpService, WebSocketHandler {
 		if (matcher == null) {
 			return handleNoMatch(ctx, in);
 		}
-		PathTemplateMatcher.PathMatchResult<PathHandlerDescriptor> match = matcher.match(in.path());
+		final String path = URLUtils.normalizeSlashes(in.path());
+		PathTemplateMatcher.PathMatchResult<PathHandlerDescriptor> match = matcher.match(path);
 		if (match == null || !match.getValue().isWebSocketHandler()) {
 			return handleNoMatch(ctx, in);
 		}

@@ -28,7 +28,7 @@ import com.linecorp.armeria.common.websocket.WebSocket;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Incoming {@link WebSocket} extended with metadata for routers.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -84,7 +84,7 @@ public interface FacetSummaryDescriptor {
 			.description("""
 				This DTO contains information about single facet group and statistics of the facets that relates to it.
 				""")
-			.staticFields(List.of(COUNT))
+			.staticProperties(List.of(COUNT))
 			.build();
 	}
 
@@ -131,7 +131,7 @@ public interface FacetSummaryDescriptor {
 			.description("""
 				This DTO contains information about single facet statistics of the entities that are present in the response.
 				""")
-			.staticFields(List.of(REQUESTED, COUNT, IMPACT))
+			.staticProperties(List.of(REQUESTED, COUNT, IMPACT))
 			.build();
 	}
 
@@ -174,7 +174,7 @@ public interface FacetSummaryDescriptor {
 				 would lead to expanding or shrinking the result response in certain way, that is described in this DTO.
 				 This implementation contains only the bare difference and the match count.
 				""")
-			.staticFields(List.of(DIFFERENCE, MATCH_COUNT, HAS_SENSE))
+			.staticProperties(List.of(DIFFERENCE, MATCH_COUNT, HAS_SENSE))
 			.build();
 	}
 }

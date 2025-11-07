@@ -95,11 +95,10 @@ public class CatalogJsonSerializer {
 	@Nonnull
 	private ObjectNode serialize(@Nonnull UnusableCatalog unusableCatalog) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
-		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_ID.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogId()));
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.NAME.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getName()));
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_STORAGE_PATH.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogStoragePath()));
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.CAUSE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getRepresentativeException()));
-		rootNode.putIfAbsent(CatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogState()));
+		rootNode.putIfAbsent(UnusableCatalogDescriptor.CATALOG_STATE.name(), this.objectJsonSerializer.serializeObject(unusableCatalog.getCatalogState()));
 		rootNode.putIfAbsent(UnusableCatalogDescriptor.UNUSABLE.name(), this.objectJsonSerializer.serializeObject(true));
 
 		return rootNode;

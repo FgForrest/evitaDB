@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 import java.util.List;
@@ -36,14 +37,17 @@ import java.util.List;
  */
 public interface RemoveAttributeSchemaMutationDescriptor extends AttributeSchemaMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveAttributeSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveAttributeSchemaMutation.class)
 		.description("""
 			Mutation is responsible for removing an existing `AttributeSchema` in the
 			`EntitySchema` or `GlobalAttributeSchema` in the `CatalogSchema`.
 			Mutation can be used for altering also the existing `AttributeSchema`
 			or `GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperty(NAME)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("RemoveAttributeSchemaMutationInput")
 		.build();
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import io.evitadb.externalApi.dataType.Any;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -155,7 +155,7 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			Attributes are not recommended for bigger data as they are all loaded at once when requested.
 			Large data that are occasionally used store in associated data.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			NAME,
 			NAME_VARIANTS,
 			DESCRIPTION,

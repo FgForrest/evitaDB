@@ -24,10 +24,9 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaCardinalityMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -52,12 +51,16 @@ public interface ModifyReferenceSchemaCardinalityMutationDescriptor extends Refe
 		.type(nonNull(Cardinality.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyReferenceSchemaCardinalityMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyReferenceSchemaCardinalityMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReferenceSchema.cardinality`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, CARDINALITY))
+		.staticProperty(NAME)
+		.staticProperty(CARDINALITY)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyReferenceSchemaCardinalityMutationInput")
 		.build();
 }

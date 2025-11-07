@@ -33,13 +33,15 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface CreateCatalogSchemaMutationDescriptor extends EngineMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CreateCatalogSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(CreateCatalogSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting up a new catalog schema - or more precisely the catalog instance
 			itself.
 			""")
-		.staticField(MUTATION_TYPE)
-		.staticField(CATALOG_NAME)
+		.staticProperty(CATALOG_NAME)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("CreateCatalogSchemaMutationInput")
 		.build();
 }

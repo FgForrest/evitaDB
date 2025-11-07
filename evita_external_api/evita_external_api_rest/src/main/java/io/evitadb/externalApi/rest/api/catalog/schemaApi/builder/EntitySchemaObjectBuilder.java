@@ -31,31 +31,10 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.SortableAttributeCompoundSchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateEntitySchemaRequestDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -101,78 +80,6 @@ public class EntitySchemaObjectBuilder {
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
-
-		// entity schema mutations
-		this.buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(AllowLocaleInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(CreateEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowCurrencyInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowLocaleInEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyEntitySchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyEntitySchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveEntitySchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetEntitySchemaWithHierarchyMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetEntitySchemaWithPriceMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-
-		// associated data schema mutations
-		this.buildingContext.registerType(CreateAssociatedDataSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveAssociatedDataSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-
-		// attribute schema mutations
-		this.buildingContext.registerType(CreateAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyAttributeSchemaTypeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(
-			AttributeSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
-
-		// sortable attribute compound schema mutations
-		this.buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetSortableAttributeCompoundIndexedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(
-			SortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
-
-		// reference schema mutations
-		this.buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(CreateReflectedReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceAttributeSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaCardinalityMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaDescriptionMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(this.objectBuilderTransformer).build());
-
-		this.buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(UpdateEntitySchemaRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 	}
 
 	/**

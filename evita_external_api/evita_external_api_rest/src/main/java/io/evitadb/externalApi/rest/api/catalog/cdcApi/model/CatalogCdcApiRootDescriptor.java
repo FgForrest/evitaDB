@@ -38,7 +38,5 @@ public interface CatalogCdcApiRootDescriptor {
 		.operation("registerCatalogChangeCapture")
 		.urlPathItem("change-captures")
 		.description("Opens WebSocket connection for listening to catalog change captures")
-		// todo lho type???
-		.type(nonNull(Boolean.class))
 		.build();
 }

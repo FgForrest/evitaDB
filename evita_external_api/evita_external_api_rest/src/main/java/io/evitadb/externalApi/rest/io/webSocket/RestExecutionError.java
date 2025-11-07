@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.io.webSocket;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Error message for REST WebSocket execution.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

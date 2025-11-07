@@ -73,7 +73,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nullable String deprecationNotice,
 		@Nonnull List<OpenApiEndpointParameter> parameters,
 		@Nullable OpenApiSimpleType requestBody,
-		@Nonnull OpenApiSimpleType successResponse,
+		@Nullable OpenApiSimpleType successResponse,
 		@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder
 	) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);

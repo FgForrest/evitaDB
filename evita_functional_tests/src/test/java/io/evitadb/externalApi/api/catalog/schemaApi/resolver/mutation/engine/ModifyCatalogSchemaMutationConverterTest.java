@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
@@ -73,7 +73,8 @@ public class ModifyCatalogSchemaMutationConverterTest {
 				.e(EngineMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 					map()
-						.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
+						.e(
+							LocalCatalogSchemaMutationInputAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
 							.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product"))
 						.build()
 				))
@@ -99,7 +100,8 @@ public class ModifyCatalogSchemaMutationConverterTest {
 				map()
 					.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
-							.e(LocalCatalogSchemaMutationAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
+							.e(
+								LocalCatalogSchemaMutationInputAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
 								.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product"))
 							.build()
 					))

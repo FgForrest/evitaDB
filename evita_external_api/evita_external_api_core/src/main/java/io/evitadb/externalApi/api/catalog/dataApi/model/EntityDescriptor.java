@@ -31,8 +31,8 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -154,22 +154,22 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
             Generic the most basic entity.
             Common ancestor for all specific entities which correspond to specific collections.
             """)
-        .staticField(PRIMARY_KEY)
-        .staticField(TYPE)
-        .staticField(VERSION)
-        .staticField(SCOPE)
+        .staticProperty(PRIMARY_KEY)
+        .staticProperty(TYPE)
+        .staticProperty(VERSION)
+        .staticProperty(SCOPE)
         .build();
     /**
      * Used only to distinguish from entity classifier for clarity, that this is a final object that just references an
      * entity, not that an entity should extend this.
      */
-    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.extend(THIS_CLASSIFIER)
+    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.from(THIS_CLASSIFIER)
         .name("EntityReference")
         .description("""
             Pointer to a full entity.
             """)
         .build();
-    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_CLASSIFIER)
+    ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_CLASSIFIER)
         .name("*")
         .build();
 }

@@ -37,7 +37,8 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * TODO lho docs
+ * Resolves individual JSON objects into actual {@link Mutation} implementations. Based on input mutation type
+ * it delegates actual resolving to specific {@link MutationConverter}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Descriptor of {@link GlobalAttributeSchema} for schema-based external APIs. It describes what properties of global attribute schema are
@@ -75,7 +75,7 @@ public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDe
 			
 			Attributes are not recommended for bigger data as they are all loaded at once when requested.
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			NAME,
 			NAME_VARIANTS,
 			DESCRIPTION,

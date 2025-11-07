@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingEngineMutationConverter;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
@@ -58,13 +59,12 @@ public class ChangeSystemCaptureSerializer {
 	public ObjectNode serialize(@Nonnull ChangeSystemCapture systemCapture) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 
-		// todo lho descriptor?
-		rootNode.putIfAbsent("version", this.objectJsonSerializer.serializeObject(systemCapture.version()));
-		rootNode.putIfAbsent("index", this.objectJsonSerializer.serializeObject(systemCapture.index()));
-		rootNode.putIfAbsent("operation", this.objectJsonSerializer.serializeObject(systemCapture.operation()));
+		rootNode.putIfAbsent(ChangeSystemCaptureDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(systemCapture.version()));
+		rootNode.putIfAbsent(ChangeSystemCaptureDescriptor.INDEX.name(), this.objectJsonSerializer.serializeObject(systemCapture.index()));
+		rootNode.putIfAbsent(ChangeSystemCaptureDescriptor.OPERATION.name(), this.objectJsonSerializer.serializeObject(systemCapture.operation()));
 
 		if (systemCapture.body() != null) {
-			rootNode.putIfAbsent("body", (JsonNode) this.delegatingEngineMutationConverter.convertToOutput(systemCapture.body()));
+			rootNode.putIfAbsent(ChangeSystemCaptureDescriptor.BODY.name(), (JsonNode) this.delegatingEngineMutationConverter.convertToOutput(systemCapture.body()));
 		}
 
 		return rootNode;

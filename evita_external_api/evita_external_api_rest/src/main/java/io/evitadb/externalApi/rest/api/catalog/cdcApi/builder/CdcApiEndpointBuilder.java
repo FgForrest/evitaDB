@@ -28,6 +28,7 @@ import io.evitadb.externalApi.rest.api.catalog.cdcApi.model.CatalogCdcApiRootDes
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.resolver.endpoint.ChangeCatalogCaptureStreamHandler;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiVoid;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
@@ -54,7 +55,7 @@ public class CdcApiEndpointBuilder {
 			.method(HttpMethod.GET)
 			.operationId(CatalogCdcApiRootDescriptor.CHANGE_CATALOG_CAPTURE.operation())
 			.description(CatalogCdcApiRootDescriptor.CHANGE_CATALOG_CAPTURE.description())
-			.successResponse(nonNull(OpenApiScalar.scalarFrom(Boolean.class))) // todo lho not needed
+			.successResponse(OpenApiVoid.INSTANCE)
 			.handler(ChangeCatalogCaptureStreamHandler::new)
 			.build();
 	}

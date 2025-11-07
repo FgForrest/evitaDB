@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation;
 
+import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
@@ -33,7 +34,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * TODO lho docs
+ * Descriptor of {@link io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -54,18 +55,14 @@ public interface EntityRemoveMutationDescriptor extends MutationDescriptor {
 		.type(nonNull(String.class))
 		.build();
 
-	// todo lho register in api
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("EntityRemoveMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(EntityRemoveMutation.class)
 		.description("""
 			EntityRemoveMutation represents a terminal mutation when existing entity is removed in the evitaDB. The entity is
 			and all its internal data are marked as TRUE for dropped, stored to the storage file and
 			removed from the mem-table.
 			""")
-		.staticFields(List.of(
-		    MUTATION_TYPE,
-		    ENTITY_PRIMARY_KEY,
-		    ENTITY_TYPE
-		))
+		.staticProperty(ENTITY_PRIMARY_KEY)
+		.staticProperty(ENTITY_TYPE)
 		.build();
 }

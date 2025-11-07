@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -48,7 +47,6 @@ import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiEnumTransf
 import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
@@ -187,7 +185,6 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 		this.entityObjectBuilder.buildCommonTypes();
 		this.fullResponseObjectBuilder.buildCommonTypes();
-		this.dataMutationBuilder.buildCommonTypes();
 	}
 
 	private void buildEndpoints() {
@@ -355,11 +352,8 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 				return Optional.empty();
 			}
 
-			final OpenApiUnion.Builder localizedEntityUnionBuilder = EntityUnion.THIS_LOCALIZED
-				.to(this.unionBuilderTransformer)
-				.type(OpenApiObjectUnionType.ONE_OF)
-				.discriminator(EntityDescriptor.TYPE.name());
-			entityObjects.forEach(localizedEntityUnionBuilder::object);
+			final OpenApiUnion.Builder localizedEntityUnionBuilder = EntityUnion.THIS_LOCALIZED.to(this.unionBuilderTransformer);
+			entityObjects.forEach(localizedEntityUnionBuilder::type);
 
 			return Optional.of(localizedEntityUnionBuilder.build());
 		} else {
@@ -367,11 +361,8 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			if (entityObjects.isEmpty()) {
 				return Optional.empty();
 			}
-			final OpenApiUnion.Builder entityUnionBuilder = EntityUnion.THIS
-				.to(this.unionBuilderTransformer)
-				.type(OpenApiObjectUnionType.ONE_OF)
-				.discriminator(EntityDescriptor.TYPE.name());
-			entityObjects.forEach(entityUnionBuilder::object);
+			final OpenApiUnion.Builder entityUnionBuilder = EntityUnion.THIS.to(this.unionBuilderTransformer);
+			entityObjects.forEach(entityUnionBuilder::type);
 
 			return Optional.of(entityUnionBuilder.build());
 		}
