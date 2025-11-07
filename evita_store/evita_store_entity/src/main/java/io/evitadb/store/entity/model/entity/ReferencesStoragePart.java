@@ -50,6 +50,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.ToIntBiFunction;
 import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
@@ -100,6 +101,11 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	 * Contains true if some of the references in this container have unassigned internal primary keys (negative or zero values).
 	 */
 	private boolean unassignedPrimaryKeys = false;
+	/**
+	 * Contains set of all reference keys that contains "known" internal id, which was not found in the current reference set
+	 * and needs to be treated as unknown and reassigned. Set is initialized only if such reference is found.
+	 */
+	@Nullable private Set<ComparableReferenceKey> referenceKeysForReassignment = null;
 
 	public ReferencesStoragePart(int entityPrimaryKey) {
 		this.entityPrimaryKey = entityPrimaryKey;
@@ -153,6 +159,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Nonnull
 	public Map<ComparableReferenceKey, ReferenceKey> assignMissingIdsAndSort() {
 		if (this.unassignedPrimaryKeys) {
+			final Set<ComparableReferenceKey> refKeysForReassignment = this.referenceKeysForReassignment == null ?
+				Collections.emptySet() : this.referenceKeysForReassignment;
 			final int lupkBefore = this.lastUsedPrimaryKey;
 			Map<ComparableReferenceKey, ReferenceKey> assignedKeys = null;
 			ReferenceKey previousReferenceKey = null;
@@ -171,7 +179,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				// remember the previous key for the next iteration
 				previousReferenceKey = reference.getReferenceKey();
 				// assign primary keys to references that don't have it yet (update the key)
-				if (!reference.getReferenceKey().isKnownInternalPrimaryKey()) {
+				if (!reference.getReferenceKey().isKnownInternalPrimaryKey() || refKeysForReassignment.contains(new ComparableReferenceKey(reference.getReferenceKey()))) {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					this.references[i] = reference;
 					this.dirty = true;
@@ -191,6 +199,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			}
 
 			this.unassignedPrimaryKeys = false;
+			this.referenceKeysForReassignment = null;
 			return assignedKeys == null ?
 				Collections.emptyMap() : assignedKeys;
 		}
@@ -207,7 +216,8 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	@Nonnull
 	public ReferenceContract replaceOrAddReference(
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull UnaryOperator<ReferenceContract> mutator
+		@Nonnull UnaryOperator<ReferenceContract> mutator,
+		@Nonnull Supplier<MissingReferenceBehavior> missingReferenceBehavior
 	) {
 		InsertionPosition insertionPosition;
 		if (referenceKey.isUnknownReference()) {
@@ -259,9 +269,13 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			mutatedReference = (Reference) mutator.apply(null);
 			this.references = ArrayUtils.insertRecordIntoArrayOnIndex(mutatedReference, this.references, position);
 			this.dirty = true;
-			this.unassignedPrimaryKeys = this.unassignedPrimaryKeys ||
-				!mutatedReference.getReferenceKey()
-				                 .isKnownInternalPrimaryKey();
+			this.unassignedPrimaryKeys = true;
+			if (missingReferenceBehavior.get() == MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY) {
+				if (this.referenceKeysForReassignment == null) {
+					this.referenceKeysForReassignment = new HashSet<>(16);
+				}
+				this.referenceKeysForReassignment.add(new ComparableReferenceKey(mutatedReference.getReferenceKey()));
+			}
 		}
 
 		return mutatedReference;
@@ -746,6 +760,22 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				!this.references[insertionPosition.position() + 1].getReferenceKey().equals(referenceKey),
 			() -> "There is already existing reference with key " + referenceKey + " in entity " + this.entityPrimaryKey + "! References must be unique!"
 		);
+	}
+
+	/**
+	 * Defines behavior when a reference wit assigned (known) internal primary key is missing in the storage part.
+	 */
+	public enum MissingReferenceBehavior {
+
+		/**
+		 * Existing internal primary key will be accepted as is.
+		 */
+		ACCEPT_INTERNAL_KEY,
+		/**
+		 * New internal primary key will be generated for the reference.
+		 */
+		GENERATE_NEW_INTERNAL_KEY
+
 	}
 
 }

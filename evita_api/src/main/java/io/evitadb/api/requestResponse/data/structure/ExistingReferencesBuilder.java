@@ -1572,7 +1572,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 						referenceBundle.upsertDuplicateReference(reference);
 					} else if (firstReference == null) {
 						firstReference = reference;
-						referenceBundle.upsertNonDuplicateReference(reference);
+						referenceBundle.upsertWithDuplicateReferenceConversion(
+							reference, rk -> getReference(rk).orElseThrow()
+						);
 					} else {
 						// we have more than one reference - we need to convert the first one as well
 						referenceBundle.convertToDuplicateReference(reference, firstReference);
