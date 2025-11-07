@@ -177,6 +177,8 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 			.orElseGet(
 				() -> cacheReferencesStorageContainer(
 					entityPrimaryKey,
+					/* TODO JNO - tady by to mělo brát ty storage containery z LocalMutationExecutorCollector!!! */
+					/* TODO JNO - protože, když se kvůli propagačním mutacím vícekrát zedituje stejný kontejner, tak začínají všechny z výchozího bodu a to je špatně, musí navazovat!!! */
 					ofNullable(this.dataStoreReader.fetch(this.catalogVersion, entityPrimaryKey, ReferencesStoragePart.class))
 						// and when not found even there create new container
 						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))

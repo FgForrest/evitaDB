@@ -86,7 +86,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.function.IntObjPredicate;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -99,6 +98,7 @@ import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
+import io.evitadb.store.entity.model.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import io.evitadb.store.model.EntityStoragePart;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.AbstractEntityStorageContainerAccessor;
@@ -178,7 +178,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 	private Map<ComparableReferenceKey, ReferenceKey> assignedPrimaryKeys;
-	private Set<ReferenceKey> createdReferencePrimaryKeys = Collections.emptySet();
+	private Map<ReferenceKey, ReferenceKey> createdReferenceKeys = Collections.emptyMap(); // TODO JNO always contains known internal primary keys
+	private Set<ReferenceKey> removedReferenceKeys = null;
+	private Set<RepresentativeReferenceKey> removedRepresentableReferenceKeys = null;
 	private Set<Locale> addedLocales;
 	private Set<Locale> removedLocales;
 
@@ -539,6 +541,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param reducedIndexesProvider 	 Function that provides a list of reduced entity indexes based on the entity primary key.
 	 * @param referenceAttributeSupplier Supplier providing an array of reference attribute mutations to be applied to the missing references.
 	 * @param entityPrimaryKeyPredicate  A predicate that determines if the entity primary key matches the criteria for insertion.
+	 * @param implicitMutations          A set of implicit mutation behaviors to be used for generated external entity mutation.
 	 */
 	private void generateMissing(
 		int entityPrimaryKey,
@@ -550,7 +553,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull String referencedEntityType,
 		@Nonnull IntFunction<List<ReducedEntityIndex>> reducedIndexesProvider,
 		@Nonnull Function<ReferenceKey, Stream<ReferenceAttributeMutation>> referenceAttributeSupplier,
-		@Nonnull IntObjPredicate<Serializable[]> entityPrimaryKeyPredicate
+		@Nonnull IntObjPredicate<Serializable[]> entityPrimaryKeyPredicate,
+		@Nonnull Predicate<RepresentativeReferenceKey> removedRepresentativeReferenceKeyPredicate,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
 	) {
 		final PeekableIntIterator existingPrimaryKeysIterator = existingEntityPks.getIntIterator();
 		final AtomicInteger nonExistentRefCounter = new AtomicInteger(0);
@@ -570,7 +575,14 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					final Serializable[] representativeAttributeValues = reducedEntityIndex
 						.getRepresentativeReferenceKey()
 						.representativeAttributeValues();
-					if (entityPrimaryKeyPredicate.test(ownerEntityPrimaryKey, representativeAttributeValues)) {
+					final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
+						new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey),
+						representativeAttributeValues
+					);
+					if (
+						entityPrimaryKeyPredicate.test(ownerEntityPrimaryKey, representativeAttributeValues) ||
+							removedRepresentativeReferenceKeyPredicate.test(rrk)
+					) {
 						primaryReferenceKeys.add(
 							new PrimaryReferenceKeyWithRepresentativeAttributes(
 								findPrimaryReferenceKey(
@@ -621,8 +633,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							primaryReferenceKeys.get(index).referenceKey().internalPrimaryKey(),
 							reference
 						);
-						if (!this.createdReferencePrimaryKeys.isEmpty() && this.createdReferencePrimaryKeys.remove(reference.getReferenceKey())) {
-							this.createdReferencePrimaryKeys.add(newReference.getReferenceKey());
+						if (!this.createdReferenceKeys.isEmpty()) {
+							final ReferenceKey originalValue = this.createdReferenceKeys.remove(reference.getReferenceKey());
+							this.createdReferenceKeys.put(newReference.getReferenceKey(), originalValue);
+							this.assignedPrimaryKeys.put(new ComparableReferenceKey(originalValue), newReference.getReferenceKey());
 						}
 						return newReference;
 					}
@@ -641,7 +655,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					addMutations(
 						localMutations,
 						entityPrimaryKey, ownerEntityPrimaryKey,
-						this.createdReferencePrimaryKeys.contains(
+						this.createdReferenceKeys.containsKey(
 							new ReferenceKey(rrs.getName(), ownerEntityPrimaryKey, refKey.internalPrimaryKey())
 						),
 						refKey,
@@ -655,7 +669,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					final Serializable[] representativeAttributeValues = reducedEntityIndex
 						.getRepresentativeReferenceKey()
 						.representativeAttributeValues();
-					if (entityPrimaryKeyPredicate.test(ownerEntityPrimaryKey, representativeAttributeValues)) {
+					final ReferenceKey referenceKey = new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey);
+					final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(referenceKey, representativeAttributeValues);
+					if (
+						entityPrimaryKeyPredicate.test(ownerEntityPrimaryKey, representativeAttributeValues) ||
+							removedRepresentativeReferenceKeyPredicate.test(rrk)
+					) {
 						this.referencesStorageContainer.findReference(
 							referenceSchema, new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey),
 							representativeAttributeValues
@@ -670,7 +689,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									localMutations,
 									entityPrimaryKey,
 									ownerEntityPrimaryKey,
-									this.createdReferencePrimaryKeys.contains(refKey),
+									this.createdReferenceKeys.containsKey(refKey),
 									refKey,
 									referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
 								);
@@ -685,7 +704,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				mutationCollector.addExternalMutation(
 					new ServerEntityUpsertMutation(
 						referencedEntityType, ownerEntityPrimaryKey, EntityExistence.MUST_EXIST,
-						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES),
+						implicitMutations,
 						true,
 						true,
 						localMutations.toArray(LocalMutation[]::new)
@@ -860,16 +879,27 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	public void finishLocalMutationExecutionPhase() {
 		if (this.referencesStorageContainer != null) {
 			this.assignedPrimaryKeys = this.referencesStorageContainer.assignMissingIdsAndSort();
-			this.createdReferencePrimaryKeys = this.assignedPrimaryKeys.isEmpty() ?
-				Collections.emptySet() : new HashSet<>(this.assignedPrimaryKeys.values());
+			if (this.assignedPrimaryKeys.isEmpty()) {
+				this.createdReferenceKeys = Collections.emptyMap();
+			} else {
+				this.createdReferenceKeys = CollectionUtils.createHashMap(this.assignedPrimaryKeys.size());
+				for (Entry<ComparableReferenceKey, ReferenceKey> entry : this.assignedPrimaryKeys.entrySet()) {
+					this.createdReferenceKeys.put(entry.getValue(), entry.getKey().referenceKey());
+				}
+			}
 		}
 		// when scope changes
 		if (this.initialEntityScope != this.entityContainer.getScope()) {
 			// all references are considered as new for the safe of reflected references propagation
-			this.createdReferencePrimaryKeys = Stream.of(getReferencesStoragePart(this.entityType, this.entityPrimaryKey).getReferences())
-				.filter(Droppable::exists)
-				.map(ReferenceContract::getReferenceKey)
-				.collect(Collectors.toCollection(HashSet::new));
+			final ReferencesStoragePart rsp = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+			final Reference[] references = rsp.getReferences();
+			this.createdReferenceKeys = CollectionUtils.createHashMap(references.length);
+			for (Reference reference : references) {
+				if (reference.exists()) {
+					final ReferenceKey refKey = reference.getReferenceKey();
+					this.createdReferenceKeys.put(refKey, refKey);
+				}
+			}
 		}
 	}
 
@@ -946,13 +976,15 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
 				insertReflectedReferences(
 					this.entityPrimaryKey, targetEntityScope, targetEntityScope,
-					this.referencesStorageContainer, missingMandatedAttributes, mutationCollector
+					this.referencesStorageContainer, missingMandatedAttributes, mutationCollector,
+					EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 				);
 			}
 			if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
 				verifyReferenceAttributes(
 					targetEntityScope, this.entityContainer, this.referencesStorageContainer,
-					inputMutations, missingMandatedAttributes, mutationCollector
+					inputMutations, missingMandatedAttributes, mutationCollector,
+					implicitMutationBehavior
 				);
 			}
 
@@ -970,7 +1002,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						this.schemaAccessor.get(),
 						this.initialReferencesStorageContainer,
 						CreateMode.REMOVE_ALL_EXISTING,
-						mutationCollector
+						mutationCollector,
+						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 					);
 				}
 			} else {
@@ -999,19 +1032,22 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							this.schemaAccessor.get(),
 							theReferenceStorageContainer,
 							CreateMode.REMOVE_NON_INDEXED,
-							mutationCollector
+							mutationCollector,
+							EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 						);
 					}
 					// and insert new reflected references in new scope
 					insertReflectedReferences(
 						this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
-						this.referencesStorageContainer, List.of(), mutationCollector
+						this.referencesStorageContainer, List.of(), mutationCollector,
+						EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 					);
 				} else if (this.referencesStorageContainer != null && this.referencesStorageContainer.isDirty()) {
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
 						verifyReflectedReferences(
 							this.entityPrimaryKey, this.initialEntityScope, targetEntityScope,
-							inputMutations, mutationCollector
+							inputMutations, mutationCollector,
+							EnumSet.of(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)
 						);
 					}
 					if (implicitMutationBehavior.contains(ImplicitMutationBehavior.GENERATE_REFERENCE_ATTRIBUTES)) {
@@ -1021,7 +1057,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							this.referencesStorageContainer,
 							inputMutations,
 							missingMandatedAttributes,
-							mutationCollector
+							mutationCollector,
+							implicitMutationBehavior
 						);
 					}
 
@@ -1404,6 +1441,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param missingMandatedAttributes  The list of missing mandated attributes.
 	 * @param mutationCollector          The collector for mutations.
 	 *                                   Cannot be null.
+	 * @param implicitMutations          A set of implicit mutation behaviors to be used for generated external entity mutation.
 	 */
 	private void insertReflectedReferences(
 		int entityPrimaryKey,
@@ -1411,7 +1449,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull Scope targetEntityScope,
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nonnull List<Object> missingMandatedAttributes,
-		@Nonnull MutationCollector mutationCollector
+		@Nonnull MutationCollector mutationCollector,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
 	) {
 		final EntitySchema entitySchema = this.schemaAccessor.get();
 		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
@@ -1431,7 +1470,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 				entityPrimaryKey, sourceEntityScope, targetEntityScope,
 				catalogSchema, entitySchema, referencesStorageContainer,
 				CreateMode.INSERT_MISSING,
-				mutationCollector
+				mutationCollector,
+				implicitMutations
 			);
 		}
 	}
@@ -1537,13 +1577,15 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param targetEntityScope the scope of the target entity, must not be null
 	 * @param inputMutations    A list of input mutations to verify the reflected references.
 	 * @param mutationCollector The mutation collector used to collect the verified reflected references.
+	 * @param implicitMutations A set of implicit mutation behaviors to be used for generated external entity mutation.
 	 */
 	private void verifyReflectedReferences(
 		int entityPrimaryKey,
 		@Nonnull Scope sourceEntityScope,
 		@Nonnull Scope targetEntityScope,
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
-		@Nonnull MutationCollector mutationCollector
+		@Nonnull MutationCollector mutationCollector,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
 	) {
 		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
 		final EntitySchema entitySchema = this.schemaAccessor.get();
@@ -1570,11 +1612,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								currentIndex,
 								processedMutations,
 								inputMutations,
-								crk -> Objects.requireNonNull(this.assignedPrimaryKeys.get(crk))
+								this::translateToAssignedReferenceKey
 							)
 						),
 						mutationCollector,
-						CreateMode.INSERT_MISSING
+						CreateMode.INSERT_MISSING,
+						implicitMutations
 					);
 				} else if (inputMutation instanceof RemoveReferenceMutation rrm) {
 					final ReferenceKey referenceKey = rrm.getReferenceKey();
@@ -1595,15 +1638,39 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 								currentIndex,
 								processedMutations,
 								inputMutations,
-								crk -> Objects.requireNonNull(this.assignedPrimaryKeys.get(crk))
+								this::translateToAssignedReferenceKey
 							)
 						),
 						mutationCollector,
-						CreateMode.REMOVE_ALL_EXISTING
+						CreateMode.REMOVE_ALL_EXISTING,
+						implicitMutations
 					);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Translates the provided comparable reference key into its assigned reference key.
+	 * If no assigned reference key exists for the provided key, it validates that
+	 * the comparable reference key contains a known internal primary key and
+	 * returns the original key's reference key.
+	 *
+	 * @param crk the comparable reference key that is to be translated into an assigned reference key
+	 * @return the assigned reference key corresponding to the provided comparable reference key,
+	 *         or the original reference key if no assigned key exists
+	 */
+	@Nonnull
+	private ReferenceKey translateToAssignedReferenceKey(@Nonnull ComparableReferenceKey crk) {
+		final ReferenceKey reassignedKey = this.assignedPrimaryKeys.get(crk);
+		if (reassignedKey == null) {
+			Assert.isPremiseValid(
+				crk.referenceKey().isKnownInternalPrimaryKey(),
+				"Reference key " + crk + " has not been assigned a primary key!"
+			);
+			return crk.referenceKey();
+		}
+		return reassignedKey;
 	}
 
 	/**
@@ -1618,6 +1685,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param referencesStorageContainer The container holding references
 	 * @param createMode                 the mode of this propagate function - it can either insert mising references or remove all existing
 	 * @param mutationCollector          The mutation collector to accumulate mutations
+	 * @param implicitMutations          A set of implicit mutation behaviors to be used for generated external entity mutation.
 	 */
 	private void propagateReferencesToEntangledEntities(
 		int entityPrimaryKey,
@@ -1627,7 +1695,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferencesStoragePart referencesStorageContainer,
 		@Nonnull CreateMode createMode,
-		@Nonnull MutationCollector mutationCollector
+		@Nonnull MutationCollector mutationCollector,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
 	) {
 		// we can rely on a fact, that references are ordered by reference key
 		String referenceName = null;
@@ -1661,7 +1730,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						)
 					),
 					mutationCollector,
-					createMode
+					createMode,
+					implicitMutations
 				);
 			}
 		}
@@ -1680,6 +1750,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * @param referenceBlockSupplier supplier for primary keys, must not be null
 	 * @param mutationCollector      collector for mutations, must not be null
 	 * @param createMode             the mode of this propagate function - it can either insert missing references or remove all existing
+	 * @param implicitMutations      A set of implicit mutation behaviors to be used for generated external entity mutation.
 	 */
 	private <T> void propagateReferenceModification(
 		int entityPrimaryKey,
@@ -1690,7 +1761,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull String referenceName,
 		@Nonnull Supplier<ReferenceBlock<T>> referenceBlockSupplier,
 		@Nonnull MutationCollector mutationCollector,
-		@Nonnull CreateMode createMode
+		@Nonnull CreateMode createMode,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
 	) {
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 		final String referencedEntityType = referenceSchema.getReferencedEntityType();
@@ -1802,7 +1874,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										),
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references
-									primaryKeyPredicate.negate()
+									primaryKeyPredicate.negate(),
+									// we need to take into account references removed in this turn
+									rrk -> this.removedRepresentableReferenceKeys != null &&
+										this.removedRepresentableReferenceKeys.contains(rrk),
+									implicitMutations
 								);
 							}
 						}
@@ -1839,7 +1915,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nullable ReferencesStoragePart referencesStoragePart,
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
 		@Nonnull List<Object> missingMandatedAttributes,
-		@Nonnull MutationCollector mutationCollector
+		@Nonnull MutationCollector mutationCollector,
+		@Nonnull EnumSet<ImplicitMutationBehavior> implicitMutations
 	) throws MandatoryAttributesNotProvidedException {
 		if (referencesStoragePart == null) {
 			return;
@@ -1847,49 +1924,54 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 		final CatalogSchema catalogSchema = this.catalogSchemaAccessor.get();
 		final EntitySchema entitySchema = this.schemaAccessor.get();
-		propagateOrphanedReferenceAttributeMutations(
-			scope, catalogSchema, entitySchema, inputMutations, mutationCollector
-		);
+
+		if (implicitMutations.contains(ImplicitMutationBehavior.GENERATE_REFLECTED_REFERENCES)) {
+			propagateOrphanedReferenceAttributeMutations(
+				scope, catalogSchema, entitySchema, inputMutations, mutationCollector
+			);
+		}
 
 		final Set<Locale> entityLocales = entityStorageContainer.getLocales();
-		Arrays.stream(referencesStoragePart.getReferences())
-			.filter(Droppable::exists)
-			.collect(Collectors.groupingBy(ReferenceContract::getReferenceName))
-			.forEach((referenceName, references) -> {
-				final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-				for (ReferenceContract reference : references) {
-					final Set<AttributeKey> availableAttributes = collectAttributeKeys(reference);
-					final List<AttributeKey> missingReferenceMandatedAttribute = new LinkedList<>();
-					final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
-						Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
-						if (defaultValue == null) {
-							if (!nullable) {
-								missingReferenceMandatedAttribute.add(attributeKey);
-							}
-						} else {
-							mutationCollector.addLocalMutation(
-								new ReferenceAttributeMutation(
-									reference.getReferenceKey(),
-									new UpsertAttributeMutation(attributeKey, defaultValue)
-								)
-							);
+		final List<AttributeKey> missingReferenceMandatedAttribute = new LinkedList<>();
+		ReferenceSchema referenceSchema = null;
+		for (Reference reference : referencesStoragePart.getReferences()) {
+			if (reference.exists()) {
+				if (referenceSchema == null ||
+					!referenceSchema.getName().equals(reference.getReferenceName())) {
+					referenceSchema = entitySchema.getReferenceOrThrowException(reference.getReferenceName());
+				}
+				missingReferenceMandatedAttribute.clear();
+				final Set<AttributeKey> availableAttributes = collectAttributeKeys(reference);
+				final MissingAttributeHandler missingAttributeHandler = (defaultValue, nullable, attributeKey) -> {
+					Assert.isPremiseValid(attributeKey != null, "Attribute key must not be null!");
+					if (defaultValue == null) {
+						if (!nullable) {
+							missingReferenceMandatedAttribute.add(attributeKey);
 						}
-					};
-
-					processReferenceAttributesWithDefaultValue(
-						referenceSchema, entityLocales, availableAttributes, missingAttributeHandler
-					);
-
-					if (!missingReferenceMandatedAttribute.isEmpty()) {
-						missingMandatedAttributes.add(
-							new MissingReferenceAttribute(
-								referenceName,
-								missingReferenceMandatedAttribute
+					} else {
+						mutationCollector.addLocalMutation(
+							new ReferenceAttributeMutation(
+								reference.getReferenceKey(),
+								new UpsertAttributeMutation(attributeKey, defaultValue)
 							)
 						);
 					}
+				};
+
+				processReferenceAttributesWithDefaultValue(
+					referenceSchema, entityLocales, availableAttributes, missingAttributeHandler
+				);
+
+				if (!missingReferenceMandatedAttribute.isEmpty()) {
+					missingMandatedAttributes.add(
+						new MissingReferenceAttribute(
+							referenceSchema.getName(),
+							missingReferenceMandatedAttribute
+						)
+					);
 				}
-			});
+			}
+		}
 	}
 
 	/**
@@ -1909,43 +1991,18 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
 		@Nonnull MutationCollector mutationCollector
 	) {
-		// we need to avoid propagating reference attribute mutations related to created references
-		// those are handled within the reference creation process
-		// but we will build them in a lazy way
-		final Supplier<Set<ReferenceKey>> createdReferencesSupplier = () -> inputMutations.stream()
-			.filter(InsertReferenceMutation.class::isInstance)
-			.map(InsertReferenceMutation.class::cast)
-			.map(InsertReferenceMutation::getReferenceKey)
-			.collect(Collectors.toSet());
-		Set<ReferenceKey> createdReferences = null;
-		// we need to avoid propagating reference attribute mutations related to removed references
-		// those are handled within the reference removal process
-		// but we will build them in a lazy way
-		final IntObjBiFunction<String, Set<ReferenceKey>> removedReferencesSupplier =
-			(epk, entityName) -> mutationCollector.getExternalEntityLocalMutations(
-				entityName,
-				epk,
-				eup -> eup.getLocalMutations()
-				          .stream()
-				          .filter(RemoveReferenceMutation.class::isInstance)
-				          .map(RemoveReferenceMutation.class::cast)
-				          .map(ReferenceMutation::getReferenceKey)
-			);
-		Set<ReferenceKey> removedReferences = null;
-
 		// go through all input mutations
 		final Map<EntityReference, List<ReferenceAttributeMutation>> referenceAttributeMutationsByEntityReference = new LazyHashMap<>(inputMutations.size());
 		for (LocalMutation<?, ?> inputMutation : inputMutations) {
 			// and check if there are any reference attribute mutation
 			if (inputMutation instanceof ReferenceAttributeMutation ram) {
-				final ReferenceKey referenceKey = ram.getReferenceKey();
+				final ReferenceKey referenceKey = ofNullable(this.assignedPrimaryKeys.get(new ComparableReferenceKey(ram.getReferenceKey())))
+					.orElse(ram.getReferenceKey());
 				// find the reference schema
 				final String referenceName = referenceKey.referenceName();
 				final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-				// lazy init created / removed references on first attribute mutation
-				createdReferences = createdReferences == null ? createdReferencesSupplier.get() : createdReferences;
 				// if the mutation relate to reference which hasn't been created in the same entity update
-				if (!createdReferences.contains(referenceKey)) {
+				if (!this.createdReferenceKeys.containsKey(referenceKey)) {
 					// access the data store reader of referenced collection
 					final DataStoreReader dataStoreReader = this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType());
 					// and if such is found (collection might not yet exist, but we can still reference to it)
@@ -1968,17 +2025,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									// create a mutation to counterpart reference in the referenced entity
 									// but only if the attribute is visible from that point of view
 									if (attributeVisibleFromOtherSide) {
-										removedReferences = removedReferences == null ?
-											removedReferencesSupplier.apply(
-												referenceKey.primaryKey(),
-												referenceSchema.getReferencedEntityType()
-											) :
-											removedReferences;
 										final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
 											rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
 											ram.getReferenceKey().internalPrimaryKey()
 										);
-										if (!removedReferences.contains(referenceKeyToUpdate)) {
+										if (this.removedReferenceKeys == null || !this.removedReferenceKeys.contains(referenceKeyToUpdate)) {
 											// only if the counterpart reference wasn't removed in the same update
 											registerPropagatedReferenceAttributeMutation(
 												referenceSchema, ram, referenceAttributeMutationsByEntityReference,
@@ -2007,17 +2058,11 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 										// create a mutation to counterpart reference in the referenced entity
 										// but only if the attribute is visible from that point of view
 										if (attributeVisibleFromOtherSide) {
-											removedReferences = removedReferences == null ?
-												removedReferencesSupplier.apply(
-													referenceKey.primaryKey(),
-													referenceSchema.getReferencedEntityType()
-												) :
-												removedReferences;
 											final ReferenceKey referenceKeyToUpdate = new ReferenceKey(
 												rrsc.getName(), this.entityPrimaryKey,
 												ram.getReferenceKey().internalPrimaryKey()
 											);
-											if (!removedReferences.contains(referenceKeyToUpdate)) {
+											if (this.removedReferenceKeys == null || !this.removedReferenceKeys.contains(referenceKeyToUpdate)) {
 												// only if the counterpart reference wasn't removed in the same update
 												// only if the counterpart reference wasn't removed in the same update
 												registerPropagatedReferenceAttributeMutation(
@@ -2330,7 +2375,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 * Method processes reference related mutations by applying create/update/delete operations in
 	 * {@link ReferencesStoragePart#getReferences()}.
 	 */
-	private void updateReferences(@Nonnull EntitySchemaContract entitySchema, @Nonnull ReferenceMutation<?> localMutation) {
+	private void updateReferences(@Nonnull EntitySchema entitySchema, @Nonnull ReferenceMutation<?> localMutation) {
 		// get or create references container
 		final ReferencesStoragePart referencesStorageCnt = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 		// replace or add the mutated reference in the container
@@ -2339,7 +2384,9 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (referenceKey.isKnownInternalPrimaryKey() || referenceKey.isNewReference()) {
 			updatedReference = referencesStorageCnt.replaceOrAddReference(
 				referenceKey,
-				referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract)
+				referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract),
+				() -> entitySchema.getReferenceOrThrowException(referenceKey.referenceName()) instanceof ReflectedReferenceSchemaContract ?
+					MissingReferenceBehavior.ACCEPT_INTERNAL_KEY : MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY
 			);
 		} else if (
 			entitySchema.getReferenceOrThrowException(referenceKey.referenceName())
@@ -2352,7 +2399,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			);
 		} else {
 			updatedReference = referencesStorageCnt.replaceOrAddReference(
-				referenceKey, referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract)
+				referenceKey,
+				referenceContract -> localMutation.mutateLocal(entitySchema, referenceContract),
+				() -> entitySchema.getReferenceOrThrowException(referenceKey.referenceName()) instanceof ReflectedReferenceSchemaContract ?
+					MissingReferenceBehavior.ACCEPT_INTERNAL_KEY : MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY
 			);
 		}
 		// change in entity parts also change the entity itself (we need to update the version)
@@ -2363,7 +2413,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		if (localMutation instanceof ReferenceAttributeMutation referenceAttributesUpdateMutation) {
 			recomputeLanguageOnAttributeUpdate(referenceAttributesUpdateMutation.getAttributeMutation());
 		} else if (localMutation instanceof RemoveReferenceMutation) {
-			removeEntireReference(updatedReference);
+			removeEntireReference(
+				updatedReference,
+				entitySchema.getReferenceOrThrowException(referenceKey.referenceName())
+			);
 		}
 	}
 
@@ -2450,8 +2503,27 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 *
 	 * @param updatedReference body of the removed reference
 	 */
-	private void removeEntireReference(@Nonnull ReferenceContract updatedReference) {
+	private void removeEntireReference(
+		@Nonnull ReferenceContract updatedReference,
+		@Nonnull ReferenceSchema referenceSchema
+	) {
 		final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+
+		// register removed reference key and its representative attribute values
+		if (this.removedRepresentableReferenceKeys == null) {
+			this.removedRepresentableReferenceKeys = CollectionUtils.createHashSet(8);
+		}
+		this.removedRepresentableReferenceKeys.add(
+			new RepresentativeReferenceKey(
+				updatedReference.getReferenceKey(),
+				referenceSchema.getRepresentativeAttributeDefinition().getRepresentativeValues(updatedReference)
+			)
+		);
+		if (this.removedReferenceKeys == null) {
+			this.removedReferenceKeys = CollectionUtils.createHashSet(8);
+		}
+		this.removedReferenceKeys.add(updatedReference.getReferenceKey());
+
 		updatedReference.getAttributeLocales().forEach(locale -> {
 			final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale);
 			if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
