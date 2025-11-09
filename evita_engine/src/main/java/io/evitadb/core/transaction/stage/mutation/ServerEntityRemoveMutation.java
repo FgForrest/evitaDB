@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -87,5 +88,20 @@ public class ServerEntityRemoveMutation extends EntityRemoveMutation implements 
 		// this has already happened in the transactional memory layer
 		// and all schema mutations have been already recorded
 		return Optional.empty();
+	}
+
+	@Nonnull
+	public ServerEntityRemoveMutation mergeWith(@Nonnull ServerEntityRemoveMutation anotherMutation) {
+		Assert.isPremiseValid(
+			this.applyUndoOnError == anotherMutation.applyUndoOnError &&
+			this.verifyConsistency == anotherMutation.verifyConsistency,
+			"Cannot merge two ServerEntityRemoveMutations that differ in applyUndoOnError or verifyConsistency!"
+		);
+		Assert.isPremiseValid(
+			this.getEntityType().equals(anotherMutation.getEntityType()) &&
+			this.getEntityPrimaryKey().equals(anotherMutation.getEntityPrimaryKey()),
+			"Cannot merge two ServerEntityRemoveMutations that target different entities!"
+		);
+		return this;
 	}
 }
