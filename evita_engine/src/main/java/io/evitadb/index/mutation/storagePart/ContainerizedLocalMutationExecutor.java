@@ -177,12 +177,23 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<Locale, AttributesStoragePart> languageSpecificAttributesContainer;
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
-	private Map<ComparableReferenceKey, ReferenceKey> assignedPrimaryKeys;
-	private Map<ReferenceKey, ReferenceKey> createdReferenceKeys = Collections.emptyMap(); // TODO JNO always contains known internal primary keys
-	private Set<ReferenceKey> removedReferenceKeys = null;
-	private Set<RepresentativeReferenceKey> removedRepresentableReferenceKeys = null;
+	private ReferenceKeyManager referenceKeyManager;
 	private Set<Locale> addedLocales;
 	private Set<Locale> removedLocales;
+
+	/**
+	 * Lazily instantiates and returns the reference key manager. This avoids allocating the manager
+	 * when there are no reference-related mutations.
+	 *
+	 * @return the reference key manager instance
+	 */
+	@Nonnull
+	private ReferenceKeyManager getReferenceKeyManager() {
+		if (this.referenceKeyManager == null) {
+			this.referenceKeyManager = new ReferenceKeyManager();
+		}
+		return this.referenceKeyManager;
+	}
 
 	/**
 	 * Retrieves all attribute keys specified in the passed {@link AttributesStoragePart}.
@@ -633,11 +644,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 							primaryReferenceKeys.get(index).referenceKey().internalPrimaryKey(),
 							reference
 						);
-						if (!this.createdReferenceKeys.isEmpty()) {
-							final ReferenceKey originalValue = this.createdReferenceKeys.remove(reference.getReferenceKey());
-							this.createdReferenceKeys.put(newReference.getReferenceKey(), originalValue);
-							this.assignedPrimaryKeys.put(new ComparableReferenceKey(originalValue), newReference.getReferenceKey());
-						}
+						getReferenceKeyManager().reassignReferenceKey(reference.getReferenceKey(), newReference.getReferenceKey());
 						return newReference;
 					}
 				);
@@ -655,7 +662,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					addMutations(
 						localMutations,
 						entityPrimaryKey, ownerEntityPrimaryKey,
-						this.createdReferenceKeys.containsKey(
+						getReferenceKeyManager().isReferenceKeyCreated(
 							new ReferenceKey(rrs.getName(), ownerEntityPrimaryKey, refKey.internalPrimaryKey())
 						),
 						refKey,
@@ -689,7 +696,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									localMutations,
 									entityPrimaryKey,
 									ownerEntityPrimaryKey,
-									this.createdReferenceKeys.containsKey(refKey),
+									getReferenceKeyManager().isReferenceKeyCreated(refKey),
 									refKey,
 									referencedSchemaName, referenceSchema.getName(), referenceAttributeSupplier
 								);
@@ -878,28 +885,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	public void finishLocalMutationExecutionPhase() {
 		if (this.referencesStorageContainer != null) {
-			this.assignedPrimaryKeys = this.referencesStorageContainer.assignMissingIdsAndSort();
-			if (this.assignedPrimaryKeys.isEmpty()) {
-				this.createdReferenceKeys = Collections.emptyMap();
-			} else {
-				this.createdReferenceKeys = CollectionUtils.createHashMap(this.assignedPrimaryKeys.size());
-				for (Entry<ComparableReferenceKey, ReferenceKey> entry : this.assignedPrimaryKeys.entrySet()) {
-					this.createdReferenceKeys.put(entry.getValue(), entry.getKey().referenceKey());
-				}
-			}
+			getReferenceKeyManager().processAssignedPrimaryKeys(this.referencesStorageContainer.assignMissingIdsAndSort());
 		}
 		// when scope changes
 		if (this.initialEntityScope != this.entityContainer.getScope()) {
 			// all references are considered as new for the safe of reflected references propagation
 			final ReferencesStoragePart rsp = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
-			final Reference[] references = rsp.getReferences();
-			this.createdReferenceKeys = CollectionUtils.createHashMap(references.length);
-			for (Reference reference : references) {
-				if (reference.exists()) {
-					final ReferenceKey refKey = reference.getReferenceKey();
-					this.createdReferenceKeys.put(refKey, refKey);
-				}
-			}
+			getReferenceKeyManager().markAllReferencesAsCreated(rsp.getReferences());
 		}
 	}
 
@@ -1204,8 +1196,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	@Nonnull
 	public Map<ComparableReferenceKey, ReferenceKey> getAssignedPrimaryKeys() {
-		return this.assignedPrimaryKeys == null ?
-			Collections.emptyMap() : this.assignedPrimaryKeys;
+		return this.referenceKeyManager == null ?
+			Collections.emptyMap() : this.referenceKeyManager.getAssignedPrimaryKeys();
 	}
 
 	/**
@@ -1662,15 +1654,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	 */
 	@Nonnull
 	private ReferenceKey translateToAssignedReferenceKey(@Nonnull ComparableReferenceKey crk) {
-		final ReferenceKey reassignedKey = this.assignedPrimaryKeys.get(crk);
-		if (reassignedKey == null) {
-			Assert.isPremiseValid(
-				crk.referenceKey().isKnownInternalPrimaryKey(),
-				"Reference key " + crk + " has not been assigned a primary key!"
-			);
-			return crk.referenceKey();
-		}
-		return reassignedKey;
+		return getReferenceKeyManager().translateToAssignedReferenceKey(crk);
 	}
 
 	/**
@@ -1876,8 +1860,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 									// we need to negate the predicate, because we want to insert missing references
 									primaryKeyPredicate.negate(),
 									// we need to take into account references removed in this turn
-									rrk -> this.removedRepresentableReferenceKeys != null &&
-										this.removedRepresentableReferenceKeys.contains(rrk),
+									getReferenceKeyManager()::isRepresentativeReferenceKeyRemoved,
 									implicitMutations
 								);
 							}
@@ -1996,13 +1979,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		for (LocalMutation<?, ?> inputMutation : inputMutations) {
 			// and check if there are any reference attribute mutation
 			if (inputMutation instanceof ReferenceAttributeMutation ram) {
-				final ReferenceKey referenceKey = ofNullable(this.assignedPrimaryKeys.get(new ComparableReferenceKey(ram.getReferenceKey())))
-					.orElse(ram.getReferenceKey());
+				final ReferenceKey referenceKey = getReferenceKeyManager().getAssignedReferenceKey(ram.getReferenceKey());
 				// find the reference schema
 				final String referenceName = referenceKey.referenceName();
 				final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 				// if the mutation relate to reference which hasn't been created in the same entity update
-				if (!this.createdReferenceKeys.containsKey(referenceKey)) {
+				if (!getReferenceKeyManager().isReferenceKeyCreated(referenceKey)) {
 					// access the data store reader of referenced collection
 					final DataStoreReader dataStoreReader = this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType());
 					// and if such is found (collection might not yet exist, but we can still reference to it)
@@ -2029,7 +2011,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 											rrsc.getReflectedReferenceName(), this.entityPrimaryKey,
 											ram.getReferenceKey().internalPrimaryKey()
 										);
-										if (this.removedReferenceKeys == null || !this.removedReferenceKeys.contains(referenceKeyToUpdate)) {
+										if (getReferenceKeyManager().isReferenceKeyNotRemoved(referenceKeyToUpdate)) {
 											// only if the counterpart reference wasn't removed in the same update
 											registerPropagatedReferenceAttributeMutation(
 												referenceSchema, ram, referenceAttributeMutationsByEntityReference,
@@ -2062,7 +2044,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 												rrsc.getName(), this.entityPrimaryKey,
 												ram.getReferenceKey().internalPrimaryKey()
 											);
-											if (this.removedReferenceKeys == null || !this.removedReferenceKeys.contains(referenceKeyToUpdate)) {
+											if (getReferenceKeyManager().isReferenceKeyNotRemoved(referenceKeyToUpdate)) {
 												// only if the counterpart reference wasn't removed in the same update
 												// only if the counterpart reference wasn't removed in the same update
 												registerPropagatedReferenceAttributeMutation(
@@ -2510,19 +2492,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 
 		// register removed reference key and its representative attribute values
-		if (this.removedRepresentableReferenceKeys == null) {
-			this.removedRepresentableReferenceKeys = CollectionUtils.createHashSet(8);
-		}
-		this.removedRepresentableReferenceKeys.add(
-			new RepresentativeReferenceKey(
-				updatedReference.getReferenceKey(),
-				referenceSchema.getRepresentativeAttributeDefinition().getRepresentativeValues(updatedReference)
-			)
+		getReferenceKeyManager().registerRemovedReference(
+			updatedReference.getReferenceKey(),
+			referenceSchema.getRepresentativeAttributeDefinition().getRepresentativeValues(updatedReference)
 		);
-		if (this.removedReferenceKeys == null) {
-			this.removedReferenceKeys = CollectionUtils.createHashSet(8);
-		}
-		this.removedReferenceKeys.add(updatedReference.getReferenceKey());
 
 		updatedReference.getAttributeLocales().forEach(locale -> {
 			final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale);
@@ -2616,5 +2589,226 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Serializable[] representativeAttributeValues
 	) {}
+
+	/**
+	 * Internal class that manages reference keys and their lifecycle during entity mutation operations.
+	 * This class encapsulates the state and operations related to:
+	 *
+	 * - Assigned primary keys - mapping from original to newly assigned reference keys</li>
+	 * - Created reference keys - tracking which references were created in the current mutation</li>
+	 * - Removed reference keys - tracking which references were removed in the current mutation</li>
+	 * - Removed representable reference keys - tracking removed references with their representative attributes</li>
+	 *
+	 * All data structures are allocated lazily to minimize memory footprint when not needed.
+	 */
+	private static class ReferenceKeyManager {
+		/**
+		 * Maps comparable reference keys (without internal PK) to their assigned reference keys (with internal PK).
+		 * Allocated lazily when reference storage container assigns internal PKs.
+		 */
+		private Map<ComparableReferenceKey, ReferenceKey> assignedPrimaryKeys;
+
+		/**
+		 * Maps created reference keys to their original keys before internal PK assignment.
+		 * This always contains reference keys with known internal primary keys.
+		 * Allocated lazily when references with assigned PKs are present.
+		 */
+		private Map<ReferenceKey, ReferenceKey> createdReferenceKeys;
+
+		/**
+		 * Contains reference keys that were removed in the current mutation.
+		 * Allocated lazily when first reference is removed.
+		 */
+		private Set<ReferenceKey> removedReferenceKeys;
+
+		/**
+		 * Contains representative reference keys (reference key + representative attributes) that were removed.
+		 * Used for tracking removed references with their distinguishing attribute values.
+		 * Allocated lazily when first reference is removed.
+		 */
+		private Set<RepresentativeReferenceKey> removedRepresentableReferenceKeys;
+
+		/**
+		 * Processes the assigned primary keys returned from reference storage container after sorting and ID assignment.
+		 * Creates reverse mapping from newly assigned keys to original keys for lookup during mutation propagation.
+		 *
+		 * @param assignedKeys map of comparable keys to their assigned reference keys with internal PKs
+		 */
+		void processAssignedPrimaryKeys(@Nonnull Map<ComparableReferenceKey, ReferenceKey> assignedKeys) {
+			this.assignedPrimaryKeys = assignedKeys;
+			if (assignedKeys.isEmpty()) {
+				this.createdReferenceKeys = Collections.emptyMap();
+			} else {
+				this.createdReferenceKeys = CollectionUtils.createHashMap(assignedKeys.size());
+				for (Entry<ComparableReferenceKey, ReferenceKey> entry : assignedKeys.entrySet()) {
+					final ReferenceKey key = entry.getValue();
+					final ReferenceKey assignedKey = entry.getKey().referenceKey();
+					Assert.isPremiseValid(
+						key.isKnownInternalPrimaryKey(),
+						"Assigned reference key " + key + " must have known internal primary key!"
+					);
+					this.createdReferenceKeys.put(key, assignedKey);
+				}
+			}
+		}
+
+		/**
+		 * Marks all existing references in the provided array as created. This is used when entity scope changes
+		 * and all references need to be considered as newly created for reflected reference propagation purposes.
+		 *
+		 * @param references array of references to mark as created
+		 */
+		void markAllReferencesAsCreated(@Nonnull Reference[] references) {
+			this.createdReferenceKeys = CollectionUtils.createHashMap(references.length);
+			for (Reference reference : references) {
+				if (reference.exists()) {
+					final ReferenceKey refKey = reference.getReferenceKey();
+					Assert.isPremiseValid(
+						refKey.isKnownInternalPrimaryKey(),
+						"Reference key " + refKey + " must have known internal primary key!"
+					);
+					this.createdReferenceKeys.put(refKey, refKey);
+				}
+			}
+		}
+
+		/**
+		 * Handles reference key reassignment during reflected reference internal PK replacement.
+		 * Updates both created and assigned key mappings to reflect the new internal PK.
+		 *
+		 * @param oldKey the old reference key before reassignment
+		 * @param newKey the new reference key with updated internal PK
+		 */
+		void reassignReferenceKey(@Nonnull ReferenceKey oldKey, @Nonnull ReferenceKey newKey) {
+			if (this.createdReferenceKeys != null && !this.createdReferenceKeys.isEmpty()) {
+				final ReferenceKey originalValue = this.createdReferenceKeys.remove(oldKey);
+				if (originalValue != null) {
+					Assert.isPremiseValid(
+						newKey.isKnownInternalPrimaryKey(),
+						"Reassigned reference key " + newKey + " must have known internal primary key!"
+					);
+					this.createdReferenceKeys.put(newKey, originalValue);
+					if (this.assignedPrimaryKeys != null) {
+						this.assignedPrimaryKeys.put(new ComparableReferenceKey(originalValue), newKey);
+					}
+				}
+			}
+		}
+
+		/**
+		 * Checks if the given reference key was created in the current mutation operation.
+		 *
+		 * @param referenceKey the reference key to check
+		 * @return true if the reference was created in this mutation, false otherwise
+		 */
+		boolean isReferenceKeyCreated(@Nonnull ReferenceKey referenceKey) {
+			return this.createdReferenceKeys != null && this.createdReferenceKeys.containsKey(referenceKey);
+		}
+
+		/**
+		 * Checks if the given reference key was removed in the current mutation operation.
+		 *
+		 * @param referenceKey the reference key to check
+		 * @return true if the reference was removed in this mutation, false otherwise
+		 */
+		boolean isReferenceKeyNotRemoved(@Nonnull ReferenceKey referenceKey) {
+			return this.removedReferenceKeys == null || !this.removedReferenceKeys.contains(referenceKey);
+		}
+
+		/**
+		 * Checks if the given representative reference key (with representative attributes) was removed.
+		 *
+		 * @param representativeReferenceKey the representative reference key to check
+		 * @return true if the representative reference was removed, false otherwise
+		 */
+		boolean isRepresentativeReferenceKeyRemoved(@Nonnull RepresentativeReferenceKey representativeReferenceKey) {
+			return this.removedRepresentableReferenceKeys != null &&
+			       this.removedRepresentableReferenceKeys.contains(representativeReferenceKey);
+		}
+
+		/**
+		 * Registers a reference as removed, storing both its key and representative attribute values.
+		 * Lazily allocates removal tracking sets if not already present.
+		 *
+		 * @param referenceKey the key of the removed reference
+		 * @param representativeAttributeValues the representative attribute values of the removed reference
+		 */
+		void registerRemovedReference(
+			@Nonnull ReferenceKey referenceKey,
+			@Nonnull Serializable[] representativeAttributeValues
+		) {
+			if (this.removedRepresentableReferenceKeys == null) {
+				this.removedRepresentableReferenceKeys = CollectionUtils.createHashSet(8);
+			}
+			this.removedRepresentableReferenceKeys.add(
+				new RepresentativeReferenceKey(referenceKey, representativeAttributeValues)
+			);
+
+			if (this.removedReferenceKeys == null) {
+				this.removedReferenceKeys = CollectionUtils.createHashSet(8);
+			}
+			Assert.isPremiseValid(
+				referenceKey.isKnownInternalPrimaryKey(),
+				"Removed reference key " + referenceKey + " must have known internal primary key!"
+			);
+			this.removedReferenceKeys.add(referenceKey);
+		}
+
+		/**
+		 * Translates a comparable reference key to its assigned reference key with internal PK.
+		 * If no assignment exists, validates that the original key has a known internal PK.
+		 *
+		 * @param comparableKey the comparable reference key to translate
+		 * @return the assigned reference key, or the original key if no assignment exists
+		 * @throws AssertionError if the key has no assignment and no known internal PK
+		 */
+		@Nonnull
+		ReferenceKey translateToAssignedReferenceKey(@Nonnull ComparableReferenceKey comparableKey) {
+			if (this.assignedPrimaryKeys == null) {
+				Assert.isPremiseValid(
+					comparableKey.referenceKey().isKnownInternalPrimaryKey(),
+					"Reference key " + comparableKey + " has not been assigned a primary key!"
+				);
+				return comparableKey.referenceKey();
+			}
+
+			final ReferenceKey reassignedKey = this.assignedPrimaryKeys.get(comparableKey);
+			if (reassignedKey == null) {
+				Assert.isPremiseValid(
+					comparableKey.referenceKey().isKnownInternalPrimaryKey(),
+					"Reference key " + comparableKey + " has not been assigned a primary key!"
+				);
+				return comparableKey.referenceKey();
+			}
+			return reassignedKey;
+		}
+
+		/**
+		 * Gets the assigned reference key for a given reference key, looking up via comparable key wrapper.
+		 * Returns the input key if no assignment is found.
+		 *
+		 * @param referenceKey the reference key to look up
+		 * @return the assigned reference key, or the input key if no assignment exists
+		 */
+		@Nonnull
+		ReferenceKey getAssignedReferenceKey(@Nonnull ReferenceKey referenceKey) {
+			if (this.assignedPrimaryKeys == null) {
+				return referenceKey;
+			}
+			return ofNullable(this.assignedPrimaryKeys.get(new ComparableReferenceKey(referenceKey)))
+				.orElse(referenceKey);
+		}
+
+		/**
+		 * Returns the map of assigned primary keys.
+		 *
+		 * @return unmodifiable map of assigned keys, or empty map if no assignments exist
+		 */
+		@Nonnull
+		Map<ComparableReferenceKey, ReferenceKey> getAssignedPrimaryKeys() {
+			return this.assignedPrimaryKeys == null ?
+				Collections.emptyMap() : this.assignedPrimaryKeys;
+		}
+	}
 
 }
