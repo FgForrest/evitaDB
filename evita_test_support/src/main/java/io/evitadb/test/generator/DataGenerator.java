@@ -797,7 +797,9 @@ public class DataGenerator {
 			throw new GenericEvitaInternalError("Cannot generate unique " + attributeName + " even in 1000 iterations!");
 		}
 
-		generatedValueWriter.accept((T) value);
+		if (value != null || attribute.isNullable()) {
+			generatedValueWriter.accept((T) value);
+		}
 	}
 
 	private static <T extends Serializable> T generateRandomDateTimeRange(@Nonnull Faker fakerToUse) {
