@@ -111,7 +111,7 @@ Set up is quite straightforward and consists of three steps:
 
 Example of setting up the engine change capture in Java:
 
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture.java)
 
@@ -320,7 +320,7 @@ The setup consists of:
 
 Example of retrieving catalog change history in Java:
 
-<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
+<SourceCodeTabs setup="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture.java)
 
