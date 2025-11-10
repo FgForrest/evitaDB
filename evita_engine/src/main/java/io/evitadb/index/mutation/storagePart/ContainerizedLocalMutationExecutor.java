@@ -98,6 +98,7 @@ import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart.EntityAsso
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart.EntityAttributesSetKey;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
+import io.evitadb.store.entity.model.entity.EntityBodyStoragePart.LocaleModificationResult;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart.MissingReferenceBehavior;
@@ -190,6 +191,7 @@ public final class ContainerizedLocalMutationExecutor
 	private ReferenceKeyManager referenceKeyManager;
 	private Set<Locale> addedLocales;
 	private Set<Locale> removedLocales;
+	@Getter private int localesIdentityHash;
 
 	/**
 	 * Lazily instantiates and returns the reference key manager. This avoids allocating the manager
@@ -1556,9 +1558,13 @@ public final class ContainerizedLocalMutationExecutor
 		if (attributeMutation instanceof UpsertAttributeMutation) {
 			ofNullable(affectedAttribute.locale())
 				.ifPresent(locale -> {
-					final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
-					if (entityStoragePart.addAttributeLocale(locale)) {
+					final EntityBodyStoragePart ebsp = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
+					final LocaleModificationResult localeModificationResult = ebsp.addAttributeLocale(locale);
+					if (localeModificationResult.entityLocalesChanged()) {
 						registerAddedLocale(locale);
+						this.localesIdentityHash++;
+					} else if (localeModificationResult.attributeLocalesChanged()) {
+						this.localesIdentityHash++;
 					}
 				});
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
@@ -1568,9 +1574,13 @@ public final class ContainerizedLocalMutationExecutor
 					final ReferencesStoragePart referencesStoragePart = getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
 
 					if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
-						final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
-						if (entityStoragePart.removeAttributeLocale(locale)) {
+						final EntityBodyStoragePart ebsp = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
+						final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
+						if (localeModificationResult.entityLocalesChanged()) {
 							registerRemovedLocale(locale);
+							this.localesIdentityHash++;
+						} else if (localeModificationResult.attributeLocalesChanged()) {
+							this.localesIdentityHash++;
 						}
 					}
 				});
@@ -2071,7 +2081,6 @@ public final class ContainerizedLocalMutationExecutor
 							return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(epk);
 						};
 					}
-					/* TODO JNO - bacha, tady to může generovat duplicitní entity server mutation na stejnou entity - musí se agregovat!! */
 					switch (createMode) {
 						case INSERT_MISSING -> {
 							if (existingEntityPks == null && referenceSchema instanceof ReflectedReferenceSchema && !referencedPrimaryKeys.isEmpty()) {
@@ -2776,9 +2785,13 @@ public final class ContainerizedLocalMutationExecutor
 		updatedReference.getAttributeLocales().forEach(locale -> {
 			final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(this.entityType, this.entityPrimaryKey, locale);
 			if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
-				final EntityBodyStoragePart entityStoragePart = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
-				if (entityStoragePart.removeAttributeLocale(locale)) {
+				final EntityBodyStoragePart ebsp = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
+				final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
+				if (localeModificationResult.entityLocalesChanged()) {
 					registerRemovedLocale(locale);
+					this.localesIdentityHash++;
+				} else if (localeModificationResult.attributeLocalesChanged()) {
+					this.localesIdentityHash++;
 				}
 			}
 		});

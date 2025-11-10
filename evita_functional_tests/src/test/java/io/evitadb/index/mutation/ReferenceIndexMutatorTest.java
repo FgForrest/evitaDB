@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
@@ -94,10 +95,10 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			Entities.BRAND,
 			Cardinality.ZERO_OR_ONE,
 			thatIs -> {
-				thatIs.withAttribute(ATTRIBUTE_BRAND_CODE, String.class, whichIs -> whichIs.unique());
-				thatIs.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterable());
+				thatIs.withAttribute(ATTRIBUTE_BRAND_CODE, String.class, AttributeSchemaEditor::unique);
+				thatIs.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, AttributeSchemaEditor::filterable);
 				thatIs.withAttribute(ATTRIBUTE_VARIANT_COUNT, Integer.class, whichIs -> whichIs.sortable().filterable());
-				thatIs.withAttribute(ATTRIBUTE_CHAR_ARRAY, Character[].class, whichIs -> whichIs.filterable());
+				thatIs.withAttribute(ATTRIBUTE_CHAR_ARRAY, Character[].class, AttributeSchemaEditor::filterable);
 			});
 	}
 
@@ -126,17 +127,23 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
+			referenceIndex,
+			referenceIndex,
 			referenceSchema, new RepresentativeReferenceKey(referenceMutation.getReferenceKey()), referenceMutation.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A"));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
+			referenceIndex,
+			referenceIndex,
 			referenceSchema, new RepresentativeReferenceKey(a.getReferenceKey()), a.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001"));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
+			referenceIndex,
+			referenceIndex,
 			referenceSchema, new RepresentativeReferenceKey(referenceMutation1.getReferenceKey()), referenceMutation1.getAttributeMutation()
 		);
 

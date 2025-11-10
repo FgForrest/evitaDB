@@ -520,12 +520,14 @@ public class ReferencesStoragePart implements EntityStoragePart {
 		final int index = findReferenceIndex(referenceKey);
 		if (index < 0 || !this.references[index].exists()) {
 			return Optional.empty();
-		} else {
+		} else if (referenceKey.isUnknownReference()) {
 			Assert.isPremiseValid(
 				index + 1 == this.references.length ||
 					!this.references[index + 1].getReferenceKey().equals(referenceKey),
 				() -> "There is more than one reference " + referenceKey + " for entity `" + this.entityPrimaryKey + "`!"
 			);
+			return Optional.of(this.references[index]);
+		} else {
 			return Optional.of(this.references[index]);
 		}
 	}

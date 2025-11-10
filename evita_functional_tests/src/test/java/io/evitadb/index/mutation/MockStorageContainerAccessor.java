@@ -59,6 +59,7 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 	@Getter private final Set<Locale> addedLocales = new HashSet<>();
 	@Getter private final Set<Locale> removedLocales = new HashSet<>();
+	@Getter private int localesIdentityHash;
 
 	@Override
 	public boolean isEntityRemovedEntirely() {

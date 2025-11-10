@@ -40,6 +40,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 class MemoizedLocalesObsoleteChecker {
 	private final WritableEntityStorageContainerAccessor containerAccessor;
+	private int localesIdentityHash = -1;
 	private Set<Locale> memoizedAddedLocales;
 	private Set<Locale> memoizedRemovedLocales;
 
@@ -55,16 +56,18 @@ class MemoizedLocalesObsoleteChecker {
 	public boolean isLocalesObsolete() {
 		final Set<Locale> currentAddedLocales = this.containerAccessor.getAddedLocales();
 		final Set<Locale> currentRemovedLocales = this.containerAccessor.getRemovedLocales();
+		final int currentLocalesHash = this.containerAccessor.getLocalesIdentityHash();
+
 		final boolean localesObsolete;
 		if (this.memoizedAddedLocales == null || this.memoizedRemovedLocales == null) {
 			localesObsolete = true;
 		} else {
-			localesObsolete = !currentAddedLocales.equals(this.memoizedAddedLocales) ||
-				!currentRemovedLocales.equals(this.memoizedRemovedLocales);
+			localesObsolete = currentLocalesHash != this.localesIdentityHash;
 		}
 		if (localesObsolete) {
 			this.memoizedAddedLocales = new HashSet<>(currentAddedLocales);
 			this.memoizedRemovedLocales = new HashSet<>(currentRemovedLocales);
+			this.localesIdentityHash = currentLocalesHash;
 		}
 		return localesObsolete;
 	}
