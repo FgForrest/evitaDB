@@ -32,6 +32,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.index.dataAccess.ExistingPriceSupplier;
 import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
@@ -100,13 +101,13 @@ public interface PriceIndexMutator {
 		@Nonnull PriceInternalIdProvider internalIdSupplier,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
 		final Scope scope = entityIndex.getIndexKey().scope();
 		if (entitySchema.isPriceIndexedInScope(scope)) {
 			// remove former price first
 			if (formerPrice != null && formerPrice.exists() && formerPrice.indexed()) {
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX, Target.EXISTING);
 				final int formerInternalPriceId = formerPrice.getInternalPriceId();
 				final Integer formerInnerRecordId = formerPrice.innerRecordId();
 				final DateTimeRange formerValidity = formerPrice.validity();
@@ -114,7 +115,7 @@ public interface PriceIndexMutator {
 				final int formerPriceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
 				entityIndex.priceRemove(
 					referenceSchema,
-					entityPrimaryKey,
+					epkForRemoval,
 					formerInternalPriceId,
 					priceKey, innerRecordHandling, formerInnerRecordId,
 					formerValidity,
@@ -125,7 +126,7 @@ public interface PriceIndexMutator {
 					undoActionConsumer.accept(
 						() -> entityIndex.addPrice(
 							referenceSchema,
-							entityPrimaryKey,
+							epkForRemoval,
 							formerInternalPriceId,
 							priceKey, innerRecordHandling, formerInnerRecordId,
 							formerValidity,
@@ -137,12 +138,13 @@ public interface PriceIndexMutator {
 			}
 			// now insert new price
 			if (indexed) {
+				final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX, Target.NEW);
 				final int internalPriceId = internalIdSupplier.getInternalPriceId(priceKey, innerRecordId);
 				final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
 				final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
 				final int priceId = entityIndex.addPrice(
 					referenceSchema,
-					entityPrimaryKey,
+					epkForUpsert,
 					internalPriceId,
 					priceKey, innerRecordHandling, innerRecordId,
 					validity,
@@ -153,7 +155,7 @@ public interface PriceIndexMutator {
 					undoActionConsumer.accept(
 						() -> entityIndex.priceRemove(
 							referenceSchema,
-							entityPrimaryKey,
+							epkForUpsert,
 							priceId,
 							priceKey, innerRecordHandling, innerRecordId,
 							validity,
@@ -195,7 +197,6 @@ public interface PriceIndexMutator {
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX);
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
 
@@ -203,6 +204,7 @@ public interface PriceIndexMutator {
 		if (entitySchema.isPriceIndexedInScope(scope)) {
 			if (formerPrice != null) {
 				if (formerPrice.exists() && formerPrice.indexed()) {
+					final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.PRICE_INDEX, Target.EXISTING);
 					final Integer internalPriceIdRef = formerPrice.getInternalPriceId();
 					Assert.isPremiseValid(internalPriceIdRef != null, "Price " + priceKey + " doesn't have internal id!");
 					final int internalPriceId = internalPriceIdRef;
@@ -212,7 +214,7 @@ public interface PriceIndexMutator {
 					final int priceWithTax = NumberUtils.convertExternalNumberToInt(formerPrice.priceWithTax(), indexedPricePlaces);
 					entityIndex.priceRemove(
 						referenceSchema,
-						entityPrimaryKey,
+						epkForRemoval,
 						internalPriceId,
 						priceKey,
 						innerRecordHandling,
@@ -225,7 +227,7 @@ public interface PriceIndexMutator {
 						undoActionConsumer.accept(
 							() -> entityIndex.addPrice(
 								referenceSchema,
-								entityPrimaryKey,
+								epkForRemoval,
 								internalPriceId,
 								priceKey,
 								innerRecordHandling,

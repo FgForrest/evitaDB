@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,5 +80,14 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	 */
 	@Nonnull
 	Set<Locale> getRemovedLocales();
+
+	/**
+	 * Returns identity hash code representing current state of locales (added + removed), which takes also difference
+	 * in attribute locales into account (this is not reflected in added/removed locales in methods {@link #getAddedLocales()}
+	 * and {@link #getRemovedLocales()}).
+	 *
+	 * @return identity hash code of a current locales state, which changes when locales are added/removed
+	 */
+	int getLocalesIdentityHash();
 
 }

@@ -38,12 +38,13 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.index.mutation.index.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.index.dataAccess.ExistingPriceSupplier;
@@ -58,7 +59,6 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -95,16 +95,12 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} for all entities that are currently referenced.
 	 */
 	static void executeWithReferenceIndexes(
-		int entityPrimaryKey,
-		@Nonnull GlobalEntityIndex globalIndex,
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull BiConsumer<ReferenceSchemaContract, ReducedEntityIndex> referenceIndexConsumer,
+		@Nonnull TriConsumer<ReferenceSchemaContract, ReducedEntityIndex, ReducedEntityIndex> referenceIndexConsumer,
 		boolean referencePresenceExpected
 	) {
 		executeWithReferenceIndexes(
-			entityPrimaryKey,
-			globalIndex,
 			indexType,
 			executor,
 			referenceIndexConsumer,
@@ -118,11 +114,9 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} for all entities that are currently referenced.
 	 */
 	static void executeWithReferenceIndexes(
-		int entityPrimaryKey,
-		@Nonnull GlobalEntityIndex globalIndex,
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull BiConsumer<ReferenceSchemaContract, ReducedEntityIndex> referenceIndexConsumer,
+		@Nonnull TriConsumer<ReferenceSchemaContract, ReducedEntityIndex, ReducedEntityIndex> referenceIndexConsumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
 		boolean referencePresenceExpected
 	) {
@@ -133,13 +127,30 @@ public interface ReferenceIndexMutator {
 			referenceSchema = referenceSchema == null || !Objects.equals(
 				referenceSchema.getName(), reference.getReferenceName()) ?
 				reference.getReferenceSchemaOrThrow() : referenceSchema;
-			if (reference.exists() && isIndexedReferenceFor(
-				referenceSchema, scope, indexType) && referencePredicate.test(reference)) {
-				final RepresentativeReferenceKey rrk = executor.getRepresentativeReferenceKey(
-					entityPrimaryKey, globalIndex, reference.getReferenceKey(), referenceSchema, referencePresenceExpected
+			if (
+				reference.exists() &&
+					isIndexedReferenceFor(referenceSchema, scope, indexType) &&
+					referencePredicate.test(reference)
+			) {
+				final ReferenceKey referenceKey = reference.getReferenceKey();
+				final RepresentativeReferenceKeys bothKeys = executor.getRepresentativeReferenceKeys(
+					referenceKey, referencePresenceExpected
 				);
-				final ReducedEntityIndex targetIndex = getOrCreateReferencedEntityIndex(executor, rrk, scope);
-				referenceIndexConsumer.accept(referenceSchema, targetIndex);
+
+				/*
+				final ReducedEntityIndex indexForUpsert = getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
+				// when the reference has known internal primary key and the keys differ, it means it was already stored
+				// with different primary key - so we need to use different index for removal
+				final ReducedEntityIndex indexForRemoval = bothKeys.differ() && referenceKey.isKnownInternalPrimaryKey() ?
+					getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope) : indexForUpsert;
+
+				referenceIndexConsumer.accept(referenceSchema, indexForRemoval, indexForUpsert);
+				 */
+
+				final ReducedEntityIndex indexToUse = referenceKey.isKnownInternalPrimaryKey() ?
+					getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope) :
+					getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
+				referenceIndexConsumer.accept(referenceSchema, indexToUse, indexToUse);
 			}
 		}
 	}
@@ -274,14 +285,15 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Method allows to process all attribute mutations in referenced entities of the entity. Method uses
-	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(ReferenceSchemaContract, AttributeMutation, AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, EntityIndex, boolean, boolean)}
+	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(ReferenceSchemaContract, AttributeMutation, AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, EntityIndex, EntityIndex, boolean, boolean)}
 	 * to do that.
 	 */
 	static void attributeUpdate(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ExistingDataSupplierFactory attributeSupplierFactory,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull ReducedEntityIndex referenceIndex,
+		@Nonnull ReducedEntityIndex indexForRemoval,
+		@Nonnull ReducedEntityIndex indexForUpsert,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeMutation attributeMutation
@@ -298,12 +310,17 @@ public interface ReferenceIndexMutator {
 		);
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			indexType -> referenceIndex.getPrimaryKey(),
+			(indexType, target) ->
+				switch (target) {
+					case EXISTING -> indexForRemoval.getPrimaryKey();
+					case NEW -> indexForUpsert.getPrimaryKey();
+				},
 			() -> executor.updateAttribute(
 				referenceSchema,
 				attributeMutation,
 				attributeSchemaProvider,
 				existingValueAccessorFactory,
+				referenceTypeIndex,
 				referenceTypeIndex,
 				false,
 				false
@@ -320,7 +337,8 @@ public interface ReferenceIndexMutator {
 				attributeMutation,
 				attributeSchemaProvider,
 				existingValueAccessorFactory,
-				referenceIndex,
+				indexForRemoval,
+				indexForUpsert,
 				false,
 				true
 			)
@@ -363,9 +381,10 @@ public interface ReferenceIndexMutator {
 
 		// index all reference attributes to the reference type index
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
-			representativeReferenceKey);
+			representativeReferenceKey
+		);
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			indexType -> pkForReferenceTypeIndex,
+			(indexType, target) -> pkForReferenceTypeIndex,
 			() -> referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeUpsert(
@@ -373,6 +392,7 @@ public interface ReferenceIndexMutator {
 					referenceSchema,
 					attributeSchemaProvider,
 					NO_EXISTING_VALUE_SUPPLIER,
+					referenceTypeIndex,
 					referenceTypeIndex,
 					attributeValue.key(),
 					Objects.requireNonNull(attributeValue.value()),
@@ -442,7 +462,7 @@ public interface ReferenceIndexMutator {
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
 			representativeReferenceKey);
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			indexType -> pkForReferenceTypeIndex,
+			(indexType, target) -> pkForReferenceTypeIndex,
 			() -> referenceAttributeValueSupplier
 				.getAttributeValues()
 				.forEach(attributeValue -> AttributeIndexMutator.executeAttributeRemoval(
@@ -450,6 +470,7 @@ public interface ReferenceIndexMutator {
 					referenceSchema,
 					attributeSchemaProvider,
 					referenceAttributeValueSupplier,
+					referenceTypeIndex,
 					referenceTypeIndex,
 					attributeValue.key(),
 					false,
@@ -752,7 +773,7 @@ public interface ReferenceIndexMutator {
 		final AttributeSchema attributeSchema = attributeSchemaProvider.apply(attributeName);
 		if (ReferencedEntityPredecessor.class.isAssignableFrom(attributeSchema.getPlainType())) {
 			executor.executeWithDifferentPrimaryKeyToIndex(
-				indexType -> primaryKeyToIndex, lambda
+				(indexType, target) -> primaryKeyToIndex, lambda
 			);
 		} else {
 			lambda.run();
@@ -894,19 +915,21 @@ public interface ReferenceIndexMutator {
 
 			existingDataSupplierFactory.getEntityAttributeValueSupplier()
 				.getAttributeValues()
-				.forEach(attribute ->
-					         AttributeIndexMutator.executeAttributeUpsert(
-						         executor,
-						         referenceSchema,
-						         attributeSchemaProvider,
-						         NO_EXISTING_VALUE_SUPPLIER,
-						         targetIndex,
-						         attribute.key(),
-						         Objects.requireNonNull(attribute.value()),
-						         false,
-						         false,
-						         undoActionConsumer
-					         )
+				.forEach(
+					attribute ->
+						AttributeIndexMutator.executeAttributeUpsert(
+							executor,
+							referenceSchema,
+							attributeSchemaProvider,
+							NO_EXISTING_VALUE_SUPPLIER,
+							targetIndex,
+							targetIndex,
+							attribute.key(),
+							Objects.requireNonNull(attribute.value()),
+							false,
+							false,
+							undoActionConsumer
+						)
 				);
 		}
 
@@ -919,13 +942,16 @@ public interface ReferenceIndexMutator {
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
-					         executor, rrk.primaryKey(), attribute.key().attributeName(),
+					         executor,
+					         rrk.primaryKey(),
+					         attribute.key().attributeName(),
 					         referenceSchemaAttributeProvider::getAttributeSchema,
 					         () -> AttributeIndexMutator.executeAttributeUpsert(
 						         executor,
 						         referenceSchema,
 						         referenceSchemaAttributeProvider,
 						         NO_EXISTING_VALUE_SUPPLIER,
+						         targetIndex,
 						         targetIndex,
 						         attribute.key(),
 						         Objects.requireNonNull(attribute.value()),
@@ -1092,6 +1118,7 @@ public interface ReferenceIndexMutator {
 						         attributeSchemaProvider,
 						         existingDataSupplierFactory.getEntityAttributeValueSupplier(),
 						         targetIndex,
+						         targetIndex,
 						         attribute.key(),
 						         false,
 						         false,
@@ -1111,13 +1138,16 @@ public interface ReferenceIndexMutator {
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
-					         executor, referenceKey.primaryKey(), attribute.key().attributeName(),
+					         executor,
+					         referenceKey.primaryKey(),
+					         attribute.key().attributeName(),
 					         referenceSchemaAttributeProvider::getAttributeSchema,
 					         () -> AttributeIndexMutator.executeAttributeRemoval(
 						         executor,
 						         referenceSchema,
 						         referenceSchemaAttributeProvider,
 						         referenceAttributeValueSupplier,
+						         targetIndex,
 						         targetIndex,
 						         attribute.key(),
 						         false,
