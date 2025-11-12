@@ -670,6 +670,12 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	}
 
 	@Override
+	public EntityBuilder removeAllPrices() {
+		this.pricesBuilder.removeAllPrices();
+		return this;
+	}
+
+	@Override
 	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.pricesBuilder.setPriceInnerRecordHandling(priceInnerRecordHandling);
 		return this;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -205,13 +205,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 *
 	 * @return builder instance to allow command chaining
 	 */
-	default W removeAllPrices() {
-		for (PriceContract price : getPrices()) {
-			removePrice(price.priceId(), price.priceList(), price.currency());
-		}
-		//noinspection unchecked
-		return (W) this;
-	}
+	W removeAllPrices();
 
 	/**
 	 * Sets behaviour for prices that has {@link Price#innerRecordId()} set in terms of computing the "selling" price.
