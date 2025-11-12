@@ -201,6 +201,13 @@ public class InitialPricesBuilder implements PricesBuilder {
 	}
 
 	@Override
+	public PricesBuilder removeAllPrices() {
+		assertPricesAllowed(this.entitySchema);
+		this.prices.clear();
+		return this;
+	}
+
+	@Override
 	public PricesBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		assertPricesAllowed(this.entitySchema);
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
