@@ -240,7 +240,7 @@ The CDC stream will now send `ChangeSystemCapture` objects wrapped into `next` m
 
 Example of setting up the engine change capture in REST over WebSocket API:
 
-<SourceAlternativeTabs variants="REST">
+<SourceAlternativeTabs variants="rest">
 
 [Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture-rest.json)
 
