@@ -90,7 +90,7 @@ The WebSocket URLs are the same as for the query/mutation requests.
 
 <NoteTitle toggles="true">
 
-#### REST over WebSocket protocol
+##### REST over WebSocket protocol
 
 </NoteTitle>
 
@@ -240,11 +240,13 @@ The CDC stream will now send `ChangeSystemCapture` objects wrapped into `next` m
 
 Example of setting up the engine change capture in REST over WebSocket API:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceAlternativeTabs variants="REST">
 
 [Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture-rest.json)
 
-</SourceCodeTabs>
+</SourceAlternativeTabs>
+
+The subscriber will start receiving change events as soon as they occur in the engine. The subscriber's `Complete` method is never called since the change stream is infinite.
 
 </LS>
 </LS>
@@ -303,11 +305,13 @@ The setup is quite straightforward: simply define one subscription with the desi
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture.graphql)
 
 </SourceCodeTabs>
+
+The subscriber will start receiving change events as soon as they occur in the engine. The subscriber's `Complete` method is never called since the change stream is infinite.
 
 </LS>
 
