@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
+package io.evitadb.externalApi.api.system.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
@@ -34,10 +34,10 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.DelegatingMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine.*;
+import io.evitadb.externalApi.api.resolver.mutation.DelegatingMutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.system.resolver.mutation.engine.*;
 import io.evitadb.externalApi.api.transaction.resolver.mutation.TransactionMutationConverter;
 import lombok.AccessLevel;
 import lombok.Getter;

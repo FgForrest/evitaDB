@@ -26,10 +26,12 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.system.model.mutation.engine.EngineMutationDescriptor;
 import io.evitadb.externalApi.api.system.model.mutation.engine.SetCatalogMutabilityMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
+import io.evitadb.externalApi.api.system.resolver.mutation.engine.MakeCatalogAliveMutationConverter;
+import io.evitadb.externalApi.api.system.resolver.mutation.engine.SetCatalogMutabilityMutationConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

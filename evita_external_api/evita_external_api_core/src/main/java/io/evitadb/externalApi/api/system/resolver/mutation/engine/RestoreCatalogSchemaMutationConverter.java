@@ -21,25 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link EngineMutationConverter} for resolving {@link CreateCatalogSchemaMutation}.
- * This converter handles the conversion of external API requests into catalog schema creation mutations,
- * enabling the creation of new catalog schemas through the external API.
+ * Implementation of {@link EngineMutationConverter} for resolving {@link RestoreCatalogSchemaMutation}.
+ * This converter handles the conversion of external API requests into catalog schema restoration mutations,
+ * enabling the restoration of catalog schemas in INACTIVE state through the external API.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class CreateCatalogSchemaMutationConverter
-	extends EngineMutationConverter<CreateCatalogSchemaMutation> {
+public class RestoreCatalogSchemaMutationConverter
+	extends EngineMutationConverter<RestoreCatalogSchemaMutation> {
 
-	public CreateCatalogSchemaMutationConverter(
+	public RestoreCatalogSchemaMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
@@ -48,7 +48,7 @@ public class CreateCatalogSchemaMutationConverter
 
 	@Nonnull
 	@Override
-	protected Class<CreateCatalogSchemaMutation> getMutationClass() {
-		return CreateCatalogSchemaMutation.class;
+	protected Class<RestoreCatalogSchemaMutation> getMutationClass() {
+		return RestoreCatalogSchemaMutation.class;
 	}
 }

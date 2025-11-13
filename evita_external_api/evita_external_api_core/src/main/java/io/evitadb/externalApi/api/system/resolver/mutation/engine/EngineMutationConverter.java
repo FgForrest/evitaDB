@@ -21,34 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link EngineMutationConverter} for resolving {@link SetCatalogStateMutation}.
- * This converter handles the conversion of external API requests into catalog state mutations,
- * enabling the control of catalog active/inactive state through the external API.
+ * Abstract base implementation for {@link SchemaMutationConverter}s that handle top-level catalog schema mutations.
+ * This converter serves as an ancestor for all converters that process {@link TopLevelCatalogSchemaMutation}s,
+ * providing common functionality for resolving mutations that affect the catalog schema at the top level.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SetCatalogStateMutationConverter
-	extends EngineMutationConverter<SetCatalogStateMutation> {
+public abstract class EngineMutationConverter<M extends EngineMutation<?>>
+	extends MutationConverter<M> {
 
-	public SetCatalogStateMutationConverter(
+	protected EngineMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);
-	}
-
-	@Nonnull
-	@Override
-	protected Class<SetCatalogStateMutation> getMutationClass() {
-		return SetCatalogStateMutation.class;
 	}
 }

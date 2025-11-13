@@ -1,5 +1,5 @@
 subscription {
-  onProductDataChangeUntyped(
+  onProductDataChange(
     entityPrimaryKey: 745,
     containerType: [ATTRIBUTE],
     containerName: ["quantityOnStock"]
@@ -7,6 +7,16 @@ subscription {
     version
     index
     operation
-    body
+    body {
+      ... on UpsertAttributeMutation {
+        value
+      }
+      ... on RemoveAttributeMutation {
+        name
+      }
+      ... on ApplyDeltaAttributeMutation {
+        delta
+      }
+    }
   }
 }

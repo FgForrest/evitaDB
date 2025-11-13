@@ -21,25 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog.LocalCatalogSchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link EngineMutationConverter} for resolving {@link DuplicateCatalogMutation}.
- * This converter handles the conversion of external API requests into catalog duplication mutations,
- * enabling the duplication of existing catalogs through the external API.
+ * Implementation of {@link LocalCatalogSchemaMutationConverter} for resolving {@link ModifyCatalogSchemaNameMutation}.
+ * This converter handles the conversion of external API requests into catalog schema name modification mutations,
+ * enabling renaming of existing catalog schemas through the external API.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DuplicateCatalogMutationConverter
-	extends EngineMutationConverter<DuplicateCatalogMutation> {
+public class ModifyCatalogSchemaNameMutationConverter
+	extends EngineMutationConverter<ModifyCatalogSchemaNameMutation> {
 
-	public DuplicateCatalogMutationConverter(
+	public ModifyCatalogSchemaNameMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
@@ -48,7 +49,8 @@ public class DuplicateCatalogMutationConverter
 
 	@Nonnull
 	@Override
-	protected Class<DuplicateCatalogMutation> getMutationClass() {
-		return DuplicateCatalogMutation.class;
+	protected Class<ModifyCatalogSchemaNameMutation> getMutationClass() {
+		return ModifyCatalogSchemaNameMutation.class;
 	}
+
 }

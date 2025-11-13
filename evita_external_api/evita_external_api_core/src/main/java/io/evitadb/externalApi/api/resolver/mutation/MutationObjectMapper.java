@@ -21,33 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.resolver.mutation;
-
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+package io.evitadb.externalApi.api.resolver.mutation;
 
 import javax.annotation.Nullable;
+import java.util.Map;
 
 /**
- * Implementation of {@link MutationObjectMapper} which doesn't do any parsing, just passes input data through.
- * This expects that input data are correctly converted to data expected by {@link MutationConverter}s.
+ * Parses input data structure specific to API into common Java structures needed by {@link MutationConverter}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class PassThroughMutationObjectMapper implements MutationObjectMapper {
+public interface MutationObjectMapper {
 
-	public static final PassThroughMutationObjectMapper INSTANCE = new PassThroughMutationObjectMapper();
-
+	/**
+	 * Parses raw object in API's representation representing mutation. It can be nested object or single value (e.g. boolean).
+	 * This object must be parsed into Java primitive type or generic {@link Map} representing nested object.
+	 */
 	@Nullable
-	@Override
-	public Object parse(@Nullable Object inputMutationObject) {
-		return inputMutationObject;
-	}
+	Object parse(@Nullable Object inputMutationObject);
 
+	/**
+	 * Serializes Java object representing mutation into API's specific representation. It can be nested object or single value (e.g. boolean).
+	 * This object must be serialized from Java primitive type or generic {@link Map} representing nested object into API's format.
+	 */
 	@Nullable
-	@Override
-	public Object serialize(@Nullable Object outputMutationObject) {
-		return outputMutationObject;
-	}
+	Object serialize(@Nullable Object outputMutationObject);
 }

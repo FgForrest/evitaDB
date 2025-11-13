@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,26 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.resolver.mutation;
+package io.evitadb.externalApi.api.resolver.mutation;
 
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Factory for exceptions for {@link MutationConverter}s
+ * Implementation of {@link MutationObjectMapper} which doesn't do any parsing, just passes input data through.
+ * This expects that input data are correctly converted to data expected by {@link MutationConverter}s.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface MutationResolvingExceptionFactory {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class PassThroughMutationObjectMapper implements MutationObjectMapper {
 
-	@Nonnull
-	<T extends EvitaInternalError> T createInternalError(@Nonnull String message);
+	public static final PassThroughMutationObjectMapper INSTANCE = new PassThroughMutationObjectMapper();
 
-	@Nonnull
-	<T extends EvitaInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause);
+	@Nullable
+	@Override
+	public Object parse(@Nullable Object inputMutationObject) {
+		return inputMutationObject;
+	}
 
-	@Nonnull
-	<T extends EvitaInvalidUsageException> T createInvalidArgumentException(@Nonnull String message);
+	@Nullable
+	@Override
+	public Object serialize(@Nullable Object outputMutationObject) {
+		return outputMutationObject;
+	}
 }

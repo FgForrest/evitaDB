@@ -21,7 +21,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.dataApi.model;
 	exports io.evitadb.externalApi.api.model;
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
-	exports io.evitadb.externalApi.api.catalog.resolver.mutation;
+	exports io.evitadb.externalApi.api.resolver.mutation;
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation;
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.associatedData;
 	exports io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute;
@@ -64,10 +64,11 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.utils.path.routing.cache;
 	exports io.evitadb.externalApi.serialization;
 	exports io.evitadb.externalApi.event;
-	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+	exports io.evitadb.externalApi.api.system.resolver.mutation.engine;
 	exports io.evitadb.externalApi.api.transaction.resolver.mutation;
 	exports io.evitadb.externalApi.api.system.model.mutation.engine;
 	exports io.evitadb.externalApi.api.model.mutation;
+	exports io.evitadb.externalApi.api.system.resolver.mutation;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;

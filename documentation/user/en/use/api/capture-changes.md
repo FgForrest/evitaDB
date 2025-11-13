@@ -688,9 +688,9 @@ key `745` starting from the next version of the catalogue.
 
 </LS>
 
-### Frequently asked questions regarding a change capture mechanism
-
 <LS to="j">
+
+### Frequently asked questions regarding a change capture mechanism
 
 <Note type="question">
 

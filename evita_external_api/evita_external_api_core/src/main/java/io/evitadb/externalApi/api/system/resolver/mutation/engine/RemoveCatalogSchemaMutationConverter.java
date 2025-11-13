@@ -21,31 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
-import io.evitadb.api.requestResponse.mutation.EngineMutation;
-import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
 
 /**
- * Abstract base implementation for {@link SchemaMutationConverter}s that handle top-level catalog schema mutations.
- * This converter serves as an ancestor for all converters that process {@link TopLevelCatalogSchemaMutation}s,
- * providing common functionality for resolving mutations that affect the catalog schema at the top level.
+ * Implementation of {@link EngineMutationConverter} for resolving {@link RemoveCatalogSchemaMutation}.
+ * This converter handles the conversion of external API requests into catalog schema removal mutations,
+ * enabling deletion of existing catalog schemas through the external API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class EngineMutationConverter<M extends EngineMutation<?>>
-	extends MutationConverter<M> {
+public class RemoveCatalogSchemaMutationConverter
+	extends EngineMutationConverter<RemoveCatalogSchemaMutation> {
 
-	protected EngineMutationConverter(
+	public RemoveCatalogSchemaMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectParser, exceptionFactory);
 	}
+
+	@Nonnull
+	@Override
+	protected Class<RemoveCatalogSchemaMutation> getMutationClass() {
+		return RemoveCatalogSchemaMutation.class;
+	}
+
 }

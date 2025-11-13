@@ -21,29 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.resolver.mutation;
+package io.evitadb.externalApi.api.resolver.mutation;
 
-import javax.annotation.Nullable;
-import java.util.Map;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
+
+import javax.annotation.Nonnull;
 
 /**
- * Parses input data structure specific to API into common Java structures needed by {@link MutationConverter}s.
+ * Factory for exceptions for {@link MutationConverter}s
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface MutationObjectMapper {
+public interface MutationResolvingExceptionFactory {
 
-	/**
-	 * Parses raw object in API's representation representing mutation. It can be nested object or single value (e.g. boolean).
-	 * This object must be parsed into Java primitive type or generic {@link Map} representing nested object.
-	 */
-	@Nullable
-	Object parse(@Nullable Object inputMutationObject);
+	@Nonnull
+	<T extends EvitaInternalError> T createInternalError(@Nonnull String message);
 
-	/**
-	 * Serializes Java object representing mutation into API's specific representation. It can be nested object or single value (e.g. boolean).
-	 * This object must be serialized from Java primitive type or generic {@link Map} representing nested object into API's format.
-	 */
-	@Nullable
-	Object serialize(@Nullable Object outputMutationObject);
+	@Nonnull
+	<T extends EvitaInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause);
+
+	@Nonnull
+	<T extends EvitaInvalidUsageException> T createInvalidArgumentException(@Nonnull String message);
 }

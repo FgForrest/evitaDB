@@ -21,25 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link EngineMutationConverter} for resolving {@link RestoreCatalogSchemaMutation}.
- * This converter handles the conversion of external API requests into catalog schema restoration mutations,
- * enabling the restoration of catalog schemas in INACTIVE state through the external API.
+ * Implementation of {@link EngineMutationConverter} for resolving {@link SetCatalogMutabilityMutation}.
+ * This converter handles the conversion of external API requests into catalog mutability mutations,
+ * enabling the control of catalog read-only/read-write state through the external API.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class RestoreCatalogSchemaMutationConverter
-	extends EngineMutationConverter<RestoreCatalogSchemaMutation> {
+public class SetCatalogMutabilityMutationConverter
+	extends EngineMutationConverter<SetCatalogMutabilityMutation> {
 
-	public RestoreCatalogSchemaMutationConverter(
+	public SetCatalogMutabilityMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
@@ -48,7 +48,7 @@ public class RestoreCatalogSchemaMutationConverter
 
 	@Nonnull
 	@Override
-	protected Class<RestoreCatalogSchemaMutation> getMutationClass() {
-		return RestoreCatalogSchemaMutation.class;
+	protected Class<SetCatalogMutabilityMutation> getMutationClass() {
+		return SetCatalogMutabilityMutation.class;
 	}
 }

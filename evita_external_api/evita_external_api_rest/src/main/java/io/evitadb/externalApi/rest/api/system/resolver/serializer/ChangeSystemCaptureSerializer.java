@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.api.system.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingEngineMutationConverter;
+import io.evitadb.externalApi.api.system.resolver.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;

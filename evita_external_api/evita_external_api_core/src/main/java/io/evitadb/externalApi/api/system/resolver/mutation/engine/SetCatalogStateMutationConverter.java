@@ -21,25 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine;
+package io.evitadb.externalApi.api.system.resolver.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link EngineMutationConverter} for resolving {@link MakeCatalogAliveMutation}.
- * This converter handles the conversion of external API requests into catalog alive state mutations,
- * enabling the transition of catalogs to live state through the external API.
+ * Implementation of {@link EngineMutationConverter} for resolving {@link SetCatalogStateMutation}.
+ * This converter handles the conversion of external API requests into catalog state mutations,
+ * enabling the control of catalog active/inactive state through the external API.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class MakeCatalogAliveMutationConverter
-	extends EngineMutationConverter<MakeCatalogAliveMutation> {
+public class SetCatalogStateMutationConverter
+	extends EngineMutationConverter<SetCatalogStateMutation> {
 
-	public MakeCatalogAliveMutationConverter(
+	public SetCatalogStateMutationConverter(
 		@Nonnull MutationObjectMapper objectParser,
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
@@ -48,7 +48,7 @@ public class MakeCatalogAliveMutationConverter
 
 	@Nonnull
 	@Override
-	protected Class<MakeCatalogAliveMutation> getMutationClass() {
-		return MakeCatalogAliveMutation.class;
+	protected Class<SetCatalogStateMutation> getMutationClass() {
+		return SetCatalogStateMutation.class;
 	}
 }

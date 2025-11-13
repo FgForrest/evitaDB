@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.resolver.mutation;
+package io.evitadb.externalApi.api.resolver.mutation;
 
 import io.evitadb.dataType.Range;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;

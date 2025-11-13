@@ -41,9 +41,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.Re
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.RemoveReferenceGroupMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.RemoveReferenceMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference.SetReferenceGroupMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationInputAggregateConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.MutationInputAggregateConverter;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import lombok.AccessLevel;
 import lombok.Getter;
 
