@@ -27,12 +27,16 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
-import lombok.Builder;
 import lombok.Singular;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -42,9 +46,8 @@ import java.util.stream.Stream;
  * API-independent descriptor of union in schema-based external APIs. It joins multiple types into one union as
  * possible return types.
  *
- * @param name name of type, if starts with *, it is treated only as suffix to the full name, if ends with *, it is treated only as prefix to the full name
+ * @param name        name of type, if starts with *, it is treated only as suffix to the full name, if ends with *, it is treated only as prefix to the full name
  * @param description can be parametrized with {@link String#format(String, Object...)} parameters
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public record UnionDescriptor(
@@ -54,7 +57,10 @@ public record UnionDescriptor(
 	@Nonnull List<TypeDescriptor> types
 ) implements TypeDescriptor {
 
-	@Builder
+	public static UnionDescriptorBuilder builder() {
+		return new UnionDescriptorBuilder();
+	}
+
 	public UnionDescriptor(
 		@Nonnull String name,
 		@Nullable String description,
@@ -75,7 +81,8 @@ public record UnionDescriptor(
 	public String name() {
 		Assert.isPremiseValid(
 			isNameStatic(),
-			() -> new ExternalApiInternalError("Object name `" + this.name + "` requires you to provide schema to construct the final name.")
+			() -> new ExternalApiInternalError(
+				"Object name `" + this.name + "` requires you to provide schema to construct the final name.")
 		);
 		return this.name;
 	}
@@ -89,7 +96,8 @@ public record UnionDescriptor(
 	public String name(@Nullable String suffix, @Nonnull NamedSchemaContract... schema) {
 		Assert.isPremiseValid(
 			!isNameStatic(),
-			() -> new ExternalApiInternalError("Object name `" + this.name + "` is static, thus it doesn't support provided schema.")
+			() -> new ExternalApiInternalError(
+				"Object name `" + this.name + "` is static, thus it doesn't support provided schema.")
 		);
 		Assert.isPremiseValid(
 			schema.length > 0,
@@ -111,7 +119,8 @@ public record UnionDescriptor(
 		} else if (this.name.endsWith(NAME_WILDCARD)) {
 			return this.name.substring(0, this.name.length() - 1) + schemaName;
 		} else {
-			throw new ExternalApiInternalError("Unsupported placement of name wildcard. Wildcard must be at the beginning or at the end.");
+			throw new ExternalApiInternalError(
+				"Unsupported placement of name wildcard. Wildcard must be at the beginning or at the end.");
 		}
 	}
 
@@ -132,5 +141,71 @@ public record UnionDescriptor(
 	 */
 	public <T> T to(@Nonnull UnionDescriptorTransformer<T> transformer) {
 		return transformer.apply(this);
+	}
+
+	@ToString
+	public static class UnionDescriptorBuilder {
+		@Nullable private String name;
+		@Nullable private String description;
+		@Nullable private PropertyDescriptor discriminator;
+		@Nonnull private final List<TypeDescriptor> types = new LinkedList<>();
+
+		UnionDescriptorBuilder() {
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder name(@Nonnull String name) {
+			this.name = name;
+			return this;
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder description(@Nonnull String description) {
+			this.description = description;
+			return this;
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder discriminator(@Nonnull PropertyDescriptor discriminator) {
+			this.discriminator = discriminator;
+			return this;
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder type(@Nonnull TypeDescriptor type) {
+			this.types.add(type);
+			return this;
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder types(@Nonnull Collection<? extends TypeDescriptor> types) {
+			this.types.addAll(types);
+			return this;
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder typesFrom(@Nonnull UnionDescriptor unionDescriptor) {
+			return types(unionDescriptor.types);
+		}
+
+		@Nonnull
+		public UnionDescriptorBuilder clearTypes() {
+			this.types.clear();
+			return this;
+		}
+
+		@Nonnull
+		public UnionDescriptor build() {
+			Assert.isPremiseValid(
+				this.name != null,
+				"Name of union must be specified."
+			);
+			return new UnionDescriptor(
+				this.name,
+				this.description,
+				this.discriminator,
+				Collections.unmodifiableList(this.types)
+			);
+		}
 	}
 }

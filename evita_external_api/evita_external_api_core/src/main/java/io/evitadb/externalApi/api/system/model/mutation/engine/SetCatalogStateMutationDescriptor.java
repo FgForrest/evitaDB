@@ -21,49 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor interface that defines the structure for catalog schema name modification mutations
- * in external API representations. This descriptor provides property definitions for
- * mutations that rename existing catalog schemas, allowing changes to the catalog name
- * through the external API.
+ * Descriptor for {@link SetCatalogStateMutation}
  *
- * @author Lukáš Hornych, 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface ModifyCatalogSchemaNameMutationDescriptor extends EngineMutationDescriptor {
+public interface SetCatalogStateMutationDescriptor extends EngineMutationDescriptor {
 
-	PropertyDescriptor NEW_CATALOG_NAME = PropertyDescriptor.builder()
-		.name("newCatalogName")
+	PropertyDescriptor ACTIVE = PropertyDescriptor.builder()
+		.name("active")
 		.description("""
-			New name of the catalog schema the mutation is targeting.
-			""")
-		.type(nonNull(String.class))
-		.build();
-	PropertyDescriptor OVERWRITE_TARGET = PropertyDescriptor.builder()
-		.name("overwriteTarget")
-		.description("""
-			Whether to overwrite catalog with same name as the `newCatalogName` if found.
+			Whether the catalog should be active or not. The active state determines the operational status of the catalog.
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
-		.representedClass(ModifyCatalogSchemaNameMutation.class)
+		.representedClass(SetCatalogStateMutation.class)
 		.description("""
-			Mutation is responsible for renaming an existing catalog schema.
+			Mutation that sets the active state of a catalog.
+			This mutation allows controlling whether a particular catalog should be active or not.
+			The active state determines the operational status of the catalog.
 			""")
 		.staticProperty(CATALOG_NAME)
-		.staticProperty(NEW_CATALOG_NAME)
-		.staticProperty(OVERWRITE_TARGET)
+		.staticProperty(ACTIVE)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
-		.name("ModifyCatalogSchemaNameMutationInput")
+		.name("SetCatalogStateMutationInput")
 		.build();
 }

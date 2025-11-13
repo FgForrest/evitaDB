@@ -62,6 +62,7 @@ module evita.external.api.rest {
 	requires io.netty.common;
 	requires io.netty.transport;
 	requires jdk.jfr;
+	requires evita.external.api.rest;
 
 	exports io.evitadb.externalApi.rest;
 	exports io.evitadb.externalApi.rest.io;

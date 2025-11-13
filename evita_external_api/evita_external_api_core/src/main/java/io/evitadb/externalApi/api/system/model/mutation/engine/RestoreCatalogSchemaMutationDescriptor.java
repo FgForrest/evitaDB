@@ -21,12 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-
-import java.util.List;
 
 /**
  * Descriptor for {@link RestoreCatalogSchemaMutation}

@@ -30,8 +30,8 @@ import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.EngineMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.EngineMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

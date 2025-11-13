@@ -68,14 +68,13 @@ public interface ChangeCaptureDescriptor {
 			""")
 		.type(nonNull(Operation.class))
 		.build();
-	// todo lho this must be specific to implementation and contain specific union
 	PropertyDescriptor BODY = PropertyDescriptor.builder()
 		.name("body")
 		.description("""
 	        Optional body of the operation when it is requested initial request. Carries information about what exactly
 			happened.
 			""")
-		.type(nonNullRef(MutationDescriptor.THIS_INTERFACE))
+		// the type should be a specific mutation union type
 		.build();
 	PropertyDescriptor BODY_UNTYPED = PropertyDescriptor.from(BODY)
 		.type(nonNull(GenericObject.class))

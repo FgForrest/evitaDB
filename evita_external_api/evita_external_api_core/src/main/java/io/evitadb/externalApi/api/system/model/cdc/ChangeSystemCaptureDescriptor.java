@@ -44,7 +44,6 @@ public interface ChangeSystemCaptureDescriptor extends ChangeCaptureDescriptor {
 		.staticProperty(VERSION)
 		.staticProperty(INDEX)
 		.staticProperty(OPERATION)
-		.staticProperty(BODY)
 		.build();
 	ObjectDescriptor THIS_GENERIC = ObjectDescriptor.from(THIS)
 		.name("GenericChangeSystemCapture")

@@ -21,42 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for {@link SetCatalogStateMutation}
+ * Descriptor for {@link SetCatalogMutabilityMutation}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface SetCatalogStateMutationDescriptor extends EngineMutationDescriptor {
+public interface SetCatalogMutabilityMutationDescriptor extends EngineMutationDescriptor {
 
-	PropertyDescriptor ACTIVE = PropertyDescriptor.builder()
-		.name("active")
+	PropertyDescriptor MUTABLE = PropertyDescriptor.builder()
+		.name("mutable")
 		.description("""
-			Whether the catalog should be active or not. The active state determines the operational status of the catalog.
+			Whether the catalog should be mutable (read-write) or immutable (read-only).
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
-		.representedClass(SetCatalogStateMutation.class)
+		.representedClass(SetCatalogMutabilityMutation.class)
 		.description("""
-			Mutation that sets the active state of a catalog.
-			This mutation allows controlling whether a particular catalog should be active or not.
-			The active state determines the operational status of the catalog.
+			Mutation that sets the mutability state of a catalog.
+			This mutation allows controlling whether a particular catalog should be read-only or read-write.
+			The mutability state determines whether the catalog can be modified or is in read-only mode.
 			""")
 		.staticProperty(CATALOG_NAME)
-		.staticProperty(ACTIVE)
+		.staticProperty(MUTABLE)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
-		.name("SetCatalogStateMutationInput")
+		.name("SetCatalogMutabilityMutationInput")
 		.build();
 }

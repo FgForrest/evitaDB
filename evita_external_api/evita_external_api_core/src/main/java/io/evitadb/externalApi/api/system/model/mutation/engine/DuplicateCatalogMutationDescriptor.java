@@ -21,28 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for {@link MakeCatalogAliveMutation}
+ * Descriptor for {@link DuplicateCatalogMutation}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface MakeCatalogAliveMutationDescriptor extends EngineMutationDescriptor {
+public interface DuplicateCatalogMutationDescriptor extends EngineMutationDescriptor {
+
+	PropertyDescriptor NEW_CATALOG_NAME = PropertyDescriptor.builder()
+		.name("newCatalogName")
+		.description("""
+			Name of the new catalog to create with duplicated contents.
+			""")
+		.type(nonNull(String.class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
-		.representedClass(MakeCatalogAliveMutation.class)
+		.representedClass(DuplicateCatalogMutation.class)
 		.description("""
-			Mutation that transitions a catalog to the "live" state, making it transactional.
-			When a catalog goes live, it becomes fully operational and can participate in transactions.
-			This is a one-way operation that changes the catalog's operational state.
+			Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
+			This mutation creates a new catalog with the specified name containing all the data and schema
+			from the source catalog. The source catalog must exist and be in a valid state for duplication.
 			""")
 		.staticProperty(CATALOG_NAME)
+		.staticProperty(NEW_CATALOG_NAME)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
-		.name("MakeCatalogAliveMutationInput")
+		.name("DuplicateCatalogMutationInput")
 		.build();
 }

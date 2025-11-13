@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.RemoveCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.RemoveCatalogSchemaMutationDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

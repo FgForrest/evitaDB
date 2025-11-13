@@ -76,6 +76,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Hea
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.*;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.mutation.CatalogDataMutationUnionDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionSizeDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.CollectionsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.GetEntityDataFetcher;
@@ -200,7 +201,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private void buildCommonTypes() {
 		buildLocaleEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
 		buildCurrencyEnum().ifPresent(this.buildingContext::registerCustomEnumIfAbsent);
-		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(buildGenericChangeCatalogCaptureObject());
 		this.buildingContext.registerType(QueryLabelDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
@@ -712,6 +713,16 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
+	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+		return ChangeCatalogCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.field(ChangeCatalogCaptureDescriptor.BODY
+	            .to(this.fieldBuilderTransformer)
+                .type(typeRef(CatalogDataMutationUnionDescriptor.THIS.name())))
+			.build();
+	}
+
+	@Nonnull
 	private GraphQLObjectType buildGenericChangeCatalogCaptureObject() {
 		this.buildingContext.registerDataFetcher(
 			ChangeCatalogCaptureDescriptor.THIS_GENERIC,
@@ -849,5 +860,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		registerMutationUnion(AttributeMutationUnionDescriptor.THIS, registeredOutputMutations);
 		registerMutationUnion(LocalMutationUnionDescriptor.THIS, registeredOutputMutations);
+
+		registerMutationUnion(CatalogDataMutationUnionDescriptor.THIS, registeredOutputMutations);
 	}
 }

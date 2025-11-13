@@ -21,42 +21,49 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for {@link SetCatalogMutabilityMutation}
+ * Descriptor interface that defines the structure for catalog schema name modification mutations
+ * in external API representations. This descriptor provides property definitions for
+ * mutations that rename existing catalog schemas, allowing changes to the catalog name
+ * through the external API.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, 2023
  */
-public interface SetCatalogMutabilityMutationDescriptor extends EngineMutationDescriptor {
+public interface ModifyCatalogSchemaNameMutationDescriptor extends EngineMutationDescriptor {
 
-	PropertyDescriptor MUTABLE = PropertyDescriptor.builder()
-		.name("mutable")
+	PropertyDescriptor NEW_CATALOG_NAME = PropertyDescriptor.builder()
+		.name("newCatalogName")
 		.description("""
-			Whether the catalog should be mutable (read-write) or immutable (read-only).
+			New name of the catalog schema the mutation is targeting.
+			""")
+		.type(nonNull(String.class))
+		.build();
+	PropertyDescriptor OVERWRITE_TARGET = PropertyDescriptor.builder()
+		.name("overwriteTarget")
+		.description("""
+			Whether to overwrite catalog with same name as the `newCatalogName` if found.
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
-		.representedClass(SetCatalogMutabilityMutation.class)
+		.representedClass(ModifyCatalogSchemaNameMutation.class)
 		.description("""
-			Mutation that sets the mutability state of a catalog.
-			This mutation allows controlling whether a particular catalog should be read-only or read-write.
-			The mutability state determines whether the catalog can be modified or is in read-only mode.
+			Mutation is responsible for renaming an existing catalog schema.
 			""")
 		.staticProperty(CATALOG_NAME)
-		.staticProperty(MUTABLE)
+		.staticProperty(NEW_CATALOG_NAME)
+		.staticProperty(OVERWRITE_TARGET)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
-		.name("SetCatalogMutabilityMutationInput")
+		.name("ModifyCatalogSchemaNameMutationInput")
 		.build();
 }

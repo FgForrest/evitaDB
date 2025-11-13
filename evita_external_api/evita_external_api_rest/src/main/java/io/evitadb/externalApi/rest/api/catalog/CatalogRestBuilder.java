@@ -70,8 +70,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
@@ -93,6 +93,7 @@ import io.evitadb.externalApi.rest.api.catalog.cdcApi.model.ChangeCatalogCapture
 import io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogDataApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogSchemaApiRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.configuration.RestOptions;
 import lombok.extern.slf4j.Slf4j;
 
@@ -152,13 +153,24 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 		this.buildingContext.registerType(DataSiteDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(SchemaSiteDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ChangeCatalogCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		buildMutationInterface();
 		buildOutputMutations();
 	}
 
 	private void buildEndpoints() {
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildOpenApiSpecificationEndpoint(this.buildingContext));
+	}
+
+	@Nonnull
+	private OpenApiObject buildChangeCatalogCaptureObject() {
+		return ChangeCatalogCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.property(ChangeCatalogCaptureDescriptor.BODY.to(this.propertyBuilderTransformer)
+				          // this should be scoped to CatalogBoundMutation only, but it contains almost every mutation
+				          // and with the current state of mutation descriptor, it is impossible to maintain correctly
+				          .type(typeRefTo(MutationDescriptor.THIS_INTERFACE.name())))
+			.build();
 	}
 
 	private void buildMutationInterface() {

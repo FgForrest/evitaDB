@@ -21,32 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
-import java.util.List;
-
 /**
- * Descriptor interface that defines the structure for catalog schema removal mutations
- * in external API representations. This descriptor provides property definitions for
- * mutations that delete existing catalog schemas, enabling catalog removal operations
- * through the external API.
+ * Descriptor for {@link MakeCatalogAliveMutation}
  *
- * @author Lukáš Hornych, 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface RemoveCatalogSchemaMutationDescriptor extends EngineMutationDescriptor {
+public interface MakeCatalogAliveMutationDescriptor extends EngineMutationDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
-		.representedClass(RemoveCatalogSchemaMutation.class)
+		.representedClass(MakeCatalogAliveMutation.class)
 		.description("""
-			Mutation is responsible for removing an existing catalog schema - or more precisely the catalog
-			instance itself.
+			Mutation that transitions a catalog to the "live" state, making it transactional.
+			When a catalog goes live, it becomes fully operational and can participate in transactions.
+			This is a one-way operation that changes the catalog's operational state.
 			""")
 		.staticProperty(CATALOG_NAME)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
-		.name("RemoveCatalogSchemaMutationInput")
+		.name("MakeCatalogAliveMutationInput")
 		.build();
 }

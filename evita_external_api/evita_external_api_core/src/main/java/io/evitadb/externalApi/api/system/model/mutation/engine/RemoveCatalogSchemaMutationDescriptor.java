@@ -21,40 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine;
+package io.evitadb.externalApi.api.system.model.mutation.engine;
 
-import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for {@link DuplicateCatalogMutation}
+ * Descriptor interface that defines the structure for catalog schema removal mutations
+ * in external API representations. This descriptor provides property definitions for
+ * mutations that delete existing catalog schemas, enabling catalog removal operations
+ * through the external API.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @author Lukáš Hornych, 2023
  */
-public interface DuplicateCatalogMutationDescriptor extends EngineMutationDescriptor {
-
-	PropertyDescriptor NEW_CATALOG_NAME = PropertyDescriptor.builder()
-		.name("newCatalogName")
-		.description("""
-			Name of the new catalog to create with duplicated contents.
-			""")
-		.type(nonNull(String.class))
-		.build();
+public interface RemoveCatalogSchemaMutationDescriptor extends EngineMutationDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
-		.representedClass(DuplicateCatalogMutation.class)
+		.representedClass(RemoveCatalogSchemaMutation.class)
 		.description("""
-			Mutation that duplicates a catalog with a new name, copying all contents from the source catalog.
-			This mutation creates a new catalog with the specified name containing all the data and schema
-			from the source catalog. The source catalog must exist and be in a valid state for duplication.
+			Mutation is responsible for removing an existing catalog schema - or more precisely the catalog
+			instance itself.
 			""")
 		.staticProperty(CATALOG_NAME)
-		.staticProperty(NEW_CATALOG_NAME)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
-		.name("DuplicateCatalogMutationInput")
+		.name("RemoveCatalogSchemaMutationInput")
 		.build();
 }

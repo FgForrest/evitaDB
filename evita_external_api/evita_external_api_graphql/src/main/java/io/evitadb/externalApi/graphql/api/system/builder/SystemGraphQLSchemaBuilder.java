@@ -80,8 +80,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
@@ -130,6 +130,8 @@ import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+
+import static graphql.schema.GraphQLTypeReference.typeRef;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building evitaDB management manipulation schema.
@@ -183,9 +185,9 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildMutationInterface();
 		buildOutputMutations();
 
-		this.buildingContext.registerType(ChangeSystemCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 		this.buildingContext.registerType(buildGenericChangeSystemCaptureObject());
-		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(buildGenericChangeCatalogCaptureObject());
 		this.buildingContext.registerType(SchemaSiteDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(DataSiteDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
@@ -214,6 +216,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			// infrastructure mutations
 
 			TransactionMutationDescriptor.THIS,
+
+			// engine mutations
+
+			CreateCatalogSchemaMutationDescriptor.THIS,
+			DuplicateCatalogMutationDescriptor.THIS,
+			MakeCatalogAliveMutationDescriptor.THIS,
+			ModifyCatalogSchemaMutationDescriptor.THIS,
+			ModifyCatalogSchemaNameMutationDescriptor.THIS,
+			RemoveCatalogSchemaMutationDescriptor.THIS,
+			RestoreCatalogSchemaMutationDescriptor.THIS,
+			SetCatalogMutabilityMutationDescriptor.THIS,
+			SetCatalogStateMutationDescriptor.THIS,
 
 			// schema mutations
 
@@ -282,8 +296,6 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
 
 			// catalog schema mutations
-			CreateCatalogSchemaMutationDescriptor.THIS,
-			ModifyCatalogSchemaMutationDescriptor.THIS,
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
@@ -316,6 +328,8 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			EntityUpsertMutationDescriptor.THIS,
 			EntityRemoveMutationDescriptor.THIS
 		);
+
+		registerMutationUnion(EngineMutationUnionDescriptor.THIS, registeredOutputMutations);
 
 		registerMutationUnion(LocalEntitySchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
 		registerMutationUnion(ReferenceAttributeSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
@@ -420,6 +434,26 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerTypeResolver(catalogUnion, catalogUnionResolver);
 
 		return catalogUnion;
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildChangeSystemCaptureObject() {
+		return ChangeSystemCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.field(ChangeSystemCaptureDescriptor.BODY.to(this.fieldBuilderTransformer)
+		       .type(typeRef(EngineMutationUnionDescriptor.THIS.name())))
+			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+		return ChangeCatalogCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.field(ChangeCatalogCaptureDescriptor.BODY.to(this.fieldBuilderTransformer)
+				// this should be scoped to CatalogBoundMutation only, but it contains almost every mutation
+				// and with the current state of mutation descriptor, it is impossible to maintain correctly
+		       .type(typeRef(MutationDescriptor.THIS_INTERFACE.name())))
+			.build();
 	}
 
 	@Nonnull

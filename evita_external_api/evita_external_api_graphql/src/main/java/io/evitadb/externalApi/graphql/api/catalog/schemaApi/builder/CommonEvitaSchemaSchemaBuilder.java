@@ -54,8 +54,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
@@ -65,8 +65,10 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.ModifyCatalogSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.mutation.CatalogSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureUntypedBodyDataFetcher;
 import io.evitadb.utils.NamingConvention;
@@ -74,6 +76,8 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 
 import java.util.Map;
+
+import static graphql.schema.GraphQLTypeReference.typeRef;
 
 /**
  * Implementation of {@link PartialGraphQLSchemaBuilder} for building common types and fields used in both {@link CatalogSchemaSchemaBuilder}
@@ -117,7 +121,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		buildInputMutations();
 		buildOutputMutations();
 
-		this.buildingContext.registerType(ChangeCatalogCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildChangeCatalogCaptureObject());
 		this.buildingContext.registerType(buildGenericChangeCatalogCaptureObject());
 	}
 
@@ -151,6 +155,16 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 		return NameVariantsDescriptor.THIS
 			.to(this.objectBuilderTransformer)
+			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+		return ChangeCatalogCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.field(ChangeCatalogCaptureDescriptor.BODY
+				.to(this.fieldBuilderTransformer)
+				.type(typeRef(CatalogSchemaMutationUnionDescriptor.THIS.name())))
 			.build();
 	}
 
@@ -258,6 +272,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			// catalog schema mutations
 			CreateCatalogSchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaMutationDescriptor.THIS,
+			ModifyCatalogSchemaNameMutationDescriptor.THIS,
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
@@ -338,5 +353,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		registerMutationUnion(LocalEntitySchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
 		registerMutationUnion(ReferenceAttributeSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
 		registerMutationUnion(ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
+
+		registerMutationUnion(CatalogSchemaMutationUnionDescriptor.THIS, registeredOutputMutations);
 	}
 }

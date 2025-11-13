@@ -66,8 +66,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.CreateCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.engine.ModifyCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.system.model.mutation.engine.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
@@ -89,6 +88,7 @@ import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.api.system.builder.SystemEndpointBuilder;
 import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
@@ -158,9 +158,18 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documention
 		// for client developers.
 		this.buildingContext.registerType(ChangeSystemCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
-		this.buildingContext.registerType(ChangeSystemCaptureDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 		buildMutationInterface();
 		buildOutputMutations();
+	}
+
+	@Nonnull
+	private OpenApiObject buildChangeSystemCaptureObject() {
+		return ChangeSystemCaptureDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.property(ChangeSystemCaptureDescriptor.BODY.to(this.propertyBuilderTransformer)
+		          .type(typeRefTo(EngineMutationUnionDescriptor.THIS.name())))
+			.build();
 	}
 
 	private void buildEndpoints() {
@@ -197,6 +206,18 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			// infrastructure mutations
 
 			TransactionMutationDescriptor.THIS,
+
+			// engine mutations
+
+			CreateCatalogSchemaMutationDescriptor.THIS,
+			DuplicateCatalogMutationDescriptor.THIS,
+			MakeCatalogAliveMutationDescriptor.THIS,
+			ModifyCatalogSchemaMutationDescriptor.THIS,
+			ModifyCatalogSchemaNameMutationDescriptor.THIS,
+			RemoveCatalogSchemaMutationDescriptor.THIS,
+			RestoreCatalogSchemaMutationDescriptor.THIS,
+			SetCatalogMutabilityMutationDescriptor.THIS,
+			SetCatalogStateMutationDescriptor.THIS,
 
 			// schema mutations
 
@@ -265,7 +286,6 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			SetReferenceSchemaIndexedMutationDescriptor.THIS,
 
 			// catalog schema mutations
-			CreateCatalogSchemaMutationDescriptor.THIS,
 			CreateEntitySchemaMutationDescriptor.THIS,
 			ModifyEntitySchemaMutationDescriptor.THIS,
 			RemoveEntitySchemaMutationDescriptor.THIS,
@@ -298,6 +318,8 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			EntityUpsertMutationDescriptor.THIS,
 			EntityRemoveMutationDescriptor.THIS
 		);
+
+		this.buildingContext.registerType(EngineMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());
 
 		this.buildingContext.registerType(LocalEntitySchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(ReferenceAttributeSchemaMutationUnionDescriptor.THIS.to(this.unionBuilderTransformer).build());

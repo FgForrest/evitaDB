@@ -72,7 +72,6 @@ public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor 
 			""")
 		.staticProperty(VERSION)
 		.staticProperty(INDEX)
-		.staticProperty(BODY)
 		.staticProperty(AREA)
 		.staticProperty(ENTITY_TYPE)
 		.staticProperty(ENTITY_PRIMARY_KEY)
