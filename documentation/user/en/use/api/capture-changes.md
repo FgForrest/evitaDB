@@ -51,38 +51,41 @@ When you don't specify any filtering criteria, you will receive all mutations in
 
 ## GraphQL client setup
 
-In order to consume the change capture streams, you need to set up a GraphQL client to send the subscription requests 
-to the server via WebSockets using the [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol. 
+In order to consume the change capture streams, you need to set up a GraphQL client to send subscription
+requests to the server via WebSockets using the
+[GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol.
 The WebSocket URLs are the same as for the query/mutation requests.
 
-Each [API instance](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) provides specific subscriptions
-for the API instance domain (described below); however, all the API instances provide some CDC subscriptions.
+Each [API instance](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) provides specific
+subscriptions for the API instance domain (described below); however, all API instances provide certain CDC
+subscriptions.
 
-An important specific of the GraphQL implementation is that each subscription is provided in two variants:
+A notable aspect of our GraphQL implementation is that each subscription is available in two versions:
 
 - typed
 - untyped
 
-This exists because the GraphQL specification requires the client to specify all the desired output fields of each subscription. 
-Which can be quite cumbersome in case of the mutations within the CDC streams because
-there are tens of mutation implementations which all can be sent by the server. In traditional GraphQL API, the client
-would have to specify all the fields of all the mutation implementations. This can be useful when the filtering
-strategy focuses only on a specific set of mutation types, however, the client may need to support wide range of mutations
-or even all of them. Therefore, we have implemented the above mentioned two version of each subscription.
-The typed version fully complies with the GraphQL specification and requires the client to specify all
-desired output fields for each mutation type (although there are some restrictive unions). 
-The untyped version has the `body` with mutation set as generic `Object` type.
-This way the client receives all the mutation types with all the data with a single output field. This comes with obvious drawbacks:
-the client is responsible for mapping the JSON object and extracting the desired data. This should be used only if the client
-really needs all the data.
+This exists because the GraphQL specification requires the client to specify all desired output fields of each
+subscription, which can be quite cumbersome for CDC streams. There are tens of mutation implementations that
+can be sent by the server. In a traditional GraphQL API, the client would have to specify all the fields of all
+mutation implementations. This can be useful when the filtering strategy focuses only on a specific set of
+mutation types; however, the client may need to support a wide range of mutations or even all of them.
+Therefore, we have implemented the above-mentioned two versions of each subscription.
 
-</LS>
-<LS to="r">
+The typed version fully complies with the GraphQL specification and requires the client to specify all desired
+output fields for each mutation type (although there are some restrictive unions).
+The untyped version exposes the `body` as a generic `Object`.
+This way the client receives all mutation types with all their data through a single output field. This comes
+with obvious drawbacks: the client is responsible for mapping the JSON object and extracting the desired data.
+Use this option only if the client really needs all the data.
+
+---
 
 ## REST client setup
 
-In order to consume the change capture streams, you need to set up a WebSocket client to send the subscription requests
-to the server using our [custom WebSocket protocol](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md) based on the
+In order to consume the change capture streams, you need to set up a WebSocket client to send subscription
+requests to the server using our
+[custom WebSocket protocol](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md) based on the
 [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol.
 The WebSocket URLs are the same as for the query/mutation requests.
 
@@ -94,13 +97,13 @@ The WebSocket URLs are the same as for the query/mutation requests.
 
 </NoteTitle>
 
-The OpenAPI specification doesn't directly specify
-any standard for real-time updates APIs, nor is it possible to document one within the base OpenAPI specification. Therefore,
-we have decided to create the [custom WebSocket procol](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)
-based on the [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol.
-Although the base OpenAPI specification doesn't allow us to directly document the custom protocol, for now, we have
-included the CDC types in the OpenAPI specification so that there is at least some building ground for the client developers
-(e.g., mutation objects, CDC event objects, etc.).
+The OpenAPI specification doesn't define any standard for real-time update APIs, nor is it possible to
+document one within the base specification. Therefore, we decided to create a
+[custom WebSocket protocol](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md) based on the
+[GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol.
+Although the base OpenAPI specification doesn't allow us to directly document the custom protocol, for now we
+have included the CDC types in the OpenAPI specification so that there is at least a solid foundation for client
+developers (e.g., mutation objects, CDC event objects, etc.).
 
 </Note>
 
@@ -234,7 +237,9 @@ The engine-level capture stream is available in the system API via the `/rest/sy
 Setup is quite straightforward:
 1. open the WebSocket connection but sending `GET` request with connection upgrade,
 2. send `connection_init` message within the WebSocket connection
-3. send `subscribe` message within the WebSocket connection with a `ChangeSystemCaptureRequest` defining the filtering strategy (as specified in the [WebSocket specification](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
+3. send a `subscribe` message within the WebSocket connection with a `ChangeSystemCaptureRequest` defining the
+   filtering strategy (as specified in the
+   [WebSocket specification](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
 
 The CDC stream will now send `ChangeSystemCapture` objects wrapped into `next` messages to the client.
 
@@ -246,14 +251,16 @@ Example of setting up the engine change capture in REST over WebSocket API:
 
 </SourceAlternativeTabs>
 
-The subscriber will start receiving change events as soon as they occur in the engine. The subscriber's `Complete` method is never called since the change stream is infinite.
+The subscriber will start receiving change events as soon as they occur in the engine. The subscriber's `Complete` method 
+is never called since the change stream is infinite.
 
 </LS>
 </LS>
 <LS to="g">
 
-The engine-level capture stream allows clients to subscribe to `ChangeSystemCapture` (or `GenericChangeSystemCapture` based on the chosen subscription type) 
-instances representing the changes made to the engine.
+The engine-level capture stream allows clients to subscribe to `ChangeSystemCapture` (or `GenericChangeSystemCapture`,
+based on the chosen subscription type) 
+instances representing the changes made in the engine.
 
 Request allows you to specify the following parameters:
 
@@ -268,7 +275,7 @@ Request allows you to specify the following parameters:
   </dd>
 </dl>
 
-Engine capture events are represented by the `ChangeSystemCapture` (or `GenericChangeSystemCapture` based on the chosen subscription type) object that contains the following information:
+Engine capture events are represented by the `ChangeSystemCapture` (or `GenericChangeSystemCapture`, based on the chosen subscription type) object which contains the following information:
 
 <dl>
   <dt>long `version`</dt>
@@ -301,8 +308,8 @@ The engine-level capture stream is available in the system API via the following
 - `onSystemChange`
 - `onSystemChangeUntyped`
 
-The setup is quite straightforward: simply define one subscription with the desired parameters and subscribe to the stream
-via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
+The setup is quite straightforward: define one subscription with the desired parameters and subscribe to the stream
+via WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
 <SourceCodeTabs langSpecificTabOnly ignoreTest>
@@ -634,7 +641,9 @@ The catalogue-level capture stream is available in the catalog API via the `/res
 Setup is quite straightforward:
 1. open the WebSocket connection but sending `GET` request with connection upgrade
 2. send `connection_init` message within the WebSocket connection
-3. send `subscribe` message within the WebSocket connection with a `ChangeCatalogCaptureRequest` defining the filtering strategy (as specified in the [WebSocket specification](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
+3. send a `subscribe` message within the WebSocket connection with a `ChangeCatalogCaptureRequest` defining the
+   filtering strategy (as specified in the
+   [WebSocket specification](/documentation/user/en/use/connectors/rest-over-websocket-protocol.md)).
 
 The CDC stream will now send `ChangeCatalogCapture` objects wrapped into `next` messages to the client.
 
@@ -798,10 +807,10 @@ There are several ways to access the catalogue change capture stream, each with 
 
 ### System API
 
-The GraphQL system API exposes the `onCatalogChange`/`onCatalogChangeUntyped` subscription. Which allows you to subscribe
+The GraphQL system API exposes the `onCatalogChange`/`onCatalogChangeUntyped` subscription, which allows you to subscribe
 to the catalogue change capture stream of any catalogue with fully custom filtering criteria.
 
-This is useful if you need to react to _all_ the changes (transactional, data, schema) in a catalogue.
+This is useful if you need to react to **all** the changes (transactional, data, schema) in a catalogue.
 
 The subscription accepts the following parameters:
 
@@ -933,7 +942,7 @@ This area exists separately because transaction boundaries and system operations
 
 #### How to set up a new catalogue change capture in system API
 
-The setup is quite straightforward: simply define one subscription with the desired parameters and subscribe to the stream
+The setup is quite straightforward: define one subscription with the desired parameters and subscribe to the stream
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
@@ -955,7 +964,7 @@ You can find also additional helpful examples in the below:
 
 </NoteTitle>
 
-This publisher will deliver all transaction delimiters and all changes made to entities of type `Product` starting from
+This subscription will deliver all transaction delimiters and all changes made to entities of type `Product` starting from
 the next version of the catalogue.
 
 <SourceCodeTabs langSpecificTabOnly ignoreTest>
@@ -989,10 +998,10 @@ key `745` starting from the next version of the catalogue.
 
 If you don't need the fully-featured system API's catalogue CDC subscriptions, the GraphQL data API exposes two simplified subscriptions:
 
-First one is the `onDataChange`/`onDataChangeUntyped` subscription that allows you to subscribe to the _data_ change capture stream
+The first is the `onDataChange`/`onDataChangeUntyped` subscription that allows you to subscribe to the _data_ change capture stream
 of the entire API-specified catalogue (with all entity collections).
 
-This is useful if you only need to react to data changes and nothing more. If so, this subscription provides a simpler interface
+This is useful if you only need to react to data changes and _nothing more_. If so, this subscription provides a simpler interface
 with a smaller set of mutations to worry about.
 
 The subscription accepts the following parameters:
@@ -1032,10 +1041,10 @@ The subscription accepts the following parameters:
   </dd>
 </dl>
 
-Second one is the `on{entityType}DataChange`/`on{entityType}DataChangeUntyped` subscription that allows you to subscribe 
+The second is the `on{entityType}DataChange`/`on{entityType}DataChangeUntyped` subscription that allows you to subscribe 
 to the _data_ change capture stream of a _specific_ entity collection within the API-specified catalogue.
 
-This is useful if you need to react to data changes of a _specific entity collection_ only and nothing more. If so, 
+This is useful if you need to react to data changes of a _specific entity collection_ only and _nothing more_. If so, 
 this subscription provides a simpler interface with a smaller set of mutations to worry about.
 
 The subscription accepts the following parameters:
@@ -1081,7 +1090,7 @@ The subscription accepts the following parameters:
 
 #### How to set up a new catalogue change capture in catalogue data API
 
-The setup is quite straightforward: simply define one subscription with the desired parameters and subscribe to the stream
+The setup is quite straightforward: define one subscription with the desired parameters and subscribe to the stream
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
@@ -1118,10 +1127,10 @@ key `745` starting from the next version of the catalogue.
 
 If you don't need the fully-featured system API's catalogue CDC subscriptions, the GraphQL schema API exposes two simplified subscriptions:
 
-First one is the `onSchemaChange`/`onSchemaChangeUntyped` subscription that allows you to subscribe to the _schema_ change capture stream
+The first is the `onSchemaChange`/`onSchemaChangeUntyped` subscription that allows you to subscribe to the _schema_ change capture stream
 of the entire API-specified catalogue (with all entity collections).
 
-This is useful if you only need to react to schema changes and nothing more. If so, this subscription provides a simpler interface
+This is useful if you only need to react to schema changes and _nothing more_. If so, this subscription provides a simpler interface
 with a smaller set of mutations to worry about.
 
 The subscription accepts the following parameters:
@@ -1158,10 +1167,10 @@ The subscription accepts the following parameters:
 </dl>
 
 
-Second one is the `on{entityType}SchemaChange`/`on{entityType}SchemaChangeUntyped` subscription that allows you to subscribe
+The second is the `on{entityType}SchemaChange`/`on{entityType}SchemaChangeUntyped` subscription that allows you to subscribe
 to the _schema_ change capture stream of a _specific_ entity collection within the API-specified catalogue.
 
-This is useful if you need to react to schema changes of a _specific entity collection_ only and nothing more. If so,
+This is useful if you need to react to schema changes of a _specific entity collection_ only and _nothing more_. If so,
 this subscription provides a simpler interface with a smaller set of mutations to worry about.
 
 The subscription accepts the following parameters:
@@ -1199,7 +1208,7 @@ The subscription accepts the following parameters:
 
 #### How to set up a new catalogue change capture in catalogue schema API
 
-The setup is quite straightforward: simply define one subscription with the desired parameters and subscribe to the stream
+The setup is quite straightforward: define one subscription with the desired parameters and subscribe to the stream
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
