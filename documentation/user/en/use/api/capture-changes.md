@@ -659,11 +659,11 @@ You can find also additional helpful examples in the below:
 This subscription will deliver all transaction delimiters and all changes made to entities of type `Product` starting from
 the next version of the catalogue.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceAlternativeTabs variants="rest">
 
 [Requesting entity level changes in transaction blocks](/documentation/user/en/use/api/example/capture-entity-mutations-with-transaction-rest.json)
 
-</SourceCodeTabs>
+</SourceAlternativeTabs>
 
 </Note>
 
@@ -678,11 +678,11 @@ the next version of the catalogue.
 Following subscription will deliver all changes made to attribute `quantityOnStock` of entity type `Product` with primary
 key `745` starting from the next version of the catalogue.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceAlternativeTabs variants="rest">
 
 [Requesting entity level changes](/documentation/user/en/use/api/example/capture-attribute-mutation-rest.json)
 
-</SourceCodeTabs>
+</SourceAlternativeTabs>
 
 </Note>
 
