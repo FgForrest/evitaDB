@@ -1,0 +1,10 @@
+subscription {
+  onProductSchemaChangeUntyped(
+    containerType: [ATTRIBUTE]
+  ) {
+    version
+    index
+    operation
+    body
+  }
+}

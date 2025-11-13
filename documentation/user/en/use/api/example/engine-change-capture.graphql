@@ -1,0 +1,8 @@
+subscription {
+  onSystemChangeUntyped {
+    version
+    index
+    operation
+    body
+  }
+}
