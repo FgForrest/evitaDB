@@ -75,6 +75,6 @@ The following operations are supported at the engine level:
 </Note>
 
 </LS>
-<LS to="e,r,g">
+<LS to="e,r,g,c">
 Engine control is currently supported only in [Java](control-engine.md?lang=java).
 </LS>

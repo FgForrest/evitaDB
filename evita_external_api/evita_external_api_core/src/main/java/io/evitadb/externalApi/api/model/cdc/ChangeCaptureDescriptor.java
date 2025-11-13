@@ -68,6 +68,7 @@ public interface ChangeCaptureDescriptor {
 			""")
 		.type(nonNull(Operation.class))
 		.build();
+	// todo lho this must be specific to implementation and contain specific union
 	PropertyDescriptor BODY = PropertyDescriptor.builder()
 		.name("body")
 		.description("""
