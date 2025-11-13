@@ -305,9 +305,9 @@ The setup is quite straightforward: simply define one subscription with the desi
 via the WebSocket protocol. The WebSocket stream will then send the change events to the client based on the defined
 output.
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
-[Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture.graphql)
+[Setting up a minimal engine change capture](/documentation/user/en/use/api/example/engine-change-capture-graphql.graphql)
 
 </SourceCodeTabs>
 
@@ -939,9 +939,9 @@ output.
 
 Example of retrieving catalogue change history in GraphQL system API:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
-[Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture.graphql)
+[Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture-graphql.graphql)
 
 </SourceCodeTabs>
 
@@ -958,9 +958,9 @@ You can find also additional helpful examples in the below:
 This publisher will deliver all transaction delimiters and all changes made to entities of type `Product` starting from
 the next version of the catalogue.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
-[Requesting entity level changes in transaction blocks](/documentation/user/en/use/api/example/capture-entity-mutations-with-transaction.graphql)
+[Requesting entity level changes in transaction blocks](/documentation/user/en/use/api/example/capture-entity-mutations-with-transaction-graphql.graphql)
 
 </SourceCodeTabs>
 
@@ -977,9 +977,9 @@ the next version of the catalogue.
 Following subscription will deliver all changes made to attribute `quantityOnStock` of entity type `Product` with primary
 key `745` starting from the next version of the catalogue.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
-[Requesting entity level changes](/documentation/user/en/use/api/example/capture-attribute-mutation.graphql)
+[Requesting entity level changes](/documentation/user/en/use/api/example/capture-attribute-mutation-graphql.graphql)
 
 </SourceCodeTabs>
 
@@ -1087,7 +1087,7 @@ output.
 
 Example of retrieving catalogue change history in GraphQL catalogue data API:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
 [Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture-data-api.graphql)
 
@@ -1106,7 +1106,7 @@ You can find also additional helpful examples in the below:
 Following subscription will deliver all changes made to attribute `quantityOnStock` of entity type `Product` with primary
 key `745` starting from the next version of the catalogue.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
 [Requesting entity level changes](/documentation/user/en/use/api/example/capture-attribute-mutation-data-api.graphql)
 
@@ -1205,7 +1205,7 @@ output.
 
 Example of retrieving catalogue change history in GraphQL catalogue schema API:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
 [Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture-schema-api.graphql)
 
@@ -1224,7 +1224,7 @@ You can find also additional helpful examples in the below:
 Following subscription will deliver all schema changes made to attributes of entity type `Product` starting from the
 next version of the catalogue.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs langSpecificTabOnly ignoreTest>
 
 [Requesting entity level changes](/documentation/user/en/use/api/example/capture-attribute-mutation-schema-api.graphql)
 
