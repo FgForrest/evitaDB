@@ -640,11 +640,11 @@ The CDC stream will now send `ChangeCatalogCapture` objects wrapped into `next` 
 
 Example of retrieving catalogue change history in WebSocket protocol for REST:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceAlternativeTabs variants="rest">
 
 [Setting up a minimal catalog change capture](/documentation/user/en/use/api/example/catalog-change-capture-rest.json)
 
-</SourceCodeTabs>
+</SourceAlternativeTabs>
 
 You can find also additional helpful examples in the below:
 
