@@ -158,7 +158,8 @@ import static java.util.Optional.ofNullable;
 @NotThreadSafe
 public final class ContainerizedLocalMutationExecutor
 	implements ConsistencyCheckingLocalMutationExecutor, WritableEntityStorageContainerAccessor, EntityStoragePartAccessor {
-	public static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
+	private static final String ERROR_SAME_KEY_EXPECTED = "Expected same primary key here!";
+	private static final LocaleWithScope[] EMPTY_LOCALE_WITH_SCOPES = new LocaleWithScope[0];
 	/**
 	 * Represents the catalog version the storage container accessor is related to.
 	 */
@@ -189,8 +190,8 @@ public final class ContainerizedLocalMutationExecutor
 	private Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataContainers;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 	private ReferenceKeyManager referenceKeyManager;
-	private Set<Locale> addedLocales;
-	private Set<Locale> removedLocales;
+	@Nullable private Map<Locale, EnumSet<LocaleScope>> addedLocales;
+	@Nullable private Map<Locale, EnumSet<LocaleScope>> removedLocales;
 	@Getter private int localesIdentityHash;
 
 	/**
@@ -1255,15 +1256,31 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	@Nonnull
-	@Override
-	public Set<Locale> getAddedLocales() {
-		return this.addedLocales == null ? Collections.emptySet() : this.addedLocales;
+	public LocaleWithScope[] getAddedLocales() {
+		if (this.addedLocales == null) {
+			return EMPTY_LOCALE_WITH_SCOPES;
+		} else {
+			final LocaleWithScope[] localeWithScopes = new LocaleWithScope[this.addedLocales.size()];
+			int i = 0;
+			for (Entry<Locale, EnumSet<LocaleScope>> entry : this.addedLocales.entrySet()) {
+				localeWithScopes[i++] = new LocaleWithScope(entry.getKey(), entry.getValue());
+			}
+			return localeWithScopes;
+		}
 	}
 
 	@Nonnull
-	@Override
-	public Set<Locale> getRemovedLocales() {
-		return this.removedLocales == null ? Collections.emptySet() : this.removedLocales;
+	public LocaleWithScope[] getRemovedLocales() {
+		if (this.removedLocales == null) {
+			return EMPTY_LOCALE_WITH_SCOPES;
+		} else {
+			final LocaleWithScope[] localeWithScopes = new LocaleWithScope[this.removedLocales.size()];
+			int i = 0;
+			for (Entry<Locale, EnumSet<LocaleScope>> entry : this.removedLocales.entrySet()) {
+				localeWithScopes[i++] = new LocaleWithScope(entry.getKey(), entry.getValue());
+			}
+			return localeWithScopes;
+		}
 	}
 
 	/**
@@ -1560,11 +1577,16 @@ public final class ContainerizedLocalMutationExecutor
 				.ifPresent(locale -> {
 					final EntityBodyStoragePart ebsp = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
 					final LocaleModificationResult localeModificationResult = ebsp.addAttributeLocale(locale);
-					if (localeModificationResult.entityLocalesChanged()) {
-						registerAddedLocale(locale);
+					if (localeModificationResult.anyChangeOccurred()) {
 						this.localesIdentityHash++;
-					} else if (localeModificationResult.attributeLocalesChanged()) {
-						this.localesIdentityHash++;
+						final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
+						if (localeModificationResult.attributeLocalesChanged()) {
+							scopesAffected.add(LocaleScope.ATTRIBUTE);
+						}
+						if (localeModificationResult.entityLocalesChanged()) {
+							scopesAffected.add(LocaleScope.ENTITY);
+						}
+						registerAddedLocale(locale, scopesAffected);
 					}
 				});
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
@@ -1576,11 +1598,16 @@ public final class ContainerizedLocalMutationExecutor
 					if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
 						final EntityBodyStoragePart ebsp = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
 						final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
-						if (localeModificationResult.entityLocalesChanged()) {
-							registerRemovedLocale(locale);
+						if (localeModificationResult.anyChangeOccurred()) {
 							this.localesIdentityHash++;
-						} else if (localeModificationResult.attributeLocalesChanged()) {
-							this.localesIdentityHash++;
+							final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
+							if (localeModificationResult.attributeLocalesChanged()) {
+								scopesAffected.add(LocaleScope.ATTRIBUTE);
+							}
+							if (localeModificationResult.entityLocalesChanged()) {
+								scopesAffected.add(LocaleScope.ENTITY);
+							}
+							registerRemovedLocale(locale, scopesAffected);
 						}
 					}
 				});
@@ -2209,7 +2236,7 @@ public final class ContainerizedLocalMutationExecutor
 					missingMandatedAttributes.add(
 						new MissingReferenceAttribute(
 							referenceSchema.getName(),
-							missingReferenceMandatedAttribute
+							new ArrayList<>(missingReferenceMandatedAttribute)
 						)
 					);
 				}
@@ -2630,10 +2657,10 @@ public final class ContainerizedLocalMutationExecutor
 		if (localesChanged) {
 			if (mutatedValue.exists()) {
 				Assert.isPremiseValid(associatedDataKey.locale() != null, "Locale must not be null!");
-				registerAddedLocale(associatedDataKey.locale());
+				registerAddedLocale(associatedDataKey.locale(), EnumSet.of(LocaleScope.ENTITY));
 			} else {
 				Assert.isPremiseValid(associatedDataKey.locale() != null, "Locale must not be null!");
-				registerRemovedLocale(associatedDataKey.locale());
+				registerRemovedLocale(associatedDataKey.locale(), EnumSet.of(LocaleScope.ENTITY));
 			}
 		}
 	}
@@ -2787,40 +2814,103 @@ public final class ContainerizedLocalMutationExecutor
 			if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
 				final EntityBodyStoragePart ebsp = getEntityStoragePart(this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST);
 				final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
-				if (localeModificationResult.entityLocalesChanged()) {
-					registerRemovedLocale(locale);
+				if (localeModificationResult.anyChangeOccurred()) {
 					this.localesIdentityHash++;
-				} else if (localeModificationResult.attributeLocalesChanged()) {
-					this.localesIdentityHash++;
+					final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
+					if (localeModificationResult.attributeLocalesChanged()) {
+						scopesAffected.add(LocaleScope.ATTRIBUTE);
+					}
+					if (localeModificationResult.entityLocalesChanged()) {
+						scopesAffected.add(LocaleScope.ENTITY);
+					}
+					registerRemovedLocale(locale, scopesAffected);
 				}
 			}
 		});
 	}
 
 	/**
-	 * Registers the added locale in the set of added locales.
-	 * If the addedLocales set is null, it initializes it as a new HashSet.
+	 * Registers a new locale with the specified scopes. If the locale already exists in the
+	 * removed locales with overlapping scopes, those scopes are removed from both the added
+	 * and removed locales. Updates the internal data structures for added and removed locales
+	 * accordingly.
 	 *
-	 * @param locale the locale to be registered as added
+	 * @param locale the locale to be registered; must not be null
+	 * @param scopes the set of locale scopes associated with the locale; must not be null
 	 */
-	private void registerAddedLocale(@Nonnull Locale locale) {
+	private void registerAddedLocale(@Nonnull Locale locale, @Nonnull EnumSet<LocaleScope> scopes) {
 		if (this.addedLocales == null) {
-			this.addedLocales = new HashSet<>();
+			this.addedLocales = new HashMap<>(16);
 		}
-		this.addedLocales.add(locale);
+		final EnumSet<LocaleScope> addedScopes = EnumSet.copyOf(scopes);
+		if (this.removedLocales != null) {
+			final EnumSet<LocaleScope> removedScopes = this.removedLocales.get(locale);
+			if (removedScopes != null) {
+				// overlapping scopes - remove them from both sets
+				addedScopes.removeAll(removedScopes);
+				removedScopes.removeAll(scopes);
+				if (removedScopes.isEmpty()) {
+					this.removedLocales.remove(locale);
+				}
+				if (this.removedLocales.isEmpty()) {
+					this.removedLocales = null;
+				}
+			}
+		}
+		if (!addedScopes.isEmpty()) {
+			this.addedLocales.compute(
+				locale,
+				(key, existingScopes) -> {
+					if (existingScopes == null) {
+						return addedScopes;
+					} else {
+						existingScopes.addAll(addedScopes);
+						return existingScopes;
+					}
+				}
+			);
+		}
 	}
 
 	/**
-	 * Registers the removed locale in the set of removed locales.
-	 * If the removedLocales set is null, it initializes it as a new HashSet.
+	 * Registers a locale as removed by associating it with a specific set of scopes.
+	 * Handles the internal adjustment of added and removed locales to ensure consistency.
 	 *
-	 * @param locale the locale to be registered as removed
+	 * @param locale the locale to be marked as removed, must not be null
+	 * @param scopes the set of scopes associated with the removed locale, must not be null
 	 */
-	private void registerRemovedLocale(@Nonnull Locale locale) {
+	private void registerRemovedLocale(@Nonnull Locale locale, @Nonnull EnumSet<LocaleScope> scopes) {
 		if (this.removedLocales == null) {
-			this.removedLocales = new HashSet<>();
+			this.removedLocales = new HashMap<>(16);
 		}
-		this.removedLocales.add(locale);
+		final EnumSet<LocaleScope> removedScopes = EnumSet.copyOf(scopes);
+		if (this.addedLocales != null) {
+			final EnumSet<LocaleScope> addedScopes = this.addedLocales.get(locale);
+			if (addedScopes != null) {
+				// overlapping scopes - remove them from both sets
+				removedScopes.removeAll(addedScopes);
+				addedScopes.removeAll(scopes);
+				if (addedScopes.isEmpty()) {
+					this.addedLocales.remove(locale);
+				}
+				if (this.addedLocales.isEmpty()) {
+					this.addedLocales = null;
+				}
+			}
+		}
+		if (!removedScopes.isEmpty()) {
+			this.removedLocales.compute(
+				locale,
+				(key, existingScopes) -> {
+					if (existingScopes == null) {
+						return removedScopes;
+					} else {
+						existingScopes.addAll(removedScopes);
+						return existingScopes;
+					}
+				}
+			);
+		}
 	}
 
 	/**

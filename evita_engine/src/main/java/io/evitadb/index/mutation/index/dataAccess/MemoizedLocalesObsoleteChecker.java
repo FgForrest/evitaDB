@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -54,8 +55,6 @@ class MemoizedLocalesObsoleteChecker {
 	 * @return {@code true} if the locales have changed since the last check, otherwise {@code false}
 	 */
 	public boolean isLocalesObsolete() {
-		final Set<Locale> currentAddedLocales = this.containerAccessor.getAddedLocales();
-		final Set<Locale> currentRemovedLocales = this.containerAccessor.getRemovedLocales();
 		final int currentLocalesHash = this.containerAccessor.getLocalesIdentityHash();
 
 		final boolean localesObsolete;
@@ -65,8 +64,16 @@ class MemoizedLocalesObsoleteChecker {
 			localesObsolete = currentLocalesHash != this.localesIdentityHash;
 		}
 		if (localesObsolete) {
-			this.memoizedAddedLocales = new HashSet<>(currentAddedLocales);
-			this.memoizedRemovedLocales = new HashSet<>(currentRemovedLocales);
+			final LocaleWithScope[] addedLocales = this.containerAccessor.getAddedLocales();
+			this.memoizedAddedLocales = new HashSet<>(addedLocales.length);
+			for (LocaleWithScope addedLocale : addedLocales) {
+				this.memoizedAddedLocales.add(addedLocale.locale());
+			}
+			final LocaleWithScope[] removedLocales = this.containerAccessor.getRemovedLocales();
+			this.memoizedRemovedLocales = new HashSet<>(removedLocales.length);
+			for (LocaleWithScope removedLocale : removedLocales) {
+				this.memoizedRemovedLocales.add(removedLocale.locale());
+			}
 			this.localesIdentityHash = currentLocalesHash;
 		}
 		return localesObsolete;
