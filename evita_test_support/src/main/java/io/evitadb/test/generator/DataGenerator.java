@@ -67,6 +67,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.PMPTT;
 import one.edee.oss.pmptt.dao.memory.MemoryStorage;
 import one.edee.oss.pmptt.exception.MaxLevelExceeded;
@@ -108,6 +109,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @SuppressWarnings("ALL")
+@Slf4j
 public class DataGenerator {
 	static final Serializable GENERIC = Long.MAX_VALUE;
 	private static final DecimalFormat PRICE_FORMAT;
@@ -624,33 +626,41 @@ public class DataGenerator {
 				if (referencedEntity != null) {
 					if (referenceAllowsDuplicates) {
 						final int finalIndex = i;
-						if (updatedReferences.isEmpty()) {
-							// create new reference
-							detachedBuilder.setOrUpdateReference(
-								referenceName,
-								Objects.requireNonNull(referencedEntity),
-								// if we update existing entity, we rewrite contents of every third refererence
-								ref -> false,
-								thatIs -> {
-									referenceBuilder.accept(thatIs);
-								}
-							);
-						} else {
-							// update existing reference
-							for (ComparableReferenceKey updatedReferenceKey : updatedReferences) {
+						try {
+							if (updatedReferences.isEmpty()) {
+								// create new reference
 								detachedBuilder.setOrUpdateReference(
 									referenceName,
 									Objects.requireNonNull(referencedEntity),
 									// if we update existing entity, we rewrite contents of every third refererence
-									ref -> {
-										return updatedReferenceKey.equals(
-											new ComparableReferenceKey(ref.getReferenceKey()));
-									},
+									ref -> false,
 									thatIs -> {
 										referenceBuilder.accept(thatIs);
 									}
 								);
+							} else {
+								// update existing reference
+								for (ComparableReferenceKey updatedReferenceKey : updatedReferences) {
+									detachedBuilder.setOrUpdateReference(
+										referenceName,
+										Objects.requireNonNull(referencedEntity),
+										// if we update existing entity, we rewrite contents of every third refererence
+										ref -> {
+											return updatedReferenceKey.equals(
+												new ComparableReferenceKey(ref.getReferenceKey()));
+										},
+										thatIs -> {
+											referenceBuilder.accept(thatIs);
+										}
+									);
+								}
 							}
+						} catch (CannotGenerateRepresentativeReferenceKeyException ingored) {
+							// skip this reference creation
+							log.warn(
+								"Cannot generate unique representative key for reference '{}' to entity '{}' - skipping this reference creation!",
+								referenceName, referencedEntity
+							);
 						}
 					} else {
 						detachedBuilder.setReference(
@@ -799,6 +809,14 @@ public class DataGenerator {
 
 		if (value != null || attribute.isNullable()) {
 			generatedValueWriter.accept((T) value);
+		} else if (
+			value == null && !attribute.isNullable() && attribute.isRepresentative() &&
+				!(attribute instanceof EntityAttributeSchemaContract || attribute instanceof GlobalAttributeSchemaContract)
+		) {
+			throw new CannotGenerateRepresentativeReferenceKeyException(
+				"Cannot generate representative value for non-nullable attribute " + attributeName +
+					" with limited cardinality " + cardinalityLimit + "!"
+			);
 		}
 	}
 
@@ -1960,6 +1978,17 @@ public class DataGenerator {
 				this.valueGenerators,
 				this.referenceValueGenerators
 			);
+		}
+
+	}
+
+	/**
+	 * Exception signalizes it's not possible to generate new unique representative reference key.
+	 */
+	private static class CannotGenerateRepresentativeReferenceKeyException extends RuntimeException {
+
+		public CannotGenerateRepresentativeReferenceKeyException(String message) {
+			super(message);
 		}
 
 	}

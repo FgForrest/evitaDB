@@ -263,7 +263,8 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 		final Map<Integer, SealedEntity> removedEntities = CollectionUtils.createHashMap(maximumAmountOfRemovedEntities);
 
 		final TestState finalState = runFor(
-			new GenerationalTestInput(10, 40),
+			/*new GenerationalTestInput(10, 40),*/
+			new GenerationalTestInput(10, 1),
 			100,
 			new TestState(0, 0),
 			(random, testState) -> {

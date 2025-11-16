@@ -335,6 +335,17 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		public static final LocaleModificationResult NO_CHANGES = new LocaleModificationResult(
 			false, false
 		);
+
+		/**
+		 * Determines if any changes have occurred in either the attribute locales or
+		 * the general locales of the entity.
+		 *
+		 * @return true if changes have occurred in either attribute locales or entity locales;
+		 *         false otherwise.
+		 */
+		public boolean anyChangeOccurred() {
+			return this.attributeLocalesChanged || this.entityLocalesChanged;
+		}
 	}
 
 }

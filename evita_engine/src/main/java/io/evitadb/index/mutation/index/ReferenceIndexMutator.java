@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -295,14 +294,14 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReducedEntityIndex indexForRemoval,
 		@Nonnull ReducedEntityIndex indexForUpsert,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull RepresentativeReferenceKey referenceKey,
+		@Nonnull ReferenceKey referenceKey,
 		@Nonnull AttributeMutation attributeMutation
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 
 		// use different existing attribute value accessor - attributes needs to be looked up in ReferencesStoragePart
-		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory.getReferenceAttributeValueSupplier(
-			referenceKey);
+		final ExistingAttributeValueSupplier existingValueAccessorFactory = attributeSupplierFactory
+			.getReferenceAttributeValueSupplier(referenceKey);
 
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
@@ -350,20 +349,20 @@ public interface ReferenceIndexMutator {
 	 */
 	static void referenceInsert(
 		int entityPrimaryKey,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull ReducedEntityIndex referenceIndex,
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		// we need to index reference index primary key into the reference type index
 		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		final int referencedEntityPrimaryKey = representativeReferenceKey.primaryKey();
+		final int referencedEntityPrimaryKey = referenceKey.primaryKey();
 		if (referenceTypeIndex.insertPrimaryKeyIfMissing(
 			pkForReferenceTypeIndex, referencedEntityPrimaryKey) && undoActionConsumer != null) {
 			undoActionConsumer.accept(
@@ -371,7 +370,6 @@ public interface ReferenceIndexMutator {
 		}
 
 		// add facet to global index
-		final ReferenceKey referenceKey = representativeReferenceKey.referenceKey();
 		addFacetToIndex(entityIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer);
 
 		// we access attributes and sortable compounds from the reference schema
@@ -380,9 +378,9 @@ public interface ReferenceIndexMutator {
 		);
 
 		// index all reference attributes to the reference type index
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
-			representativeReferenceKey
-		);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getReferenceAttributeValueSupplier(referenceKey);
+
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) -> pkForReferenceTypeIndex,
 			() -> referenceAttributeValueSupplier
@@ -428,20 +426,19 @@ public interface ReferenceIndexMutator {
 	 */
 	static void referenceRemoval(
 		int entityPrimaryKey,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull ReducedEntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		// we need to remove referenced entity primary key from the reference type index
 		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		final int referencedEntityPrimaryKey = representativeReferenceKey.primaryKey();
+		final int referencedEntityPrimaryKey = referenceKey.primaryKey();
 		if (referenceTypeIndex.removePrimaryKey(
 			pkForReferenceTypeIndex, referencedEntityPrimaryKey) && undoActionConsumer != null) {
 			undoActionConsumer.accept(() -> referenceTypeIndex.insertPrimaryKeyIfMissing(
@@ -459,8 +456,8 @@ public interface ReferenceIndexMutator {
 		);
 
 		// remove all reference attributes to the reference type index
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
-			representativeReferenceKey);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getReferenceAttributeValueSupplier(referenceKey);
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) -> pkForReferenceTypeIndex,
 			() -> referenceAttributeValueSupplier
@@ -644,7 +641,7 @@ public interface ReferenceIndexMutator {
 			indexKeyDiscriminator instanceof RepresentativeReferenceKey,
 			"Entity index key must be of type ReferenceKey to index attributes in reference index!"
 		);
-		final RepresentativeReferenceKey referenceKey = ((RepresentativeReferenceKey) indexKeyDiscriminator);
+		final RepresentativeReferenceKey rrk = ((RepresentativeReferenceKey) indexKeyDiscriminator);
 
 		// if the reference is indexed for filtering and partitioning, we need to index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
@@ -667,8 +664,8 @@ public interface ReferenceIndexMutator {
 			}
 		}
 
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
-			referenceKey);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getReferenceAttributeValueSupplier(rrk);
 
 		// and the second, we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
@@ -707,7 +704,7 @@ public interface ReferenceIndexMutator {
 			indexKeyDiscriminator instanceof RepresentativeReferenceKey,
 			"Entity index key must be of type RepresentativeReferenceKey to index attributes in reference index!"
 		);
-		final RepresentativeReferenceKey referenceKey = ((RepresentativeReferenceKey) indexKeyDiscriminator);
+		final RepresentativeReferenceKey rrk = ((RepresentativeReferenceKey) indexKeyDiscriminator);
 
 		// if the reference is indexed for filtering and partitioning, we need to index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
@@ -735,8 +732,8 @@ public interface ReferenceIndexMutator {
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider referenceSchemaAttributeProvider = new ReferenceSchemaAttributeAndCompoundSchemaProvider(
 			entitySchema, referenceSchema
 		);
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
-			referenceKey);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getReferenceAttributeValueSupplier(rrk);
 		AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 			executor, referenceSchema, targetIndex, locale, referenceSchemaAttributeProvider, referenceSchema,
 			referenceAttributeValueSupplier, undoActionConsumer
@@ -786,7 +783,7 @@ public interface ReferenceIndexMutator {
 	private static void indexAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReducedEntityIndex targetIndex,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
@@ -801,10 +798,13 @@ public interface ReferenceIndexMutator {
 			entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			executor.upsertEntityLanguageInTargetIndex(
-				entityPrimaryKey, locale, targetIndex,
-				entitySchema, referenceSchema,
-				existingDataSupplierFactory, undoActionConsumer
+			executor.upsertEntityLocaleInTargetIndex(
+				locale, entitySchema, targetIndex, entityPrimaryKey
+			);
+		}
+		for (Locale locale : entityCnt.getAttributeLocales()) {
+			executor.upsertEntityAttributeLocaleInTargetIndex(
+				locale, entitySchema, targetIndex, existingDataSupplierFactory
 			);
 		}
 
@@ -969,7 +969,7 @@ public interface ReferenceIndexMutator {
 	private static void removeAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReducedEntityIndex targetIndex,
-		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull EntitySchema entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
@@ -983,11 +983,13 @@ public interface ReferenceIndexMutator {
 			entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
 		for (Locale locale : entityCnt.getLocales()) {
-			executor.removeEntityLanguageInTargetIndex(
-				entityPrimaryKey, locale, targetIndex,
-				entitySchema, referenceSchema,
-				existingDataSupplierFactory,
-				undoActionConsumer
+			executor.removeEntityLocaleInTargetIndex(
+				locale, entitySchema, targetIndex, entityPrimaryKey
+			);
+		}
+		for (Locale locale : entityCnt.getAttributeLocales()) {
+			executor.removeEntityAttributeLocaleInTargetIndex(
+				locale, entitySchema, targetIndex, existingDataSupplierFactory
 			);
 		}
 
@@ -1100,7 +1102,7 @@ public interface ReferenceIndexMutator {
 			indexKeyDiscriminator instanceof RepresentativeReferenceKey,
 			"Entity index key must be of type RepresentativeReferenceKey to index attributes in reference index!"
 		);
-		final RepresentativeReferenceKey referenceKey = ((RepresentativeReferenceKey) indexKeyDiscriminator);
+		final RepresentativeReferenceKey rrk = ((RepresentativeReferenceKey) indexKeyDiscriminator);
 
 		// if the reference is indexed for filtering and partitioning, we need to index attributes from the entity schema
 		final Scope scope = targetIndex.getIndexKey().scope();
@@ -1132,14 +1134,14 @@ public interface ReferenceIndexMutator {
 			entitySchema, referenceSchema
 		);
 
-		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory.getReferenceAttributeValueSupplier(
-			referenceKey);
+		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
+			.getReferenceAttributeValueSupplier(rrk);
 		referenceAttributeValueSupplier
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
 					         executor,
-					         referenceKey.primaryKey(),
+					         rrk.primaryKey(),
 					         attribute.key().attributeName(),
 					         referenceSchemaAttributeProvider::getAttributeSchema,
 					         () -> AttributeIndexMutator.executeAttributeRemoval(

@@ -27,9 +27,9 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.OptionalInt;
-import java.util.Set;
 
 /**
  * This interface is an extension to {@link EntityStoragePartAccessor} that allows accepting and maintaining
@@ -68,18 +68,18 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	);
 
 	/**
-	 * Returns set of added locales that enriched the existing list of entity locales.
+	 * Returns set of added locales that enriched the existing list of entity attribute locales.
 	 * @return set of added locales or empty set if no locales were added
 	 */
 	@Nonnull
-	Set<Locale> getAddedLocales();
+	LocaleWithScope[] getAddedLocales();
 
 	/**
-	 * Returns set of removed locales that were removed from the existing list of entity locales.
+	 * Returns set of removed locales that were removed from the existing list of entity attribute locales.
 	 * @return set of removed locales or empty set if no locales were removed
 	 */
 	@Nonnull
-	Set<Locale> getRemovedLocales();
+	LocaleWithScope[] getRemovedLocales();
 
 	/**
 	 * Returns identity hash code representing current state of locales (added + removed), which takes also difference
@@ -89,5 +89,27 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	 * @return identity hash code of a current locales state, which changes when locales are added/removed
 	 */
 	int getLocalesIdentityHash();
+
+	/**
+	 * Simple record encapsulating locale with its scope.
+	 * @param locale the locale
+	 * @param scope the scope
+	 */
+	record LocaleWithScope (
+		@Nonnull Locale locale,
+		@Nonnull EnumSet<LocaleScope> scope
+	) {
+
+	}
+
+	/**
+	 * Defines the scope of locale changes - whether they affect entity attribute locale or entity locale.
+	 * Attribute locales affect attribute recalculation in indexes, while entity locale just the existence of
+	 * particular locale in the entity.
+	 */
+	enum LocaleScope {
+		ATTRIBUTE,
+		ENTITY
+	}
 
 }

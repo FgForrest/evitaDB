@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.index.dataAccess;
 
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
@@ -38,7 +39,7 @@ import java.util.Objects;
 
 /**
  * This implementation provides access to memoized instances of {@link EntityStoragePartAccessorAttributeValueSupplier} and
- * {@link ReferenceEntityStoragePartAccessorAttributeValueSupplier} instances that retrieve informations from
+ * {@link ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier} instances that retrieve informations from
  * appropriate storage parts fetched from {@link WritableEntityStorageContainerAccessor}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
@@ -57,7 +58,8 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 	private EntityStoragePartAccessorAttributeValueSupplier entityAttributeValueSupplier;
 	private PriceStoragePartSupplier priceStoragePartSupplier;
 	private ReferencesStoragePartSupplier referenceStoragePartSupplier;
-	private Map<RepresentativeReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueSupplier> referenceAttributeValueSuppliers;
+	private Map<ComparableReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueByReferenceKeySupplier> referenceAttributeValueSuppliers;
+	private Map<RepresentativeReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier> referenceAttributeValueByRRKSuppliers;
 	@Nullable private RepresentativeReferenceKeyAlias representativeReferenceKeyAlias;
 
 	public EntityStoragePartExistingDataFactory(
@@ -96,10 +98,28 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 
 	@Nonnull
 	@Override
-	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey) {
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
 			this.referenceAttributeValueSuppliers;
+
+		return this.referenceAttributeValueSuppliers.computeIfAbsent(
+			new ComparableReferenceKey(referenceKey),
+			rk -> new ReferenceEntityStoragePartAccessorAttributeValueByReferenceKeySupplier(
+				this.containerAccessor,
+				rk,
+				this.entitySchema.getName(),
+				this.entityPrimaryKey
+			)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
+		this.referenceAttributeValueByRRKSuppliers = this.referenceAttributeValueByRRKSuppliers == null ?
+			CollectionUtils.createHashMap(16) :
+			this.referenceAttributeValueByRRKSuppliers;
 
 		final RepresentativeReferenceKey currentRepresentativeKey = this.representativeReferenceKeyAlias == null ||
 			!Objects.equals(this.representativeReferenceKeyAlias.representativeReferenceKey(), referenceKey) ?
@@ -114,9 +134,9 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 			}
 		}
 		final RepresentativeReferenceKey finalStoredRepresentativeKey = storedRepresentativeKey;
-		return this.referenceAttributeValueSuppliers.computeIfAbsent(
+		return this.referenceAttributeValueByRRKSuppliers.computeIfAbsent(
 			currentRepresentativeKey,
-			rrk -> new ReferenceEntityStoragePartAccessorAttributeValueSupplier(
+			rrk -> new ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier(
 				this.containerAccessor,
 				this.entitySchema.getReferenceOrThrowException(rrk.referenceName()),
 				rrk,

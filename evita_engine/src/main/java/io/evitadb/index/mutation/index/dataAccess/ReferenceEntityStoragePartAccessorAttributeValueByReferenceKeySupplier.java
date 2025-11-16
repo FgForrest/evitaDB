@@ -29,8 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 
@@ -47,11 +46,9 @@ import java.util.stream.Stream;
  * This implementation of attribute accessor looks up for attribute in {@link ReferencesStoragePart}.
  */
 @NotThreadSafe
-class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements ExistingAttributeValueSupplier {
+class ReferenceEntityStoragePartAccessorAttributeValueByReferenceKeySupplier implements ExistingAttributeValueSupplier {
 	private final WritableEntityStorageContainerAccessor containerAccessor;
-	private final ReferenceSchema referenceSchema;
-	private final RepresentativeReferenceKey storedReferenceKey;
-	private final RepresentativeReferenceKey currentReferenceKey;
+	private final ComparableReferenceKey referenceKey;
 	private final String entityType;
 	private final int entityPrimaryKey;
 	private final MemoizedLocalesObsoleteChecker memoizedLocalesObsoleteChecker;
@@ -60,18 +57,14 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 	private Optional<ReferenceContract> memoizedReference;
 	private int memoizedReferenceIndex = -1;
 
-	public ReferenceEntityStoragePartAccessorAttributeValueSupplier(
+	public ReferenceEntityStoragePartAccessorAttributeValueByReferenceKeySupplier(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
-		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull RepresentativeReferenceKey storedReferenceKey,
-		@Nonnull RepresentativeReferenceKey currentReferenceKey,
+		@Nonnull ComparableReferenceKey referenceKey,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
 		this.containerAccessor = containerAccessor;
-		this.referenceSchema = referenceSchema;
-		this.storedReferenceKey = storedReferenceKey;
-		this.currentReferenceKey = currentReferenceKey;
+		this.referenceKey = referenceKey;
 		this.entityType = entityType;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.memoizedLocalesObsoleteChecker = new MemoizedLocalesObsoleteChecker(containerAccessor);
@@ -153,16 +146,7 @@ class ReferenceEntityStoragePartAccessorAttributeValueSupplier implements Existi
 			for (int i = 0; i < references.length; i++) {
 				final ReferenceContract reference = references[i];
 				if (reference.exists()) {
-					final RepresentativeReferenceKey theReferenceKey =
-						this.referenceSchema.getName().equals(reference.getReferenceName()) &&
-							this.referenceSchema.getCardinality().allowsDuplicates() ?
-							new RepresentativeReferenceKey(
-								reference.getReferenceKey(),
-								this.referenceSchema.getRepresentativeAttributeDefinition()
-								                    .getRepresentativeValues(reference)
-							) :
-							new RepresentativeReferenceKey(reference.getReferenceKey());
-					if (Objects.equals(theReferenceKey, this.currentReferenceKey) || Objects.equals(theReferenceKey, this.storedReferenceKey)) {
+					if (this.referenceKey.equals(new ComparableReferenceKey(reference.getReferenceKey()))) {
 						this.memoizedReference = Optional.of(reference);
 						this.memoizedReferenceIndex = i;
 						break;
