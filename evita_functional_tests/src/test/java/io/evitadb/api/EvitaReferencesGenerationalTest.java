@@ -194,7 +194,12 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 					.verifySchemaStrictly()
 					.withoutGeneratedPrimaryKey()
 					.withoutHierarchy()
-					.withoutPrice()
+					.withPriceInCurrency(
+						Currency.getInstance("CZK"),
+						Currency.getInstance("EUR"),
+						Currency.getInstance("USD"),
+						Currency.getInstance("GBP")
+					)
 					.withLocale(Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN)
 					/* here we define list of attributes with indexes for search / sort */
 					.withGlobalAttribute(ATTRIBUTE_CODE)
@@ -263,8 +268,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 		final Map<Integer, SealedEntity> removedEntities = CollectionUtils.createHashMap(maximumAmountOfRemovedEntities);
 
 		final TestState finalState = runFor(
-			/*new GenerationalTestInput(10, 40),*/
-			new GenerationalTestInput(10, 1),
+			input,
 			100,
 			new TestState(0, 0),
 			(random, testState) -> {
