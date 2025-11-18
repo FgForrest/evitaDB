@@ -26,16 +26,17 @@ package io.evitadb.index.mutation.storagePart;
 
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
+import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Allows collecting mutations in a mutable and lazy fashion. It tries to allocate memory as late as possible.
@@ -54,7 +55,7 @@ class MutationCollector {
 	/**
 	 * External mutations that are applied on other (referenced) entities.
 	 */
-	private CompositeObjectArray<EntityMutation> externalMutations;
+	private Map<EntityReference, EntityMutation> externalMutations;
 
 	/**
 	 * Adds a local mutation to the mutation collector.
@@ -75,9 +76,36 @@ class MutationCollector {
 	 */
 	public void addExternalMutation(@Nonnull EntityMutation mutation) {
 		if (this.externalMutations == null) {
-			this.externalMutations = new CompositeObjectArray<>(EntityMutation.class);
+			this.externalMutations = CollectionUtils.createLinkedHashMap(16);
 		}
-		this.externalMutations.add(mutation);
+		this.externalMutations.compute(
+			new EntityReference(mutation.getEntityType(), Objects.requireNonNull(mutation.getEntityPrimaryKey())),
+			(entityReference, existingMutation) -> {
+				if (existingMutation == null) {
+					return mutation;
+				} else if (existingMutation instanceof ServerEntityUpsertMutation seum) {
+					if (mutation instanceof ServerEntityUpsertMutation newSeum) {
+						return seum.mergeWith(newSeum);
+					} else {
+						throw new GenericEvitaInternalError(
+							"Cannot merge external mutation " + mutation + " because there is already existing mutation " + existingMutation + " for the same entity!"
+						);
+					}
+				} else if (existingMutation instanceof ServerEntityRemoveMutation reum) {
+					if (mutation instanceof ServerEntityRemoveMutation newReum) {
+						return reum.mergeWith(newReum);
+					} else {
+						throw new GenericEvitaInternalError(
+							"Cannot merge external mutation " + mutation + " because there is already existing mutation " + existingMutation + " for the same entity!"
+						);
+					}
+				} else {
+					throw new GenericEvitaInternalError(
+						"Cannot merge external mutation " + mutation + " because there is already existing mutation " + existingMutation + " for the same entity!"
+					);
+				}
+			}
+		);
 	}
 
 	/**
@@ -90,43 +118,8 @@ class MutationCollector {
 	public ImplicitMutations toImplicitMutations() {
 		return new ImplicitMutations(
 			this.localMutations == null ? NO_LOCAL_MUTATIONS : this.localMutations.toArray(),
-			this.externalMutations == null ? NO_ENTITY_MUTATIONS : this.externalMutations.toArray()
+			this.externalMutations == null ? NO_ENTITY_MUTATIONS : this.externalMutations.values().toArray(EntityMutation[]::new)
 		);
 	}
 
-	/**
-	 * Retrieves a set of extracted local mutations from external entity mutations that match the specified entity type
-	 * and primary key. The extraction is performed using the provided function.
-	 *
-	 * @param <T> the type of the objects to extract from the entity mutations
-	 * @param entityType the type of the entity to filter the external mutations
-	 * @param entityPrimaryKey the primary key of the entity to filter the external mutations
-	 * @param extractFunction a function to map the {@link EntityUpsertMutation} objects to a stream of objects of type T
-	 * @return a set of objects of type T extracted from the matching external entity mutations
-	 */
-	@Nonnull
-	public <T> Set<T> getExternalEntityLocalMutations(
-		@Nonnull String entityType,
-		int entityPrimaryKey,
-		@Nonnull Function<EntityUpsertMutation, Stream<T>> extractFunction
-	) {
-		Stream<T> result = null;
-		if (this.externalMutations != null) {
-			for (EntityMutation entityMutation : this.externalMutations) {
-				if (
-					entityMutation instanceof EntityUpsertMutation eup &&
-						entityType.equals(eup.getEntityType()) &&
-						eup.getEntityPrimaryKey() != null &&
-						entityPrimaryKey == eup.getEntityPrimaryKey()
-				) {
-					final Stream<T> resultStream = extractFunction.apply(eup);
-					result = result == null ?
-						resultStream :
-						Stream.concat(result, resultStream);
-				}
-			}
-		}
-		return result == null ?
-			Collections.emptySet() : result.collect(Collectors.toSet());
-	}
 }

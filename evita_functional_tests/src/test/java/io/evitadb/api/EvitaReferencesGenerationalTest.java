@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -193,7 +194,12 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 					.verifySchemaStrictly()
 					.withoutGeneratedPrimaryKey()
 					.withoutHierarchy()
-					.withoutPrice()
+					.withPriceInCurrency(
+						Currency.getInstance("CZK"),
+						Currency.getInstance("EUR"),
+						Currency.getInstance("USD"),
+						Currency.getInstance("GBP")
+					)
 					.withLocale(Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN)
 					/* here we define list of attributes with indexes for search / sort */
 					.withGlobalAttribute(ATTRIBUTE_CODE)
@@ -262,7 +268,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 		final Map<Integer, SealedEntity> removedEntities = CollectionUtils.createHashMap(maximumAmountOfRemovedEntities);
 
 		final TestState finalState = runFor(
-			new GenerationalTestInput(1, 40),
+			input,
 			100,
 			new TestState(0, 0),
 			(random, testState) -> {
@@ -330,6 +336,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 
 				generation++;
 
+				assertReferencesAreConsistent();
 				if (generation % 3 == 0) {
 					// reload EVITA entirely
 					this.evita.close();
@@ -414,6 +421,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 								k -> new ExpectedProducts()
 							).addProduct(
 								product.getPrimaryKey(),
+								ref.getReferenceKey(),
 								Objects.requireNonNull(categoryPriority),
 								Objects.requireNonNull(categoryGroup)
 							);
@@ -436,15 +444,15 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 					final List<Integer> actualProductIds = category.getReferences(REFERENCE_PRODUCTS)
 						.stream()
 						.peek(ref -> {
-							final int refPK = ref.getReferencedPrimaryKey();
+							final ReferenceKey referenceKey = ref.getReferenceKey();
 							assertEquals(
-								expectedProducts.getPriority(refPK), ref.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class),
-								"Category " + categoryPrimaryKey + " reference to product " + refPK +
+								expectedProducts.getPriority(referenceKey), ref.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class),
+								"Category " + categoryPrimaryKey + " reference to product " + referenceKey +
 									" has incorrect attribute " + ATTRIBUTE_CATEGORY_PRIORITY
 							);
 							assertEquals(
-								expectedProducts.getGroup(refPK), ref.getAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class),
-								"Category " + categoryPrimaryKey + " reference to product " + refPK +
+								expectedProducts.getGroup(referenceKey), ref.getAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class),
+								"Category " + categoryPrimaryKey + " reference to product " + referenceKey +
 									" has incorrect attribute " + ATTRIBUTE_CATEGORY_GROUP
 							);
 						})
@@ -453,8 +461,9 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 						.toList();
 
 					final List<Integer> expectedProductIds = expectedProducts.getProductIds();
-					Assert.isTrue(
-						actualProductIds.equals(expectedProductIds),
+					assertEquals(
+						actualProductIds,
+						expectedProductIds,
 						"Category " + categoryPrimaryKey + " references products " + actualProductIds +
 							" but expected products were " + expectedProductIds
 					);
@@ -522,13 +531,14 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 	 */
 	private static class ExpectedProducts {
 		private final List<Integer> productIds = new ArrayList<>(128);
-		private final Map<Integer, Long> productPriorities = new HashMap<>(128);
-		private final Map<Integer, String> productGroups = new HashMap<>(128);
+		private final Map<ComparableKey, Long> productPriorities = new HashMap<>(128);
+		private final Map<ComparableKey, String> productGroups = new HashMap<>(128);
 
-		public void addProduct(int productId, @Nonnull Long priority, @Nonnull String group) {
+		public void addProduct(int productId, @Nonnull ReferenceKey referenceKey, @Nonnull Long priority, @Nonnull String group) {
 			this.productIds.add(productId);
-			this.productPriorities.put(productId, priority);
-			this.productGroups.put(productId, group);
+			final ComparableKey crk = new ComparableKey(productId, referenceKey.internalPrimaryKey());
+			this.productPriorities.put(crk, priority);
+			this.productGroups.put(crk, group);
 		}
 
 		@Nonnull
@@ -538,13 +548,23 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 		}
 
 		@Nonnull
-		public Long getPriority(int productId) {
-			return this.productPriorities.get(productId);
+		public Long getPriority(@Nonnull ReferenceKey referenceKey) {
+			return this.productPriorities.get(new ComparableKey(referenceKey));
 		}
 
 		@Nonnull
-		public String getGroup(int productId) {
-			return this.productGroups.get(productId);
+		public String getGroup(@Nonnull ReferenceKey referenceKey) {
+			return this.productGroups.get(new ComparableKey(referenceKey));
+		}
+
+		private record ComparableKey(
+			int referencedPrimaryKey,
+			int internalPrimaryKey
+		) {
+
+			public ComparableKey(@Nonnull ReferenceKey referenceKey) {
+				this(referenceKey.primaryKey(), referenceKey.internalPrimaryKey());
+			}
 		}
 
 	}

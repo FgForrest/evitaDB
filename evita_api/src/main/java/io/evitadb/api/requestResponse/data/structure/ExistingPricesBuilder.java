@@ -343,6 +343,21 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	}
 
 	/**
+	 * Removes all prices that are currently set on the entity. Method removes only those prices, that are returned
+	 * by the method {@link #getPrices()}, so that if the entity prices are limited to specific currency, price list
+	 * or validity, only those prices are removed and not all present on the entity actually.
+	 *
+	 * @return builder instance to allow command chaining
+	 */
+	@Override
+	public PricesBuilder removeAllPrices() {
+		for (PriceContract price : getPrices()) {
+			removePrice(price.priceId(), price.priceList(), price.currency());
+		}
+		return this;
+	}
+
+	/**
 	 * Sets {@link PriceInnerRecordHandling} for this price container.
 	 *
 	 * @param priceInnerRecordHandling handling strategy

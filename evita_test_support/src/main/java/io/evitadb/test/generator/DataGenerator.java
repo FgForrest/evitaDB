@@ -67,6 +67,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.PMPTT;
 import one.edee.oss.pmptt.dao.memory.MemoryStorage;
 import one.edee.oss.pmptt.exception.MaxLevelExceeded;
@@ -108,6 +109,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @SuppressWarnings("ALL")
+@Slf4j
 public class DataGenerator {
 	static final Serializable GENERIC = Long.MAX_VALUE;
 	private static final DecimalFormat PRICE_FORMAT;
@@ -500,21 +502,12 @@ public class DataGenerator {
 			final ReferenceSchema referenceSchema = (ReferenceSchema) schema.getReference(referenceName).orElseThrow();
 			final boolean multiple = referenceSchema.getCardinality().getMax() > 1;
 			final String referencedType = referenceSchema.getReferencedEntityType();
+			final Integer maximumReferenceCount = getMaximumReferenceCount(referencedType);
 			final int initialCount;
-			if (Entities.CATEGORY.equals(referencedType) && multiple) {
-				initialCount = genericFaker.random().nextInt(4);
-			} else if (Entities.STORE.equals(referencedType) && multiple) {
-				initialCount = genericFaker.random().nextInt(8);
-			} else if (Entities.PARAMETER.equals(referencedType) && multiple) {
-				initialCount = genericFaker.random().nextInt(16);
-			} else if (Entities.PRICE_LIST.equals(referencedType) && multiple) {
-				initialCount = genericFaker.random().nextInt(10);
-			} else if (Entities.PRODUCT.equals(referencedType) && multiple) {
-				initialCount = genericFaker.random().nextInt(30);
-			} else if (multiple) {
-				initialCount = 10;
+			if (maximumReferenceCount == null) {
+				initialCount = multiple ? 10 : 1;
 			} else {
-				initialCount = 1;
+				initialCount = genericFaker.random().nextInt(maximumReferenceCount);
 			}
 
 			final Collection<ReferenceContract> existingReferences = detachedBuilder.getReferences(referenceName);
@@ -633,33 +626,41 @@ public class DataGenerator {
 				if (referencedEntity != null) {
 					if (referenceAllowsDuplicates) {
 						final int finalIndex = i;
-						if (updatedReferences.isEmpty()) {
-							// create new reference
-							detachedBuilder.setOrUpdateReference(
-								referenceName,
-								Objects.requireNonNull(referencedEntity),
-								// if we update existing entity, we rewrite contents of every third refererence
-								ref -> false,
-								thatIs -> {
-									referenceBuilder.accept(thatIs);
-								}
-							);
-						} else {
-							// update existing reference
-							for (ComparableReferenceKey updatedReferenceKey : updatedReferences) {
+						try {
+							if (updatedReferences.isEmpty()) {
+								// create new reference
 								detachedBuilder.setOrUpdateReference(
 									referenceName,
 									Objects.requireNonNull(referencedEntity),
 									// if we update existing entity, we rewrite contents of every third refererence
-									ref -> {
-										return updatedReferenceKey.equals(
-											new ComparableReferenceKey(ref.getReferenceKey()));
-									},
+									ref -> false,
 									thatIs -> {
 										referenceBuilder.accept(thatIs);
 									}
 								);
+							} else {
+								// update existing reference
+								for (ComparableReferenceKey updatedReferenceKey : updatedReferences) {
+									detachedBuilder.setOrUpdateReference(
+										referenceName,
+										Objects.requireNonNull(referencedEntity),
+										// if we update existing entity, we rewrite contents of every third refererence
+										ref -> {
+											return updatedReferenceKey.equals(
+												new ComparableReferenceKey(ref.getReferenceKey()));
+										},
+										thatIs -> {
+											referenceBuilder.accept(thatIs);
+										}
+									);
+								}
 							}
+						} catch (CannotGenerateRepresentativeReferenceKeyException ingored) {
+							// skip this reference creation
+							log.warn(
+								"Cannot generate unique representative key for reference '{}' to entity '{}' - skipping this reference creation!",
+								referenceName, referencedEntity
+							);
 						}
 					} else {
 						detachedBuilder.setReference(
@@ -672,6 +673,30 @@ public class DataGenerator {
 					}
 				}
 			}
+		}
+	}
+
+	/**
+	 * Determines the maximum reference count allowed for a specific referenced type based on its category
+	 * and whether multiple references are allowed.
+	 *
+	 * @param referencedType the type of entity being referenced; must not be null
+	 * @return the maximum number of references permitted for the specified type and conditions
+	 */
+	@Nonnull
+	private static Integer getMaximumReferenceCount(@Nonnull String referencedType) {
+		if (Entities.CATEGORY.equals(referencedType)) {
+			return 4;
+		} else if (Entities.STORE.equals(referencedType)) {
+			return 8;
+		} else if (Entities.PARAMETER.equals(referencedType)) {
+			return 16;
+		} else if (Entities.PRICE_LIST.equals(referencedType)) {
+			return 10;
+		} else if (Entities.PRODUCT.equals(referencedType)) {
+			return 30;
+		} else {
+			return null;
 		}
 	}
 
@@ -782,7 +807,17 @@ public class DataGenerator {
 			throw new GenericEvitaInternalError("Cannot generate unique " + attributeName + " even in 1000 iterations!");
 		}
 
-		generatedValueWriter.accept((T) value);
+		if (value != null || attribute.isNullable()) {
+			generatedValueWriter.accept((T) value);
+		} else if (
+			value == null && !attribute.isNullable() && attribute.isRepresentative() &&
+				!(attribute instanceof EntityAttributeSchemaContract || attribute instanceof GlobalAttributeSchemaContract)
+		) {
+			throw new CannotGenerateRepresentativeReferenceKeyException(
+				"Cannot generate representative value for non-nullable attribute " + attributeName +
+					" with limited cardinality " + cardinalityLimit + "!"
+			);
+		}
 	}
 
 	private static <T extends Serializable> T generateRandomDateTimeRange(@Nonnull Faker fakerToUse) {
@@ -1787,11 +1822,42 @@ public class DataGenerator {
 					.map(ReferenceContract::getReferenceKey)
 					.sorted(ReferenceKey.FULL_COMPARATOR)
 					.collect(Collectors.toList());
-			for (ReferenceKey reference : references) {
-				if (genericFaker.random().nextInt(4) == 0) {
-					detachedBuilder.removeReference(reference);
+			final Map<String, Integer> referenceCountMap = references
+				.stream()
+				.collect(
+					Collectors.toMap(
+						ReferenceKey::referenceName,
+						it -> 1,
+						Integer::sum
+					)
+				);
+
+			ReferenceSchemaContract referenceSchema = null;
+			String referencedType = null;
+			int maximumReferenceCount = 0;
+			int removalProbabilityDenominator = 0;
+			for (ReferenceKey referenceKey : references) {
+				if (referenceSchema == null || !referenceKey.referenceName().equals(referenceSchema.getName())) {
+					referenceSchema = schema.getReference(referenceKey.referenceName()).orElseThrow();
+					final boolean multiple = referenceSchema.getCardinality().getMax() > 1;
+					referencedType = referenceSchema.getReferencedEntityType();
+					maximumReferenceCount = ofNullable(getMaximumReferenceCount(referencedType)).orElseGet(() -> multiple ? 10 : 1);
+					final int currentCount = referenceCountMap.get(referenceKey.referenceName());
+					final double targetRemainingCount = maximumReferenceCount / 3.0;
+					// Calculate removal probability: only remove if current count exceeds target
+					if (currentCount > targetRemainingCount) {
+						// n = currentCount / (currentCount - targetRemainingCount)
+						removalProbabilityDenominator = Math.max(2, (int) Math.ceil(currentCount / (currentCount - targetRemainingCount)));
+					} else {
+						// Don't remove if we're already at or below target
+						removalProbabilityDenominator = Integer.MAX_VALUE;
+					}
+				}
+				if (removalProbabilityDenominator != Integer.MAX_VALUE && genericFaker.random().nextInt(removalProbabilityDenominator) == 0) {
+					detachedBuilder.removeReference(referenceKey);
 				}
 			}
+
 			generateRandomReferences(
 				schema, referencedEntityResolver, globalUniqueSequencer, uniqueSequencer, parameterIndex, sortableAttributesHolder,
 				valueGenerators, referenceValueGenerators, localizedFakerFetcher, genericFaker, detachedBuilder,
@@ -1912,6 +1978,17 @@ public class DataGenerator {
 				this.valueGenerators,
 				this.referenceValueGenerators
 			);
+		}
+
+	}
+
+	/**
+	 * Exception signalizes it's not possible to generate new unique representative reference key.
+	 */
+	private static class CannotGenerateRepresentativeReferenceKeyException extends RuntimeException {
+
+		public CannotGenerateRepresentativeReferenceKeyException(String message) {
+			super(message);
 		}
 
 	}

@@ -97,10 +97,13 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 	) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.referenceAttributesIndex = CollectionUtils.createHashMap(inputMutations.size());
+		final Set<ComparableReferenceKey> matchingReferenceKeys = CollectionUtils.createHashSet(inputMutations.size() / 2);
 		// let's collect all primary keys of the insert reference with the same name into a bitmap
 		final String referenceName = firstMutation.getReferenceKey().referenceName();
 		this.matchingMutations = new CompositeObjectArray<>(ReferenceMutation.class);
 		this.matchingMutations.add(firstMutation);
+		matchingReferenceKeys.add(new ComparableReferenceKey(firstMutation.getReferenceKey()));
+
 		// we assume that references are sorted by ReferenceKey,
 		// and that the mutations that relate to the same reference are next to each other
 		for (int j = startIndex; j < inputMutations.size(); j++) {
@@ -113,19 +116,20 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 						this.matchingMutations.add(nextIrm);
 						// this allows enveloping process to quickly skip already processed mutations
 						processedMutations.add(j);
+						matchingReferenceKeys.add(new ComparableReferenceKey(nextIrm.getReferenceKey()));
 					} else if (
 						// and we also build an index of upserted reference attributes for the insert mutations
 						nextIrm instanceof ReferenceAttributeMutation ram &&
-							ram.getAttributeMutation() instanceof UpsertAttributeMutation uam) {
+							ram.getAttributeMutation() instanceof UpsertAttributeMutation uam &&
+							matchingReferenceKeys.contains(new ComparableReferenceKey(ram.getReferenceKey()))
+					) {
 						final ReferenceKey refKey = ram.getReferenceKey();
 						Assert.isPremiseValid(
 							!refKey.isUnknownReference(),
 							() -> "Cannot process reference attribute mutation for unknown reference!"
 						);
 						this.referenceAttributesIndex.computeIfAbsent(
-								refKey.isNewReference() ?
-									assignedInternalKeysTranslator.apply(new ComparableReferenceKey(refKey)) :
-									refKey,
+								assignedInternalKeysTranslator.apply(new ComparableReferenceKey(refKey)),
 								referenceKey -> CollectionUtils.createHashMap(16)
 							)
 							.put(

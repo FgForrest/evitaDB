@@ -27,6 +27,8 @@ package io.evitadb.index.mutation.index.dataAccess;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -55,7 +57,8 @@ public final class EntityExistingDataFactory implements ExistingDataSupplierFact
 	private ExistingAttributeValueSupplier entityAttributeValueSupplier;
 	private EntityPriceSupplier entityPriceSupplier;
 	private ReferenceSupplier referenceSupplier;
-	private Map<RepresentativeReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueSuppliers;
+	private Map<RepresentativeReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueByRRKSuppliers;
+	private Map<ComparableReferenceKey, ReferenceAttributeValueSupplier> referenceAttributeValueSuppliers;
 
 	/**
 	 * Registers the removal of the attribute specified by the given key.
@@ -90,11 +93,32 @@ public final class EntityExistingDataFactory implements ExistingDataSupplierFact
 
 	@Nonnull
 	@Override
-	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey) {
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
 			this.referenceAttributeValueSuppliers;
 		return this.referenceAttributeValueSuppliers.computeIfAbsent(
+			new ComparableReferenceKey(referenceKey),
+			crk -> {
+				final ReferenceKey rk = crk.referenceKey();
+				return new ReferenceAttributeValueSupplier(
+					this.entity,
+					this.entity.getReference(rk)
+						.orElseThrow(
+							() -> new ReferenceNotFoundException(rk.referenceName(), rk.primaryKey(), this.entity)
+						)
+				);
+			}
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
+		this.referenceAttributeValueByRRKSuppliers = this.referenceAttributeValueByRRKSuppliers == null ?
+			CollectionUtils.createHashMap(16) :
+			this.referenceAttributeValueByRRKSuppliers;
+		return this.referenceAttributeValueByRRKSuppliers.computeIfAbsent(
 			referenceKey,
 			rrk -> {
 				final ReferenceSchema referenceSchema = this.entitySchema.getReferenceOrThrowException(rrk.referenceName());

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,13 +29,17 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents a verified entity upsert mutation. This is used to mark the entity upsert mutation as verified
@@ -121,4 +125,41 @@ public class ServerEntityUpsertMutation extends EntityUpsertMutation implements 
 		return Optional.empty();
 	}
 
+	/**
+	 * Merges the current {@code ServerEntityUpsertMutation} instance with another {@code ServerEntityUpsertMutation}.
+	 * This operation combines the implicit mutation behaviors and the local mutations of both instances.
+	 * The merging is only allowed if the {@code applyUndoOnError} and {@code verifyConsistency} flags are identical
+	 * for both instances.
+	 *
+	 * @param anotherMutation the {@code ServerEntityUpsertMutation} instance to merge with the current instance.
+	 *                        Must not be null.
+	 * @return a new {@code ServerEntityUpsertMutation} instance containing the merged implicit mutation behaviors
+	 *         and local mutations from both instances.
+	 * @throws IllegalArgumentException if the {@code applyUndoOnError} or {@code verifyConsistency} flags differ
+	 *                                  between the two {@code ServerEntityUpsertMutation} instances.
+	 */
+	@Nonnull
+	public ServerEntityUpsertMutation mergeWith(@Nonnull ServerEntityUpsertMutation anotherMutation) {
+		Assert.isPremiseValid(
+			this.applyUndoOnError == anotherMutation.applyUndoOnError &&
+			this.verifyConsistency == anotherMutation.verifyConsistency,
+			"Cannot merge two ServerEntityUpsertMutations that have different applyUndoOnError or verifyConsistency flags!"
+		);
+		final EnumSet<ImplicitMutationBehavior> mergedImplicitMutations = EnumSet.copyOf(this.implicitMutations);
+		mergedImplicitMutations.addAll(anotherMutation.implicitMutations);
+		return new ServerEntityUpsertMutation(
+			new EntityUpsertMutation(
+				this.getEntityType(),
+				this.getEntityPrimaryKey(),
+				this.expects(),
+				Stream.concat(
+					this.getLocalMutations().stream(),
+					anotherMutation.getLocalMutations().stream()
+				).collect(Collectors.toCollection(ArrayList::new))
+			),
+			mergedImplicitMutations,
+			this.applyUndoOnError,
+			this.verifyConsistency
+		);
+	}
 }

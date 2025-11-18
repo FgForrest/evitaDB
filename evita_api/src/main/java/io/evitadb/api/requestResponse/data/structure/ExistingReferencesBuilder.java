@@ -1468,28 +1468,13 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 		referenceBundle.initializeBundleIfNecessary(
 			theBundle -> {
-				initReferenceBundle(referenceName, theBundle);
-				if (this.removedReferences != null) {
-					for (FullyComparableReferenceKey removedReference : this.removedReferences) {
-						if (referenceName.equals(removedReference.referenceName())) {
-							this.baseReferences.getReferenceWithoutSchemaCheck(
-								new ReferenceKey(
-									removedReference.referenceName(),
-									removedReference.primaryKey(),
-									removedReference.internalPrimaryKey()
-								)
-							).ifPresentOrElse(
-								theBundle::removeReference,
-								() -> {
-									// this should never happen - the removed reference must be present in base references
-									throw new GenericEvitaInternalError(
-										"Removed reference is missing in base references!"
-									);
-								}
-							);
-						}
-					}
-				}
+				initReferenceBundle(
+					referenceName,
+					theBundle,
+					this.removedReferences == null ?
+						ref -> true :
+						ref -> !this.removedReferences.contains(new FullyComparableReferenceKey(ref.getReferenceKey()))
+				);
 			}
 		);
 
@@ -1557,8 +1542,15 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 */
 	private void initReferenceBundle(
 		@Nonnull String referenceName,
-		@Nonnull BuilderReferenceBundle referenceBundle
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull Predicate<ReferenceContract> shouldIncludeReference
 	) {
+		final Predicate<ReferenceContract> combinedPredicate =
+			reference -> this.referencePredicate.test(reference) &&
+				// the reference might have been already added / updated by some previous mutation
+				!referenceBundle.containsReference(reference) &&
+				// the reference might have been already removed locally
+				shouldIncludeReference.test(reference);
 		final Iterator<List<ReferenceContract>> it = this.baseReferences
 			.getDuplicatedReferences(referenceName)
 			.iterator();
@@ -1567,12 +1559,14 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			ReferenceContract firstReference = null;
 			boolean converted = false;
 			for (ReferenceContract reference : references) {
-				if (this.referencePredicate.test(reference)) {
+				if (combinedPredicate.test(reference)) {
 					if (converted) {
 						referenceBundle.upsertDuplicateReference(reference);
 					} else if (firstReference == null) {
 						firstReference = reference;
-						referenceBundle.upsertNonDuplicateReference(reference);
+						referenceBundle.upsertWithDuplicateReferenceConversion(
+							reference, rk -> getReference(rk).orElseThrow()
+						);
 					} else {
 						// we have more than one reference - we need to convert the first one as well
 						referenceBundle.convertToDuplicateReference(reference, firstReference);
@@ -1582,7 +1576,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			}
 		}
 		this.baseReferences.getNonDuplicatedReferences(referenceName)
-		                   .forEach(referenceBundle::upsertNonDuplicateReference);
+			.filter(combinedPredicate)
+			.forEach(referenceBundle::upsertNonDuplicateReference);
 	}
 
 	/**
