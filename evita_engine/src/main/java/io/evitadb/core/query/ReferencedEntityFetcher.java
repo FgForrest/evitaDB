@@ -660,9 +660,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 											examinedScopes,
 											(es, eik) -> null
 										);
+									if (referencedEntityIndexes.isEmpty()) {
+										continue;
+									}
 
 									Formula lastIndexFormula = null;
 									RepresentativeReferenceKey lastDiscriminator = null;
+
+									referencedEntityIndexes.sort(Comparator.comparing(
+										rede -> {
+											final EntityIndexKey indexKey = rede.getIndexKey();
+											return Objects.requireNonNull(
+												(RepresentativeReferenceKey) indexKey.discriminator()
+											);
+										}
+									));
+
 									for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
 										final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
 										final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
