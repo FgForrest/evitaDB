@@ -2284,7 +2284,7 @@ public final class Catalog
 		@Nonnull
 		@Override
 		public Collection<EntitySchemaContract> getEntitySchemas() {
-			return Catalog.this.getEntitySchemaIndex().values();
+			return new ArrayList<>(Catalog.this.getEntitySchemaIndex().values());
 		}
 
 		@Nonnull
