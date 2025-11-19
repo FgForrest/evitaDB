@@ -185,6 +185,17 @@ on the client side:
         <p>**Default: `TimeUnit.SECONDS`**</p>
         <p>Time unit for `timeout` property.</p>
     </dd>
+    <dt>streamingTimeout</dt>
+    <dd>
+        <p>**Default: `3600`**</p>
+        <p>Number of `streamingTimeoutUnit` client should wait for server to send next streamed message to the client
+        before it cancels the stream.</p>
+    </dd>
+    <dt>streamingTimeoutUnit</dt>
+    <dd>
+        <p>**Default: `TimeUnit.SECONDS`**</p>
+        <p>Time unit for `streamingTimeout` property.</p>
+    </dd>
     <dt>openTelemetryInstance</dt>
     <dd>
         <p>**Default: `null`**</p>
