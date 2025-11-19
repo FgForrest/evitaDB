@@ -161,6 +161,9 @@ public class OnCatalogChangeCaptureSubscribingDataFetcher extends ChangeCaptureS
 			.containerType(Optional.ofNullable((List<ContainerType>) schemaSiteDto.get(SchemaSiteDescriptor.CONTAINER_TYPE.name()))
                .map(it -> it.toArray(ContainerType[]::new))
                .orElse(null))
+			.containerName(Optional.ofNullable((List<String>) schemaSiteDto.get(SchemaSiteDescriptor.CONTAINER_NAME.name()))
+               .map(it -> it.toArray(String[]::new))
+               .orElse(null))
 			.build();
 	}
 }

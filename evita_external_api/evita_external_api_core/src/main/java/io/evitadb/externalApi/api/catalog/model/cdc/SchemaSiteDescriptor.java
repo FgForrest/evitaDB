@@ -58,6 +58,13 @@ public interface SchemaSiteDescriptor {
 			""")
 		.type(nullable(ContainerType[].class))
 		.build();
+	PropertyDescriptor CONTAINER_NAME = PropertyDescriptor.builder()
+		.name("containerName")
+		.description("""
+			The intercepted name of the container (e.g. `attribute`, `reference`, `associatedData`).
+			""")
+		.type(nullable(String[].class))
+		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("SchemaSite")
@@ -65,7 +72,8 @@ public interface SchemaSiteDescriptor {
 		.staticProperties(List.of(
 			ENTITY_TYPE,
 			OPERATION,
-			CONTAINER_TYPE
+			CONTAINER_TYPE,
+			CONTAINER_NAME
 		))
 		.build();
 }
