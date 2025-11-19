@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.driver;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -46,6 +47,7 @@ public interface AsyncCallFunction<S, T> {
 	 * @throws ExecutionException if the execution encounters an exception
 	 * @throws TimeoutException if the execution times out
 	 */
+	@Nullable
 	T apply(@Nonnull S serviceStub) throws InterruptedException, ExecutionException, TimeoutException;
 
 }
