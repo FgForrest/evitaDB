@@ -63,7 +63,11 @@ import java.util.concurrent.TimeUnit;
  * @param timeout                   Number of {@link EvitaClientConfiguration#timeoutUnit time units} client should
  *                                  wait for server to respond before throwing an exception or closing connection
  *                                  forcefully.
- * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout property}.
+ * @param timeoutUnit               Time unit for {@link EvitaClientConfiguration#timeout} property.
+ * @param streamingTimeout          Number of {@link EvitaClientConfiguration#timeoutUnit time units} client should
+ *                                  wait for server to send next streamed message to the client before it cancels
+ *                                  the stream.
+ * @param streamingTimeoutUnit      Time unit for {@link EvitaClientConfiguration#streamingTimeout()} property.
  * @param trackedTaskLimit		    The maximum number of server tasks that can be tracked by the client.
  * @param retry                     Whether the client will retry the call in case of timeout or other network related problems.
  * @param changeCaptureQueueSize    The maximum number of change capture events that can be buffered for each subscriber.
@@ -88,6 +92,8 @@ public record EvitaClientConfiguration(
 	@Nonnull ReflectionCachingBehaviour reflectionLookupBehaviour,
 	long timeout,
 	@Nonnull TimeUnit timeoutUnit,
+	long streamingTimeout,
+	@Nonnull TimeUnit streamingTimeoutUnit,
 	@Nullable Object openTelemetryInstance,
 	boolean retry,
 	int trackedTaskLimit,
@@ -133,6 +139,8 @@ public record EvitaClientConfiguration(
 		private String certificateKeyPassword = null;
 		private long timeout = 5;
 		private TimeUnit timeoutUnit = TimeUnit.SECONDS;
+		private long streamingTimeout = 3600;
+		private TimeUnit streamingTimeoutUnit = TimeUnit.SECONDS;
 		private Path certificateFolderPath = ClientCertificateManager.getDefaultClientCertificateFolderPath();
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
@@ -237,6 +245,13 @@ public record EvitaClientConfiguration(
 		}
 
 		@Nonnull
+		public EvitaClientConfiguration.Builder streamingTimeout(long streamingTimeout, @Nonnull TimeUnit unit) {
+			this.streamingTimeout = streamingTimeout;
+			this.streamingTimeoutUnit = unit;
+			return this;
+		}
+
+		@Nonnull
 		public EvitaClientConfiguration.Builder tlsEnabled(boolean tlsEnabled) {
 			this.tlsEnabled = tlsEnabled;
 			return this;
@@ -315,6 +330,8 @@ public record EvitaClientConfiguration(
 				this.reflectionCachingBehaviour,
 				this.timeout,
 				this.timeoutUnit,
+				this.streamingTimeout,
+				this.streamingTimeoutUnit,
 				this.openTelemetryInstance,
 				this.retry,
 				this.trackedTaskLimit,
