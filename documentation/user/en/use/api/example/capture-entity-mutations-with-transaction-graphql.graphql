@@ -1,0 +1,22 @@
+subscription {
+  onCatalogChangeUntyped(
+    catalogName: "evita",
+    criteria: [
+      {
+        area: INFRASTRUCTURE
+      },
+      {
+        area: DATA,
+        dataSite: {
+          entityType: "Product",
+          containerType: [ENTITY]
+        }
+      }
+    ]
+  ) {
+    version
+    index
+    operation
+    body
+  }
+}

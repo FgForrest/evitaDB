@@ -26,10 +26,10 @@ package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 

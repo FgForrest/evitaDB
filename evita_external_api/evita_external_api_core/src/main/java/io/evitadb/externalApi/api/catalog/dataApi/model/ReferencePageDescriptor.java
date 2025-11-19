@@ -32,7 +32,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface ReferencePageDescriptor extends PaginatedListDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(PaginatedListDescriptor.THIS)
+	ObjectDescriptor THIS = ObjectDescriptor.from(PaginatedListDescriptor.THIS)
 		.name("*ReferencePage")
 		.build();
 }

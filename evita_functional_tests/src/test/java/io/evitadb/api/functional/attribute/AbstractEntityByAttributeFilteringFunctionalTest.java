@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -273,7 +274,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
-			final List<EntityReference> storedBrands = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedBrands = dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(
 						session,
 						schemaBuilder -> schemaBuilder
@@ -317,7 +318,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {

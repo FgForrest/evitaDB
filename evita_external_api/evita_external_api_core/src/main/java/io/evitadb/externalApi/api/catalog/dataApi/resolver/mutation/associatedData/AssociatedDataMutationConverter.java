@@ -27,10 +27,10 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.AssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 

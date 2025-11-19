@@ -68,7 +68,7 @@ class ReferenceBlock<T> {
 	/**
 	 * The reference schema defining the reference attributes.
 	 */
-	private final ReferenceSchema referenceSchema;
+	@Getter private final ReferenceSchema referenceSchema;
 	/**
 	 * The bitmap of all referenced entity primary keys.
 	 */

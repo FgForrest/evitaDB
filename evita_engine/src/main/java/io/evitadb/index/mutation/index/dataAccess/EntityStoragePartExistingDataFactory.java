@@ -24,11 +24,13 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.RepresentativeReferenceKeys;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.CollectionUtils;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,21 +39,40 @@ import java.util.Objects;
 
 /**
  * This implementation provides access to memoized instances of {@link EntityStoragePartAccessorAttributeValueSupplier} and
- * {@link ReferenceEntityStoragePartAccessorAttributeValueSupplier} instances that retrieve informations from
+ * {@link ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier} instances that retrieve informations from
  * appropriate storage parts fetched from {@link WritableEntityStorageContainerAccessor}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
 public final class EntityStoragePartExistingDataFactory implements ExistingDataSupplierFactory {
 	private final WritableEntityStorageContainerAccessor containerAccessor;
 	private final EntitySchema entitySchema;
 	private final int entityPrimaryKey;
+	/**
+	 * Contains index of calculated {@link RepresentativeReferenceKey} that include representative attribute values
+	 * for each reference that allows duplicates. This prevents from recalculating these values multiple times
+	 * during a single entity upsert (calculation is quite expensive). Map contains two key variants in case any
+	 * of the representative attributes changes during the upsert.
+	 */
+	private final Map<ComparableReferenceKey, RepresentativeReferenceKeys> memoizedRepresentativeAttributes;
 	private EntityStoragePartAccessorAttributeValueSupplier entityAttributeValueSupplier;
 	private PriceStoragePartSupplier priceStoragePartSupplier;
 	private ReferencesStoragePartSupplier referenceStoragePartSupplier;
-	private Map<RepresentativeReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueSupplier> referenceAttributeValueSuppliers;
+	private Map<ComparableReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueByReferenceKeySupplier> referenceAttributeValueSuppliers;
+	private Map<RepresentativeReferenceKey, ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier> referenceAttributeValueByRRKSuppliers;
 	@Nullable private RepresentativeReferenceKeyAlias representativeReferenceKeyAlias;
+
+	public EntityStoragePartExistingDataFactory(
+		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
+		@Nonnull EntitySchema entitySchema,
+		int entityPrimaryKey,
+		@Nonnull Map<ComparableReferenceKey, RepresentativeReferenceKeys> memoizedRepresentativeAttributes
+	) {
+		this.containerAccessor = containerAccessor;
+		this.entitySchema = entitySchema;
+		this.entityPrimaryKey = entityPrimaryKey;
+		this.memoizedRepresentativeAttributes = memoizedRepresentativeAttributes;
+	}
 
 	@Nonnull
 	@Override
@@ -77,20 +98,49 @@ public final class EntityStoragePartExistingDataFactory implements ExistingDataS
 
 	@Nonnull
 	@Override
-	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey) {
 		this.referenceAttributeValueSuppliers = this.referenceAttributeValueSuppliers == null ?
 			CollectionUtils.createHashMap(16) :
 			this.referenceAttributeValueSuppliers;
 
-		final RepresentativeReferenceKey keyToUse = this.representativeReferenceKeyAlias == null ||
+		return this.referenceAttributeValueSuppliers.computeIfAbsent(
+			new ComparableReferenceKey(referenceKey),
+			rk -> new ReferenceEntityStoragePartAccessorAttributeValueByReferenceKeySupplier(
+				this.containerAccessor,
+				rk,
+				this.entitySchema.getName(),
+				this.entityPrimaryKey
+			)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull RepresentativeReferenceKey referenceKey) {
+		this.referenceAttributeValueByRRKSuppliers = this.referenceAttributeValueByRRKSuppliers == null ?
+			CollectionUtils.createHashMap(16) :
+			this.referenceAttributeValueByRRKSuppliers;
+
+		final RepresentativeReferenceKey currentRepresentativeKey = this.representativeReferenceKeyAlias == null ||
 			!Objects.equals(this.representativeReferenceKeyAlias.representativeReferenceKey(), referenceKey) ?
 				referenceKey : this.representativeReferenceKeyAlias.aliasRepresentativeReferenceKey();
-		return this.referenceAttributeValueSuppliers.computeIfAbsent(
-			keyToUse,
-			rrk -> new ReferenceEntityStoragePartAccessorAttributeValueSupplier(
+		RepresentativeReferenceKey storedRepresentativeKey = currentRepresentativeKey;
+		if (!this.memoizedRepresentativeAttributes.isEmpty()) {
+			for (RepresentativeReferenceKeys exchangedKeys : this.memoizedRepresentativeAttributes.values()) {
+				if (Objects.equals(exchangedKeys.current(), currentRepresentativeKey)) {
+					storedRepresentativeKey = exchangedKeys.stored();
+					break;
+				}
+			}
+		}
+		final RepresentativeReferenceKey finalStoredRepresentativeKey = storedRepresentativeKey;
+		return this.referenceAttributeValueByRRKSuppliers.computeIfAbsent(
+			currentRepresentativeKey,
+			rrk -> new ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier(
 				this.containerAccessor,
 				this.entitySchema.getReferenceOrThrowException(rrk.referenceName()),
 				rrk,
+				finalStoredRepresentativeKey,
 				this.entitySchema.getName(),
 				this.entityPrimaryKey
 			)

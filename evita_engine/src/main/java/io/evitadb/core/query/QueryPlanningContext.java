@@ -193,12 +193,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Contains index of virtual entity primary keys to {@link EntityReference} that was used to generate them.
 	 */
-	private IntObjectHashMap<EntityReferenceContract<EntityReference>> entityReferencePkIndex;
+	private IntObjectHashMap<EntityReferenceContract> entityReferencePkIndex;
 	/**
 	 * Contains index of {@link EntityReference} to their virtual primary keys. This index is exact opposite to
 	 * {@link #entityReferencePkIndex}.
 	 */
-	private Map<EntityReferenceContract<EntityReference>, Integer> entityReferencePkReverseIndex;
+	private Map<EntityReferenceContract, Integer> entityReferencePkReverseIndex;
 	/**
 	 * Cached version of {@link EntitySchema} for {@link #entityType}.
 	 */
@@ -789,8 +789,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see #getOrRegisterEntityReferenceMaskId(EntityReferenceContract) for more information
 	 */
 	@Nonnull
-	@SafeVarargs
-	public final Bitmap translateEntityReference(@Nonnull EntityReferenceContract<EntityReference>... entityReferences) {
+	public final Bitmap translateEntityReference(@Nonnull EntityReferenceContract... entityReferences) {
 		if (this.entityReferencePkReverseIndex == null) {
 			this.entityReferencePkReverseIndex = CollectionUtils.createHashMap(entityReferences.length);
 			this.entityReferencePkIndex = new IntObjectHashMap<>(entityReferences.length);
@@ -833,7 +832,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @return entity reference contract or empty if not found
 	 */
 	@Nonnull
-	public Optional<EntityReferenceContract<EntityReference>> getEntityReferenceIfExist(int primaryKey) {
+	public Optional<EntityReferenceContract> getEntityReferenceIfExist(int primaryKey) {
 		return ofNullable(this.entityReferencePkIndex)
 			.map(it -> it.get(primaryKey));
 	}
@@ -860,7 +859,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	public int translateToEntityPrimaryKey(int primaryKey) {
 		if (this.entityReferencePkSequence > 0) {
-			final EntityReferenceContract<EntityReference> referencedEntity = this.entityReferencePkIndex.get(primaryKey);
+			final EntityReferenceContract referencedEntity = this.entityReferencePkIndex.get(primaryKey);
 			return referencedEntity == null ? primaryKey : referencedEntity.getPrimaryKey();
 		} else {
 			return primaryKey;
@@ -1077,7 +1076,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * entities from various collections - their ids may overlap, and we need to keep them separated during computation.
 	 * That's why we use such virtual ids during entire filtering and sorting process.
 	 */
-	int getOrRegisterEntityReferenceMaskId(@Nonnull EntityReferenceContract<EntityReference> entityReference) {
+	int getOrRegisterEntityReferenceMaskId(@Nonnull EntityReferenceContract entityReference) {
 		if (this.isEntityTypeKnown()) {
 			// it the entity type is passed in the query, we don't need to mask anything - all entities will share
 			// same primary key sequence

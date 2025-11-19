@@ -30,6 +30,7 @@ import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperatio
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiVoid;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
 import io.evitadb.externalApi.rest.api.system.model.CatalogsHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
@@ -167,7 +168,7 @@ public class SystemEndpointBuilder {
 			.method(HttpMethod.GET)
 			.operationId(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.operation())
 			.description(SystemRootDescriptor.CHANGE_SYSTEM_CAPTURE.description())
-			.successResponse(nonNull(OpenApiScalar.scalarFrom(Boolean.class))) // todo lho not needed
+			.successResponse(OpenApiVoid.INSTANCE)
 			.handler(ChangeSystemCaptureStreamHandler::new)
 			.build();
 	}

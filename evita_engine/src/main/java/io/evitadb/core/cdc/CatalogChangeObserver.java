@@ -209,7 +209,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 
 	@Override
 	public void close() {
-		if (this.active.compareAndSet(false, true)) {
+		if (this.active.compareAndSet(true, false)) {
 			this.uniquePublishers
 				.values()
 				.forEach(it -> IOUtils.closeQuietly(it::close));

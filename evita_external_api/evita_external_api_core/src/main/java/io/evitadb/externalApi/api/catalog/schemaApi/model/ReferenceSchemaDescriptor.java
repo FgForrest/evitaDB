@@ -31,9 +31,9 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -190,7 +190,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 
 	ObjectDescriptor THIS_SPECIFIC = ObjectDescriptor.builder()
 		.name("*ReferenceSchema")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			NAME,
 			NAME_VARIANTS,
 			DESCRIPTION,
@@ -228,7 +228,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			
 			References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
 			""")
-		.staticFields(List.of(
+		.staticProperties(List.of(
 			NAME,
 			NAME_VARIANTS,
 			DESCRIPTION,

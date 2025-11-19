@@ -31,6 +31,7 @@ import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +53,7 @@ public class RestArtificialPriceBenchmarkState extends RestArtificialFullDatabas
 	@Getter private final List<Integer> categoryIds = new ArrayList<>();
 
 	@Override
-	protected SealedEntitySchema processSchema(SealedEntitySchema schema) {
+	protected SealedEntitySchema processSchema(@Nonnull SealedEntitySchema schema) {
 		if (schema.getName().equals(Entities.PRODUCT)) {
 			this.productSchema = schema;
 		}
@@ -60,7 +61,7 @@ public class RestArtificialPriceBenchmarkState extends RestArtificialFullDatabas
 	}
 
 	@Override
-	protected void processEntity(SealedEntity entity) {
+	protected void processEntity(@Nonnull SealedEntity entity) {
 		if (entity.getType().equals(Entities.PRODUCT)) {
 			updatePriceStatistics(entity, getRandom(), this.priceStatistics);
 		} else if (entity.getType().equals(Entities.CATEGORY)) {

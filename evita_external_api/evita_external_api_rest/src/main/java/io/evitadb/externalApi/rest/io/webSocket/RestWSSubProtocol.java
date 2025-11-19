@@ -293,7 +293,6 @@ class RestWSSubProtocol<CTX extends RestHandlingContext> {
 
     private void writeNext(WebSocketWriter out, String operationId, Object executionResult)
             throws JsonProcessingException {
-        // todo lho
         final Map<String, Object> payload = new HashMap<>();
         payload.put("data", this.restHandlingContext.getObjectMapper().convertValue(executionResult, Map.class));
 
@@ -312,7 +311,6 @@ class RestWSSubProtocol<CTX extends RestHandlingContext> {
         final Map<String, Object> errorResponse = Map.of(
             "type", "error",
             "id", operationId,
-            // todo lho
             "payload", Map.of(
                 "error", Map.of(
 			        "message", error.message()

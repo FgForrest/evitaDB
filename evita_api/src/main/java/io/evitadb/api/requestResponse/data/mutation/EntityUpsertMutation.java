@@ -116,6 +116,29 @@ public class EntityUpsertMutation implements EntityMutation {
 		this.localMutations = Arrays.asList(localMutations);
 	}
 
+	public EntityUpsertMutation(
+		@Nonnull String entityType,
+		@Nonnull EntityExistence entityExistence,
+		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations
+	) {
+		this.entityPrimaryKey = null;
+		this.entityType = entityType;
+		this.entityExistence = entityExistence;
+		this.localMutations = localMutations instanceof List<? extends LocalMutation<?, ?>> list ?
+			list : new ArrayList<>(localMutations);
+	}
+
+	public EntityUpsertMutation(
+		@Nonnull String entityType,
+		@Nonnull EntityExistence entityExistence,
+		@Nonnull LocalMutation<?, ?>... localMutations
+	) {
+		this.entityPrimaryKey = null;
+		this.entityType = entityType;
+		this.entityExistence = entityExistence;
+		this.localMutations = Arrays.asList(localMutations);
+	}
+
 	@Nullable
 	@Override
 	public Integer getEntityPrimaryKey() {

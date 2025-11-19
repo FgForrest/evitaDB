@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -484,6 +485,16 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 
 	@Nonnull
 	@Override
+	public EntityBuilder updateReference(
+		@Nonnull String referenceName, int referencedPrimaryKey,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException {
+		getReferencesBuilder().updateReference(referenceName, referencedPrimaryKey, whichIs);
+		return this;
+	}
+
+	@Nonnull
+	@Override
 	public EntityBuilder setOrUpdateReference(
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
@@ -518,6 +529,18 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	) {
 		getReferencesBuilder().setReference(
+			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, whichIs
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntityBuilder updateReference(
+		@Nonnull String referenceName, @Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs
+	) {
+		getReferencesBuilder().updateReference(
 			referenceName, referencedEntityType, cardinality, referencedPrimaryKey, whichIs
 		);
 		return this;
@@ -647,6 +670,17 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 	@Override
 	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		getPricesBuilder().removePrice(priceId, priceList, currency);
+		return this;
+	}
+
+	@Override
+	public EntityBuilder removePrice(@Nonnull PriceKey priceKey) {
+		return InternalEntityBuilder.super.removePrice(priceKey);
+	}
+
+	@Override
+	public EntityBuilder removeAllPrices() {
+		getPricesBuilder().removeAllPrices();
 		return this;
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ package io.evitadb.externalApi.rest.api.testSuite;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
@@ -144,7 +144,7 @@ public class TestDataGenerator {
 				.limit(4)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedStores = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedStores = dataGenerator.generateEntities(
 					dataGenerator.getSampleStoreSchema(session),
 					randomEntityPicker,
 					SEED
@@ -185,7 +185,7 @@ public class TestDataGenerator {
 				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {
@@ -275,7 +275,7 @@ public class TestDataGenerator {
 				)
 				.limit(productCount)
 				.map(entity -> {
-					final EntityReference entityReference = session.upsertEntity(entity);
+					final EntityReferenceContract entityReference = session.upsertEntity(entity);
 					if (archiveSomeProducts && random.nextInt(productCount) < productCount / 2) {
 						// archive 50 % of products if enabled
 						session.archiveEntity(entityReference.getType(), entityReference.getPrimaryKey());

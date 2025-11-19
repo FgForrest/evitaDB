@@ -55,10 +55,6 @@ class ClientTaskTrackerTest implements TestConstants {
 
 	@Test
 	void shouldTrackTaskUntilFinished() throws ExecutionException, InterruptedException, TimeoutException {
-		Mockito.doAnswer(
-			invocation -> List.of()
-		).when(this.evitaClientMock).getTaskStatuses(Mockito.any());
-
 		final ClientTask<Void, Boolean> task = this.tested.createTask(
 			new TaskStatus<>(
 				"whatever", "whatever", UUIDUtil.randomUUID(), TEST_CATALOG,

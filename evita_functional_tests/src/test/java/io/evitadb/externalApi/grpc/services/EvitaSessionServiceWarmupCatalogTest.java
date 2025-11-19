@@ -131,8 +131,11 @@ class EvitaSessionServiceWarmupCatalogTest {
 						.build())
 					.build()
 			);
-			assertNotEquals(0, entityResponse.getEntityReference().getPrimaryKey());
-			assertEquals(lastUsedPrimaryKey + i, entityResponse.getEntityReference().getPrimaryKey());
+			final int pk = entityResponse.hasEntityReferenceWithAssignedPrimaryKeys() ?
+				entityResponse.getEntityReferenceWithAssignedPrimaryKeys().getPrimaryKey() :
+				entityResponse.getEntityReference().getPrimaryKey();
+			assertNotEquals(0, pk);
+			assertEquals(lastUsedPrimaryKey + i, pk);
 		}
 
 		GrpcGoLiveAndCloseResponse grpcGoLiveAndCloseResponse = evitaBlockingStub.goLiveAndClose(Empty.getDefaultInstance());

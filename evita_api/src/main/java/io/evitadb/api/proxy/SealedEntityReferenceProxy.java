@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.api.proxy;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 
@@ -73,6 +74,6 @@ public interface SealedEntityReferenceProxy extends EvitaProxy, ReferencedEntity
 	 * Method is called when the wrapped entity is upserted and thus the changes in the {@link #getReferenceBuilder()}
 	 * should be marked as persisted.
 	 */
-	void notifyBuilderUpserted();
+	void notifyBuilderUpserted(@Nonnull EntityReferenceContract entityReference);
 
 }

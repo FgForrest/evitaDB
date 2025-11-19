@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.store.entity.model.entity.ReferencesStoragePart.MissingReferenceBehavior;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -113,15 +114,18 @@ class ReferencesStoragePartTest {
 
 		part.replaceOrAddReference(
 			new ReferenceKey("A", 10, -5),
-			existing -> newRef("A", 10, -5, null, false)
+			existing -> newRef("A", 10, -5, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 		part.replaceOrAddReference(
 			new ReferenceKey("A", 20, -22),
-			existing -> newRef("A", 20, -22, null, false)
+			existing -> newRef("A", 20, -22, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 		part.replaceOrAddReference(
 			new ReferenceKey("B", 1, -1),
-			existing -> newRef("B", 1, -1, null, false)
+			existing -> newRef("B", 1, -1, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 		// replace an existing negative key with new content
 		part.replaceOrAddReference(
@@ -130,7 +134,8 @@ class ReferencesStoragePartTest {
 				"A", 10, -5,
 				new GroupEntityReference("group", 1, 1, false),
 				false
-			)
+			),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 
 		// order must be by referenceName then primary key
@@ -176,11 +181,13 @@ class ReferencesStoragePartTest {
 		);
 		part.replaceOrAddReference(
 			new ReferenceKey("A", 10, -1),
-			existing -> newRef("A", 10, -1, null, false)
+			existing -> newRef("A", 10, -1, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 		part.replaceOrAddReference(
 			new ReferenceKey("D", 10, -1),
-			existing -> newRef("D", 10, -1, null, false)
+			existing -> newRef("D", 10, -1, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 		// assign id to the existing record
 		part.assignMissingIdsAndSort();
@@ -203,7 +210,8 @@ class ReferencesStoragePartTest {
 			r1AssignedId,
 			part.replaceOrAddReference(
 				    new ReferenceKey("A", 10, r1AssignedId),
-				    existing -> newRef("A", 10, r1AssignedId, group(7), false)
+				    existing -> newRef("A", 10, r1AssignedId, group(7), false),
+				    () -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 			    )
 			    .getReferenceKey()
 			    .internalPrimaryKey()
@@ -212,7 +220,8 @@ class ReferencesStoragePartTest {
 			r2AssignedId,
 			part.replaceOrAddReference(
 				    new ReferenceKey("D", 10, r2AssignedId),
-				    existing -> newRef("D", 10, r2AssignedId, group(9), false)
+				    existing -> newRef("D", 10, r2AssignedId, group(9), false),
+				    () -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 			    )
 			    .getReferenceKey()
 			    .internalPrimaryKey()
@@ -243,7 +252,8 @@ class ReferencesStoragePartTest {
 		// this is OK - a single business key exists
 		part.replaceOrAddReference(
 			new ReferenceKey("B", 1, 0),
-			existing -> newRef("B", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false)
+			existing -> newRef("B", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 
 		// sanity check - internal key must remain the same
@@ -251,7 +261,8 @@ class ReferencesStoragePartTest {
 			GenericEvitaInternalError.class,
 			() -> part.replaceOrAddReference(
 				new ReferenceKey("B", 1, 0),
-				existing -> newRef("B", 1, 7777, group(7), false)
+				existing -> newRef("B", 1, 7777, group(7), false),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 			)
 		);
 
@@ -268,32 +279,37 @@ class ReferencesStoragePartTest {
 			GenericEvitaInternalError.class,
 			() -> part.replaceOrAddReference(
 				new ReferenceKey("D", 1, 0),
-				existing -> newRef("D", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false)
+				existing -> newRef("D", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 			)
 		);
 
 		// this is OK - adding new reference D but with a different primary key
 		part.replaceOrAddReference(
 			new ReferenceKey("D", 4, 0),
-			existing -> newRef("D", 4, -10, group(7), false)
+			existing -> newRef("D", 4, -10, group(7), false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 
 		// this is OK - replacing the first reference
 		part.replaceOrAddReference(
 			new ReferenceKey("B", 1, 0),
-			existing -> newRef("B", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false)
+			existing -> newRef("B", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 
 		// this is OK - replacing the last reference
 		part.replaceOrAddReference(
 			new ReferenceKey("E", 1, 0),
-			existing -> newRef("E", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false)
+			existing -> newRef("E", 1, existing.getReferenceKey().internalPrimaryKey(), group(7), false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 
 		// this is OK - adding new reference with zero key
 		part.replaceOrAddReference(
 			new ReferenceKey("A", 1, 0),
-			existing -> newRef("A", 1, -15, group(7), false)
+			existing -> newRef("A", 1, -15, group(7), false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
 		);
 	}
 
@@ -463,7 +479,11 @@ class ReferencesStoragePartTest {
 		final Reference b = newRef("B", 1, -1, null, false);
 		final Reference a = newRef("A", 1, -2, null, false);
 		final ReferencesStoragePart part = new ReferencesStoragePart(9, 0, new Reference[]{b, a}, -1);
-		part.replaceOrAddReference(new ReferenceKey("D", 1, -2), existing -> newRef("D", 1, -2, null, false));
+		part.replaceOrAddReference(
+			new ReferenceKey("D", 1, -2),
+			existing -> newRef("D", 1, -2, null, false),
+			() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+		);
 		assertThrows(RuntimeException.class, part::assignMissingIdsAndSort);
 	}
 
@@ -805,4 +825,77 @@ class ReferencesStoragePartTest {
 			)
 		);
 	}
+
+	@Test
+	@DisplayName("should regenerate internal primary keys when GENERATE_NEW_INTERNAL_KEY is used")
+	void shouldRegenerateInternalPrimaryKeysWhenGenerateNewInternalKeyBehaviorIsUsed() {
+		// Create storage part with existing references
+		final ReferencesStoragePart part = new ReferencesStoragePart(
+			606, 10,
+			new Reference[]{
+				newRef("B", 1, 1, null, false),
+				newRef("D", 1, 4, null, false),
+				newRef("E", 1, 7, null, false)
+			},
+			-1
+		);
+
+		// Add new references with known internal primary keys but using GENERATE_NEW_INTERNAL_KEY behavior
+		// These references should get new internal primary keys even though they have known ones
+		part.replaceOrAddReference(
+			new ReferenceKey("A", 10, 100),
+			existing -> newRef("A", 10, 100, null, false),
+			() -> MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY
+		);
+		part.replaceOrAddReference(
+			new ReferenceKey("C", 5, 200),
+			existing -> newRef("C", 5, 200, null, false),
+			() -> MissingReferenceBehavior.GENERATE_NEW_INTERNAL_KEY
+		);
+
+		// Verify that before assignment, the references have their original internal keys
+		assertEquals(
+			100,
+			part.findReferenceOrThrowException(new ReferenceKey("A", 10))
+			    .getReferenceKey()
+			    .internalPrimaryKey()
+		);
+		assertEquals(
+			200,
+			part.findReferenceOrThrowException(new ReferenceKey("C", 5))
+			    .getReferenceKey()
+			    .internalPrimaryKey()
+		);
+
+		// Assign missing IDs - this should regenerate internal keys for references marked for reassignment
+		part.assignMissingIdsAndSort();
+
+		// Verify that new internal primary keys were generated (should be 11 and 12, continuing from lastUsedPrimaryKey=10)
+		final int newKeyA = part.findReferenceOrThrowException(new ReferenceKey("A", 10))
+		                        .getReferenceKey()
+		                        .internalPrimaryKey();
+		final int newKeyC = part.findReferenceOrThrowException(new ReferenceKey("C", 5))
+		                        .getReferenceKey()
+		                        .internalPrimaryKey();
+
+		// The new keys should be generated sequentially starting from 11
+		assertEquals(11, newKeyA);
+		assertEquals(12, newKeyC);
+
+		// Verify lastUsedPrimaryKey was updated
+		assertEquals(12, part.getLastUsedPrimaryKey());
+
+		// Verify that the original references kept their internal keys
+		assertEquals(1, part.findReferenceOrThrowException(new ReferenceKey("B", 1)).getReferenceKey().internalPrimaryKey());
+		assertEquals(4, part.findReferenceOrThrowException(new ReferenceKey("D", 1)).getReferenceKey().internalPrimaryKey());
+		assertEquals(7, part.findReferenceOrThrowException(new ReferenceKey("E", 1)).getReferenceKey().internalPrimaryKey());
+
+		// Verify that all references are still properly sorted
+		final ReferenceContract[] arr = part.getReferencesAsCollection().toArray(new ReferenceContract[0]);
+		for (int i = 1; i < arr.length; i++) {
+			assertTrue(
+				ReferenceKey.FULL_COMPARATOR.compare(arr[i - 1].getReferenceKey(), arr[i].getReferenceKey()) < 0);
+		}
+	}
+
 }

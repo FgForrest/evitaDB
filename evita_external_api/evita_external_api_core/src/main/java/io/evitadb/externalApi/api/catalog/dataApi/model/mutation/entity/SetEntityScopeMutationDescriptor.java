@@ -51,11 +51,14 @@ public interface SetEntityScopeMutationDescriptor extends MutationDescriptor {
 		.type(nonNull(Scope.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetEntityScopeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetEntityScopeMutation.class)
 		.description("""
 			This mutation allows to change entity scope from live data set to archived and vice versa.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, SCOPE))
+		.staticProperty(SCOPE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetEntityScopeMutationInput")
 		.build();
 }

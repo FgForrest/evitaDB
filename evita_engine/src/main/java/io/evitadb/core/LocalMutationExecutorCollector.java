@@ -29,6 +29,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
 import io.evitadb.api.requestResponse.data.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutations;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -37,7 +38,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
@@ -309,11 +310,13 @@ class LocalMutationExecutorCollector {
 						result
 				)
 			);
-		} else if (requestedResultType.equals(EntityReference.class)) {
+		} else if (EntityReferenceContract.class.isAssignableFrom(requestedResultType)) {
 			//noinspection unchecked
 			return Optional.of(
-				(T) new EntityReference(
-					entitySchema.getName(), changeCollector.getEntityPrimaryKey()
+				(T) new EntityReferenceWithAssignedPrimaryKeys(
+					entitySchema.getName(),
+					changeCollector.getEntityPrimaryKey(),
+					changeCollector.getAssignedPrimaryKeys()
 				)
 			);
 		} else if (Void.class.equals(requestedResultType)) {

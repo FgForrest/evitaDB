@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -334,11 +335,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertNotNull(query);
 
-		final List<EntityReference> entityResponse = evita.createReadOnlySession(TEST_CATALOG).queryListOfEntityReferences(query.parsedQuery());
+		final List<EntityReferenceContract> entityResponse = evita.createReadOnlySession(TEST_CATALOG).queryListOfEntityReferences(query.parsedQuery());
 
 		for (int i = 0; i < entityResponse.size(); i++) {
 			final GrpcEntityReference grpcEntityReference = response.get().getEntityReferencesList().get(i);
-			final EntityReference entityReference = entityResponse.get(i);
+			final EntityReferenceContract entityReference = entityResponse.get(i);
 			assertEquals(entityReference.getType(), grpcEntityReference.getEntityType());
 			assertEquals(entityReference.getPrimaryKey(), grpcEntityReference.getPrimaryKey());
 		}
@@ -423,7 +424,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertNotNull(query);
 
-		final EntityReference entity = evita.createReadOnlySession(TEST_CATALOG)
+		final EntityReferenceContract entity = evita.createReadOnlySession(TEST_CATALOG)
 			.queryOneEntityReference(query.parsedQuery())
 			.orElseThrow();
 

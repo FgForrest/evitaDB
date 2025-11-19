@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -48,13 +47,17 @@ public interface SetAssociatedDataSchemaNullableMutationDescriptor extends Assoc
 		.type(nonNull(Boolean.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("AssociatedDataSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetAssociatedDataSchemaNullableMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `AssociatedDataSchema.nullable`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, NULLABLE))
+		.staticProperty(NAME)
+		.staticProperty(NULLABLE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetAssociatedDataSchemaNullableMutationInput")
 		.build();
 }

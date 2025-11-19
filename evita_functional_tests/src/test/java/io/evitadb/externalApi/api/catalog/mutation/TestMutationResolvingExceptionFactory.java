@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.mutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

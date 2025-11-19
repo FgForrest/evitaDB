@@ -344,7 +344,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 						)
 						.limit(PRODUCT_COUNT)
 						.forEach(it -> {
-							final EntityReference upsertedProduct = session.upsertEntity(it);
+							final EntityReferenceContract upsertedProduct = session.upsertEntity(it);
 							theProducts.put(
 								upsertedProduct.getPrimaryKey(),
 								session.getEntity(
@@ -704,7 +704,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @param it the entity builder containing the entity data to insert
 	 */
 	private static void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
-		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
+		final EntityReferenceContract insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
 			(serializable, existing) -> ofNullable(existing).orElse(0) + 1
@@ -838,7 +838,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("query one entity reference")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryOneEntityReference(EvitaClient evitaClient) {
-		final EntityReference entityReference = evitaClient.queryCatalog(
+		final EntityReferenceContract entityReference = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryOneEntityReference(
@@ -863,7 +863,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@DisplayName("not query one missing entity")
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotQueryOneMissingEntity(EvitaClient evitaClient) {
-		final Optional<EntityReference> entityReference = evitaClient.queryCatalog(
+		final Optional<EntityReferenceContract> entityReference = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryOneEntityReference(
@@ -1026,7 +1026,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldQueryListOfEntityReferences(EvitaClient evitaClient) {
 		final Integer[] requestedIds = {1, 2, 5};
-		final List<EntityReference> entityReferences = evitaClient.queryCatalog(
+		final List<EntityReferenceContract> entityReferences = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.queryListOfEntityReferences(
@@ -1039,7 +1039,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertEquals(3, entityReferences.size());
 
 		for (int i = 0; i < entityReferences.size(); i++) {
-			final EntityReference entityReference = entityReferences.get(i);
+			final EntityReferenceContract entityReference = entityReferences.get(i);
 			assertEntityTypeAndPrimaryKey(entityReference, Entities.PRODUCT, requestedIds[i]);
 		}
 	}
@@ -2066,7 +2066,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	 * @param expectedType the expected entity type
 	 * @param expectedPrimaryKey the expected primary key
 	 */
-	private static void assertEntityTypeAndPrimaryKey(@Nonnull EntityReferenceContract<?> entity, @Nonnull String expectedType, int expectedPrimaryKey) {
+	private static void assertEntityTypeAndPrimaryKey(@Nonnull EntityReferenceContract entity, @Nonnull String expectedType, int expectedPrimaryKey) {
 		assertEquals(expectedType, entity.getType());
 		assertEquals(expectedPrimaryKey, entity.getPrimaryKey());
 	}

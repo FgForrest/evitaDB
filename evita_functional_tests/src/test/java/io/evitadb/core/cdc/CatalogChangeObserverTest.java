@@ -580,7 +580,8 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 		assertTrue(tested.unregisterObserver(subscriber.getSubscriptionId()));
 
 		// The subscription should be completed
-		assertTrue(subscriber.isCompleted());
+		assertTrue(subscriber.isClosed());
+		assertFalse(subscriber.isCompleted());
 
 		// Try to unregister with a random UUID (should fail since the observer is already unregistered)
 		assertFalse(tested.unregisterObserver(UUID.randomUUID()), "Unregistering a non-existent observer should return false");

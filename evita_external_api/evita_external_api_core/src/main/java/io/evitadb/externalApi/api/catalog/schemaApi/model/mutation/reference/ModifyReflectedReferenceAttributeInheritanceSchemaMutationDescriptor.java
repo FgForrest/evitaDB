@@ -64,14 +64,19 @@ public interface ModifyReflectedReferenceAttributeInheritanceSchemaMutationDescr
 		.type(nullable(String[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyReflectedReferenceAttributeInheritanceSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyReflectedReferenceAttributeInheritanceSchemaMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReflectedReferenceSchema.attributesInheritanceBehavior` and
 			`ReflectedReferenceSchema.attributeInheritanceFilter` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_INHERITANCE_BEHAVIOR, ATTRIBUTE_INHERITANCE_FILTER))
+		.staticProperty(NAME)
+		.staticProperty(ATTRIBUTE_INHERITANCE_BEHAVIOR)
+		.staticProperty(ATTRIBUTE_INHERITANCE_FILTER)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyReflectedReferenceAttributeInheritanceSchemaMutationInput")
 		.build();
 
 }

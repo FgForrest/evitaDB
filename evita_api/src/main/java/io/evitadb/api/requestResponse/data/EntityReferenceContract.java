@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntityReferenceContract<T extends Comparable<T> & EntityReferenceContract<T>> extends EntityClassifier, Comparable<T> {
+public interface EntityReferenceContract extends EntityClassifier, Comparable<EntityReferenceContract> {
 
 	/**
 	 * Reference to {@link Entity#getPrimaryKey()} of the referenced entity. Might be also any integer
@@ -45,7 +45,7 @@ public interface EntityReferenceContract<T extends Comparable<T> & EntityReferen
 	/**
 	 * Default comparison function for EntityReferenceContracts.
 	 */
-	default int compareReferenceContract(@Nonnull EntityReferenceContract<T> o) {
+	default int compareReferenceContract(@Nonnull EntityReferenceContract o) {
 		final int primaryComparison = Integer.compare(getPrimaryKey(), o.getPrimaryKey());
 		if (primaryComparison == 0) {
 			return getType().compareTo(o.getType());

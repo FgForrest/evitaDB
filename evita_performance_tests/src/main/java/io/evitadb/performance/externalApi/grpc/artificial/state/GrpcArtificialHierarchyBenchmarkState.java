@@ -23,7 +23,7 @@
 
 package io.evitadb.performance.externalApi.grpc.artificial.state;
 
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.grpc.artificial.GrpcArtificialFullDatabaseBenchmarkState;
 import io.evitadb.performance.generators.RandomQueryGenerator;
@@ -31,6 +31,7 @@ import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -66,7 +67,7 @@ public class GrpcArtificialHierarchyBenchmarkState extends GrpcArtificialFullDat
 	}
 
 	@Override
-	protected void processCreatedEntityReference(EntityReference entity) {
+	protected void processCreatedEntityReference(@Nonnull EntityReferenceContract entity) {
 		super.processCreatedEntityReference(entity);
 		if (entity.getType().equals(Entities.PRODUCT) && entity.getPrimaryKey() > this.maxProductId) {
 			this.maxProductId = entity.getPrimaryKey();

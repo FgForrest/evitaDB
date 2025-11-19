@@ -23,13 +23,16 @@
 
 package io.evitadb.api.proxy.mock;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 
 import java.io.Serializable;
+import java.util.Optional;
 
 /**
  * Example interface mapping a brand entity.
@@ -44,5 +47,8 @@ public interface BrandInterface extends Serializable {
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_CODE)
 	String getCode();
+
+	@ReferenceRef(Entities.STORE)
+	Optional<BrandInterface> getStore() throws ContextMissingException;
 
 }

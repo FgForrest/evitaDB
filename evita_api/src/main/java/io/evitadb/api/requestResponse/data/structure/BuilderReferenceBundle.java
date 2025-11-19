@@ -56,12 +56,12 @@ import java.util.stream.Collectors;
  * and supports two operational modes:
  *
  * - Non‑duplicate mode: only a single reference for the given {@link io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey}
- *   may exist. Keys are stored without representative attributes. Methods: {@link #upsertNonDuplicateReference(ReferenceContract)}
- *   and {@link #removeNonDuplicateReference(ReferenceContract)}.
+ * may exist. Keys are stored without representative attributes. Methods: {@link #upsertNonDuplicateReference(ReferenceContract)}
+ * and {@link #removeNonDuplicateReference(ReferenceContract)}.
  * - Duplicate mode: multiple references with the same reference name and referenced primary key may coexist,
- *   but they must be distinguishable by a set of representative attributes derived from the reference schema.
- *   Keys are then stored with representative attribute values. Methods: {@link #upsertDuplicateReference(ReferenceContract)}
- *   and {@link #removeDuplicateReference(ReferenceContract)}.
+ * but they must be distinguishable by a set of representative attributes derived from the reference schema.
+ * Keys are then stored with representative attribute values. Methods: {@link #upsertDuplicateReference(ReferenceContract)}
+ * and {@link #removeDuplicateReference(ReferenceContract)}.
  *
  * Transition from non‑duplicate to duplicate mode is handled by {@link #convertToDuplicateReference(ReferenceContract, ReferenceContract)}.
  * It lazily initializes {@link #representativeAttributeDefinition} from the reference schema and rewrites the
@@ -83,6 +83,10 @@ import java.util.stream.Collectors;
 @NotThreadSafe
 class BuilderReferenceBundle {
 	/**
+	 * Set of all reference keys used in the bundle.
+	 */
+	private final Map<ReferenceKey, Integer> usedReferenceKeys;
+	/**
 	 * Map of primary keys for the references identified by {@link RepresentativeReferenceKey}.
 	 */
 	private final Map<RepresentativeReferenceKey, Integer> repRefKeysToInternalPk;
@@ -91,13 +95,13 @@ class BuilderReferenceBundle {
 	 */
 	private final Map<Integer, RepresentativeReferenceKey> internalPkToRepRefKeys;
 	/**
-	 * Cached representative attribute definition for quick access.
-	 */
-	@Nullable private RepresentativeAttributeDefinition representativeAttributeDefinition;
-	/**
 	 * Map of attribute types for the reference shared for all references of the same type.
 	 */
 	@Getter private final Map<String, AttributeSchemaContract> attributeTypes = new LazyHashMap<>(4);
+	/**
+	 * Cached representative attribute definition for quick access.
+	 */
+	@Nullable private RepresentativeAttributeDefinition representativeAttributeDefinition;
 	/**
 	 * Flag indicating whether the bundle has been initialized with any references.
 	 */
@@ -106,6 +110,7 @@ class BuilderReferenceBundle {
 	public BuilderReferenceBundle(int expectedCount) {
 		this.repRefKeysToInternalPk = CollectionUtils.createHashMap(expectedCount);
 		this.internalPkToRepRefKeys = CollectionUtils.createHashMap(expectedCount);
+		this.usedReferenceKeys = CollectionUtils.createHashMap(expectedCount);
 	}
 
 	/**
@@ -139,9 +144,9 @@ class BuilderReferenceBundle {
 	 * exception is thrown indicating unexpected duplication.
 	 *
 	 * @param reference the reference object being added, must not be null
-	 *        and should uniquely identify itself with an internal primary key.
-	 *        The method will ensure that the reference is not a duplicate in the
-	 *        internal structure.
+	 *                  and should uniquely identify itself with an internal primary key.
+	 *                  The method will ensure that the reference is not a duplicate in the
+	 *                  internal structure.
 	 */
 	public void upsertNonDuplicateReference(@Nonnull ReferenceContract reference) {
 		final ReferenceKey referenceKey = reference.getReferenceKey();
@@ -156,6 +161,7 @@ class BuilderReferenceBundle {
 				"Reference " + referenceKey + " is not expected to be duplicate!"
 			);
 		} else {
+			this.usedReferenceKeys.put(genericRRK.referenceKey(), 1);
 			this.internalPkToRepRefKeys.put(internalPk, genericRRK);
 		}
 	}
@@ -166,8 +172,8 @@ class BuilderReferenceBundle {
 	 * of the reference and determines whether it should be treated as a duplicate, converted into
 	 * a duplicate, or added as a non-duplicate.
 	 *
-	 * @param upsertedReference the reference to be upserted. Must not be null and should include
-	 *                          a valid reference key. The reference key should not be marked as unknown.
+	 * @param upsertedReference        the reference to be upserted. Must not be null and should include
+	 *                                 a valid reference key. The reference key should not be marked as unknown.
 	 * @param previousReferenceFetcher a function that retrieves an existing reference associated
 	 *                                 with the given reference key. Must not be null and should return
 	 *                                 a valid reference or null if no matching reference exists.
@@ -245,7 +251,8 @@ class BuilderReferenceBundle {
 			// this is a problem - we have two different references with the same representative keys
 			throw new InvalidMutationException(
 				"Cannot add duplicate reference `" + reference.getReferenceName() +
-					"` with the same representative attributes " + Arrays.toString(rrk.representativeAttributeValues()) +
+					"` with the same representative attributes " + Arrays.toString(
+					rrk.representativeAttributeValues()) +
 					" as it would be indistinguishable from existing reference with internal id " +
 					internalPk + "!"
 			);
@@ -256,6 +263,10 @@ class BuilderReferenceBundle {
 				removedPk == null || removedPk == internalPk,
 				() -> "Inconsistent internal structure!"
 			);
+			this.usedReferenceKeys.compute(
+				rrk.referenceKey(),
+				(rk, cardinality) -> cardinality == null ? 1 : cardinality + 1
+			);
 		}
 	}
 
@@ -264,7 +275,7 @@ class BuilderReferenceBundle {
 	 * internal reference structure. This method ensures that the reference is correctly associated
 	 * within the internal structure while verifying its validity as a duplicate.
 	 *
-	 * @param reference the new reference that is being added as a duplicate, must not be null
+	 * @param reference         the new reference that is being added as a duplicate, must not be null
 	 * @param previousReference the reference that already exists and is used as a baseline for duplication validation, must not be null
 	 */
 	public void convertToDuplicateReference(
@@ -285,27 +296,9 @@ class BuilderReferenceBundle {
 		);
 		final int previousRefInternalPk = previousReference.getReferenceKey().internalPrimaryKey();
 		if (internalPk != previousRefInternalPk) {
-			this.representativeAttributeDefinition = reference
-				.getReferenceSchema()
-				.map(schema -> {
-					if (schema instanceof ReferenceSchema referenceSchema) {
-						return referenceSchema.getRepresentativeAttributeDefinition();
-					} else {
-						return new RepresentativeAttributeDefinition(
-							schema.getAttributes()
-							      .entrySet()
-							      .stream()
-							      .filter(it -> it.getValue().isRepresentative())
-							      .collect(
-								      Collectors.toMap(
-									      Entry::getKey,
-									      it -> (AttributeSchema) it.getValue()
-								      )
-							      )
-						);
-					}
-				})
-				.orElseGet(() -> new RepresentativeAttributeDefinition(Collections.emptyMap()));
+			final RepresentativeAttributeDefinition rad = getInitializedRepresentativeAttributeDefinition(
+				reference
+			);
 
 			// we need to lazy register proper reference attribute key for previous reference
 			Assert.isPremiseValid(
@@ -314,11 +307,15 @@ class BuilderReferenceBundle {
 			);
 			final RepresentativeReferenceKey newRRK = new RepresentativeReferenceKey(
 				previousReference.getReferenceKey(),
-				this.representativeAttributeDefinition.getRepresentativeValues(previousReference)
+				rad.getRepresentativeValues(previousReference)
 			);
 			// zero in the map means that there are duplicates for this generic key
 			this.repRefKeysToInternalPk.put(genericRRK, 0);
 			this.repRefKeysToInternalPk.put(newRRK, previousRefInternalPk);
+			this.usedReferenceKeys.compute(
+				genericRRK.referenceKey(),
+				(rk, cardinality) -> cardinality == null ? 2 : cardinality + 1
+			);
 			this.internalPkToRepRefKeys.remove(genericInternalPk);
 			this.internalPkToRepRefKeys.put(previousRefInternalPk, newRRK);
 			// now we can add the new duplicate reference
@@ -379,6 +376,7 @@ class BuilderReferenceBundle {
 				"Reference " + referenceKey + " is not present in the structure!"
 			);
 		} else {
+			removeUsedReferenceKey(genericRRK);
 			this.internalPkToRepRefKeys.remove(internalPk);
 		}
 	}
@@ -416,6 +414,7 @@ class BuilderReferenceBundle {
 				"Reference " + referenceKey + " is not present in the structure!"
 			);
 		} else {
+			removeUsedReferenceKey(rrk);
 			this.internalPkToRepRefKeys.remove(internalPk);
 		}
 	}
@@ -429,7 +428,7 @@ class BuilderReferenceBundle {
 	 *                     The reference key should uniquely identify itself with an internal
 	 *                     primary key and should not be an unknown reference.
 	 * @return {@code true} if the reference key is associated with a duplicate;
-	 *         {@code false} otherwise.
+	 * {@code false} otherwise.
 	 */
 	public boolean isDuplicate(@Nonnull ReferenceKey referenceKey) {
 		Assert.isPremiseValid(
@@ -489,5 +488,98 @@ class BuilderReferenceBundle {
 	 */
 	public int count() {
 		return this.internalPkToRepRefKeys.size();
+	}
+
+	/**
+	 * Determines if the specified ReferenceKey is present in the current collection or system.
+	 *
+	 * @param referenceKey a non-null ReferenceKey object to be checked for existence
+	 * @return true if the specified ReferenceKey is found, false otherwise
+	 */
+	public boolean containsReferenceKey(@Nonnull ReferenceKey referenceKey) {
+		return this.usedReferenceKeys.containsKey(
+			referenceKey.isUnknownReference() ?
+				referenceKey :
+				new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey())
+		);
+	}
+
+	/**
+	 * Checks if the given reference key is present in the set of internal primary keys.
+	 *
+	 * @param reference the reference to be searched for; must not be null
+	 * @return true if the given reference key exists in the internal primary keys, false otherwise
+	 */
+	public boolean containsReference(@Nonnull ReferenceContract reference) {
+		if (this.internalPkToRepRefKeys.isEmpty()) {
+			return false;
+		}
+		final RepresentativeReferenceKey rrk = this.internalPkToRepRefKeys.get(
+			reference.getReferenceKey().internalPrimaryKey()
+		);
+		if (rrk == null) {
+			return false;
+		} else {
+			return ReferenceKey.GENERIC_COMPARATOR.compare(rrk.referenceKey(), reference.getReferenceKey()) == 0;
+		}
+	}
+
+	/**
+	 * Removes the specified reference key from the used reference keys map.
+	 * If the reference key's associated cardinality is 1 or less, the key is removed entirely.
+	 * Otherwise, the cardinality is decremented by 1.
+	 *
+	 * @param rrk the RepresentativeReferenceKey object that contains the reference key to be removed
+	 */
+	private void removeUsedReferenceKey(@Nonnull RepresentativeReferenceKey rrk) {
+		this.usedReferenceKeys.compute(
+			rrk.referenceKey(),
+			(rk, cardinality) -> {
+				if (cardinality == null || cardinality <= 1) {
+					return null;
+				} else {
+					return cardinality - 1;
+				}
+			}
+		);
+	}
+
+	/**
+	 * Retrieves the initialized instance of RepresentativeAttributeDefinition. If it is not already
+	 * initialized, it constructs the definition based on the reference schema and its attributes.
+	 *
+	 * @param reference the reference contract from which to derive the RepresentativeAttributeDefinition.
+	 *                  The reference must not be null.
+	 * @return the initialized or newly constructed RepresentativeAttributeDefinition instance.
+	 */
+	@Nonnull
+	private RepresentativeAttributeDefinition getInitializedRepresentativeAttributeDefinition(
+		@Nonnull ReferenceContract reference
+	) {
+		if (this.representativeAttributeDefinition == null) {
+			this.representativeAttributeDefinition = reference
+				.getReferenceSchema()
+				.map(schema -> {
+					if (schema instanceof ReferenceSchema referenceSchema && schema.getCardinality()
+						.allowsDuplicates()) {
+						return referenceSchema.getRepresentativeAttributeDefinition();
+					} else {
+						return new RepresentativeAttributeDefinition(
+							schema.getAttributes()
+								.entrySet()
+								.stream()
+								.filter(it -> it.getValue().isRepresentative())
+								.collect(
+									Collectors.toMap(
+										Entry::getKey,
+										it -> (AttributeSchema) it.getValue()
+									)
+								)
+						);
+					}
+				})
+				.orElseGet(() -> new RepresentativeAttributeDefinition(Collections.emptyMap()));
+		}
+		return this.representativeAttributeDefinition;
 	}
 }

@@ -23,14 +23,16 @@
 
 package io.evitadb.performance.artificial;
 
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
+
+import javax.annotation.Nonnull;
 
 /**
  * Base state class for {@link ArtificialEntitiesBenchmark} benchmark.
@@ -98,7 +100,7 @@ public class ArtificialFullDatabaseBenchmarkState extends ArtificialBenchmarkSta
 	/**
 	 * Descendants may examine created entity if they want.
 	 */
-	protected void processCreatedEntityReference(EntityReference entity) {
+	protected void processCreatedEntityReference(@Nonnull EntityReferenceContract entity) {
 		// do nothing by default
 	}
 

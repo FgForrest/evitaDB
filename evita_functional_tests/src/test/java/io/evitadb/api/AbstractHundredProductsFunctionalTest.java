@@ -25,8 +25,8 @@ package io.evitadb.api;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -84,7 +84,7 @@ public class AbstractHundredProductsFunctionalTest {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = getRandomEntityPicker(session);
 
-			final List<EntityReference> storedPriceLists = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedPriceLists = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSamplePriceListSchema(session),
 					randomEntityPicker,
 					SEED
@@ -93,7 +93,7 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedCategories = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedCategories = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleCategorySchema(
 						session,
 						builder -> {
@@ -113,7 +113,7 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedStores = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedStores = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleStoreSchema(
 						session,
 						builder -> {
@@ -132,7 +132,7 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedBrands = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedBrands = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleBrandSchema(
 						session,
 						builder -> {
@@ -158,7 +158,7 @@ public class AbstractHundredProductsFunctionalTest {
 				.limit(10)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedParameters = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedParameters = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleParameterSchema(
 						session,
 						builder -> {
@@ -175,7 +175,7 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleProductSchema(
 						session,
 						builder -> {

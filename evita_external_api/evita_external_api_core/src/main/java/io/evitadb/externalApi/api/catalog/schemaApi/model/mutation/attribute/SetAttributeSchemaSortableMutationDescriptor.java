@@ -53,14 +53,18 @@ public interface SetAttributeSchemaSortableMutationDescriptor extends AttributeS
 		.type(nullable(Scope[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetAttributeSchemaSortableMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetAttributeSchemaSortableMutation.class)
 		.description("""
 			 Mutation is responsible for setting value to a `AttributeSchema.sortable`
 			 in `EntitySchema`.
 			 Mutation can be used for altering also the existing `AttributeSchema` or
 			 `GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, SORTABLE_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(SORTABLE_IN_SCOPES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetAttributeSchemaSortableMutationInput")
 		.build();
 }

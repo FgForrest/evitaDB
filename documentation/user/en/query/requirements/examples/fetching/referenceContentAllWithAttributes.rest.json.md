@@ -24,8 +24,8 @@
           "referencedPrimaryKey" : 1938,
           "attributes" : {
             "global" : {
-              "gallery" : "hlavni-motiv",
-              "order" : 1
+              "mediaOrder" : 1,
+              "gallery" : "hlavni-motiv"
             }
           }
         },
@@ -33,8 +33,8 @@
           "referencedPrimaryKey" : 1940,
           "attributes" : {
             "global" : {
-              "gallery" : "galerie",
-              "order" : 3
+              "mediaOrder" : 3,
+              "gallery" : "galerie"
             }
           }
         },
@@ -42,8 +42,8 @@
           "referencedPrimaryKey" : 1941,
           "attributes" : {
             "global" : {
-              "gallery" : "galerie",
-              "order" : 2
+              "mediaOrder" : 2,
+              "gallery" : "galerie"
             }
           }
         },
@@ -51,8 +51,8 @@
           "referencedPrimaryKey" : 1942,
           "attributes" : {
             "global" : {
-              "gallery" : "galerie",
-              "order" : 1
+              "mediaOrder" : 1,
+              "gallery" : "galerie"
             }
           }
         }
@@ -91,6 +91,11 @@
           }
         }
       },
+      "bonusVisibilities" : [
+        {
+          "referencedPrimaryKey" : 119334
+        }
+      ],
       "bundles" : [ ],
       "categories" : [
         {

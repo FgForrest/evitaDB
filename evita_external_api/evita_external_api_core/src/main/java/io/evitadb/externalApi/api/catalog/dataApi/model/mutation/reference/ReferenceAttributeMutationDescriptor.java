@@ -24,13 +24,12 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.AttributeMutationInputAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor representing {@link ReferenceAttributeMutation}
@@ -41,20 +40,32 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ReferenceAttributeMutationDescriptor extends ReferenceMutationDescriptor {
 
-	// todo lho input version
 	PropertyDescriptor ATTRIBUTE_MUTATION = PropertyDescriptor.builder()
 		.name("attributeMutation")
 		.description("""
 			One attribute mutation to update / insert / delete single attribute of the reference.
 			""")
-		.type(nonNullRef(ReferenceAttributeMutationAggregateDescriptor.THIS))
+		.type(nonNullRef(AttributeMutationUnionDescriptor.THIS))
+		.build();
+	PropertyDescriptor ATTRIBUTE_MUTATION_INPUT = PropertyDescriptor.builder()
+		.name("attributeMutation")
+		.description("""
+			One attribute mutation to update / insert / delete single attribute of the reference.
+			""")
+		.type(nonNullRef(AttributeMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ReferenceAttributeMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ReferenceAttributeMutation.class)
 		.description("""
 			This mutation allows to create / update / remove attribute of the reference.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, PRIMARY_KEY, ATTRIBUTE_MUTATION))
+		.staticProperty(NAME)
+		.staticProperty(PRIMARY_KEY)
+		.staticProperty(ATTRIBUTE_MUTATION)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ReferenceAttributeMutationInput")
+		.staticProperty(ATTRIBUTE_MUTATION_INPUT)
 		.build();
 }

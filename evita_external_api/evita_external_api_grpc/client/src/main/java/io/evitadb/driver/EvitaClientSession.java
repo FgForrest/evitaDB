@@ -69,7 +69,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
@@ -522,15 +525,26 @@ public class EvitaClientSession implements EvitaSessionContract {
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
 						this.executor,
-						subscriber -> executeWithAsyncEvitaSessionService(
-							evitaService -> {
+						subscriber -> {
+							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
-									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest((ChangeCatalogCaptureRequest)theRequest),
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(
+										(ChangeCatalogCaptureRequest) theRequest),
 									subscriber
 								);
 								return null;
+							};
+							if (this.isActive()) {
+								executeWithAsyncEvitaSessionService(callFunction);
+							} else {
+								// when current session is no longer active, create new one
+								final EvitaClientSession session = this.evita.createSession(
+									new SessionTraits(this.catalogName)
+								);
+								// and register the change capture on it
+								session.executeWithAsyncEvitaSessionService(callFunction);
 							}
-						),
+						},
 						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
 					) : existingInstance
 		);
@@ -1226,7 +1240,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
+	public <S extends Serializable> EntityReferenceContract upsertEntity(@Nonnull S customEntity) {
 		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
 			return ie.toMutation()
 				.map(this::upsertEntity)
@@ -1239,7 +1253,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return sealedEntityProxy.getEntityBuilderWithCallback(Propagation.SHALLOW)
 				.map(entityMutation -> {
-					final EntityReference entityReference = upsertEntity(entityMutation.builder());
+					final EntityReferenceContract entityReference = upsertEntity(entityMutation.builder());
 					entityMutation.entityUpserted(entityReference);
 					return entityReference;
 				})
@@ -1247,7 +1261,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
 					final EntityContract entity = sealedEntityProxy.entity();
-					return new EntityReference(entity.getType(), Objects.requireNonNull(entity.getPrimaryKey()));
+					return new EntityReference(entity.getType(), entity.getPrimaryKeyOrThrowException());
 				});
 		} else {
 			throw new EvitaInvalidUsageException(
@@ -1260,13 +1274,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
+	public <S extends Serializable> List<EntityReferenceContract> upsertEntityDeeply(@Nonnull S customEntity) {
 		if (customEntity instanceof SealedEntityReferenceProxy sealedEntityReferenceProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
 					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback(Propagation.DEEP)
 						.map(entityBuilderWithCallback -> {
-							final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+							final EntityReferenceContract entityReference = upsertEntity(entityBuilderWithCallback.builder());
 							entityBuilderWithCallback.entityUpserted(entityReference);
 							return entityReference;
 						}),
@@ -1282,8 +1296,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 									EntityExistence.MUST_EXIST,
 									it.buildChangeSet().collect(Collectors.toList())
 								);
-								final EntityReference entityReference = this.upsertEntity(entityUpsertMutation);
-								sealedEntityReferenceProxy.notifyBuilderUpserted();
+								final EntityReferenceContract entityReference = this.upsertEntity(entityUpsertMutation);
+								sealedEntityReferenceProxy.notifyBuilderUpserted(entityReference);
 								return entityReference;
 							}
 						)
@@ -1297,7 +1311,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					sealedEntityProxy.getEntityBuilderWithCallback(Propagation.DEEP).stream()
 				)
 				.map(entityBuilderWithCallback -> {
-					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+					final EntityReferenceContract entityReference = upsertEntity(entityBuilderWithCallback.builder());
 					entityBuilderWithCallback.entityUpserted(entityReference);
 					return entityReference;
 				})
@@ -1318,7 +1332,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) {
+	public EntityReferenceContract upsertEntity(@Nonnull EntityMutation entityMutation) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final GrpcEntityMutation grpcEntityMutation = DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation);
@@ -1330,10 +1344,36 @@ public class EvitaClientSession implements EvitaSessionContract {
 							.build()
 					)
 			);
-			final GrpcEntityReference grpcReference = grpcResult.getEntityReference();
-			return new EntityReference(
-				grpcReference.getEntityType(), grpcReference.getPrimaryKey()
-			);
+			if (grpcResult.hasEntityReferenceWithAssignedPrimaryKeys()) {
+				final GrpcEntityReferenceWithAssignedPrimaryKeys grpcReference = grpcResult.getEntityReferenceWithAssignedPrimaryKeys();
+				return new EntityReferenceWithAssignedPrimaryKeys(
+					grpcReference.getEntityType(),
+					grpcReference.getPrimaryKey(),
+					grpcReference.getReassignedReferenceKeysList()
+						.stream()
+						.collect(
+							Collectors.toMap(
+								it -> new ComparableReferenceKey(
+									new ReferenceKey(
+										it.getReferenceName(),
+										it.getPrimaryKey(),
+										it.getOriginalInternalPrimaryKey()
+									)
+								),
+								it -> new ReferenceKey(
+									it.getReferenceName(),
+									it.getPrimaryKey(),
+									it.getReassignedInternalPrimaryKey()
+								)
+							)
+						)
+				);
+			} else {
+				final GrpcEntityReference grpcReference = grpcResult.getEntityReference();
+				return new EntityReference(
+					grpcReference.getEntityType(), grpcReference.getPrimaryKey()
+				);
+			}
 		});
 	}
 
@@ -1622,6 +1662,19 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
 			modelClass, this::createEntityProxy, primaryKey, require
 		);
+	}
+
+	@Override
+	public void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException {
+		assertActive();
+		executeInTransactionIfPossible(session -> {
+			final GrpcEntityMutation grpcEntityMutation = DelegatingEntityMutationConverter.INSTANCE.convert(mutation);
+			executeWithBlockingEvitaSessionService(
+				evitaSessionService ->
+					evitaSessionService.applyMutation(grpcEntityMutation)
+			);
+			return null;
+		});
 	}
 
 	@Nonnull

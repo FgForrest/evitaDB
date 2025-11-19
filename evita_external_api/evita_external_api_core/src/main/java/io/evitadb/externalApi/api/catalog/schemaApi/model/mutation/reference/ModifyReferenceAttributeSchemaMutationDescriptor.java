@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.AttributeSchemaMutationAggregateDescriptor;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ReferenceAttributeSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation}.
@@ -40,21 +40,33 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  */
 public interface ModifyReferenceAttributeSchemaMutationDescriptor extends ReferenceSchemaMutationDescriptor {
 
-	// todo lho input version
 	PropertyDescriptor ATTRIBUTE_SCHEMA_MUTATION = PropertyDescriptor.builder()
 		.name("attributeSchemaMutation")
 		.description("""
             Nested attribute schema mutation that mutates reference attributes of targeted reference.
 			""")
-		.type(nonNullRef(AttributeSchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullRef(ReferenceAttributeSchemaMutationUnionDescriptor.THIS))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyReferenceAttributeSchemaMutation")
+	PropertyDescriptor ATTRIBUTE_SCHEMA_MUTATION_INPUT = PropertyDescriptor.builder()
+		.name("attributeSchemaMutation")
+		.description("""
+            Nested attribute schema mutation that mutates reference attributes of targeted reference.
+			""")
+		.type(nonNullRef(ReferenceAttributeSchemaMutationInputAggregateDescriptor.THIS_INPUT))
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyReferenceAttributeSchemaMutation.class)
 		.description("""
 			Mutation is a holder for a single `AttributeSchema` that affect any
 			of `ReferenceSchema.attributes` in the `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, ATTRIBUTE_SCHEMA_MUTATION))
+		.staticProperty(NAME)
+		.staticProperty(ATTRIBUTE_SCHEMA_MUTATION)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyReferenceAttributeSchemaMutationInput")
+		.staticProperty(ATTRIBUTE_SCHEMA_MUTATION_INPUT)
 		.build();
 }

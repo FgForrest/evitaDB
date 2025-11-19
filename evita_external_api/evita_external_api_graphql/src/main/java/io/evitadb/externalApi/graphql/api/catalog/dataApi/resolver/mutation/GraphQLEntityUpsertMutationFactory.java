@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.EntityUpsertMutationFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import io.evitadb.externalApi.graphql.api.catalog.resolver.mutation.GraphQLMutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;

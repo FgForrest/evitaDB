@@ -34,12 +34,15 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
- * Loose extension of the {@link com.linecorp.armeria.server.HttpService} but can be used as standalone unit.
+ * Handler of incoming routable {@link WebSocket}s.
  *
- * Version of the {@link com.linecorp.armeria.server.websocket.WebSocketServiceHandler} with routing
- * capabilities.
+ * Usually extends an existing {@link com.linecorp.armeria.server.HttpService} with WebSocket capabilities.
+ * But can be used as a standalone unit as well.
  *
+ * The reason for this is because Armeria's {@link com.linecorp.armeria.server.websocket.WebSocketServiceHandler} doesn't
+ * support nesting these handlers into routers.
+ *
+ * @see WebSocketEnablingService
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public interface WebSocketHandler {
@@ -62,11 +65,16 @@ public interface WebSocketHandler {
 
 	@Nonnull
 	default WebSocket subprotocolNotSupported() {
-		final WebSocketWriter out = WebSocket.streaming();
 		// this is not an ideal solution to not accepting WebSocket connection due to invalid subprotocol, but we don't
 		// know that before the WebSocket channel is opened and routed due to the Armeria limitations of WebSocketService
 		// placement needing to be registered as a root service
-		out.close(WebSocketCloseStatus.PROTOCOL_ERROR, "Subprotocol not supported.");
+		return closeWithError(WebSocketCloseStatus.PROTOCOL_ERROR, "Subprotocol not supported.");
+	}
+
+	@Nonnull
+	default WebSocket closeWithError(@Nonnull WebSocketCloseStatus status, @Nonnull String reasonPhrase) {
+		final WebSocketWriter out = WebSocket.streaming();
+		out.close(status, reasonPhrase);
 		return out;
 	}
 }

@@ -85,5 +85,32 @@ public interface GrpcUpsertEntityResponseOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder();
 
+  /**
+   * <pre>
+   * The upserted entity reference with reassigned primary keys
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+   * @return Whether the entityReferenceWithAssignedPrimaryKeys field is set.
+   */
+  boolean hasEntityReferenceWithAssignedPrimaryKeys();
+  /**
+   * <pre>
+   * The upserted entity reference with reassigned primary keys
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+   * @return The entityReferenceWithAssignedPrimaryKeys.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys getEntityReferenceWithAssignedPrimaryKeys();
+  /**
+   * <pre>
+   * The upserted entity reference with reassigned primary keys
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceWithAssignedPrimaryKeysOrBuilder getEntityReferenceWithAssignedPrimaryKeysOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcUpsertEntityResponse.ResponseCase getResponseCase();
 }

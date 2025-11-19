@@ -75,7 +75,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @CommonsLog
 class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport {
-	public static final String ATTRIBUTE_CODE = "code";
 	/**
 	 * Seed for data generation.
 	 */
@@ -84,8 +83,9 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 * Count of the product that will exist in the database BEFORE the test starts.
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
-	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
-	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
+	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
+	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaGenerationalTest_export";
+	private static final String ATTRIBUTE_CODE = "code";
 	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
 	 */
@@ -134,7 +134,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 	 * Creates new entity and inserts it into the index.
 	 */
 	protected void createEntity(@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities, @Nonnull EntityBuilder it) {
-		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
+		final EntityReferenceContract insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
 			(serializable, existing) -> ofNullable(existing).orElse(0) + 1
@@ -253,6 +253,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		this.evita.waitUntilFullyInitialized();
 
 		assertNotNull(this.evita);
 	}
@@ -340,6 +341,7 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 					this.evita = new Evita(
 						getEvitaConfiguration()
 					);
+					this.evita.waitUntilFullyInitialized();
 				}
 
 				return new TestState(

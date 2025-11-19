@@ -69,6 +69,8 @@ public class OpenApiObject implements OpenApiComplexType {
 	private final String deprecationNotice;
 	@Nonnull
 	private final List<OpenApiProperty> properties;
+	@Nullable
+	private final OpenApiTypeReference implementedInterface;
 
 	/**
 	 * Create new empty builder of object.
@@ -105,6 +107,10 @@ public class OpenApiObject implements OpenApiComplexType {
 			}
 		});
 
+		if (this.implementedInterface != null) {
+			schema.addAllOfItem(this.implementedInterface.toSchema());
+		}
+
 		return schema;
 	}
 
@@ -119,6 +125,8 @@ public class OpenApiObject implements OpenApiComplexType {
 		private String deprecationNotice;
 		@Nonnull
 		private final Map<String, OpenApiProperty> properties;
+		@Nullable
+		private OpenApiTypeReference implementedInterface;
 
 		private Builder() {
 			this.properties = createHashMap(20);
@@ -129,7 +137,8 @@ public class OpenApiObject implements OpenApiComplexType {
 				existingObject.name,
 				existingObject.description,
 				existingObject.deprecationNotice,
-				new HashMap<>(existingObject.properties.stream().collect(Collectors.toMap(OpenApiProperty::getName, Function.identity())))
+				new HashMap<>(existingObject.properties.stream().collect(Collectors.toMap(OpenApiProperty::getName, Function.identity()))),
+				existingObject.implementedInterface
 			);
 		}
 
@@ -195,13 +204,22 @@ public class OpenApiObject implements OpenApiComplexType {
 			return this.properties.containsKey(name);
 		}
 
+		/**
+		 * Specifies reference to implemented interface by this object.
+		 */
+		@Nonnull
+		public Builder implementedInterface(@Nonnull OpenApiTypeReference implementedInterface) {
+			this.implementedInterface = implementedInterface;
+			return this;
+		}
+
 		@Nonnull
 		public OpenApiObject build() {
 			Assert.isPremiseValid(
 				this.name != null && !this.name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing object name.")
 			);
-			return new OpenApiObject(this.name, this.description, this.deprecationNotice, new ArrayList<>(this.properties.values()));
+			return new OpenApiObject(this.name, this.description, this.deprecationNotice, new ArrayList<>(this.properties.values()), this.implementedInterface);
 		}
 	}
 }

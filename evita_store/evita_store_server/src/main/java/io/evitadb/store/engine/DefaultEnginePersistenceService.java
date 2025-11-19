@@ -68,6 +68,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
@@ -106,6 +107,11 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	 * The folder lock instance that is used for safeguarding exclusive access to the catalog storage directory.
 	 */
 	private final FolderLock folderLock;
+
+	/**
+	 * This lock synchronizes the access to the write ahead log file.
+	 */
+	private final ReentrantLock walWriteLock = new ReentrantLock();
 
 	/**
 	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
@@ -328,69 +334,74 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 		@Nonnull UUID transactionId,
 		@Nonnull EngineMutation<?> mutation
 	) {
-		// Initialize WAL if it doesn't exist yet
-		if (this.mutationLog == null) {
-			this.mutationLog = new EngineMutationLog(
-				getVersion(),
-				EnginePersistenceService::getWalFileName,
-				this.storageOptions.storageDirectory(),
-				this.walKryoPool,
-				this.storageOptions,
-				this.transactionOptions,
-				this.scheduler
-			);
-		}
+		this.walWriteLock.lock();
+		try {
+			// Initialize WAL if it doesn't exist yet
+			if (this.mutationLog == null) {
+				this.mutationLog = new EngineMutationLog(
+					getVersion(),
+					EnginePersistenceService::getWalFileName,
+					this.storageOptions.storageDirectory(),
+					this.walKryoPool,
+					this.storageOptions,
+					this.transactionOptions,
+					this.scheduler
+				);
+			}
 
-		// Initialize handle for writing WAL data to off-heap memory
-		try (
-			final WriteOnlyOffHeapWithFileBackupHandle logWriteHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".tmp"),
-				this.storageOptions,
-				this.observableOutputKeeper,
-				this.offHeapMemoryManager
-			)
-		) {
+			// Initialize handle for writing WAL data to off-heap memory
+			try (
+				final WriteOnlyOffHeapWithFileBackupHandle logWriteHandle = new WriteOnlyOffHeapWithFileBackupHandle(
+					this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".tmp"),
+					this.storageOptions,
+					this.observableOutputKeeper,
+					this.offHeapMemoryManager
+				)
+			) {
 
-			// Write the mutation to the WAL and get its size in bytes
-			final int mutationSizeInBytes = logWriteHandle.checkAndExecute(
-				"write mutation",
-				() -> {
-				},
-				output -> {
-					final Kryo writeKryo = this.walKryoPool.obtain();
-					try {
-						// Create a storage record with the mutation
-						final StorageRecord<Mutation> record = new StorageRecord<>(
-							output, version, true,
-							theOutput -> {
-								// Serialize the mutation using Kryo
-								writeKryo.writeClassAndObject(output, mutation);
-								return mutation;
-							}
-						);
-						// Return the size of the record
-						return record.fileLocation().recordLength();
-					} finally {
-						// Return Kryo instance to the pool
-						this.walKryoPool.free(writeKryo);
+				// Write the mutation to the WAL and get its size in bytes
+				final int mutationSizeInBytes = logWriteHandle.checkAndExecute(
+					"write mutation",
+					() -> {
+					},
+					output -> {
+						final Kryo writeKryo = this.walKryoPool.obtain();
+						try {
+							// Create a storage record with the mutation
+							final StorageRecord<Mutation> record = new StorageRecord<>(
+								output, version, true,
+								theOutput -> {
+									// Serialize the mutation using Kryo
+									writeKryo.writeClassAndObject(output, mutation);
+									return mutation;
+								}
+							);
+							// Return the size of the record
+							return record.fileLocation().recordLength();
+						} finally {
+							// Return Kryo instance to the pool
+							this.walKryoPool.free(writeKryo);
+						}
 					}
-				}
-			);
+				);
 
-			// Create a transaction mutation with the mutation size
-			final TransactionMutation transactionMutation = new TransactionMutation(
-				transactionId, version, 1, mutationSizeInBytes, OffsetDateTime.now()
-			);
+				// Create a transaction mutation with the mutation size
+				final TransactionMutation transactionMutation = new TransactionMutation(
+					transactionId, version, 1, mutationSizeInBytes, OffsetDateTime.now()
+				);
 
-			// Append the transaction mutation to the WAL
-			return new TransactionMutationWithWalFileReference(
-				this.mutationLog.append(
-					transactionMutation,
-					// when reading is done, the off-heap memory will be released automatically
-					logWriteHandle.toReadOffHeapWithFileBackupReference()
-				),
-				transactionMutation
-			);
+				// Append the transaction mutation to the WAL
+				return new TransactionMutationWithWalFileReference(
+					this.mutationLog.append(
+						transactionMutation,
+						// when reading is done, the off-heap memory will be released automatically
+						logWriteHandle.toReadOffHeapWithFileBackupReference()
+					),
+					transactionMutation
+				);
+			}
+		} finally {
+			this.walWriteLock.unlock();
 		}
 	}
 
@@ -468,6 +479,14 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	public void close() {
 		if (!this.closed) {
 			this.closed = true;
+			if (this.mutationLog != null) {
+				this.walWriteLock.lock();
+				try {
+					IOUtils.closeQuietly(this.mutationLog::close);
+				} finally {
+					this.walWriteLock.unlock();
+				}
+			}
 			// Close all resources quietly (without throwing exceptions)
 			IOUtils.closeQuietly(
 				this.offHeapMemoryManager::close,

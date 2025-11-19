@@ -23,7 +23,7 @@
 
 package io.evitadb.performance.externalApi.rest.artificial.state;
 
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.externalApi.rest.artificial.RestArtificialFullDatabaseBenchmarkState;
 import io.evitadb.performance.generators.RandomQueryGenerator;
@@ -31,6 +31,7 @@ import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import io.evitadb.test.Entities;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -53,7 +54,7 @@ public class RestArtificialHierarchyBenchmarkState extends RestArtificialFullDat
 
 
 	@Override
-	protected SealedEntitySchema processSchema(SealedEntitySchema schema) {
+	protected SealedEntitySchema processSchema(@Nonnull SealedEntitySchema schema) {
 		if (schema.getName().equals(Entities.PRODUCT)) {
 			this.productSchema = schema;
 		} else {
@@ -65,7 +66,7 @@ public class RestArtificialHierarchyBenchmarkState extends RestArtificialFullDat
 	}
 
 	@Override
-	protected void processCreatedEntityReference(EntityReference entity) {
+	protected void processCreatedEntityReference(@Nonnull EntityReferenceContract entity) {
 		super.processCreatedEntityReference(entity);
 		if (entity.getType().equals(Entities.PRODUCT) && entity.getPrimaryKey() > this.maxProductId) {
 			this.maxProductId = entity.getPrimaryKey();

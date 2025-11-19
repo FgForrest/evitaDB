@@ -23,11 +23,10 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -49,12 +48,15 @@ public interface ModifyCatalogSchemaDescriptionMutationDescriptor extends Mutati
 		.type(nullable(String.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyCatalogSchemaDescriptionMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyCatalogSchemaDescriptionMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `CatalogSchema.description`
 			in `CatalogSchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, DESCRIPTION))
+		.staticProperty(DESCRIPTION)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyCatalogSchemaDescriptionMutationInput")
 		.build();
 }

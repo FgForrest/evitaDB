@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public interface QueryLabelDescriptor {
 			Labels are also recorded with the query in the traffic record and can be used to look up the query in the traffic
 			inspection or traffic replay.
 			""")
-		.staticField(NAME)
-		.staticField(VALUE)
+		.staticProperty(NAME)
+		.staticProperty(VALUE)
 		.build();
 }

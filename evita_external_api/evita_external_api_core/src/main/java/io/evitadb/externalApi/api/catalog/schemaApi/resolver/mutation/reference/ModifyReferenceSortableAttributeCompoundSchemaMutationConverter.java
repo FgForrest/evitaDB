@@ -25,15 +25,15 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingSortableAttributeCompoundSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SortableAttributeCompoundSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateConverter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -50,7 +50,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 	extends ReferenceSchemaMutationConverter<ModifyReferenceSortableAttributeCompoundSchemaMutation> {
 
 	@Nonnull
-	private final SortableAttributeCompoundSchemaMutationAggregateConverter sortableAttributeCompoundSchemaMutationAggregateConverter;
+	private final ReferenceSortableAttributeCompoundSchemaMutationInputAggregateConverter sortableAttributeCompoundSchemaMutationAggregateConverter;
 	@Nonnull
 	private final DelegatingSortableAttributeCompoundSchemaMutationConverter delegatingSortableAttributeCompoundSchemaMutationConverter;
 
@@ -59,7 +59,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectMapper, exceptionFactory);
-		this.sortableAttributeCompoundSchemaMutationAggregateConverter = new SortableAttributeCompoundSchemaMutationAggregateConverter(
+		this.sortableAttributeCompoundSchemaMutationAggregateConverter = new ReferenceSortableAttributeCompoundSchemaMutationInputAggregateConverter(
 			objectMapper,
 			exceptionFactory
 		);

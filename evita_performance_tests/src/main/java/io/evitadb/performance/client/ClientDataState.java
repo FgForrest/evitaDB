@@ -26,7 +26,7 @@ package io.evitadb.performance.client;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.performance.setup.CatalogSetup;
@@ -99,12 +99,14 @@ public abstract class ClientDataState implements CatalogSetup, TestConstants, Ev
 	/**
 	 * Returns name of the test catalog.
 	 */
+	@Nonnull
 	protected abstract String getCatalogName();
 
 	/**
 	 * Creates new entity and inserts it into the index.
 	 */
-	protected EntityReference createEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityBuilder it) {
+	@Nonnull
+	protected EntityReferenceContract createEntity(@Nonnull EvitaSessionContract session, @Nonnull EntityBuilder it) {
 		return session.upsertEntity(it);
 	}
 

@@ -48,6 +48,49 @@ message GrpcEntityReferenceWithParent {
   GrpcEntityReferenceWithParent parent = 4;
 }
 
+// Extended entity reference that maintains a mapping of reassigned primary keys for entity references.
+// This type is used during entity mutations when references need to be tracked with their newly assigned
+// internal primary keys after persistence.
+//
+// When references are first created, they are assigned temporary negative internal primary keys.
+// Upon persistence to the database, these temporary keys are replaced with positive permanent internal
+// primary keys assigned by the server. This message maintains the mapping between the original reference
+// keys (with temporary internal PKs) and the reference keys with their newly assigned permanent internal PKs.
+//
+// This is particularly useful when:
+// - Multiple references share the same business key but differ in properties
+// - Client code needs to track which references were assigned which internal primary keys after persistence
+// - References need to be looked up by their original temporary keys to find their permanent counterparts
+message GrpcEntityReferenceWithAssignedPrimaryKeys {
+  // Type of entity.
+  // Entity type is main sharding key - all data of entities with same type are stored in separated collections. Within the
+  // entity type entity is uniquely represented by primary key.
+  string entityType = 1;
+  // Unique Integer positive number representing the entity. Can be used for fast lookup for
+  // entity (entities). Primary key must be unique within the same entity type.
+  int32 primaryKey = 2;
+  // Mapping from original reference keys (with temporary internal PK) to the new
+  // reference keys with permanent internal PK assigned by the server after persistence.
+  // The map key is the original reference key, and the value is the reassigned reference key.
+  repeated GrpcReferenceKeyPair reassignedReferenceKeys = 3;
+}
+
+// Represents a pair of reference keys used for tracking reassigned internal primary keys.
+// The 'original' key contains the temporary internal PK, while the 'reassigned' key contains
+// the permanent internal PK assigned after persistence.
+message GrpcReferenceKeyPair {
+  // Name of the reference (e.g., "category", "brand").
+  // References the reference schema name that defines the type of relationship.
+  string referenceName = 1;
+  // Primary key of the referenced entity.
+  // May be either an evitaDB entity primary key or an external resource identifier.
+  int32 primaryKey = 2;
+  // Original reference key with temporary internal primary key (negative number).
+  int32 originalInternalPrimaryKey = 3;
+  // Reassigned reference key with permanent internal primary key (positive number) assigned by the server.
+  int32 reassignedInternalPrimaryKey = 4;
+}
+
 // Based on our experience we've designed following data model for handling entities in evitaDB. Model is rather complex
 // but was designed to limit amount of data fetched from database and minimize an amount of data that are indexed and subject
 // to search.

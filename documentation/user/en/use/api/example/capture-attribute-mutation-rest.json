@@ -1,0 +1,18 @@
+{
+  "id": "<subscription id>",
+  "type": "subscribe",
+  "payload": {
+	"content": "BODY",
+	"criteria": [
+	  {
+		"area": "DATA",
+		"dataSite": {
+		  "entityType": "Product",
+		  "entityPrimaryKey": 745,
+		  "containerType": ["ATTRIBUTE"],
+		  "containerName": ["quantityOnStock"]
+		}
+	  }
+	]
+  }
+}

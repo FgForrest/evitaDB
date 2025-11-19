@@ -102,7 +102,7 @@ interface PongMessage {
 
 Direction: **Client -> Server**
 
-Requests a new subscription defined by the WS endpoint with parameters defined in the `payload`. This message provides a unique ID field to connect published messages to the operation requested by this message.
+Requests a new subscription defined by the WS endpoint with parameters defined in the `payload`. This message provides a unique ID field (we recommend using UUIDs) to connect published messages to the operation requested by this message.
 
 If there is already an active subscriber for an operation matching the provided ID, regardless of the operation type, the server **must** close the socket immediately with the event `4409: Subscriber for <unique-operation-id> already exists`.
 

@@ -35,6 +35,7 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -206,7 +207,7 @@ public class EntityByMultipleOrderingFunctionalTest {
 			);
 
 			// and now data for both of them (since they are intertwined via reflected reference)
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					productSchema,
 					randomEntityPicker,
 					SEED

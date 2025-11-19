@@ -30,6 +30,8 @@ import io.evitadb.api.observability.trace.TracingContextProvider;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -39,10 +41,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLObjectType.newObject;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -52,7 +56,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 public class GraphQLSchemaBuildingContext {
 
-    @Getter @Nonnull
+	@Getter @Nonnull
     private final GraphQLOptions config;
     @Getter @Nonnull
     private final Evita evita;
@@ -74,10 +78,17 @@ public class GraphQLSchemaBuildingContext {
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
 
+	/**
+	 * Holds {@link MappingTypeResolver}s whose type mappings are being build gradually with schema.
+	 */
+	@Nonnull
+	private final Map<RegistryKey<?>, MappingTypeResolver<?>> mappingTypeResolvers;
+
     public GraphQLSchemaBuildingContext(@Nonnull GraphQLOptions config, @Nonnull Evita evita) {
         this.config = config;
         this.evita = evita;
-        this.tracingContext = TracingContextProvider.getContext();;
+        this.tracingContext = TracingContextProvider.getContext();
+		this.mappingTypeResolvers = createHashMap(5);
     }
 
     /**
@@ -105,8 +116,50 @@ public class GraphQLSchemaBuildingContext {
 	    this.schemaBuilder.additionalTypes(types);
     }
 
+	/**
+	 * Adds a new mapping type resolver to be able to add type mappings during schema building.
+	 */
+	public <K> void addMappingTypeResolver(
+		@Nonnull GraphQLInterfaceType interfaceType,
+		@Nonnull RegistryKey<K> resolverKey,
+		@Nonnull MappingTypeResolver<K> resolver
+	) {
+		Assert.isPremiseValid(
+			!this.mappingTypeResolvers.containsKey(resolverKey),
+			() -> new GraphQLSchemaBuildingError("There is already registered mapping type resolver with key `" + resolverKey + "`.")
+		);
+		this.mappingTypeResolvers.put(resolverKey, resolver);
+		this.registryBuilder.typeResolver(interfaceType, resolver);
+	}
+
+	/**
+	 * Adds a new mapping type resolver to be able to add type mappings during schema building.
+	 */
+	public <K> void addMappingTypeResolver(
+		@Nonnull GraphQLUnionType unionType,
+		@Nonnull RegistryKey<K> resolverKey,
+		@Nonnull MappingTypeResolver<K> resolver
+	) {
+		Assert.isPremiseValid(
+			!this.mappingTypeResolvers.containsKey(resolverKey),
+			() -> new GraphQLSchemaBuildingError("There is already registered mapping type resolver with key `" + resolverKey + "`.")
+		);
+		this.mappingTypeResolvers.put(resolverKey, resolver);
+		this.registryBuilder.typeResolver(unionType, resolver);
+	}
+
+	@Nonnull
+	public <K, T extends MappingTypeResolver<K>> T getMappingTypeResolver(@Nonnull RegistryKey<K> resolverKey) {
+		//noinspection unchecked
+		final T resolver = (T) this.mappingTypeResolvers.get(resolverKey);
+		if (resolver == null) {
+			throw new GraphQLSchemaBuildingError("No mapping type resolver for specified key is registered.");
+		}
+		return resolver;
+	}
+
     /**
-     * Register new GraphQL type resolver for interface type to schema.
+     * Registers a new GraphQL type resolver for a interface type to schema.
      */
     public void registerTypeResolver(@Nonnull GraphQLInterfaceType interfaceType, @Nonnull TypeResolver typeResolver) {
 	    this.registryBuilder.typeResolver(interfaceType, typeResolver);

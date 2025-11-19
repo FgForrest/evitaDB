@@ -41,11 +41,11 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -291,7 +291,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.limit(iterations)
 						.map(it -> {
 							assertFalse(Transaction.getTransaction().isPresent());
-							final AtomicReference<EntityReference> createdReference = new AtomicReference<>();
+							final AtomicReference<EntityReferenceContract> createdReference = new AtomicReference<>();
 							final CompletableFuture<CommitVersions> targetCatalogVersion = evita.updateCatalogAsync(
 									TEST_CATALOG,
 									session -> {
@@ -701,6 +701,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			// now we can browse the history
 			try (Evita thirdInstance = new Evita(cfg)) {
 				thirdInstance.waitUntilFullyInitialized();
+
 				final CatalogContract catalog = thirdInstance.getCatalogInstance(TEST_CATALOG).orElseThrow();
 
 				final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
@@ -1369,6 +1370,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.cache(originalConfiguration.cache())
 				.build()
 		)) {
+			evita.waitUntilFullyInitialized();
 			automaticallyGenerateEntitiesInParallel(evita, productSchema, null);
 		}
 	}
@@ -1426,6 +1428,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			);
 
 			log.info("Original catalog finished with version: " + originalCatalogVersion);
+			evita.activateCatalog(restoredCatalogName);
 
 			evita.queryCatalog(
 				restoredCatalogName,
@@ -1526,6 +1529,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			log.info("Original catalog finished with version: " + originalCatalogVersion);
 
+			evita.activateCatalog(restoredCatalogName);
 			evita.queryCatalog(
 				restoredCatalogName,
 				session -> {
@@ -1755,6 +1759,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				// close the evita
 				evita.close();
 
+				log.info("Re-initializing evita to verify persistence of data.");
+
 				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
 					restartedEvita.waitUntilFullyInitialized();
 
@@ -1762,6 +1768,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
 						"Catalog should be loaded from the disk!"
 					);
+
+					log.info("evitaDB restarted and fully initialized");
 
 					catalogChecker.accept(restartedEvita, expectedLastVersion, TEST_CATALOG);
 
@@ -1787,11 +1795,16 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 									try (final InputStream inputStream = Files.newInputStream(backupPath)) {
 										restartedEvita.management().restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
 											.getFutureResult().get(2, TimeUnit.MINUTES);
+										restartedEvita.activateCatalog(restoredCatalogName);
 									}
 									restartedEvita.activateCatalog(restoredCatalogName);
 									// connect to it and check existence of the first record
 									catalogChecker.accept(restartedEvita, record.catalogVersion(), restoredCatalogName);
+
+									// drop the restored catalog
+									restartedEvita.deleteCatalogIfExists(restoredCatalogName);
 								} catch (Exception e) {
+									log.error("Exception thrown during backup & restore test!", e);
 									throw new RuntimeException(e);
 								}
 							}
@@ -1802,11 +1815,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				log.error("Exception thrown within test!", ex);
 				fail(ex);
 			} finally {
+				log.info("Closing evita instance (state is {}).", evita.isActive() ? "active" : "closed");
 				if (evita.isActive()) {
 					evita.close();
 				}
 			}
 		} finally {
+			log.info("Cleaning test directories.");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		}
@@ -1883,13 +1898,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						session -> {
 							for (int i = 0; i < 1000; i++) {
 								if (entities.size() < 10000 || faker.random().nextBoolean()) {
-									final EntityReference ref = session.createNewEntity(entityProduct, entities.size() + 1)
+									final EntityReferenceContract ref = session.createNewEntity(entityProduct, entities.size() + 1)
 										.setAttribute(attributeUrl, faker.internet().url())
 										.setAttribute(attributeCode, faker.code().isbn10())
 										.setAttribute(attributeName, faker.book().title())
 										.setAttribute(attributePrice, BigDecimal.valueOf(faker.number().randomDouble(2, 1, 1000)))
 										.upsertVia(session);
-									entities.put(ref.primaryKey(), session.getEntity(entityProduct, ref.primaryKey(), attributeContentAll()).orElseThrow());
+									final int pk = ref.getPrimaryKeyOrThrowException();
+									entities.put(
+										pk, session.getEntity(entityProduct, pk, attributeContentAll()).orElseThrow());
 								} else {
 									updates.incrementAndGet();
 									final int entityPrimaryKey = faker.random().nextInt(entities.size()) + 1;
@@ -2254,7 +2271,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
  }
 
  private record PkWithCatalogVersion(
-		EntityReference entityReference,
+		@Nonnull EntityReferenceContract entityReference,
 		long catalogVersion
 	) implements Comparable<PkWithCatalogVersion> {
 

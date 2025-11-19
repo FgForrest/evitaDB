@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.grpc.testUtils;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
@@ -140,7 +140,7 @@ public class TestDataProvider {
 				.limit(Math.min(Math.max(10, productCount / 5), 100))
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {

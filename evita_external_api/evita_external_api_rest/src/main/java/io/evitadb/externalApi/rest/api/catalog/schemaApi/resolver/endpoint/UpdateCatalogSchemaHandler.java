@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
@@ -54,11 +54,11 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
-	@Nonnull private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver;
+	@Nonnull private final LocalCatalogSchemaMutationInputAggregateConverter mutationAggregateResolver;
 
 	public UpdateCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
+		this.mutationAggregateResolver = new LocalCatalogSchemaMutationInputAggregateConverter(
 			new RestMutationObjectMapper(restApiHandlingContext.getObjectMapper()),
 			RestMutationResolvingExceptionFactory.INSTANCE
 		);

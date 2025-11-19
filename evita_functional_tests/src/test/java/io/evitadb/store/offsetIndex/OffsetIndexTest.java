@@ -71,6 +71,7 @@ import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -97,7 +98,7 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	};
 	private static final String TEST_FOLDER = "offsetIndexTest";
 	private static final String TEST_FOLDER_EXPORT = "offsetIndexTest_export";
-	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
+	private final Path targetFile = Files.createTempFile("fileOffsetIndex", "kryo");
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 
 	/**
@@ -112,6 +113,9 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		return Stream.of(OffsetIndexTest.Crc32Check.values())
 			.flatMap(crc32Check -> Stream.of(OffsetIndexTest.Compression.values())
 				.map(compression -> Arguments.of(crc32Check, compression)));
+	}
+
+	OffsetIndexTest() throws IOException {
 	}
 
 	/**
@@ -299,10 +303,15 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@ParameterizedTest
 	@MethodSource("combineSettings")
 	void shouldSerializeAndReconstructEmptyOffsetIndex(Crc32Check crc32Check, Compression compression) {
-		final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(
-			configure(StorageOptions.temporary(), crc32Check, compression), EntityBodyStoragePart::new, 0
-		);
-		IOUtils.closeQuietly(insertionOutput.fileOffsetIndex::close);
+		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
+		try (final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))) {
+			final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(
+				storageOptions,
+				observableOutputKeeper,
+				EntityBodyStoragePart::new, 0
+			);
+			IOUtils.closeQuietly(insertionOutput.fileOffsetIndex::close);
+		}
 	}
 
 	@DisplayName("Offset index can be stored empty and then new records added.")
@@ -310,22 +319,26 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	@MethodSource("combineSettings")
 	void shouldSerializeEmptyOffsetIndexWithLaterAddingRecordsAndReconstructCorrectly(Crc32Check crc32Check, Compression compression) {
 		final StorageOptions storageOptions = configure(StorageOptions.temporary(), crc32Check, compression);
-		final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(storageOptions, EntityBodyStoragePart::new, 0);
-		final OffsetIndex offsetIndex = insertionOutput.fileOffsetIndex();
-		final InsertionOutput insertionOutput2 = createRecordsInFileOffsetIndex(offsetIndex, 100, 0, 1);
-		/* input count records +1 record for the OffsetIndex itself */
-		if (crc32Check == Crc32Check.YES) {
-			assertEquals(
-				/* 100 records, 1 empty header, 1 header with single fragment */
-				100 + computeExpectedRecordCount(storageOptions, 100).fragments() + 1,
-				offsetIndex.verifyContents().getRecordCount()
+		try (final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))) {
+			final InsertionOutput insertionOutput = shouldSerializeAndReconstructOffsetIndex(
+				storageOptions, observableOutputKeeper, EntityBodyStoragePart::new, 0
 			);
+			final OffsetIndex offsetIndex = insertionOutput.fileOffsetIndex();
+			final InsertionOutput insertionOutput2 = createRecordsInFileOffsetIndex(offsetIndex, 100, 0, 1);
+			/* input count records +1 record for the OffsetIndex itself */
+			if (crc32Check == Crc32Check.YES) {
+				assertEquals(
+					/* 100 records, 1 empty header, 1 header with single fragment */
+					100 + computeExpectedRecordCount(storageOptions, 100).fragments() + 1,
+					offsetIndex.verifyContents().getRecordCount()
+				);
+			}
+			assertEquals(
+				100,
+				offsetIndex.count(insertionOutput2.catalogVersion())
+			);
+			IOUtils.closeQuietly(offsetIndex::close);
 		}
-		assertEquals(
-			100,
-			offsetIndex.count(insertionOutput2.catalogVersion())
-		);
-		IOUtils.closeQuietly(offsetIndex::close);
 	}
 
 	@DisplayName("Hundreds entities should be stored in OffsetIndex and retrieved intact.")
@@ -922,19 +935,21 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull IntFunction<EntityBodyStoragePart> bodyPartFactory
 	) {
-		return shouldSerializeAndReconstructOffsetIndex(storageOptions, bodyPartFactory, 600);
+		try (final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class))) {
+			return shouldSerializeAndReconstructOffsetIndex(storageOptions, observableOutputKeeper, bodyPartFactory, 600);
+		}
 	}
 
 	@Nonnull
 	private InsertionOutput shouldSerializeAndReconstructOffsetIndex(
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull IntFunction<EntityBodyStoragePart> bodyPartFactory,
 		int recordCount
 	) {
 		OffsetIndex loadedFileOffsetIndex = null;
 		try (
-			final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(TEST_CATALOG, storageOptions, Mockito.mock(Scheduler.class));
-			final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper);
+			final WriteOnlyFileHandle writeHandle = new WriteOnlyFileHandle(this.targetFile, storageOptions, observableOutputKeeper)
 		) {
 			final OffsetIndex fileOffsetIndex = new OffsetIndex(
 				0L,

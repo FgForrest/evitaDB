@@ -25,15 +25,7 @@ package io.evitadb.api;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.EntityAlreadyRemovedException;
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
-import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.exception.TemporalDataNotAvailableException;
-import io.evitadb.api.exception.UnexpectedResultCountException;
-import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.exception.*;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.query.HeadConstraint;
@@ -56,6 +48,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
@@ -432,9 +425,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	default Optional<EntityReference> queryOneEntityReference(@Nonnull Query query)
+	default Optional<EntityReferenceContract> queryOneEntityReference(@Nonnull Query query)
 		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
-		return queryOne(query, EntityReference.class);
+		return queryOne(query, EntityReferenceContract.class);
 	}
 
 	/**
@@ -526,9 +519,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	default List<EntityReference> queryListOfEntityReferences(@Nonnull Query query)
+	default List<EntityReferenceContract> queryListOfEntityReferences(@Nonnull Query query)
 		throws UnexpectedResultException, InstanceTerminatedException {
-		return queryList(query, EntityReference.class);
+		return queryList(query, EntityReferenceContract.class);
 	}
 
 	/**
@@ -621,9 +614,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @see QueryConstraints for list of available filtering and ordering constraints and requirements
 	 */
 	@Nonnull
-	default EvitaResponse<EntityReference> queryEntityReference(@Nonnull Query query)
+	default EvitaResponse<EntityReferenceContract> queryEntityReference(@Nonnull Query query)
 		throws UnexpectedResultException, InstanceTerminatedException {
-		return query(query, EntityReference.class);
+		return query(query, EntityReferenceContract.class);
 	}
 
 	/**
@@ -1006,7 +999,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @param customEntity that contains changed entity state
 	 */
 	@Nonnull
-	<S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity);
+	<S extends Serializable> EntityReferenceContract upsertEntity(@Nonnull S customEntity);
 
 	/**
 	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts custom entity instance that can produce
@@ -1018,7 +1011,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @param customEntity that contains changed entity state
 	 */
 	@Nonnull
-	<S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity);
+	<S extends Serializable> List<EntityReferenceContract> upsertEntityDeeply(@Nonnull S customEntity);
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
@@ -1026,7 +1019,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 */
 	@Nonnull
-	EntityReference upsertEntity(@Nonnull EntityMutation entityMutation);
+	EntityReferenceContract upsertEntity(@Nonnull EntityMutation entityMutation);
 
 	/**
 	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts {@link EntityBuilder} that can produce
@@ -1258,6 +1251,15 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	<T extends Serializable> Optional<T> restoreEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require)
 		throws EntityClassInvalidException;
+
+	/**
+	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
+	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 *
+	 * @param mutation mutation to be applied
+	 * @throws InvalidMutationException when mutation is not applicable to the catalog
+	 */
+	void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException;
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not

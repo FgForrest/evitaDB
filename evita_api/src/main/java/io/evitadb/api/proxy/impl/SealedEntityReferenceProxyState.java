@@ -28,10 +28,13 @@ import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -147,11 +150,20 @@ public class SealedEntityReferenceProxyState
 	}
 
 	@Override
-	public void notifyBuilderUpserted() {
+	public void notifyBuilderUpserted(@Nonnull EntityReferenceContract entityReference) {
 		if (this.referenceBuilder != null) {
-			this.referenceBuilder = new ExistingReferenceBuilder(
-				this.referenceBuilder.build(), getEntitySchema(), this.attributeTypes
-			);
+			final ReferenceKey reassignedReferenceKey =
+				entityReference instanceof EntityReferenceWithAssignedPrimaryKeys erwapk ?
+					erwapk.findReferenceKeysWithReassignedPrimaryKey(this.referenceBuilder.getReferenceKey()) : null;
+			if (reassignedReferenceKey == null) {
+				this.referenceBuilder = new ExistingReferenceBuilder(
+					this.referenceBuilder.build(), getEntitySchema(), this.attributeTypes
+				);
+			} else {
+				this.referenceBuilder = new ExistingReferenceBuilder(
+					reassignedReferenceKey, this.referenceBuilder.build(), getEntitySchema(), this.attributeTypes
+				);
+			}
 		}
 	}
 

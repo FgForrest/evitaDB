@@ -201,9 +201,10 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 			if (group.isEmpty()) {
 				return theState.getOrCreateReferencedEntityProxyWithCallback(
 					referenceName,
+					null,
 					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType,
 					ReferencedObjectType.GROUP,
-					entityReference -> referenceBuilder.setGroup(entityReference.primaryKey())
+					entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKeyOrThrowException())
 				);
 			} else {
 				final Optional<?> referencedInstance = theState.getReferencedEntityObjectIfPresent(
@@ -425,6 +426,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 		final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxyWithCallback(
 			referenceName,
+			null,
 			theState.getEntitySchemaOrThrow(referencedEntityType),
 			expectedType,
 			ReferencedObjectType.GROUP,

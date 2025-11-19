@@ -24,9 +24,9 @@
 package io.evitadb.api.functional.price;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -78,7 +78,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 			dataGenerator.getSampleBrandSchema(session);
 			dataGenerator.getSampleStoreSchema(session);
 
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(session),
 					randomEntityPicker,
 					SEED

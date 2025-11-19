@@ -25,30 +25,26 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.TypeResolutionEnvironment;
 import graphql.schema.GraphQLObjectType;
-import graphql.schema.TypeResolver;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver;
 
 import javax.annotation.Nonnull;
-import java.util.Map;
-import java.util.Optional;
 
 /**
  * Resolve specific entity DTO for entity interface based on fetched original entity object.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class EntityDtoTypeResolver implements TypeResolver {
+public class EntityDtoTypeResolver extends MappingTypeResolver<String> {
 
-	private final Map<String, GraphQLObjectType> entityTypeToEntityDtoMapping;
+	public EntityDtoTypeResolver(int collectionSize) {
+		super(collectionSize);
+	}
 
 	@Nonnull
 	@Override
 	public GraphQLObjectType getType(TypeResolutionEnvironment env) {
 		final EntityClassifier entity = env.getObject();
-		return Optional.ofNullable(this.entityTypeToEntityDtoMapping.get(entity.getType()))
-			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity dto for entity type `" + entity.getType() + "`."));
+		return getOutputType(entity.getType());
 	}
 }

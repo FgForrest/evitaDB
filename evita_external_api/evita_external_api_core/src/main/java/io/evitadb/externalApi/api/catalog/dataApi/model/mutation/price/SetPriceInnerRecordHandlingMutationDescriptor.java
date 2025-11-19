@@ -51,11 +51,14 @@ public interface SetPriceInnerRecordHandlingMutationDescriptor extends MutationD
 		.build();
 
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetPriceInnerRecordHandlingMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetPriceInnerRecordHandlingMutation.class)
 		.description("""
 			This mutation allows to set / remove `priceInnerRecordHandling` behaviour of the entity.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, PRICE_INNER_RECORD_HANDLING))
+		.staticProperty(PRICE_INNER_RECORD_HANDLING)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetPriceInnerRecordHandlingMutationInput")
 		.build();
 }

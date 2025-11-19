@@ -24,10 +24,10 @@
 package io.evitadb.externalApi.api.transaction.resolver.mutation;
 
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.engine.EngineMutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.system.resolver.mutation.engine.EngineMutationConverter;
 
 import javax.annotation.Nonnull;
 

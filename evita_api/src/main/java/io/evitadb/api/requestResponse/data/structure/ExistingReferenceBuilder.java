@@ -75,10 +75,13 @@ import static java.util.Optional.ofNullable;
 public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable {
 	@Serial private static final long serialVersionUID = 4611697377656713570L;
 	/**
+	 * Reference key of the reference being mutated.
+	 */
+	private final ReferenceKey referenceKey;
+	/**
 	 * Reference instance this builder wraps and mutates logically. Acts as the baseline state that
 	 * mutations are applied against when producing the final {@link Reference} in {@code build()}.
 	 */
-
 	@Getter private final ReferenceContract baseReference;
 	/**
 	 * Entity schema of the owning entity. Used to resolve reference schemas and validate mutations.
@@ -95,14 +98,14 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	 */
 	private ReferenceMutation<?> referenceGroupMutation;
 
- /**
+	/**
 	 * Creates a builder for an existing reference without any pre-applied mutations.
 	 *
 	 * The provided `attributeTypes` may speed up schema resolution of attributes for this
 	 * reference; if empty, schemas may be created implicitly if allowed by the schema.
 	 *
-	 * @param baseReference reference to wrap and mutate, must be non-null
-	 * @param entitySchema schema of the owning entity, must be non-null
+	 * @param baseReference  reference to wrap and mutate, must be non-null
+	 * @param entitySchema   schema of the owning entity, must be non-null
 	 * @param attributeTypes known attribute schemas by name for the reference, must be non-null
 	 */
 	public ExistingReferenceBuilder(
@@ -110,10 +113,42 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
-		this(baseReference, entitySchema, Collections.emptyList(), attributeTypes);
+		this(
+			baseReference.getReferenceKey(),
+			baseReference,
+			entitySchema,
+			Collections.emptyList(),
+			attributeTypes
+		);
 	}
 
- /**
+	/**
+	 * Creates a builder for an existing reference without any pre-applied mutations.
+	 *
+	 * The provided `attributeTypes` may speed up schema resolution of attributes for this
+	 * reference; if empty, schemas may be created implicitly if allowed by the schema.
+	 *
+	 * @param referenceKey  reference key of the reference to wrap and mutate, must be non-null
+	 * @param baseReference reference to wrap and mutate, must be non-null
+	 * @param entitySchema schema of the owning entity, must be non-null
+	 * @param attributeTypes known attribute schemas by name for the reference, must be non-null
+	 */
+	public ExistingReferenceBuilder(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceContract baseReference,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
+		this(
+			referenceKey,
+			baseReference,
+			entitySchema,
+			Collections.emptyList(),
+			attributeTypes
+		);
+	}
+
+	/**
 	 * Creates a builder initialized with an existing set of local mutations.
 	 *
 	 * Supported mutation types are:
@@ -122,9 +157,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	 *
 	 * Any other mutation type will cause an {@link io.evitadb.exception.EvitaInvalidUsageException}.
 	 *
-	 * @param baseReference reference to wrap and mutate, must be non-null
-	 * @param entitySchema schema of the owning entity, must be non-null
-	 * @param mutations local mutations to apply, must be non-null
+	 * @param baseReference  reference to wrap and mutate, must be non-null
+	 * @param entitySchema   schema of the owning entity, must be non-null
+	 * @param mutations      local mutations to apply, must be non-null
 	 * @param attributeTypes known attribute schemas by name for the reference, must be non-null
 	 */
 	public ExistingReferenceBuilder(
@@ -133,6 +168,38 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		@Nonnull Collection<? extends LocalMutation<?, ?>> mutations,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
+		this(
+			baseReference.getReferenceKey(),
+			baseReference,
+			entitySchema,
+			mutations,
+			attributeTypes
+		);
+	}
+
+	/**
+	 * Creates a builder initialized with an existing set of local mutations.
+	 *
+	 * Supported mutation types are:
+	 * - {@link AttributeMutation} for attribute changes on the reference
+	 * - {@link SetReferenceGroupMutation} and {@link RemoveReferenceMutation} for group changes
+	 *
+	 * Any other mutation type will cause an {@link io.evitadb.exception.EvitaInvalidUsageException}.
+	 *
+	 * @param referenceKey  reference key of the reference to wrap and mutate, must be non-null
+	 * @param baseReference  reference to wrap and mutate, must be non-null
+	 * @param entitySchema   schema of the owning entity, must be non-null
+	 * @param mutations      local mutations to apply, must be non-null
+	 * @param attributeTypes known attribute schemas by name for the reference, must be non-null
+	 */
+	public ExistingReferenceBuilder(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceContract baseReference,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<? extends LocalMutation<?, ?>> mutations,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
+		this.referenceKey = referenceKey;
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
 		final List<AttributeMutation> attributeMutations = new ArrayList<>(mutations.size());
@@ -177,19 +244,19 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Nonnull
 	@Override
 	public ReferenceKey getReferenceKey() {
-		return this.baseReference.getReferenceKey();
-	}
-
-	@Nonnull
-	@Override
-	public String getReferencedEntityType() {
-		return this.baseReference.getReferencedEntityType();
+		return this.referenceKey;
 	}
 
 	@Nonnull
 	@Override
 	public Optional<SealedEntity> getReferencedEntity() {
 		return this.baseReference.getReferencedEntity();
+	}
+
+	@Nonnull
+	@Override
+	public String getReferencedEntityType() {
+		return this.baseReference.getReferencedEntityType();
 	}
 
 	@Nonnull
@@ -202,8 +269,10 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Override
 	public Optional<GroupEntityReference> getGroup() {
 		final Optional<GroupEntityReference> group = this.baseReference.getGroup()
-			.map(it -> ofNullable(this.referenceGroupMutation).map(fgm -> fgm.mutateLocal(this.entitySchema, this.baseReference).getGroup()).orElseGet(() -> of(it)))
-			.orElseGet(() -> ofNullable(this.referenceGroupMutation).flatMap(fgm -> fgm.mutateLocal(this.entitySchema, this.baseReference).getGroup()));
+			.map(it -> ofNullable(this.referenceGroupMutation).map(
+				fgm -> fgm.mutateLocal(this.entitySchema, this.baseReference).getGroup()).orElseGet(() -> of(it)))
+			.orElseGet(() -> ofNullable(this.referenceGroupMutation).flatMap(
+				fgm -> fgm.mutateLocal(this.entitySchema, this.baseReference).getGroup()));
 		return group.filter(GroupEntityReference::exists);
 	}
 
@@ -234,7 +303,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Override
 	public ReferenceBuilder setGroup(int primaryKey) {
 		this.referenceGroupMutation = new SetReferenceGroupMutation(
-			this.baseReference.getReferenceKey(),
+			this.getReferenceKey(),
 			null, primaryKey
 		);
 		return this;
@@ -244,7 +313,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Override
 	public ReferenceBuilder setGroup(@Nullable String referencedEntity, int primaryKey) {
 		this.referenceGroupMutation = new SetReferenceGroupMutation(
-			this.baseReference.getReferenceKey(),
+			this.getReferenceKey(),
 			referencedEntity, primaryKey
 		);
 		return this;
@@ -254,7 +323,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Override
 	public ReferenceBuilder removeGroup() {
 		this.referenceGroupMutation = new RemoveReferenceGroupMutation(
-			this.baseReference.getReferenceKey()
+			this.getReferenceKey()
 		);
 		return this;
 	}
@@ -268,14 +337,16 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nullable T attributeValue) {
 		this.attributesBuilder.setAttribute(attributeName, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nullable T[] attributeValue) {
 		this.attributesBuilder.setAttribute(attributeName, attributeValue);
 		return this;
 	}
@@ -289,14 +360,16 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
 		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> ReferenceBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
+	public <T extends Serializable> ReferenceBuilder setAttribute(
+		@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
 		this.attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 		return this;
 	}
@@ -306,11 +379,6 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
 		this.attributesBuilder.mutateAttribute(mutation);
 		return this;
-	}
-
-	@Override
-	public boolean hasChanges() {
-		return this.referenceGroupMutation != null || this.attributesBuilder.isThereAnyChangeInMutations();
 	}
 
 	@Nonnull
@@ -323,20 +391,26 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 					Stream.of(this.referenceGroupMutation)
 						.filter(it -> {
 							final ReferenceContract existingValue = builtReference.get();
-							final ReferenceContract newReference = this.referenceGroupMutation.mutateLocal(this.entitySchema, existingValue);
+							final ReferenceContract newReference = this.referenceGroupMutation.mutateLocal(
+								this.entitySchema, existingValue);
 							builtReference.set(newReference);
 							return existingValue == null || newReference.version() > existingValue.version();
 						}),
 				this.attributesBuilder
 					.buildChangeSet()
 					.map(it ->
-						new ReferenceAttributeMutation(
-							this.baseReference.getReferenceKey(),
-							it
-						)
+						     new ReferenceAttributeMutation(
+							     this.getReferenceKey(),
+							     it
+						     )
 					)
 			)
 			.filter(Objects::nonNull);
+	}
+
+	@Override
+	public boolean hasChanges() {
+		return this.referenceGroupMutation != null || this.attributesBuilder.isThereAnyChangeInMutations();
 	}
 
 	@Nonnull

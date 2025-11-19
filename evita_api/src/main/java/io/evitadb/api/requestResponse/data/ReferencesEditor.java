@@ -58,6 +58,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public interface ReferencesEditor<W extends ReferencesEditor<W>> extends ReferencesContract {
+
 	/**
 	 * Iterates over all references of the entity, filters them by the predicate, and applies the consumer
 	 * to update all matching references. If none match the predicate, no action is performed.
@@ -78,6 +79,8 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
 	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}.
 	 *
+	 * If the reference exists, it is completely replaced by the new one.
+	 *
 	 * This method expects that a {@link ReferenceSchemaContract} for the given {@code referenceName} already exists
 	 * in the {@link EntitySchemaContract}.
 	 *
@@ -93,19 +96,23 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	) throws ReferenceNotKnownException;
 
 	/**
-	 * Creates or updates a reference of the entity. A reference represents a relation to another
+	 * Creates or replaces a reference of the entity. A reference represents a relation to another
 	 * evitaDB entity or to an external source. The exact target entity is defined in
 	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
 	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}. The third argument accepts
 	 * a consumer that allows setting additional information on the reference, such as its
 	 * {@link ReferenceContract#getAttributeValues()} or grouping.
 	 *
+	 * Client code is always expected to create and fill the reference completely from scratch when using this method,
+	 * even if the reference already exists. If you need to update only certain aspects of an existing reference,
+	 * use {@link #updateReference(String, int, Consumer)} method instead.
+	 *
 	 * This method expects that a {@link ReferenceSchemaContract} for the given {@code referenceName}
 	 * already exists in the {@link EntitySchemaContract}.
 	 *
 	 * @param referenceName        the name of the reference as defined in the entity schema
 	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
-	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping; may be {@code null}
+	 * @param whichIs              a mutator that initializes reference attributes/grouping; may be {@code null}
 	 * @return this editor instance for fluent chaining
 	 * @throws ReferenceNotKnownException when the reference doesn't exist in the entity schema
 	 */
@@ -114,6 +121,32 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 		@Nonnull String referenceName,
 		int referencedPrimaryKey,
 		@Nullable Consumer<ReferenceBuilder> whichIs
+	) throws ReferenceNotKnownException;
+
+	/**
+	 * Updates an existing reference of the entity. A reference represents a relation to another
+	 * evitaDB entity or to an external source. The exact target entity is defined in
+	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
+	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}. The third argument accepts
+	 * a consumer that allows setting additional information on the reference, such as its
+	 * {@link ReferenceContract#getAttributeValues()} or grouping.
+	 *
+	 * If the reference doesn't exist, no action is performed.
+	 *
+	 * This method expects that a {@link ReferenceSchemaContract} for the given {@code referenceName}
+	 * already exists in the {@link EntitySchemaContract}.
+	 *
+	 * @param referenceName        the name of the reference as defined in the entity schema
+	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
+	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping
+	 * @return this editor instance for fluent chaining
+	 * @throws ReferenceNotKnownException when the reference doesn't exist in the entity schema
+	 */
+	@Nonnull
+	W updateReference(
+		@Nonnull String referenceName,
+		int referencedPrimaryKey,
+		@Nonnull Consumer<ReferenceBuilder> whichIs
 	) throws ReferenceNotKnownException;
 
 	/**
@@ -163,6 +196,8 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} – not defined
 	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} FALSE
 	 *
+	 * If the reference exists, it is completely replaced by the new one.
+	 *
 	 * If you need to change these defaults, fetch the reference schema by calling
 	 * {@link CatalogContract#getEntitySchema(String)}, access it via
 	 * {@link EntitySchemaContract#getReference(String)}, open it for write, and update it in the evitaDB instance via
@@ -201,6 +236,8 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} TRUE if there already is an entity with matching
 	 * {@link ReferenceContract#getGroup()} in the current catalog, otherwise FALSE
 	 *
+	 * If the reference exists, it is completely replaced by the new one.
+	 *
 	 * If you need to change these defaults, fetch the reference schema by calling
 	 * {@link CatalogContract#getEntitySchema(String)}, access it via
 	 * {@link EntitySchemaContract#getReference(String)}, open it for write, and update it in the evitaDB instance via
@@ -215,6 +252,37 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	 */
 	@Nonnull
 	W setReference(
+		@Nonnull String referenceName,
+		@Nonnull String referencedEntityType,
+		@Nonnull Cardinality cardinality,
+		int referencedPrimaryKey,
+		@Nullable Consumer<ReferenceBuilder> whichIs
+	);
+
+	/**
+	 * Updates an existing reference of the entity. A reference represents a relation to another evitaDB entity or to
+	 * an external source. The exact target entity is defined in
+	 * {@link ReferenceSchemaContract#getReferencedEntityType()} and
+	 * {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()}. The fifth argument accepts a consumer that
+	 * allows setting additional information on the reference such as its
+	 * {@link ReferenceContract#getAttributeValues()} or grouping information.
+	 *
+	 * If no {@link ReferenceSchemaContract} exists yet, no action happens.
+	 *
+	 * If you need to change these defaults, fetch the reference schema by calling
+	 * {@link CatalogContract#getEntitySchema(String)}, access it via
+	 * {@link EntitySchemaContract#getReference(String)}, open it for write, and update it in the evitaDB instance via
+	 * {@link EntitySchemaBuilder#updateVia(EvitaSessionContract)}.
+	 *
+	 * @param referenceName        the name of the reference being created or updated
+	 * @param referencedEntityType the type of the referenced entity
+	 * @param cardinality          expected cardinality as defined by the schema
+	 * @param referencedPrimaryKey the primary key of the referenced entity (or the external identifier)
+	 * @param whichIs              a mutator that initializes or updates the reference attributes/grouping; may be {@code null}
+	 * @return this editor instance for fluent chaining
+	 */
+	@Nonnull
+	W updateReference(
 		@Nonnull String referenceName,
 		@Nonnull String referencedEntityType,
 		@Nonnull Cardinality cardinality,

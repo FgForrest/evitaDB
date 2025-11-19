@@ -47,6 +47,7 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -158,4 +159,25 @@ public abstract class AbstractProductPojo implements Serializable {
 	public String getEan() {
 		return "computed EAN";
 	}
+
+	@Override
+	public String toString() {
+		return "AbstractProductPojo{" +
+			"id=" + this.id +
+			", code='" + this.code + '\'' +
+			", names=" + Arrays.toString(this.names) +
+			", eanAsDifferentProperty='" + this.eanAsDifferentProperty + '\'' +
+			", quantity=" + this.quantity +
+			", testEnum=" + this.testEnum +
+			", alias=" + this.alias +
+			", available=" + this.available +
+			", marketsAttribute=" + Arrays.toString(this.marketsAttribute) +
+			", markets=" + Arrays.toString(this.markets) +
+			", referencedFileSet=" + this.referencedFileSet +
+			", labels=" + this.labels +
+			", categoryIdsAsArray=" + Arrays.toString(this.categoryIdsAsArray) +
+			", priceForSale=" + this.priceForSale +
+			'}';
+	}
+
 }

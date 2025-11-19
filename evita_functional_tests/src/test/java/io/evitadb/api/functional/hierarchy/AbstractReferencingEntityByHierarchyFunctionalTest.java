@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
@@ -214,7 +215,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				.limit(5)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedCategories = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedCategories = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleCategorySchema(
 						session,
 						schemaBuilder -> {
@@ -244,7 +245,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedProducts = this.dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = this.dataGenerator.generateEntities(
 					this.dataGenerator.getSampleProductSchema(
 						session,
 						schemaBuilder -> {

@@ -8,6 +8,7 @@ author: 'Ing. Jan Novotný'
 motive: assets/images/15-soft-delete.png
 proofreading: 'done'
 ---
+
 In the ever-evolving landscape of e-commerce, the need to maintain access to obsolete or discontinued products is more
 significant than ever. These products often serve as valuable resources for technical information, SEO optimization, and
 historical data linking to orders or customer histories. Traditionally, handling such archived entities introduces

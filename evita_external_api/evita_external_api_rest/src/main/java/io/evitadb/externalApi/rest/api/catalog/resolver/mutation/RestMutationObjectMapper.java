@@ -25,7 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.resolver.mutation;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;

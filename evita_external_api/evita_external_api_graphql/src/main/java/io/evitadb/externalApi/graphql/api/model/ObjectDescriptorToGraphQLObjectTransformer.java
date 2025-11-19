@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.model;
 
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
+import graphql.schema.GraphQLTypeReference;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
@@ -54,9 +55,13 @@ public class ObjectDescriptorToGraphQLObjectTransformer implements ObjectDescrip
 			objectBuilder.description(objectDescriptor.description());
 		}
 
-		objectDescriptor.staticFields().stream()
+		objectDescriptor.staticProperties().stream()
 			.map(this.fieldBuilderTransformer)
 			.forEach(objectBuilder::field);
+
+		if (objectDescriptor.interfaceDescriptor() != null) {
+			objectBuilder.withInterface(GraphQLTypeReference.typeRef(objectDescriptor.interfaceDescriptor().name()));
+		}
 
 		return objectBuilder;
 	}

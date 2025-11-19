@@ -56,10 +56,16 @@ import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -359,7 +365,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 					              )
 					              .limit(PRODUCT_COUNT)
 					              .forEach(it -> {
-						              final EntityReference upsertedProduct = session.upsertEntity(it);
+						              final EntityReferenceContract upsertedProduct = session.upsertEntity(it);
 						              theProducts.put(
 							              upsertedProduct.getPrimaryKey(),
 							              session.getEntity(
@@ -618,6 +624,24 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	public static void assertPrice(
+		@Nonnull PricesContract updatedInstance,
+		int priceId,
+		@Nonnull String priceList,
+		@Nonnull Currency currency,
+		@Nonnull BigDecimal priceWithoutTax,
+		@Nonnull BigDecimal taxRate,
+		@Nonnull BigDecimal priceWithTax,
+		boolean indexed
+	) {
+		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(
+			() -> fail("Price not found!"));
+		assertEquals(priceWithoutTax, price.priceWithoutTax());
+		assertEquals(taxRate, price.taxRate());
+		assertEquals(priceWithTax, price.priceWithTax());
+		assertEquals(indexed, price.indexed());
+	}
+
 	private static void assertProductBasicData(
 		@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
 		assertNotNull(product);
@@ -644,7 +668,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		@Nonnull EvitaSessionContract session, @Nonnull Map<Serializable, Integer> generatedEntities,
 		@Nonnull EntityBuilder it
 	) {
-		final EntityReferenceContract<?> insertedEntity = session.upsertEntity(it);
+		final EntityReferenceContract insertedEntity = session.upsertEntity(it);
 		generatedEntities.compute(
 			insertedEntity.getType(),
 			(serializable, existing) -> ofNullable(existing).orElse(0) + 1
@@ -652,16 +676,17 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Nonnull
-	private static EntityReference createSomeNewCategory(
+	private static EntityReferenceContract createSomeNewCategory(
 		@Nonnull EvitaSessionContract session,
 		int primaryKey,
 		@Nullable Integer parentPrimaryKey
 	) {
-		final EntityBuilder builder = session.createNewEntity(Entities.CATEGORY, primaryKey)
-		                                     .setAttribute(
-			                                     ATTRIBUTE_NAME, Locale.ENGLISH, "New category #" + primaryKey)
-		                                     .setAttribute(ATTRIBUTE_CODE, "category-" + primaryKey)
-		                                     .setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
+		final EntityBuilder builder = session
+			.createNewEntity(Entities.CATEGORY, primaryKey)
+			.setAttribute(
+				ATTRIBUTE_NAME, Locale.ENGLISH, "New category #" + primaryKey)
+			.setAttribute(ATTRIBUTE_CODE, "category-" + primaryKey)
+			.setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
 
 		if (parentPrimaryKey == null) {
 			builder.removeParent();
@@ -674,13 +699,16 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Nonnull
 	private static EntityMutation createSomeNewProduct(@Nonnull EvitaSessionContract session) {
-		return session.createNewEntity(Entities.PRODUCT)
-		              .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New product")
-		              .setAttribute(
-			              ATTRIBUTE_CODE, "product-" + (session.getEntityCollectionSize(Entities.PRODUCT) + 1))
-		              .setAttribute(ATTRIBUTE_PRIORITY, session.getEntityCollectionSize(Entities.PRODUCT) + 1L)
-		              .toMutation()
-		              .orElseThrow();
+		return session
+			.createNewEntity(Entities.PRODUCT)
+			.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "New product")
+			.setAttribute(
+				ATTRIBUTE_CODE, "product-" + (session.getEntityCollectionSize(Entities.PRODUCT) + 1))
+			.setAttribute(ATTRIBUTE_PRIORITY, session.getEntityCollectionSize(Entities.PRODUCT) + 1L)
+			.setReference(Entities.PARAMETER, 1)
+			.setReference(Entities.PARAMETER, 2)
+			.toMutation()
+			.orElseThrow();
 	}
 
 	private static void assertSomeNewProductContent(@Nonnull SealedEntity loadedEntity) {
@@ -1540,6 +1568,118 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRegisterChangeDataCaptureOutsideSession(EvitaClient evitaClient) {
+		final String newCollection = "newCollection";
+		final AtomicInteger productCount = new AtomicInteger();
+		final AtomicInteger productSchemaVersion = new AtomicInteger();
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertFalse(session.getAllEntityTypes().contains(newCollection));
+				productSchemaVersion.set(session.getEntitySchemaOrThrowException(Entities.PRODUCT).version());
+				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
+			}
+		);
+
+		final MockCatalogChangeCaptureSubscriber catalogSubscriber = new MockCatalogChangeCaptureSubscriber(
+			Integer.MAX_VALUE);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.registerChangeCatalogCapture(
+					ChangeCatalogCaptureRequest
+						.builder()
+						.content(ChangeCaptureContent.BODY)
+						.criteria(
+							ChangeCatalogCaptureCriteria
+								.builder()
+								.schemaArea()
+								.build()
+						)
+						.build()
+				);
+			}
+		).subscribe(catalogSubscriber);
+
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.renameCollection(
+					Entities.PRODUCT,
+					newCollection
+				);
+			}
+		);
+
+		assertEquals(1, catalogSubscriber.getEntityCollectionCreated(newCollection, 10, TimeUnit.SECONDS, 1));
+		assertEquals(1, catalogSubscriber.getEntityCollectionDeleted(Entities.PRODUCT, 10, TimeUnit.SECONDS, 1));
+
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertTrue(session.getAllEntityTypes().contains(newCollection));
+				assertEquals(
+					productSchemaVersion.get() + 1, session.getEntitySchemaOrThrowException(newCollection).version());
+				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
+			}
+		);
+	}
+
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldApplyDirectMutations(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.applyMutation(
+					new EntityUpsertMutation(
+						Entities.PRODUCT,
+						null,
+						EntityExistence.MUST_NOT_EXIST,
+						List.of(
+							new UpsertAttributeMutation("code", "siemens"),
+							new UpsertAttributeMutation("name", Locale.ENGLISH, "Siemens"),
+							new UpsertAttributeMutation("ean", "1234567890123"),
+							new UpsertAttributeMutation("quantity", BigDecimal.ONE),
+							new UpsertAttributeMutation("priority", 1L),
+							new UpsertPriceMutation(
+								new PriceKey(1, "basic", CURRENCY_CZK),
+								BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true
+							)
+						)
+					)
+				);
+			}
+		);
+		final SealedEntity fetchedEntity = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneSealedEntity(
+					Query.query(
+						collection(Entities.PRODUCT),
+						filterBy(attributeEquals("code", "siemens")),
+						require(entityFetchAll())
+					)
+				).orElseThrow();
+			}
+		);
+		assertNotNull(fetchedEntity.getPrimaryKey());
+		assertEquals("siemens", fetchedEntity.getAttribute("code"));
+		assertEquals("Siemens", fetchedEntity.getAttribute("name", Locale.ENGLISH));
+		assertEquals("1234567890123", fetchedEntity.getAttribute("ean"));
+		assertEquals(BigDecimal.ONE, fetchedEntity.getAttribute("quantity"));
+		assertEquals(Long.valueOf(1L), fetchedEntity.getAttribute("priority"));
+		assertPrice(
+			fetchedEntity, 1, "basic", Currency.getInstance("CZK"), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN,
+			true
+		);
+	}
+
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldUpdateCatalogWithAnotherProduct(EvitaContract evita, SealedEntitySchema productSchema) {
@@ -1654,7 +1794,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				final EntityMutation entityMutation = createSomeNewProduct(session);
 				assertNotNull(entityMutation);
 
-				final EntityReference newProduct = session.upsertEntity(entityMutation);
+				final EntityReferenceContract newProduct = session.upsertEntity(entityMutation);
 				newProductId.set(newProduct.getPrimaryKey());
 			}
 		);
@@ -1662,9 +1802,10 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity loadedEntity = session.getEntity(
-					                                         Entities.PRODUCT, newProductId.get(), entityFetchAllContent())
-				                                         .orElseThrow();
+				final SealedEntity loadedEntity = session
+					.getEntity(
+						Entities.PRODUCT, newProductId.get(), entityFetchAllContent())
+					.orElseThrow();
 
 				assertSomeNewProductContent(loadedEntity);
 			}
@@ -2469,8 +2610,9 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 				       .setAttribute(ATTRIBUTE_CODE, "TV-123")
 				       .setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
 				       .setReference(
-					       Entities.CATEGORY, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
-					                                               .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+					       Entities.CATEGORY, 2,
+					       whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
+					                                       .setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
 				       )
 				       .setPrice(
 					       1, PRICE_LIST_BASIC, CURRENCY_CZK, new BigDecimal("100"), new BigDecimal("21"),

@@ -225,7 +225,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 						initialSet
 							.keySet()
 							.stream()
-							.sorted()
+							.sorted(ReferenceKey.GENERIC_COMPARATOR)
 							.map(it -> {
 									final StringBuilder innerSb = new StringBuilder();
 									final int[][] entityIds = initialSet.get(it);

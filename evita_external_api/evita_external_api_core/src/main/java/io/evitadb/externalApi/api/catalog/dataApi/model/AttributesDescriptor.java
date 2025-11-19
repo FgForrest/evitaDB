@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ public interface AttributesDescriptor {
 	/**
 	 * Same as `THIS` but will be used in global entity
 	 */
-	ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.extend(THIS)
+	ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.from(THIS)
 		.name("GlobalAttributes")
 		.build();
 }

@@ -72,6 +72,8 @@ this will not be necessary, but we cannot guarantee it yet.
    3. [Query data](use/api/query-data.md)
    4. [Write tests](use/api/write-tests.md)
    5. [Troubleshoot](use/api/troubleshoot.md)
+   7. [Control engine](use/api/control-engine.md)
+   6. [Capture changes](use/api/capture-changes.md)
 
 ## Query
 

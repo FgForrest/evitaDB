@@ -52,7 +52,7 @@ import java.util.concurrent.TimeUnit;
  * The subscriber implements a simple flow control strategy by requesting one item at a time,
  * which allows testing backpressure handling in the publisher.
  */
-class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture> {
+class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture>, AutoCloseable {
 	/**
 	 * The number of items to receive before completing the future and canceling the subscription.
 	 */
@@ -77,6 +77,11 @@ class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture> {
 	 * Flag indicating whether the publisher has signaled completion.
 	 */
 	@Getter private boolean completed;
+
+	/**
+	 * Flag indicating whether the subscriber has been closed.
+	 */
+	@Getter private boolean closed;
 
 	/**
 	 * The subscription to the publisher.
@@ -171,6 +176,11 @@ class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture> {
 	public void onComplete() {
 		this.completed = true;
 		this.completionLatch.countDown();
+	}
+
+	@Override
+	public void close() {
+		this.closed = true;
 	}
 
 	/**

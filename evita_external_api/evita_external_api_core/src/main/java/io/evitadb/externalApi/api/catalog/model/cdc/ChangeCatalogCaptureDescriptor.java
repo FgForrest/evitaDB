@@ -28,8 +28,6 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.cdc.ChangeCaptureDescriptor;
 
-import java.util.List;
-
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -72,6 +70,15 @@ public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor 
 		.description("""
 			Record representing a catalog-specific CDC event that is sent to the subscriber if it matches to the request he made.
 			""")
-		.staticFields(List.of(VERSION, INDEX, AREA, ENTITY_TYPE, ENTITY_PRIMARY_KEY, OPERATION))
+		.staticProperty(VERSION)
+		.staticProperty(INDEX)
+		.staticProperty(AREA)
+		.staticProperty(ENTITY_TYPE)
+		.staticProperty(ENTITY_PRIMARY_KEY)
+		.staticProperty(OPERATION)
+		.build();
+	ObjectDescriptor THIS_GENERIC = ObjectDescriptor.from(THIS)
+		.name("GenericChangeCatalogCapture")
+		.staticProperty(BODY_UNTYPED)
 		.build();
 }

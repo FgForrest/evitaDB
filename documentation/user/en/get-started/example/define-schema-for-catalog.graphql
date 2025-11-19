@@ -76,6 +76,8 @@ mutation {
         createEntitySchemaMutation: {
           entityType: "Product"
         }
+      },
+      {
         modifyEntitySchemaMutation: {
           entityType: "Product"
           schemaMutations: [

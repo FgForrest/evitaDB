@@ -80,8 +80,16 @@
 			"path" : "/use/api/write-tests.md"
 		  },
 		  {
+			"title": "Capture changes",
+			"path" : "/use/api/capture-changes.md"
+		  },
+		  {
 			"title": "Troubleshoot",
 			"path" : "/use/api/troubleshoot.md"
+		  },
+		  {
+			"title": "Control engine",
+			"path" : "/use/api/control-engine.md"
 		  }
 		]
 	  }

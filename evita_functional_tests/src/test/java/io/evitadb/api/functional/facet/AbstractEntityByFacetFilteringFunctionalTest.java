@@ -651,7 +651,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				.limit(STORE_COUNT)
 				.forEach(session::upsertEntity);
 
-			final List<EntityReference> storedParameterGroups = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedParameterGroups = dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterGroupSchema(session),
 					randomEntityPicker,
 					SEED
@@ -660,7 +660,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				.map(session::upsertEntity)
 				.toList();
 
-			final List<EntityReference> storedParameters = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedParameters = dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterSchema(session),
 					randomEntityPicker,
 					SEED
@@ -692,7 +692,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						);
 				}
 			);
-			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
+			final List<EntityReferenceContract> storedProducts = dataGenerator.generateEntities(
 					productSchema,
 					randomEntityPicker,
 					SEED
@@ -713,7 +713,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					storedParameters.stream()
 						.collect(
 							toMap(
-								EntityReference::getPrimaryKey,
+								EntityReferenceContract::getPrimaryKey,
 								it -> session.getEntity(it.getType(), it.getPrimaryKeyOrThrowException(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
 							)
 						)
@@ -723,7 +723,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					storedParameterGroups.stream()
 						.collect(
 							toMap(
-								EntityReference::getPrimaryKey,
+								EntityReferenceContract::getPrimaryKey,
 								it -> session.getEntity(it.getType(), it.getPrimaryKeyOrThrowException(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
 							)
 						)

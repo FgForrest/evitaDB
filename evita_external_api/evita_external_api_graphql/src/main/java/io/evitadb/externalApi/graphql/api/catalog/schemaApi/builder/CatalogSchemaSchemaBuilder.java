@@ -33,13 +33,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -85,23 +78,11 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		this.buildingContext.registerType(buildEntitySchemaObject());
 		this.buildingContext.registerType(buildCatalogSchemaObject());
 
-		// catalog schema mutations
-		this.buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// global attribute schema mutations
-		this.buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-		this.buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
-		// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		this.buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
-
 		// build catalog field
 		this.buildingContext.registerQueryField(buildCatalogSchemaField());
 		this.buildingContext.registerMutationField(buildUpdateCatalogSchemaField());
 		this.buildingContext.registerSubscriptionField(buildOnCatalogSchemaChangeField());
+		this.buildingContext.registerSubscriptionField(buildOnCatalogSchemaChangeUntypedField());
 	}
 
 	/*
@@ -312,6 +293,22 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogSchemaChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onCatalogSchemaChangeField,
+			new OnCatalogSchemaChangeCaptureSubscribingDataFetcher(this.buildingContext.getEvita())
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildOnCatalogSchemaChangeUntypedField() {
+		final GraphQLFieldDefinition onCatalogSchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_UNTYPED_CHANGE
+			.to(this.staticEndpointBuilderTransformer)
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

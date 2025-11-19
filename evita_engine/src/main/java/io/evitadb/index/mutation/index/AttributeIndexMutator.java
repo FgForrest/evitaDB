@@ -43,6 +43,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -81,83 +82,161 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex indexForRemoval,
+		@Nonnull EntityIndex indexForUpsert,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable attributeValue,
 		boolean updateGlobalIndex,
 		boolean updateCompounds,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
-		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.getAttributeSchema(attributeKey.attributeName());
+		final AttributeSchemaContract attributeDefinition = attributeSchemaProvider.getAttributeSchema(
+			attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
 		final Serializable valueToInsert = Objects.requireNonNull(
-			EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
+			EvitaDataTypes.toTargetType(
+				attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
 		);
 
-		final Scope scope = entityIndex.getIndexKey().scope();
-		if (attributeDefinition.isUniqueInScope(scope) || attributeDefinition.isFilterableInScope(scope) || attributeDefinition.isSortableInScope(scope)) {
+		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
+		if (
+			attributeDefinition.isUniqueInScope(scope) ||
+				attributeDefinition.isFilterableInScope(scope) ||
+				attributeDefinition.isSortableInScope(scope)
+		) {
 			final EntitySchema entitySchema = executor.getEntitySchema();
 			final Set<Locale> allowedLocales = entitySchema.getLocales();
 			final Locale locale = attributeKey.locale();
 
 			if (attributeDefinition.isUniqueInScope(scope)) {
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.EXISTING);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
-				existingValue.ifPresent(theValue -> {
+				if (existingValue.isPresent()) {
+					final AttributeValue theValue = existingValue.get();
 					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
-					entityIndex.removeUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove, entityPrimaryKey);
+					indexForRemoval.removeUniqueAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove,
+						epkForRemoval
+					);
 					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValue.value(), entityPrimaryKey));
+						undoActionConsumer.accept(
+							() -> indexForUpsert.insertUniqueAttribute(
+								referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValue.value(),
+								epkForRemoval
+							)
+						);
 					}
 					if (!attributeDefinition.isFilterableInScope(scope)) {
 						// TOBEDONE JNO this should be replaced with RadixTree (for String values)
-						entityIndex.removeFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey);
+						indexForRemoval.removeFilterAttribute(
+							referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+							epkForRemoval
+						);
 						if (undoActionConsumer != null) {
-							undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+							undoActionConsumer.accept(
+								() -> indexForUpsert.insertFilterAttribute(
+									referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+									epkForRemoval
+								)
+							);
 						}
 					}
-				});
-				entityIndex.insertUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert, entityPrimaryKey);
+				}
+				final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.NEW);
+				indexForUpsert.insertUniqueAttribute(
+					referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert,
+					epkForUpsert
+				);
 				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert, entityPrimaryKey));
+					undoActionConsumer.accept(
+						() -> indexForRemoval.removeUniqueAttribute(
+							referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert,
+							epkForUpsert
+						)
+					);
 				}
 				if (!attributeDefinition.isFilterableInScope(scope)) {
 					// TOBEDONE JNO this should be replaced with RadixTree (for String values)
-					entityIndex.insertFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+					indexForUpsert.insertFilterAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, epkForUpsert
+					);
 					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+						undoActionConsumer.accept(
+							() -> indexForRemoval.removeFilterAttribute(
+								referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert,
+								epkForUpsert
+							)
+						);
 					}
 				}
 			}
 			if (attributeDefinition.isFilterableInScope(scope)) {
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX, Target.EXISTING);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
-				existingValue.ifPresent(theValue -> {
+				if (existingValue.isPresent()) {
+					final AttributeValue theValue = existingValue.get();
 					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
-					entityIndex.removeFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove, entityPrimaryKey);
+					indexForRemoval.removeFilterAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
+						epkForRemoval
+					);
 					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+						undoActionConsumer.accept(
+							() -> indexForUpsert.insertFilterAttribute(
+								referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+								epkForRemoval
+							)
+						);
 					}
-				});
-				entityIndex.insertFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				}
+				final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX, Target.NEW);
+				indexForUpsert.insertFilterAttribute(
+					referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, epkForUpsert
+				);
 				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+					undoActionConsumer.accept(
+						() -> indexForRemoval.removeFilterAttribute(
+							referenceSchema, attributeDefinition,
+							allowedLocales, locale, valueToInsert,
+							epkForUpsert
+						)
+					);
 				}
 			}
 			if (attributeDefinition.isSortableInScope(scope)) {
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
-				existingValue.ifPresent(theValue -> {
+				if (existingValue.isPresent()) {
+					final AttributeValue theValue = existingValue.get();
+					final int epkForRemoval = executor.getPrimaryKeyToIndex(
+						IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING
+					);
 					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
-					entityIndex.removeSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove, entityPrimaryKey);
+					indexForRemoval.removeSortAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
+						epkForRemoval
+					);
 					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(() -> entityIndex.insertSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(), entityPrimaryKey));
+						undoActionConsumer.accept(
+							() -> indexForUpsert.insertSortAttribute(
+								referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+								epkForRemoval
+							)
+						);
 					}
-				});
-				entityIndex.insertSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey);
+				}
+
+				final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW);
+				indexForUpsert.insertSortAttribute(
+					referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, epkForUpsert
+				);
 				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(() -> entityIndex.removeSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey));
+					undoActionConsumer.accept(
+						() -> indexForRemoval.removeSortAttribute(
+							referenceSchema, attributeDefinition, allowedLocales,
+							locale, valueToInsert, epkForUpsert
+						)
+					);
 				}
 			}
 
@@ -165,30 +244,38 @@ public interface AttributeIndexMutator {
 				globalAttributeSchema.isUniqueGloballyInScope(scope)) {
 				// use the same scope as used in the entity index
 				final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
-				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(
+					IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.EXISTING
+				);
 
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
-				existingValue.ifPresent(theValue -> {
-					final Serializable value = Objects.requireNonNull(theValue.value());
+				if (existingValue.isPresent()) {
+					final AttributeValue theValue = existingValue.get();
+					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale,
-						value, entityPrimaryKey
+						theValueToRemove, epkForRemoval
 					);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> catalogIndex.insertUniqueAttribute(
-								entitySchema, globalAttributeSchema, allowedLocales, locale, value, entityPrimaryKey
+								entitySchema, globalAttributeSchema, allowedLocales, locale, theValue.value(),
+								epkForRemoval
 							)
 						);
 					}
-				});
+				}
+
+				final int epkForUpsert = executor.getPrimaryKeyToIndex(
+					IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.NEW
+				);
 				catalogIndex.insertUniqueAttribute(
-					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, entityPrimaryKey
+					entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, epkForUpsert
 				);
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
 						() -> catalogIndex.removeUniqueAttribute(
-							entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, entityPrimaryKey
+							entitySchema, globalAttributeSchema, allowedLocales, locale, valueToInsert, epkForUpsert
 						)
 					);
 				}
@@ -199,7 +286,8 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				entityIndex, valueToInsert, attributeKey.locale(), attributeDefinition.getName(),
+				indexForRemoval, indexForUpsert,
+				valueToInsert, attributeKey.locale(), attributeDefinition.getName(),
 				undoActionConsumer
 			);
 		}
@@ -214,7 +302,8 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex indexForRemoval,
+		@Nonnull EntityIndex indexForUpsert,
 		@Nonnull AttributeKey attributeKey,
 		boolean updateGlobalIndex,
 		boolean updateCompounds,
@@ -229,10 +318,16 @@ public interface AttributeIndexMutator {
 		final Locale locale = attributeKey.locale();
 
 		final AtomicReference<T> valueToRemove = new AtomicReference<>();
-		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(alreadyKnownOldValue -> {
+		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(
+			alreadyKnownOldValue -> {
 			if (alreadyKnownOldValue == null) {
 				final AttributeValue existingValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
-				Assert.notNull(existingValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in container for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
+				Assert.notNull(
+					existingValue,
+					"Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in " +
+						"a container for entity `" + entitySchema.getName() + "` record " +
+						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING) + "!"
+				);
 				//noinspection unchecked
 				return (T) existingValue.value();
 			} else {
@@ -240,32 +335,41 @@ public interface AttributeIndexMutator {
 			}
 		});
 
-		final Scope scope = entityIndex.getIndexKey().scope();
-		if (attributeDefinition.isUniqueInScope(scope) || attributeDefinition.isFilterableInScope(scope) || attributeDefinition.isSortableInScope(scope)) {
+		final Scope scope = indexForRemoval.getIndexKey().scope();
+		if (attributeDefinition.isUniqueInScope(scope) || attributeDefinition.isFilterableInScope(
+			scope) || attributeDefinition.isSortableInScope(scope)) {
 			if (attributeDefinition.isUniqueInScope(scope)) {
-				entityIndex.removeUniqueAttribute(
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(
+					IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.EXISTING
+				);
+				indexForRemoval.removeUniqueAttribute(
 					referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(),
-					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+					epkForRemoval
 				);
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
-						() -> entityIndex.insertUniqueAttribute(
-							referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(),
-							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+						() -> indexForRemoval.insertUniqueAttribute(
+							referenceSchema, attributeDefinition, allowedLocales, scope, locale,
+							valueToRemoveSupplier.get(),
+							epkForRemoval
 						)
 					);
 				}
 				if (!attributeDefinition.isFilterableInScope(scope)) {
 					// TOBEDONE JNO this should be replaced with RadixTree (for String values)
-					entityIndex.removeFilterAttribute(
+					final int epkForUpsert = executor.getPrimaryKeyToIndex(
+						IndexType.ATTRIBUTE_FILTER_INDEX, Target.NEW
+					);
+					indexForRemoval.removeFilterAttribute(
 						referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
-						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+						epkForUpsert
 					);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
-							() -> entityIndex.insertFilterAttribute(
-								referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
-								executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+							() -> indexForRemoval.insertFilterAttribute(
+								referenceSchema, attributeDefinition, allowedLocales, locale,
+								valueToRemoveSupplier.get(),
+								epkForUpsert
 							)
 						);
 					}
@@ -278,42 +382,49 @@ public interface AttributeIndexMutator {
 					final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
-						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+						epkForRemoval
 					);
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> catalogIndex.insertUniqueAttribute(
-								entitySchema, globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
-								executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+								entitySchema, globalAttributeSchema, allowedLocales, locale,
+								valueToRemoveSupplier.get(),
+								epkForRemoval
 							)
 						);
 					}
 				}
 			}
 			if (attributeDefinition.isFilterableInScope(scope)) {
-				entityIndex.removeFilterAttribute(
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(
+					IndexType.ATTRIBUTE_FILTER_INDEX, Target.EXISTING
+				);
+				indexForRemoval.removeFilterAttribute(
 					referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
-					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+					epkForRemoval
 				);
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
-						() -> entityIndex.insertFilterAttribute(
+						() -> indexForRemoval.insertFilterAttribute(
 							referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
-							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX)
+							epkForRemoval
 						)
 					);
 				}
 			}
 			if (attributeDefinition.isSortableInScope(scope)) {
-				entityIndex.removeSortAttribute(
+				final int epkForRemoval = executor.getPrimaryKeyToIndex(
+					IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING
+				);
+				indexForRemoval.removeSortAttribute(
 					referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
-					executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
+					epkForRemoval
 				);
 				if (undoActionConsumer != null) {
 					undoActionConsumer.accept(
-						() -> entityIndex.insertSortAttribute(
+						() -> indexForRemoval.insertSortAttribute(
 							referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
-							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX)
+							epkForRemoval
 						)
 					);
 				}
@@ -324,7 +435,7 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				entityIndex, null, locale, attributeName, undoActionConsumer
+				indexForRemoval, indexForUpsert, null, locale, attributeName, undoActionConsumer
 			);
 		}
 	}
@@ -338,7 +449,8 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex indexForRemoval,
+		@Nonnull EntityIndex indexForUpsert,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Number delta,
 		@Nullable Consumer<Runnable> undoActionConsumer
@@ -353,11 +465,20 @@ public interface AttributeIndexMutator {
 		final Supplier<T> valueToRemoveSupplier = () -> valueToRemove.updateAndGet(
 			alreadyKnownOldAttributeValue -> {
 				if (alreadyKnownOldAttributeValue == null) {
-					final AttributeValue oldAttributeValue = existingValueSupplier.getAttributeValue(attributeKey).orElse(null);
-					Assert.notNull(oldAttributeValue, "Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in indexes for entity `" + entitySchema.getName() + "` record " + executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX) + "!");
+					final AttributeValue oldAttributeValue = existingValueSupplier.getAttributeValue(attributeKey)
+						.orElse(null);
+					Assert.notNull(
+						oldAttributeValue,
+						"Attribute `" + attributeDefinition.getName() + "` is unexpectedly not found in indexes " +
+							"for entity `" + entitySchema.getName() + "` record " +
+							executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING) + "!"
+					);
 					//noinspection unchecked
 					final T theOldValue = (T) oldAttributeValue.value();
-					Assert.isTrue(theOldValue instanceof Number, "Attribute `" + attributeDefinition.getName() + "` in entity `" + entitySchema.getName() + "` is not a number type!");
+					Assert.isTrue(
+						theOldValue instanceof Number,
+						"Attribute `" + attributeDefinition.getName() + "` in entity `" + entitySchema.getName() + "` is not a number type!"
+					);
 					return theOldValue;
 				} else {
 					return alreadyKnownOldAttributeValue;
@@ -387,38 +508,90 @@ public interface AttributeIndexMutator {
 				}
 			});
 
-		final Scope scope = entityIndex.getIndexKey().scope();
+		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
+
 		if (attributeDefinition.isUniqueInScope(scope)) {
-			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
-			entityIndex.removeUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
-			entityIndex.insertUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.EXISTING);
+			final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.NEW);
+			indexForRemoval.removeUniqueAttribute(
+				referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(),
+				epkForRemoval
+			);
+			indexForUpsert.insertUniqueAttribute(
+				referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToUpdateSupplier.get(),
+				epkForUpsert
+			);
 			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> entityIndex.insertUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
-				undoActionConsumer.accept(() -> entityIndex.removeUniqueAttribute(referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(
+					() -> indexForUpsert.insertUniqueAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, scope, locale,
+						valueToRemoveSupplier.get(), epkForRemoval
+					)
+				);
+				undoActionConsumer.accept(
+					() -> indexForRemoval.removeUniqueAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, scope, locale,
+						valueToUpdateSupplier.get(), epkForUpsert
+					)
+				);
 			}
 		}
 		if (attributeDefinition.isFilterableInScope(scope)) {
-			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX);
-			entityIndex.removeFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
-			entityIndex.insertFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			final int epkForRemoval = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX, Target.EXISTING);
+			final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_FILTER_INDEX, Target.NEW);
+			indexForRemoval.removeFilterAttribute(
+				referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+				epkForRemoval
+			);
+			indexForUpsert.insertFilterAttribute(
+				referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(),
+				epkForUpsert
+			);
 			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> entityIndex.insertFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
-				undoActionConsumer.accept(() -> entityIndex.removeFilterAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(
+					() -> indexForUpsert.insertFilterAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+						epkForRemoval
+					)
+				);
+				undoActionConsumer.accept(
+					() -> indexForRemoval.removeFilterAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(),
+						epkForUpsert
+					)
+				);
 			}
 		}
 		if (attributeDefinition.isSortableInScope(scope)) {
-			final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
-			entityIndex.removeSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey);
-			entityIndex.insertSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey);
+			final int epkForRemove = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING);
+			final int epkForUpsert = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW);
+			indexForRemoval.removeSortAttribute(
+				referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+				epkForRemove
+			);
+			indexForUpsert.insertSortAttribute(
+				referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(),
+				epkForUpsert
+			);
 			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> entityIndex.insertSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(), entityPrimaryKey));
-				undoActionConsumer.accept(() -> entityIndex.removeSortAttribute(referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(), entityPrimaryKey));
+				undoActionConsumer.accept(
+					() -> indexForUpsert.insertSortAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+						epkForRemove
+					)
+				);
+				undoActionConsumer.accept(
+					() -> indexForRemoval.removeSortAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, locale, valueToUpdateSupplier.get(),
+						epkForUpsert
+					)
+				);
 			}
 		}
 		// now update the compounds
 		updateSortableAttributeCompounds(
 			executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-			entityIndex, valueToUpdateSupplier.get(), locale, attributeName, undoActionConsumer
+			indexForRemoval, indexForUpsert, valueToUpdateSupplier.get(), locale, attributeName, undoActionConsumer
 		);
 	}
 
@@ -459,7 +632,7 @@ public interface AttributeIndexMutator {
 			// filter only localized compound schemas
 			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider::getAttributeSchema));
 
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
+		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW);
 		filteredCompounds.forEach(
 			it -> insertNewCompound(
 				entityPrimaryKey, entityIndex, it,
@@ -510,7 +683,7 @@ public interface AttributeIndexMutator {
 			// filter only localized compound schemas
 			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider::getAttributeSchema));
 
-		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
+		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING);
 		filteredCompounds.forEach(
 			it -> removeOldCompound(
 				entityPrimaryKey, entityIndex, it,
@@ -529,6 +702,25 @@ public interface AttributeIndexMutator {
 	}
 
 	/**
+	 * Retrieves the scope associated with the provided index for upsert and ensures
+	 * it matches the scope of the index for removal if they differ.
+	 *
+	 * @param indexForRemoval the index that is intended for removal
+	 * @param indexForUpsert  the index that is intended for upsert
+	 * @return the scope associated with the index for upsert
+	 * @throws IllegalArgumentException if the scopes of the two indices do not match
+	 */
+	@Nonnull
+	private static Scope getIndexedScope(@Nonnull EntityIndex indexForRemoval, @Nonnull EntityIndex indexForUpsert) {
+		final Scope scope = indexForUpsert.getIndexKey().scope();
+		Assert.isPremiseValid(
+			indexForUpsert == indexForRemoval || scope == indexForRemoval.getIndexKey().scope(),
+			"Index scope mismatch!"
+		);
+		return scope;
+	}
+
+	/**
 	 * Method updates existing sortable attribute compounds that refer to the `updatedAttributeName` attribute.
 	 * The previous compound containing this attribute is removed from the index and new is inserted using the
 	 * `valueToUpdate` parameter as a new value for the attribute compound.
@@ -538,19 +730,20 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex indexForRemoval,
+		@Nonnull EntityIndex indexForUpsert,
 		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull String updatedAttributeName,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final Scope scope = entityIndex.getIndexKey().scope();
+		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
+
 		attributeSchemaProvider.getCompoundAttributeSchemas(updatedAttributeName)
 			.filter(it -> it.isIndexedInScope(scope))
 			.forEach(
 				compound -> {
-					final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX);
 					final Function<AttributeKey, AttributeValue> existingAttributeValueProvider =
 						it -> existingValueSupplier.getAttributeValue(it).orElse(null);
 
@@ -562,10 +755,11 @@ public interface AttributeIndexMutator {
 						entityAttributeLocales
 							.forEach(
 								attributeLocale -> updateCompound(
-									entityIndex, entitySchema, referenceSchema, compound,
+									executor,
+									indexForRemoval, indexForUpsert,
+									entitySchema, referenceSchema, compound,
 									attributeSchemaProvider, entityAttributeLocales, attributeLocale,
 									updatedAttributeName, valueToUpdate,
-									entityPrimaryKey,
 									existingAttributeValueProvider,
 									undoActionConsumer
 								)
@@ -573,10 +767,11 @@ public interface AttributeIndexMutator {
 					} else {
 						// otherwise we just update the compound with particular locale or global if locale is null
 						updateCompound(
-							entityIndex, entitySchema, referenceSchema, compound,
+							executor,
+							indexForRemoval, indexForUpsert,
+							entitySchema, referenceSchema, compound,
 							attributeSchemaProvider, entityAttributeLocales, locale,
 							updatedAttributeName, valueToUpdate,
-							entityPrimaryKey,
 							existingAttributeValueProvider,
 							undoActionConsumer
 						);
@@ -591,15 +786,17 @@ public interface AttributeIndexMutator {
 	 * `valueToUpdate` parameter as a new value for the attribute compound.
 	 */
 	private static void updateCompound(
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull EntityIndex indexForRemoval,
+		@Nonnull EntityIndex indexForUpsert,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchema compound,
-		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider, @Nonnull Set<Locale> availableAttributeLocales,
+		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
+		@Nonnull Set<Locale> availableAttributeLocales,
 		@Nullable Locale locale,
 		@Nullable String updatedAttributeName,
 		@Nullable Serializable valueToUpdate,
-		int entityPrimaryKey,
 		@Nonnull Function<AttributeKey, AttributeValue> existingAttributeValueProvider,
 		@Nullable Consumer<Runnable> undoActionConsumer
 	) {
@@ -609,13 +806,17 @@ public interface AttributeIndexMutator {
 			);
 
 			removeOldCompound(
-				entityPrimaryKey, entityIndex, compound, locale,
-				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
+				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING),
+				indexForRemoval, compound, locale,
+				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider,
+				undoActionConsumer
 			);
 
 			insertNewCompound(
-				entityPrimaryKey, entityIndex, compound, updatedAttributeName, valueToUpdate, locale,
-				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider, undoActionConsumer
+				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW),
+				indexForUpsert, compound, updatedAttributeName, valueToUpdate, locale,
+				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider,
+				undoActionConsumer
 			);
 		}
 	}

@@ -131,7 +131,7 @@ public class QueryExecutionContext implements Closeable {
 	/**
 	 * Contains index of {@link EntityReference} identifiers to prefetched {@link SealedEntity} objects.
 	 */
-	private Map<EntityReferenceContract<EntityReference>, EntityDecorator> entityReferenceIndex;
+	private Map<EntityReferenceContract, EntityDecorator> entityReferenceIndex;
 	/**
 	 * Contains lazy initialized local buffer pool.
 	 */
@@ -293,7 +293,7 @@ public class QueryExecutionContext implements Closeable {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull EntityReferenceContract<?>[] entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
+	public void prefetchEntities(@Nonnull EntityReferenceContract[] entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
 		if (entitiesToPrefetch.length != 0) {
 			if (this.prefetchedEntities == null) {
 				this.prefetchedEntities = new ArrayList<>(entitiesToPrefetch.length);
@@ -308,7 +308,7 @@ public class QueryExecutionContext implements Closeable {
 					.ifPresent(it -> this.prefetchedEntities.add(it));
 			} else {
 				final Map<String, CompositeIntArray> entitiesByType = CollectionUtils.createHashMap(16);
-				for (EntityReferenceContract<?> ref : entitiesToPrefetch) {
+				for (EntityReferenceContract ref : entitiesToPrefetch) {
 					final CompositeIntArray pks = entitiesByType.computeIfAbsent(ref.getType(), eType -> new CompositeIntArray());
 					pks.add(ref.getPrimaryKey());
 				}
@@ -705,7 +705,7 @@ public class QueryExecutionContext implements Closeable {
 	 */
 	@Nullable
 	private Locale getPrefetchedEntityImplicitLocale(int entityPrimaryKey) {
-		final EntityReferenceContract<EntityReference> entityReference = this.queryContext.getEntityReferenceIfExist(entityPrimaryKey)
+		final EntityReferenceContract entityReference = this.queryContext.getEntityReferenceIfExist(entityPrimaryKey)
 			.orElse(null);
 		return entityReference instanceof EntityReferenceWithLocale entityReferenceWithLocale ? entityReferenceWithLocale.locale() : null;
 	}

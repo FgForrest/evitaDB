@@ -561,6 +561,8 @@ message GrpcUpsertEntityResponse {
     GrpcEntityReference entityReference = 1;
     // The upserted entity.
     GrpcSealedEntity entity = 2;
+    // The upserted entity reference with reassigned primary keys
+    GrpcEntityReferenceWithAssignedPrimaryKeys entityReferenceWithAssignedPrimaryKeys = 3;
   }
 }
 
@@ -708,6 +710,8 @@ service EvitaSessionService {
   rpc ArchiveEntity(GrpcArchiveEntityRequest) returns (GrpcArchiveEntityResponse);
   // Procedure that restores an entity and returns it with required richness.
   rpc RestoreEntity(GrpcRestoreEntityRequest) returns (GrpcRestoreEntityResponse);
+  // Applies single mutation to the entity.
+  rpc ApplyMutation(GrpcEntityMutation) returns (google.protobuf.Empty);
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
