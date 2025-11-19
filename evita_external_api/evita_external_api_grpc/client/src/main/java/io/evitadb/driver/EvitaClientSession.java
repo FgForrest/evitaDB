@@ -420,7 +420,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			"Making catalog `" + this.catalogName + "` alive",
 			progressObserver
 		);
-		executeWithAsyncEvitaSessionService(
+		executeWithAsyncEvitaSessionServiceWithoutTimeout(
 			evitaSessionService -> {
 				final StreamObserver<GrpcGoLiveAndCloseWithProgressResponse> observer = new StreamObserver<>() {
 					private long catalogVersion = -1;
@@ -535,14 +535,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 								return null;
 							};
 							if (this.isActive()) {
-								executeWithAsyncEvitaSessionService(callFunction);
+								executeWithAsyncEvitaSessionServiceWithoutTimeout(callFunction);
 							} else {
 								// when current session is no longer active, create new one
 								final EvitaClientSession session = this.evita.createSession(
 									new SessionTraits(this.catalogName)
 								);
 								// and register the change capture on it
-								session.executeWithAsyncEvitaSessionService(callFunction);
+								session.executeWithAsyncEvitaSessionServiceWithoutTimeout(callFunction);
 							}
 						},
 						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
@@ -557,7 +557,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			final CompletableFuture<CommitVersions> result = closeInternally();
 			this.commitProgress = new CommitProgressRecord();
 			this.commitProgress.on(this.commitBehaviour).thenAccept(result::complete);
-			executeWithAsyncEvitaSessionService(
+			executeWithAsyncEvitaSessionServiceWithoutTimeout(
 				evitaSessionService -> {
 					final StreamObserver<GrpcCloseWithProgressResponse> observer = new StreamObserver<>() {
 						@Override
@@ -1716,7 +1716,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		// Call reference is needed for cancelling stream on the server side
 		final AtomicReference<ClientCall<?, ?>> callRef = new AtomicReference<>();
 
-		executeWithAsyncEvitaSessionService(
+		executeWithAsyncEvitaSessionServiceWithoutTimeout(
 			session -> {
 				final ClientCall<GetMutationsHistoryRequest, GetMutationsHistoryResponse> call = session.getChannel().newCall(
 					EvitaSessionServiceGrpc.getGetMutationsHistoryMethod(),
@@ -2085,14 +2085,15 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final Timeout timeout = getCurrentTimeout();
 		try {
 			SessionIdHolder.setSessionId(getId().toString());
-			final T result = lambda
-				.apply(
-					this.evitaSessionServiceFutureStub.withDeadlineAfter(
-						timeout.timeout(),
-						timeout.timeoutUnit()
-					)
-				)
-				.get(
+			final T result = Objects.requireNonNull(
+					lambda
+						.apply(
+							this.evitaSessionServiceFutureStub.withDeadlineAfter(
+								timeout.timeout(),
+								timeout.timeoutUnit()
+							)
+						)
+				).get(
 					timeout.timeout(),
 					timeout.timeoutUnit()
 				);
@@ -2141,6 +2142,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 *
 	 * @param lambda function that holds a logic passed by the caller
 	 */
+	@Nullable
 	private <T> T executeWithAsyncEvitaSessionService(
 		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
 	) {
@@ -2162,6 +2164,43 @@ public class EvitaClientSession implements EvitaSessionContract {
 			Thread.currentThread().interrupt();
 			throw new EvitaClientServerCallException("Server call interrupted.", e);
 		} catch (TimeoutException e) {
+			throw new EvitaClientTimedOutException(
+				timeout.timeout(), timeout.timeoutUnit()
+			);
+		} finally {
+			SessionIdHolder.reset();
+		}
+	}
+
+	/**
+	 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
+	 * from a channel pool. This method doesn't apply any timeout to the call.
+	 *
+	 * @param lambda function that holds a logic passed by the caller
+	 */
+	@Nullable
+	private <T> T executeWithAsyncEvitaSessionServiceWithoutTimeout(
+		@Nonnull AsyncCallFunction<EvitaSessionServiceStub, T> lambda
+	) {
+		try {
+			SessionIdHolder.setSessionId(getId().toString());
+			return lambda.apply(this.evitaSessionServiceStub);
+		} catch (ExecutionException e) {
+			final Throwable theException = e.getCause() == null ? e : e.getCause();
+			throw EvitaClient.transformException(
+				theException,
+				() -> {
+					// close session and rethrow
+					final CompletableFuture<CommitVersions> future = closeInternally();
+					future.completeExceptionally(theException);
+				}
+			);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new EvitaClientServerCallException("Server call interrupted.", e);
+		} catch (TimeoutException e) {
+			// general timeout set by evita client configuration
+			final Timeout timeout = this.callTimeout.getFirst();
 			throw new EvitaClientTimedOutException(
 				timeout.timeout(), timeout.timeoutUnit()
 			);

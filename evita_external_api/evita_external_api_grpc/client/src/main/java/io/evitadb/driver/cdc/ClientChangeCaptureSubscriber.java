@@ -189,8 +189,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		} else if (!this.closed.get()) {
 			log.error("Error occurred in the client change capture publisher.", throwable);
 			// we notify the subscriber about the error
-			this.delegate.onError(throwable);
-			this.close();
+			try {
+				this.delegate.onError(throwable);
+			} finally {
+				this.close();
+			}
 		}
 	}
 

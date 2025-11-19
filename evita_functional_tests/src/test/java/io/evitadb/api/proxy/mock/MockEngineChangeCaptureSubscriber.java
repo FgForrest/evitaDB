@@ -53,6 +53,7 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 	@Getter private int received = 0;
 	@Getter private int completed = 0;
 	@Getter private int errors = 0;
+	@Getter private boolean closed;
 	private CompletableFuture<Void> future;
 	private BooleanSupplier waitCondition;
 
@@ -196,6 +197,7 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 
 	@Override
 	public void close() {
+		this.closed = true;
 		this.subscription.cancel();
 	}
 }
