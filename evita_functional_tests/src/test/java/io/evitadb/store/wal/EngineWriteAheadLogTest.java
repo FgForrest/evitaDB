@@ -23,11 +23,13 @@
 
 package io.evitadb.store.wal;
 
+import com.carrotsearch.hppc.LongHashSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.Scheduler;
@@ -39,8 +41,7 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import io.evitadb.store.wal.requestResponse.EngineTransactionChangesContainer;
-import io.evitadb.store.wal.requestResponse.EngineTransactionChangesContainer.EngineTransactionChanges;
+import io.evitadb.store.spi.model.wal.EngineTransactionChanges;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -57,10 +58,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Tests specific behaviour of EngineMutationLog that is not covered by the shared abstract WAL tests.
@@ -68,7 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * This test verifies only the Engine-specific method getWriteAheadLogVersionDescriptor using
  * SetCatalogMutabilityMutation as engine-level mutation type.
  */
-@DisplayName("EngineMutationLog specifics")
+@DisplayName("Engine Write-Ahead Log functionality tests")
 class EngineWriteAheadLogTest {
 	private final Path walDirectory = Path.of(System.getProperty("java.io.tmpdir"))
 		.resolve("evita")
@@ -109,67 +108,38 @@ class EngineWriteAheadLogTest {
 	}
 
 	/**
-	 * Verifies that getWriteAheadLogVersionDescriptor returns proper EngineTransactionChangesContainer
-	 * with accurate metadata and concatenated change strings for the requested version range.
-	 */
-	@Test
-	@DisplayName("shouldReturnDescriptorWithEngineTransactionChangesWhenRangeValid")
-	void shouldReturnDescriptorWithEngineTransactionChangesWhenRangeValid() {
-		final int[] txSizes = new int[]{2, 1, 3, 2};
-		final List<TxData> txData = writeEngineWal(txSizes, null);
-
-		final long previousKnownVersion = 1L; // we want versions 2 and 3
-		final long requestedVersion = 3L;
-		final OffsetDateTime introducedAt = OffsetDateTime.now();
-
-		final WriteAheadLogVersionDescriptor descriptor = this.wal.getWriteAheadLogVersionDescriptor(
-			requestedVersion, previousKnownVersion, introducedAt
-		);
-		assertNotNull(descriptor);
-		assertEquals(requestedVersion, descriptor.version());
-		assertEquals(introducedAt, descriptor.processedTimestamp());
-
-		final EngineTransactionChanges[] changes = ((EngineTransactionChangesContainer) descriptor.transactionChanges())
-			.getTransactionChanges();
-
-		assertEquals(2, changes.length);
-
-		// verify version 2
-		final TxData tx2 = txData.get(1);
-		assertEquals(2L, changes[0].version());
-		assertEquals(tx2.commitTimestamp(), changes[0].commitTimestamp());
-		assertEquals(tx2.mutationCount(), changes[0].mutationCount());
-		assertEquals(tx2.mutationSizeInBytes(), changes[0].mutationSizeInBytes());
-		assertArrayEquals(new String[]{tx2.expectedConcatenatedChanges()}, changes[0].changes());
-
-		// verify version 3
-		final TxData tx3 = txData.get(2);
-		assertEquals(3L, changes[1].version());
-		assertEquals(tx3.commitTimestamp(), changes[1].commitTimestamp());
-		assertEquals(tx3.mutationCount(), changes[1].mutationCount());
-		assertEquals(tx3.mutationSizeInBytes(), changes[1].mutationSizeInBytes());
-		assertArrayEquals(new String[]{tx3.expectedConcatenatedChanges()}, changes[1].changes());
-	}
-
-	/**
 	 * Verifies that getWriteAheadLogVersionDescriptor returns null when there are no transactions
 	 * available from previousKnownVersion + 1.
 	 */
 	@Test
-	@DisplayName("shouldReturnNullDescriptorWhenNoTransactionsAvailableFromRange")
-	void shouldReturnNullDescriptorWhenNoTransactionsAvailableFromRange() {
+	@DisplayName("should return valid engine WAL description")
+	void shouldReturnEngineWallDescription() {
 		final int[] txSizes = new int[]{1, 2, 1};
 		final List<TxData> txData = writeEngineWal(txSizes, null);
 		assertEquals(3, txData.size());
 
-		final long previousKnownVersion = 3L; // start would be 4 which doesn't exist
-		final long requestedVersion = 3L;
-		final OffsetDateTime introducedAt = OffsetDateTime.now();
-
-		final WriteAheadLogVersionDescriptor descriptor = this.wal.getWriteAheadLogVersionDescriptor(
-			requestedVersion, previousKnownVersion, introducedAt
+		final LongHashSet versions = new LongHashSet(8);
+		versions.add(3L);
+		final List<WriteAheadLogVersionDescriptor> descriptors = this.wal.getWriteAheadLogVersionDescriptor(
+			versions, new MaterializedVersionBlock(3, 4, OffsetDateTime.now())
 		);
-		assertNull(descriptor);
+		assertNotNull(descriptors);
+		assertEquals(1, descriptors.size());
+
+		final WriteAheadLogVersionDescriptor descriptor = descriptors.get(0);
+		final TxData expectedTxData = txData.get(2);
+
+		assertEquals(expectedTxData.version(), descriptor.version());
+
+		final EngineTransactionChanges transactionChanges = (EngineTransactionChanges) descriptor.transactionChanges();
+		assertEquals(expectedTxData.commitTimestamp(), transactionChanges.commitTimestamp());
+		assertEquals(expectedTxData.mutationCount(), transactionChanges.mutationCount());
+		assertEquals(expectedTxData.mutationSizeInBytes(), transactionChanges.walSizeInBytes());
+		assertEquals(
+			expectedTxData.expectedConcatenatedChanges(),
+			String.join(", ", transactionChanges.changes())
+		);
+
 	}
 
 	@Nonnull

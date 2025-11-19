@@ -80,7 +80,7 @@ class LocalCatalogSchemaMutationInputAggregateConverterTest {
 					.build())
 				.e(
 					LocalCatalogSchemaMutationInputAggregateDescriptor.CREATE_ENTITY_SCHEMA_MUTATION.name(), map()
-					.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product")
 					.build())
 				.e(
 					LocalCatalogSchemaMutationInputAggregateDescriptor.ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION.name(), map()

@@ -36,7 +36,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OnCatalogDataChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.ChangeCaptureSubscribingDataFetcher;
 
@@ -60,10 +60,11 @@ public class OnCatalogSchemaChangeCaptureSubscribingDataFetcher
 	@Nonnull
 	@Override
 	protected Publisher<ChangeCatalogCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
-		final Long sinceVersion = environment.getArgument(OnCatalogDataChangeHeaderDescriptor.SINCE_VERSION.name());
-		final Integer sinceIndex = environment.getArgument(OnCatalogDataChangeHeaderDescriptor.SINCE_INDEX.name());
-		final List<Operation> operation = environment.getArgument(OnCatalogDataChangeHeaderDescriptor.OPERATION.name());
-		final List<ContainerType> containerType = environment.getArgument(OnCatalogDataChangeHeaderDescriptor.CONTAINER_TYPE.name());
+		final Long sinceVersion = environment.getArgument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.name());
+		final Integer sinceIndex = environment.getArgument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.name());
+		final List<Operation> operation = environment.getArgument(OnSchemaChangeHeaderDescriptor.OPERATION.name());
+		final List<ContainerType> containerType = environment.getArgument(OnSchemaChangeHeaderDescriptor.CONTAINER_TYPE.name());
+		final List<String> containerName = environment.getArgument(OnSchemaChangeHeaderDescriptor.CONTAINER_NAME.name());
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeCatalogCaptureDescriptor.BODY.name(), environment.getSelectionSet());
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
@@ -76,7 +77,8 @@ public class OnCatalogSchemaChangeCaptureSubscribingDataFetcher
 					new SchemaSite(
 						null,
 						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
-						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null)
+						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null),
+						Optional.ofNullable(containerName).map(it -> it.toArray(String[]::new)).orElse(null)
 					)
 				)
 			},

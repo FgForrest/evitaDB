@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -62,31 +63,36 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper, CatalogSchemaMutation {
+public class ModifyEntitySchemaMutation
+	implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper,
+	CatalogSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 7843689721519035513L;
-	@Getter @Nonnull private final String entityType;
+	/**
+	 * Name of the entity type (i.e., the entity schema name) that is affected by this mutation.
+	 */
+	@Getter @Nonnull private final String name;
 	@Nonnull @Getter private final LocalEntitySchemaMutation[] schemaMutations;
 
-	public ModifyEntitySchemaMutation(@Nonnull String entityType, @Nonnull LocalEntitySchemaMutation... schemaMutations) {
-		this.entityType = entityType;
+	public ModifyEntitySchemaMutation(@Nonnull String name, @Nonnull LocalEntitySchemaMutation... schemaMutations) {
+		this.name = name;
 		this.schemaMutations = schemaMutations;
 	}
 
 	@Nullable
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && this.entityType.equals(modifyEntitySchemaMutation.getEntityType())) {
+		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && this.name.equals(modifyEntitySchemaMutation.getName())) {
 			final List<LocalEntitySchemaMutation> mutations = new ArrayList<>(this.schemaMutations.length);
 			mutations.addAll(Arrays.asList(this.schemaMutations));
 			final MutationImpact updated = addMutations(
 				currentCatalogSchema,
-				currentCatalogSchema.getEntitySchemaOrThrowException(this.entityType),
+				currentCatalogSchema.getEntitySchemaOrThrowException(this.name),
 				mutations,
 				modifyEntitySchemaMutation.getSchemaMutations()
 			);
 			if (updated != MutationImpact.NO_IMPACT) {
 				final ModifyEntitySchemaMutation combinedMutation = new ModifyEntitySchemaMutation(
-					this.entityType, mutations.toArray(LocalEntitySchemaMutation[]::new)
+					this.name, mutations.toArray(LocalEntitySchemaMutation[]::new)
 				);
 				return new MutationCombinationResult<>(null, combinedMutation);
 			} else {
@@ -102,12 +108,12 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
-				.getEntitySchema(this.entityType)
+				.getEntitySchema(this.name)
 				.map(it -> mutate(catalogSchema, it))
 				.ifPresentOrElse(
 					mutationEntitySchemaAccessor::addUpsertedEntitySchema,
 					() -> {
-						throw new GenericEvitaInternalError("Entity schema not found: " + this.entityType);
+						throw new GenericEvitaInternalError("Entity schema not found: " + this.name);
 					}
 				);
 		}
@@ -135,12 +141,18 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 
 	@Nonnull
 	@Override
+	public String containerName() {
+		return this.name;
+	}
+
+	@Nonnull
+	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.setEntityType(this.entityType);
+		context.setEntityType(this.name);
 		final Stream<ChangeCatalogCapture> entitySchemaCapture = CombinableCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
 
 		if (context.getDirection() == StreamDirection.FORWARD) {
@@ -166,7 +178,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 
 	@Override
 	public String toString() {
-		return "Modify entity `" + this.entityType + "` schema:\n" +
+		return "Modify entity `" + this.name + "` schema:\n" +
 			Arrays.stream(this.schemaMutations)
 				.map(Object::toString)
 				.collect(Collectors.joining(",\n"));

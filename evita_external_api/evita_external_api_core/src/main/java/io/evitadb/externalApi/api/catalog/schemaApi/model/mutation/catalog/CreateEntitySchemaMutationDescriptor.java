@@ -39,8 +39,8 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface CreateEntitySchemaMutationDescriptor extends MutationDescriptor {
 
-	PropertyDescriptor ENTITY_TYPE = PropertyDescriptor.builder()
-		.name("entityType")
+	PropertyDescriptor NAME = PropertyDescriptor.builder()
+		.name("name")
 		.description("""
 			Name of newly created entity schema.
 			""")
@@ -53,7 +53,7 @@ public interface CreateEntitySchemaMutationDescriptor extends MutationDescriptor
 			Mutation is responsible for setting up a new `EntitySchema` - or more precisely
 			the collection within catalog.
 			""")
-		.staticProperty(ENTITY_TYPE)
+		.staticProperty(NAME)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateEntitySchemaMutationInput")

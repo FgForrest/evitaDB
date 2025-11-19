@@ -23,12 +23,14 @@
 
 package io.evitadb.store.wal;
 
+import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -38,17 +40,17 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
-import io.evitadb.store.wal.requestResponse.EngineTransactionChangesContainer;
-import io.evitadb.store.wal.requestResponse.EngineTransactionChangesContainer.EngineTransactionChanges;
+import io.evitadb.store.spi.model.wal.EngineTransactionChanges;
 import io.evitadb.store.wal.supplier.MutationSupplier;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
@@ -71,26 +73,23 @@ import java.util.function.LongSupplier;
 public class EngineMutationLog extends AbstractMutationLog<EngineMutation<?>> {
 
 	/**
-	 * Creates an instance of {@link EngineTransactionChanges} to describe transaction changes based on the provided mutation details
-	 * and a description of changes.
+	 * Creates a new instance of EngineTransactionChanges based on the given parameters.
 	 *
-	 * @param txMutation the mutation details of the transaction, including version, commit timestamp, mutation count, and size
-	 * @param changes    a description of the changes that occurred in the transaction
-	 * @return an instance of {@link EngineTransactionChanges} containing the details of the transaction changes
+	 * @param txMutation           the transaction mutation.
+	 * @param changes 			   the array of change descriptions in the transaction.
+	 * @return a new instance of CatalogTransactionChanges.
 	 */
 	@Nonnull
-	private static EngineTransactionChanges createEngineTransactionChanges(
+	private static EngineTransactionChanges createTransactionChanges(
 		@Nonnull TransactionMutation txMutation,
-		@Nonnull String changes
+		@Nonnull String[] changes
 	) {
 		return new EngineTransactionChanges(
 			txMutation.getVersion(),
 			txMutation.getCommitTimestamp(),
 			txMutation.getMutationCount(),
 			txMutation.getWalSizeInBytes(),
-			new String[]{
-				changes
-			}
+			changes
 		);
 	}
 
@@ -114,62 +113,64 @@ public class EngineMutationLog extends AbstractMutationLog<EngineMutation<?>> {
 		);
 	}
 
-	/**
-	 * Calculates descriptor for particular version in history.
-	 *
-	 * @param version              the catalog version to describe
-	 * @param previousKnownVersion the previous known catalog version (delimits transactions incorporated in
-	 *                             previous version of the catalog), -1 if there is no known previous version
-	 * @param introducedAt         the time when the version was introduced
-	 * @return the descriptor for the version in history or NULL if the version is not present in the WAL
-	 */
 	@Override
-	@Nullable
-	public WriteAheadLogVersionDescriptor getWriteAheadLogVersionDescriptor(
-		long version,
-		long previousKnownVersion,
-		@Nonnull OffsetDateTime introducedAt
+	@Nonnull
+	public List<WriteAheadLogVersionDescriptor> getWriteAheadLogVersionDescriptor(
+		@Nonnull LongSet lookedUpVersions,
+		@Nonnull MaterializedVersionBlock materializedVersionBlock
 	) {
 		try (
 			final MutationSupplier<?> supplier = createSupplier(
-				previousKnownVersion + 1, null
+				materializedVersionBlock.startVersion(), null
 			)
 		) {
 			TransactionMutation txMutation = (TransactionMutation) supplier.get();
 			if (txMutation == null) {
-				return null;
+				return Collections.emptyList();
 			} else {
-				final List<EngineTransactionChanges> txChanges = new ArrayList<>(Math.toIntExact(version - previousKnownVersion));
-				final StringBuilder changes = new StringBuilder(256);
-				while (txMutation != null) {
-					final Mutation nextMutation = supplier.get();
+				final List<String> descriptions = new ArrayList<>(8);
+				Mutation nextMutation;
+				final List<WriteAheadLogVersionDescriptor> result = new LinkedList<>();
+				do {
+					nextMutation = supplier.get();
 					if (nextMutation instanceof TransactionMutation anotherTxMutation) {
-						txChanges.add(
-							createEngineTransactionChanges(txMutation, changes.toString())
-						);
-						if (anotherTxMutation.getVersion() == version + 1) {
-							txMutation = null;
-						} else {
-							txMutation = anotherTxMutation;
-							changes.setLength(0);
+						if (lookedUpVersions.contains(txMutation.getVersion())) {
+							result.add(
+								new WriteAheadLogVersionDescriptor(
+									txMutation.getVersion(),
+									txMutation.getTransactionId(),
+									materializedVersionBlock.introducedAt(),
+									createTransactionChanges(txMutation, descriptions.toArray(String[]::new)),
+									materializedVersionBlock.startVersion() == txMutation.getVersion()
+								)
+							);
 						}
-					} else if (nextMutation == null) {
-						txChanges.add(
-							createEngineTransactionChanges(txMutation, changes.toString())
-						);
-						txMutation = null;
-					} else {
-						changes.append(nextMutation);
-
+						txMutation = anotherTxMutation;
+						descriptions.clear();
+						// materialized block was completely processed
+						if (anotherTxMutation.getVersion() > materializedVersionBlock.endVersion()) {
+							return result;
+						}
+					} else if (nextMutation != null && lookedUpVersions.contains(txMutation.getVersion())) {
+						descriptions.add(nextMutation.toString());
 					}
+				} while (nextMutation != null);
+
+				// if we reach here, we have to process also the last transaction
+				if (lookedUpVersions.contains(txMutation.getVersion())) {
+					result.add(
+						new WriteAheadLogVersionDescriptor(
+							txMutation.getVersion(),
+							txMutation.getTransactionId(),
+							materializedVersionBlock.introducedAt(),
+							createTransactionChanges(txMutation, descriptions.toArray(String[]::new)),
+							materializedVersionBlock.startVersion() == txMutation.getVersion()
+						)
+					);
 				}
-				return new WriteAheadLogVersionDescriptor(
-					version,
-					introducedAt,
-					new EngineTransactionChangesContainer(
-						txChanges.toArray(EngineTransactionChanges[]::new)
-					)
-				);
+
+				// return collected transactions
+				return result;
 			}
 		}
 	}

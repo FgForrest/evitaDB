@@ -71,6 +71,7 @@ public class OnCollectionSchemaChangeCaptureSubscribingDataFetcher
 		final Integer sinceIndex = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.name());
 		final List<Operation> operation = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.name());
 		final List<ContainerType> containerType = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_TYPE.name());
+		final List<String> containerName = environment.getArgument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_NAME.name());
 		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeCatalogCaptureDescriptor.BODY.name(), environment.getSelectionSet());
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
@@ -83,7 +84,8 @@ public class OnCollectionSchemaChangeCaptureSubscribingDataFetcher
 					new SchemaSite(
 						this.entitySchema.getName(),
 						Optional.ofNullable(operation).map(it -> it.toArray(Operation[]::new)).orElse(null),
-						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null)
+						Optional.ofNullable(containerType).map(it -> it.toArray(ContainerType[]::new)).orElse(null),
+						Optional.ofNullable(containerName).map(it -> it.toArray(String[]::new)).orElse(null)
 					)
 				)
 			},

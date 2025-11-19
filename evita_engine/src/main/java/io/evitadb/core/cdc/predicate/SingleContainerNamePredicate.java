@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 
 import javax.annotation.Nonnull;
 
@@ -45,7 +46,12 @@ public class SingleContainerNamePredicate extends MutationPredicate {
 
 	@Override
 	public boolean test(Mutation mutation) {
-		return !(mutation instanceof NamedLocalMutation<?, ?> localMutation) ||
-			this.classifierName.equals(localMutation.containerName());
+		if (mutation instanceof NamedLocalMutation<?, ?> namedMutation) {
+			return this.classifierName.contains(namedMutation.containerName());
+		} else if (mutation instanceof NamedSchemaMutation namedMutation) {
+			return this.classifierName.contains(namedMutation.containerName());
+		} else {
+			return true;
+		}
 	}
 }

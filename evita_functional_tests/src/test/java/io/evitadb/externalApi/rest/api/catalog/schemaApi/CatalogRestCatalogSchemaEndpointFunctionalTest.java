@@ -292,7 +292,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
                     "mutations": [
                         {
                             "createEntitySchemaMutation": {
-								"entityType": "%s"
+								"name": "%s"
 							}
                         }
                     ]
@@ -373,10 +373,10 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
                     "mutations": [
                         {
                             "createEntitySchemaMutation": {
-								"entityType": "myNewCollection"
+								"name": "myNewCollection"
 							},
 							"modifyEntitySchemaMutation": {
-								"entityType": "myNewCollection",
+								"name": "myNewCollection",
 								"schemaMutations": [
 									{
 										"createAttributeSchemaMutation": {

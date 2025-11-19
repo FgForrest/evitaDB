@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -50,7 +51,8 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntitySchemaMutation, AssociatedDataSchemaMutation {
+abstract class AbstractModifyAssociatedDataSchemaMutation
+	implements LocalEntitySchemaMutation, AssociatedDataSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
 	@Getter @Nonnull protected final String name;
 
@@ -106,4 +108,9 @@ abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntity
 		}
 	}
 
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
+	}
 }

@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
@@ -61,13 +62,14 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation {
+public class CreateEntitySchemaMutation
+	implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 5167037327442001715L;
-	@Nonnull @Getter private final String entityType;
+	@Nonnull @Getter private final String name;
 
-	public CreateEntitySchemaMutation(@Nonnull String entityType) {
-		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
-		this.entityType = entityType;
+	public CreateEntitySchemaMutation(@Nonnull String name) {
+		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, name);
+		this.name = name;
 	}
 
 	@Nullable
@@ -77,7 +79,7 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
-			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(this.entityType));
+			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(this.name));
 		}
 		Assert.isPremiseValid(
 			catalogSchema != null,
@@ -92,7 +94,7 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nullable EntitySchemaContract entitySchema
 	) {
-		return EntitySchema._internalBuild(this.entityType);
+		return EntitySchema._internalBuild(this.name);
 	}
 
 	@Nonnull
@@ -103,12 +105,18 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 
 	@Nonnull
 	@Override
+	public String containerName() {
+		return this.name;
+	}
+
+	@Nonnull
+	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.setEntityType(this.entityType);
+		context.setEntityType(this.name);
 
 		return LocalCatalogSchemaMutation.super.toChangeCatalogCapture(
 			predicate,
@@ -119,6 +127,6 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 	@Override
 	public String toString() {
 		return "Create entity schema: " +
-			"entity type='" + this.entityType + '\'';
+			"entity type='" + this.name + '\'';
 	}
 }

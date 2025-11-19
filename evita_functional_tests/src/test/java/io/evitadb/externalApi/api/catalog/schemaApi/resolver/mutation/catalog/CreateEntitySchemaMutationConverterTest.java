@@ -58,7 +58,7 @@ class CreateEntitySchemaMutationConverterTest {
 		final CreateEntitySchemaMutation expectedMutation = new CreateEntitySchemaMutation("product");
 		final CreateEntitySchemaMutation convertedMutation = this.converter.convertFromInput(
 			map()
-				.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+				.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product")
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation);
@@ -81,7 +81,7 @@ class CreateEntitySchemaMutationConverterTest {
 			.isEqualTo(
 				map()
 					.e(MutationDescriptor.MUTATION_TYPE.name(), CreateEntitySchemaMutation.class.getSimpleName())
-					.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+					.e(CreateEntitySchemaMutationDescriptor.NAME.name(), "product")
 					.build()
 			);
 	}

@@ -55,7 +55,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Predecessor;
@@ -197,6 +197,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
 		try (final EvitaClient setupClient = new EvitaClient(evitaClientConfiguration)) {
 			setupClient.defineCatalog(TEST_CATALOG);
+			setupClient.updateCatalog(
+				TEST_CATALOG,
+				EvitaSessionContract::goLiveAndClose
+			);
 			// Create test entities for referencing in products
 			setupClient.updateCatalog(
 				TEST_CATALOG,
@@ -1697,7 +1701,7 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(statistics.unusable());
 		assertFalse(statistics.readOnly());
 		assertEquals(CatalogState.ALIVE, statistics.catalogState());
-		assertEquals(1, statistics.catalogVersion());
+		assertEquals(2, statistics.catalogVersion());
 		assertTrue(statistics.totalRecords() > 1);
 		assertTrue(statistics.indexCount() > 1);
 		assertTrue(statistics.sizeOnDiskInBytes() > 1);
@@ -1731,12 +1735,14 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final StoredVersion catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
-				assertEquals(lastCatalogVersion, catalogVersionAt.version());
+				final MaterializedVersionBlock catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
+				assertEquals(lastCatalogVersion, catalogVersionAt.startVersion());
+				assertEquals(lastCatalogVersion, catalogVersionAt.endVersion());
 				assertNotNull(catalogVersionAt.introducedAt());
 
-				final StoredVersion firstCatalogVersionAt = session.getCatalogVersionAt(null);
-				assertEquals(0, firstCatalogVersionAt.version());
+				final MaterializedVersionBlock firstCatalogVersionAt = session.getCatalogVersionAt(null);
+				assertEquals(0, firstCatalogVersionAt.startVersion());
+				assertEquals(0, firstCatalogVersionAt.endVersion());
 				assertNotNull(firstCatalogVersionAt.introducedAt());
 			}
 		);

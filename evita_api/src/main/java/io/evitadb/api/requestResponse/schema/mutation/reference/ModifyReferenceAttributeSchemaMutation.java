@@ -145,6 +145,12 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 		}
 	}
 
+	@Nonnull
+	@Override
+	public String containerName() {
+		return super.containerName() + "." + this.attributeSchemaMutation.containerName();
+	}
+
 	@Override
 	public String toString() {
 		return "Modify entity reference `" + this.name + "` schema, " +

@@ -24,6 +24,7 @@
 package io.evitadb.store.wal;
 
 
+import com.carrotsearch.hppc.LongSet;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -33,6 +34,7 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTooBigException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -823,6 +825,54 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
+	 * Retrieves the first version of a record from the specified Write-Ahead Log (WAL) file index.
+	 *
+	 * The method attempts to locate and read a WAL file associated with the given index, and if the file exists
+	 * and is valid, it extracts and returns the version of the first record stored within.
+	 *
+	 * @param walFileIndex the index of the WAL file to read from
+	 * @return the version of the first record found in the specified WAL file, or -1 if the file does not exist,
+	 *         is invalid, or cannot be processed
+	 */
+	public long getFirstVersionOf(int walFileIndex) {
+		final File walFile = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex)).toFile();
+		if (!walFile.exists() || walFile.length() < 4) {
+			return -1L;
+		} else {
+			final Kryo kryo = this.kryoPool.obtain();
+			try(
+				final RandomAccessFile randomWalFile = new RandomAccessFile(walFile, "r");
+				final ObservableInput<RandomAccessFileInputStream> observableInput = new ObservableInput<>(
+					new RandomAccessFileInputStream(
+						randomWalFile, true
+					)
+				)
+			) {
+				if (this.storageOptions.computeCRC32C()) {
+					observableInput.computeCRC32();
+				}
+				if (this.storageOptions.compress()) {
+					observableInput.compress();
+				}
+				// first 4 bytes are the length of the entire transaction block
+				observableInput.skip(4);
+				// first record is the TransactionMutation
+				return Objects.requireNonNull(
+					StorageRecord.read(
+						observableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
+					).payload()
+				).getVersion();
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to read WAL file `" + walFile.getName() + "`!",
+					"Failed to read WAL file!",
+					e
+				);
+			}
+		}
+	}
+
+	/**
 	 * Retrieves the first catalog version of the current WAL file.
 	 *
 	 * @return the first catalog version of the current WAL file
@@ -1139,19 +1189,16 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Calculates descriptor for particular version in history.
+	 * Calculates descriptor for all looked up versions in materialized block starting with `materializedVersion`.
 	 *
-	 * @param version              the catalog version to describe
-	 * @param previousKnownVersion the previous known catalog version (delimits transactions incorporated in
-	 *                             previous version of the catalog), -1 if there is no known previous version
-	 * @param introducedAt         the time when the version was introduced
-	 * @return the descriptor for the version in history or NULL if the version is not present in the WAL
+	 * @param lookedUpVersions    the catalog versions to describe
+	 * @param materializedVersionBlock the block of versions introduced at once into the catalog
+	 * @return the stream of descriptors for the version in history
 	 */
-	@Nullable
-	public abstract WriteAheadLogVersionDescriptor getWriteAheadLogVersionDescriptor(
-		long version,
-		long previousKnownVersion,
-		@Nonnull OffsetDateTime introducedAt
+	@Nonnull
+	public abstract List<WriteAheadLogVersionDescriptor> getWriteAheadLogVersionDescriptor(
+		@Nonnull LongSet lookedUpVersions,
+		@Nonnull MaterializedVersionBlock materializedVersionBlock
 	);
 
 	/**

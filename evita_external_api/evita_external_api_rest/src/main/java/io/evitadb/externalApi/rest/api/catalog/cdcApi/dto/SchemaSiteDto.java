@@ -39,7 +39,8 @@ import javax.annotation.Nullable;
 public record SchemaSiteDto(
 	@Nullable String entityType,
 	@Nullable Operation[] operation,
-	@Nullable ContainerType[] containerType
+	@Nullable ContainerType[] containerType,
+	@Nullable String[] containerName
 ) implements CaptureSiteDto {
 
 	@Nonnull
@@ -48,7 +49,8 @@ public record SchemaSiteDto(
 		return new SchemaSite(
 			this.entityType,
 			this.operation,
-			this.containerType
+			this.containerType,
+			this.containerName
 		);
 	}
 }

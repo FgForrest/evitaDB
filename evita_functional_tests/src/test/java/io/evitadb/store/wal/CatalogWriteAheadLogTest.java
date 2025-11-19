@@ -300,4 +300,43 @@ class CatalogWriteAheadLogTest {
 			"Exception message should indicate invalid WAL file name");
     }
 
+	@Test
+	@DisplayName("Should retrieve first version from existing WAL file")
+	void shouldGetFirstVersionOfExistingWalFile() {
+		// The first transaction has version 1 (based on createTestTransaction logic: 1L + 0)
+		final long firstVersion = this.tested.getFirstVersionOf(this.walFileReference.fileIndex());
+
+		assertEquals(1L, firstVersion,
+			"Should return version 1 as the first version in the WAL file");
+	}
+
+	@Test
+	@DisplayName("Should return -1 for non-existing WAL file")
+	void shouldReturnMinusOneForNonExistingWalFile() {
+		// Query a WAL file index that doesn't exist
+		final long firstVersion = this.tested.getFirstVersionOf(999);
+
+		assertEquals(-1L, firstVersion,
+			"Should return -1 when WAL file does not exist");
+	}
+
+	@Test
+	@DisplayName("Should return -1 for empty WAL file")
+	void shouldReturnMinusOneForEmptyWalFile() throws IOException {
+		// Create an empty WAL file with a different index
+		final int emptyWalIndex = 1;
+		final Path emptyWalPath = this.walDirectory.resolve(getWalFileName(TEST_CATALOG, emptyWalIndex));
+		assertTrue(emptyWalPath.toFile().createNewFile());
+
+		try {
+			final long firstVersion = this.tested.getFirstVersionOf(emptyWalIndex);
+
+			assertEquals(-1L, firstVersion,
+				"Should return -1 when WAL file is empty (less than 4 bytes)");
+		} finally {
+			// Cleanup
+			assertTrue(emptyWalPath.toFile().delete());
+		}
+	}
+
 }

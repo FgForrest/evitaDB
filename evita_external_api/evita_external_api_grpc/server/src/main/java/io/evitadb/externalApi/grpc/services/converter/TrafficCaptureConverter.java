@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.requestResponse.traffic;
+package io.evitadb.externalApi.grpc.services.converter;
 
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;

@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutati
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -72,7 +73,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateAssociatedDataSchemaMutation
-	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
+	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -7368528015832499968L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -219,6 +220,12 @@ public class CreateAssociatedDataSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
 	}
 
 	@Override

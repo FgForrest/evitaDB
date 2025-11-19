@@ -46,6 +46,8 @@ private static final long serialVersionUID = 0L;
   private GrpcChangeCaptureSchemaSite() {
     operation_ = java.util.Collections.emptyList();
     containerType_ = java.util.Collections.emptyList();
+    containerName_ =
+        com.google.protobuf.LazyStringArrayList.emptyList();
   }
 
   @java.lang.Override
@@ -263,6 +265,59 @@ private static final long serialVersionUID = 0L;
   }
   private int containerTypeMemoizedSerializedSize;
 
+  public static final int CONTAINERNAME_FIELD_NUMBER = 4;
+  @SuppressWarnings("serial")
+  private com.google.protobuf.LazyStringArrayList containerName_ =
+      com.google.protobuf.LazyStringArrayList.emptyList();
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @return A list containing the containerName.
+   */
+  public com.google.protobuf.ProtocolStringList
+      getContainerNameList() {
+    return containerName_;
+  }
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @return The count of containerName.
+   */
+  public int getContainerNameCount() {
+    return containerName_.size();
+  }
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @param index The index of the element to return.
+   * @return The containerName at the given index.
+   */
+  public java.lang.String getContainerName(int index) {
+    return containerName_.get(index);
+  }
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the containerName at the given index.
+   */
+  public com.google.protobuf.ByteString
+      getContainerNameBytes(int index) {
+    return containerName_.getByteString(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -294,6 +349,9 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < containerType_.size(); i++) {
       output.writeEnumNoTag(containerType_.get(i));
+    }
+    for (int i = 0; i < containerName_.size(); i++) {
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 4, containerName_.getRaw(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -332,6 +390,14 @@ private static final long serialVersionUID = 0L;
           .computeUInt32SizeNoTag(dataSize);
       }containerTypeMemoizedSerializedSize = dataSize;
     }
+    {
+      int dataSize = 0;
+      for (int i = 0; i < containerName_.size(); i++) {
+        dataSize += computeStringSizeNoTag(containerName_.getRaw(i));
+      }
+      size += dataSize;
+      size += 1 * getContainerNameList().size();
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -354,6 +420,8 @@ private static final long serialVersionUID = 0L;
     }
     if (!operation_.equals(other.operation_)) return false;
     if (!containerType_.equals(other.containerType_)) return false;
+    if (!getContainerNameList()
+        .equals(other.getContainerNameList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -376,6 +444,10 @@ private static final long serialVersionUID = 0L;
     if (getContainerTypeCount() > 0) {
       hash = (37 * hash) + CONTAINERTYPE_FIELD_NUMBER;
       hash = (53 * hash) + containerType_.hashCode();
+    }
+    if (getContainerNameCount() > 0) {
+      hash = (37 * hash) + CONTAINERNAME_FIELD_NUMBER;
+      hash = (53 * hash) + getContainerNameList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -527,6 +599,8 @@ private static final long serialVersionUID = 0L;
       bitField0_ = (bitField0_ & ~0x00000002);
       containerType_ = java.util.Collections.emptyList();
       bitField0_ = (bitField0_ & ~0x00000004);
+      containerName_ =
+          com.google.protobuf.LazyStringArrayList.emptyList();
       return this;
     }
 
@@ -580,6 +654,10 @@ private static final long serialVersionUID = 0L;
             ? entityType_
             : entityTypeBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000008) != 0)) {
+        containerName_.makeImmutable();
+        result.containerName_ = containerName_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -651,6 +729,16 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       }
+      if (!other.containerName_.isEmpty()) {
+        if (containerName_.isEmpty()) {
+          containerName_ = other.containerName_;
+          bitField0_ |= 0x00000008;
+        } else {
+          ensureContainerNameIsMutable();
+          containerName_.addAll(other.containerName_);
+        }
+        onChanged();
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -718,6 +806,12 @@ private static final long serialVersionUID = 0L;
               input.popLimit(oldLimit);
               break;
             } // case 26
+            case 34: {
+              java.lang.String s = input.readStringRequireUtf8();
+              ensureContainerNameIsMutable();
+              containerName_.add(s);
+              break;
+            } // case 34
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1264,6 +1358,153 @@ private static final long serialVersionUID = 0L;
       for (int value : values) {
         containerType_.add(value);
       }
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.LazyStringArrayList containerName_ =
+        com.google.protobuf.LazyStringArrayList.emptyList();
+    private void ensureContainerNameIsMutable() {
+      if (!containerName_.isModifiable()) {
+        containerName_ = new com.google.protobuf.LazyStringArrayList(containerName_);
+      }
+      bitField0_ |= 0x00000008;
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @return A list containing the containerName.
+     */
+    public com.google.protobuf.ProtocolStringList
+        getContainerNameList() {
+      containerName_.makeImmutable();
+      return containerName_;
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @return The count of containerName.
+     */
+    public int getContainerNameCount() {
+      return containerName_.size();
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @param index The index of the element to return.
+     * @return The containerName at the given index.
+     */
+    public java.lang.String getContainerName(int index) {
+      return containerName_.get(index);
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @param index The index of the value to return.
+     * @return The bytes of the containerName at the given index.
+     */
+    public com.google.protobuf.ByteString
+        getContainerNameBytes(int index) {
+      return containerName_.getByteString(index);
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @param index The index to set the value at.
+     * @param value The containerName to set.
+     * @return This builder for chaining.
+     */
+    public Builder setContainerName(
+        int index, java.lang.String value) {
+      if (value == null) { throw new NullPointerException(); }
+      ensureContainerNameIsMutable();
+      containerName_.set(index, value);
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @param value The containerName to add.
+     * @return This builder for chaining.
+     */
+    public Builder addContainerName(
+        java.lang.String value) {
+      if (value == null) { throw new NullPointerException(); }
+      ensureContainerNameIsMutable();
+      containerName_.add(value);
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @param values The containerName to add.
+     * @return This builder for chaining.
+     */
+    public Builder addAllContainerName(
+        java.lang.Iterable<java.lang.String> values) {
+      ensureContainerNameIsMutable();
+      com.google.protobuf.AbstractMessageLite.Builder.addAll(
+          values, containerName_);
+      bitField0_ |= 0x00000008;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearContainerName() {
+      containerName_ =
+        com.google.protobuf.LazyStringArrayList.emptyList();
+      bitField0_ = (bitField0_ & ~0x00000008);;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * the name of the container (e.g. attribute name, associated data name, reference name)
+     * </pre>
+     *
+     * <code>repeated string containerName = 4;</code>
+     * @param value The bytes of the containerName to add.
+     * @return This builder for chaining.
+     */
+    public Builder addContainerNameBytes(
+        com.google.protobuf.ByteString value) {
+      if (value == null) { throw new NullPointerException(); }
+      checkByteStringIsUtf8(value);
+      ensureContainerNameIsMutable();
+      containerName_.add(value);
+      bitField0_ |= 0x00000008;
       onChanged();
       return this;
     }
