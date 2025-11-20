@@ -4,27 +4,27 @@ mutation {
       # first create stubs of the entity schemas that the product will reference
       {
         createEntitySchemaMutation: {
-          entityType: "Brand"
+          name: "Brand"
         }
       },
       {
         createEntitySchemaMutation: {
-          entityType: "Category"
+          name: "Category"
         }
       },
       {
         createEntitySchemaMutation: {
-          entityType: "Stock"
+          name: "Stock"
         }
       },
       {
         createEntitySchemaMutation: {
-          entityType: "Product"
+          name: "Product"
         }
       },
       {
         modifyEntitySchemaMutation: {
-          entityType: "Product"
+          name: "Product"
           schemaMutations: [
             # all is strictly verified but associated data and references can be added on the fly
             {
