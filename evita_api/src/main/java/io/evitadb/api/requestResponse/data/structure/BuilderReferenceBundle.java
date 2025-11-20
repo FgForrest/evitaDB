@@ -119,7 +119,7 @@ class BuilderReferenceBundle {
 	 * @return {@code true} if the bundle is initialized; {@code false} otherwise.
 	 */
 	public boolean isInitialized() {
-		return this.initialized || !this.internalPkToRepRefKeys.isEmpty();
+		return this.initialized;
 	}
 
 	/**
