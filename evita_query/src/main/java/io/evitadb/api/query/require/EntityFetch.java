@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -79,7 +79,6 @@ import java.util.stream.Stream;
 	supportedIn = {ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.FACET}
 )
 public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
-
 	@Serial private static final long serialVersionUID = -781235795350040285L;
 
 	protected EntityFetch(RequireConstraint[] requireConstraints) {

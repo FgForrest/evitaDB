@@ -28,12 +28,15 @@ import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -50,9 +53,10 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
-import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -222,8 +226,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				categoryDecorator.getAssociatedDataPredicate(),
 				categoryDecorator.getReferencePredicate(),
 				categoryDecorator.getPricePredicate(),
-				categoryDecorator.getAlignedNow(),
-				ReferenceFetcher.NO_IMPLEMENTATION
+				categoryDecorator.getAlignedNow()
 			);
 		}
 
@@ -1919,6 +1922,83 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						assertEquals(1, categoryRef.getAttributeValues().size());
 						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
 					}
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, multiple reference sets with different filtering settings could be fetched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchMultipleNamedReferenceSets(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> {
+				final Map<Boolean, Long> shadow = it.getReferences(Entities.CATEGORY)
+					.stream()
+					.collect(
+						Collectors.groupingBy(
+							ref -> ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class),
+							Collectors.counting()
+						)
+					);
+				return shadow.getOrDefault(true, 0L) > 0 && shadow.getOrDefault(false, 0L) > 0;
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"shadowfull",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.CATEGORY },
+									new RequireConstraint[]{ attributeContentAll(), entityFetchAll() },
+									new Constraint[]{
+										filterBy(attributeEquals(ATTRIBUTE_CATEGORY_SHADOW, true))
+									}
+								),
+								new ReferenceContent(
+									"shadowless",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.CATEGORY },
+									new RequireConstraint[]{ attributeContentAll(), entityFetchAll() },
+									new Constraint[]{
+										filterBy(attributeEquals(ATTRIBUTE_CATEGORY_SHADOW, false))
+									}
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> shadowfull = serverEntity.getReferencesForReferenceContentInstance(
+						"shadowfull"
+					);
+					shadowfull.forEach(ref -> assertTrue(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
+					final DataChunk<ReferenceContract> shadowless = serverEntity.getReferencesForReferenceContentInstance(
+						"shadowless"
+					);
+					shadowless.forEach(ref -> assertFalse(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
+					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
+					assertFalse(allCategories.isEmpty());
+					assertEquals(allCategories.size(), shadowfull.getTotalRecordCount() + shadowless.getTotalRecordCount());
 				}
 				return null;
 			}

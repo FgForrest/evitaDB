@@ -192,7 +192,7 @@ public class AbstractHundredProductsFunctionalTest {
 										whichIs.indexedForFilteringAndPartitioning()
 											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
 											.withAttribute(ATTRIBUTE_CATEGORY_LABEL, String.class, thatIs -> thatIs.localized())
-											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)
+											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class, thatIs -> thatIs.filterable())
 								)
 								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -625,6 +625,8 @@ public class EvitaDataTypes {
 				unknownObject : ((Enum<?>)unknownObject).name();
 		} else if (SUPPORTED_QUERY_DATA_TYPES.contains(unknownObject.getClass())) {
 			return unknownObject;
+		} else if (unknownObject.getClass().isAnnotationPresent(SupportedClass.class)) {
+			return unknownObject;
 		} else {
 			throw new UnsupportedDataTypeException(unknownObject.getClass(), SUPPORTED_QUERY_DATA_TYPES);
 		}
@@ -742,6 +744,8 @@ public class EvitaDataTypes {
 			throw new GenericEvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
 			);
+		} else if (value.getClass().isAnnotationPresent(SupportedClass.class)) {
+			return value.toString();
 		}
 		throw new UnsupportedDataTypeException(value.getClass(), EvitaDataTypes.getSupportedDataTypes());
 	}

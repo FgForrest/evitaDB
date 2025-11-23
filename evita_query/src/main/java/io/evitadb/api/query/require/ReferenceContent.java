@@ -40,6 +40,7 @@ import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.dataType.SupportedClass;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -191,7 +192,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
 	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
 
-	private ReferenceContent(
+	/**
+	 * Internal constructor used in GraphQL API to define multiple reference content definitions and for cloning purposes.
+	 *
+	 * @see <a href="https://github.com/FgForrest/evitaDB/issues/902">Issue #902</a>
+	 */
+	public ReferenceContent(
+		@Nullable String name,
 		@Nonnull ManagedReferencesBehaviour managedReferences,
 		@Nonnull String[] referenceName,
 		@Nonnull RequireConstraint[] requirements,
@@ -199,10 +206,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	) {
 		super(
 			ArrayUtils.mergeArrays(
-				new Serializable[]{managedReferences},
+				name == null ?
+					new Serializable[]{managedReferences} :
+					new Serializable[]{new ReferenceContentName(name), managedReferences},
 				referenceName
 			),
-			requirements, additionalChildren
+			requirements,
+			additionalChildren
 		);
 	}
 
@@ -629,6 +639,22 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	/**
+	 * Returns name of the reference instance (alias) if specified. This name allows multiple occurrences of the same
+	 * reference content definition with different names (aliases) within single {@link EntityFetch} container.
+	 *
+	 * @return reference instance name or null
+	 */
+	@Nullable
+	public String getInstanceName() {
+		return Arrays.stream(getArguments())
+			.filter(ReferenceContentName.class::isInstance)
+			.map(ReferenceContentName.class::cast)
+			.map(ReferenceContentName::name)
+			.findFirst()
+			.orElse(null);
+	}
+
+	/**
 	 * Returns name of reference which should be loaded along with entity.
 	 * Note: this can be used only if there is single reference name. Otherwise {@link #getReferenceNames()} should be used.
 	 */
@@ -781,6 +807,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+		final String instanceName = getInstanceName();
+		Assert.isPremiseValid(
+			instanceName == null,
+			() -> "Cannot clone ReferenceContent with instance name " + instanceName + " using this method!"
+		);
 		final ManagedReferencesBehaviour thisBehaviour = getManagedReferencesBehaviour();
 		final ManagedReferencesBehaviour thatBehaviour = Arrays.stream(newArguments)
 			.filter(ManagedReferencesBehaviour.class::isInstance)
@@ -788,6 +819,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			.findFirst()
 			.orElse(ManagedReferencesBehaviour.ANY);
 		return new ReferenceContent(
+			null,
 			thisBehaviour == thatBehaviour ? thisBehaviour : ManagedReferencesBehaviour.EXISTING,
 			Arrays.stream(newArguments)
 				.filter(String.class::isInstance)
@@ -830,19 +862,32 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
 			throw new EvitaInvalidUsageException("Expected single or no additional filter and order child query.");
 		}
-		return new ReferenceContent(getManagedReferencesBehaviour(), getReferenceNames(), children, additionalChildren);
+		return new ReferenceContent(
+			getInstanceName(),
+			getManagedReferencesBehaviour(),
+			getReferenceNames(),
+			children,
+			additionalChildren
+		);
 	}
 
 	@Override
 	public <T extends EntityContentRequire> boolean isCombinableWith(@Nonnull T anotherRequirement) {
 		return anotherRequirement instanceof ReferenceContent referenceContent &&
 			this.isSingleReference() && referenceContent.isSingleReference() &&
-			this.getReferenceName().equals(referenceContent.getReferenceName());
+			this.getReferenceName().equals(referenceContent.getReferenceName()) &&
+			this.getInstanceName() == null && referenceContent.getInstanceName() == null;
 	}
 
 	@Override
 	public <T extends EntityContentRequire> boolean isFullyContainedWithin(@Nonnull T anotherRequirement) {
+		if (this.getInstanceName() != null) {
+			return false;
+		}
 		if (anotherRequirement instanceof ReferenceContent referenceContent) {
+			if (referenceContent.getInstanceName() != null) {
+				return false;
+			}
 			final String[] thatReferenceNames = referenceContent.getReferenceNames();
 			if (thatReferenceNames.length > 0) {
 				for (String referenceName : getReferenceNames()) {
@@ -895,6 +940,15 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 			return (T) this;
 		} else {
 			final ReferenceContent anotherReferenceContent = (ReferenceContent) anotherRequirement;
+			final String instanceName = getInstanceName();
+			Assert.isPremiseValid(
+				instanceName == null,
+				() -> "Cannot clone ReferenceContent with instance name " + instanceName + " using this method!"
+			);
+			Assert.isPremiseValid(
+				anotherReferenceContent.getInstanceName() == null,
+				() -> "Cannot combine ReferenceContent with instance name " + anotherReferenceContent.getInstanceName() + "!"
+			);
 			if (anotherReferenceContent.isAllRequested()) {
 				if (getManagedReferencesBehaviour() == anotherReferenceContent.getManagedReferencesBehaviour()) {
 					return anotherRequirement;
@@ -964,6 +1018,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 				}
 
 				return (T) new ReferenceContent(
+					null,
 					managedReferencesBehaviour,
 					referenceNames,
 					Arrays.stream(
@@ -992,4 +1047,22 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	private boolean isSingleReference() {
 		return this.getReferenceNames().length == 1;
 	}
+
+	/**
+	 * Helper record to store name as argument and distinguish it from referenceNames (which are also strings).
+	 * @param name name of the reference content instance
+	 */
+	@SupportedClass
+	private record ReferenceContentName(
+		@Nonnull String name
+	) implements Serializable {
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return this.name;
+		}
+
+	}
+
 }

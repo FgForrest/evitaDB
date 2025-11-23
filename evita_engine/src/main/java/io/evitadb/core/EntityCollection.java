@@ -38,6 +38,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
@@ -94,8 +95,8 @@ import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.response.ServerBinaryEntityDecorator;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.sequence.SequenceService;
@@ -596,14 +597,17 @@ public final class EntityCollection implements
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
+		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
+			namedReferenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&
 			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
+				namedReferenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
 				entity,
@@ -616,6 +620,7 @@ public final class EntityCollection implements
 			entity,
 			evitaRequest,
 			() -> applyReferenceFetcher(
+				evitaRequest,
 				enrichEntityInternal(entity, evitaRequest),
 				referenceFetcher
 			)
@@ -705,6 +710,7 @@ public final class EntityCollection implements
 			);
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 		return applyReferenceFetcher(
+			evitaRequest,
 			internalEntity,
 			referenceFetcher
 		);
@@ -740,6 +746,7 @@ public final class EntityCollection implements
 				evitaRequest,
 				() -> of(
 					(T) applyReferenceFetcher(
+						evitaRequest,
 						entity,
 						referenceFetcher
 					)
@@ -800,6 +807,7 @@ public final class EntityCollection implements
 								entity,
 								evitaRequest,
 								() -> (T) applyReferenceFetcherInternal(
+									evitaRequest,
 									referenceFetcher.initReferenceIndex(entity, this),
 									referenceFetcher
 								)
@@ -856,7 +864,7 @@ public final class EntityCollection implements
 				session.getId(),
 				entity,
 				evitaRequest,
-				() -> of((T) applyReferenceFetcher(entity, referenceFetcher))
+				() -> of((T) applyReferenceFetcher(evitaRequest, entity, referenceFetcher))
 			);
 		} else {
 			return empty();
@@ -888,7 +896,7 @@ public final class EntityCollection implements
 				session.getId(),
 				entity,
 				evitaRequest,
-				() -> of((T) applyReferenceFetcher(entity, referenceFetcher))
+				() -> of((T) applyReferenceFetcher(evitaRequest, entity, referenceFetcher))
 			);
 		} else {
 			return empty();
@@ -1245,6 +1253,7 @@ public final class EntityCollection implements
 			.toList();
 
 		return applyReferenceFetcher(
+			evitaRequest,
 			entityDecorators.stream().map(it -> limitEntity(it, evitaRequest, session)).toList(),
 			referenceFetcher
 		);
@@ -1302,6 +1311,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	public ServerEntityDecorator applyReferenceFetcher(
+		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull ReferenceFetcher referenceFetcher
 	) throws EntityAlreadyRemovedException {
@@ -1309,7 +1319,11 @@ public final class EntityCollection implements
 			return (ServerEntityDecorator) sealedEntity;
 		} else {
 			referenceFetcher.initReferenceIndex(sealedEntity, this);
-			return applyReferenceFetcherInternal((ServerEntityDecorator) sealedEntity, referenceFetcher);
+			return applyReferenceFetcherInternal(
+				evitaRequest,
+				(ServerEntityDecorator) sealedEntity,
+				referenceFetcher
+			);
 		}
 	}
 
@@ -1324,6 +1338,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	public List<SealedEntity> applyReferenceFetcher(
+		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull List<SealedEntity> sealedEntities,
 		@Nonnull ReferenceFetcher referenceFetcher
 	) throws EntityAlreadyRemovedException {
@@ -1332,7 +1347,7 @@ public final class EntityCollection implements
 		} else {
 			return referenceFetcher.initReferenceIndex(sealedEntities, this)
 				.stream()
-				.map(it -> applyReferenceFetcherInternal((ServerEntityDecorator) it, referenceFetcher))
+				.map(it -> applyReferenceFetcherInternal(evitaRequest, (ServerEntityDecorator) it, referenceFetcher))
 				.map(SealedEntity.class::cast)
 				.toList();
 		}
@@ -1396,9 +1411,7 @@ public final class EntityCollection implements
 					// propagate information about I/O fetch count
 					entityWithFetchCount.ioFetchCount(),
 					// propagate information about I/O fetched bytes
-					entityWithFetchCount.ioFetchedBytes(),
-					// recursive entity loader
-					ReferenceFetcher.NO_IMPLEMENTATION
+					entityWithFetchCount.ioFetchedBytes()
 				);
 			}
 		} else {
@@ -1527,6 +1540,7 @@ public final class EntityCollection implements
 		@Nonnull ReferenceFetcher referenceFetcher
 	) {
 		return applyReferenceFetcher(
+			fetchRequest,
 			entities
 				.stream()
 				.map(it -> enrichEntityInternal(it, fetchRequest))
@@ -1852,7 +1866,7 @@ public final class EntityCollection implements
 		// retrieve current version of entity
 		return fetchEntityDecorator(primaryKey, evitaRequest, session)
 			.map(it -> limitEntity(it, evitaRequest, session))
-			.map(it -> applyReferenceFetcher(it, referenceFetcher));
+			.map(it -> applyReferenceFetcher(evitaRequest, it, referenceFetcher));
 	}
 
 	/**
@@ -2165,9 +2179,7 @@ public final class EntityCollection implements
 			// propagate information about I/O fetch count
 			entityWithFetchCount.ioFetchCount(),
 			// propagate information about I/O fetched bytes
-			entityWithFetchCount.ioFetchedBytes(),
-			// recursive entity loader
-			ReferenceFetcher.NO_IMPLEMENTATION
+			entityWithFetchCount.ioFetchedBytes()
 		);
 	}
 
@@ -2218,14 +2230,17 @@ public final class EntityCollection implements
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
+		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
 		final QueryPlanningContext queryContext = createQueryContext(evitaRequest, session);
 		return referenceEntityFetch.isEmpty() &&
+			namedReferenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&
 			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
+				namedReferenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				queryContext.createExecutionContext(),
 				new ServerChunkTransformerAccessor(evitaRequest)
@@ -2241,6 +2256,7 @@ public final class EntityCollection implements
 	 */
 	@Nonnull
 	private ServerEntityDecorator applyReferenceFetcherInternal(
+		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull ServerEntityDecorator sealedEntity,
 		@Nonnull ReferenceFetcher referenceFetcher
 	) {
@@ -2261,7 +2277,7 @@ public final class EntityCollection implements
 			parentEntity = null;
 		}
 
-		return new ServerEntityDecorator(sealedEntity, parentEntity, referenceFetcher);
+		return new ServerEntityDecorator(evitaRequest, sealedEntity, parentEntity, referenceFetcher);
 	}
 
 	/**
@@ -2285,8 +2301,7 @@ public final class EntityCollection implements
 			new PriceContractSerializablePredicate(evitaRequest, contextAvailable),
 			evitaRequest.getAlignedNow(),
 			fullEntityWithCount.ioFetchCount(),
-			fullEntityWithCount.ioFetchedBytes(),
-			ReferenceFetcher.NO_IMPLEMENTATION
+			fullEntityWithCount.ioFetchedBytes()
 		);
 	}
 

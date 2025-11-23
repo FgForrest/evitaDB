@@ -466,25 +466,14 @@ public class Entity implements SealedEntity {
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow,
-		@Nullable ReferenceFetcher referenceFetcher
+		@Nonnull OffsetDateTime alignedNow
 	) {
-		return referenceFetcher == null || referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION ?
-			new EntityDecorator(
+		return new EntityDecorator(
 				entity, entitySchema, parentEntity,
 				localePredicate, hierarchyPredicate,
 				attributePredicate, associatedDataValuePredicate,
 				referencePredicate, pricePredicate,
 				alignedNow
-			)
-			:
-			new EntityDecorator(
-				entity, entitySchema, parentEntity,
-				localePredicate, hierarchyPredicate,
-				attributePredicate, associatedDataValuePredicate,
-				referencePredicate, pricePredicate,
-				alignedNow,
-				referenceFetcher
 			);
 	}
 
