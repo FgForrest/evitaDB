@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
+import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
@@ -32,8 +33,10 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
@@ -64,14 +67,23 @@ import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
- * Custom constraint resolver which resolves additional constraints from output fields defined by client, rather
- * than using main query.
- * Resolves {@link io.evitadb.api.query.require.FacetSummary}s based on which extra result fields client specified.
+ * FacetSummaryResolver is a utility class responsible for resolving facet summary-related GraphQL query requirements.
+ * It translates requested GraphQL selection sets into appropriate constraints and fetch requirements used for data retrieval.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * The primary objective of this class is to streamline the process of interpreting GraphQL queries
+ * and transforming them into the internal constraints used within the data-fetching framework.
+ *
+ * This class primarily works with entity schemas, reference schemas, and various resolvers to handle
+ * facets, filters, and ordering constraints for the requested fields. It operates within the context
+ * of a specified entity schema and its references, aiming to resolve and construct the necessary requirements.
+ *
+ * General Responsibilities:
+ * - Handles the resolution of extra result fields such as facet summaries and their scoped constraints.
+ * - Processes reference fields and determines the corresponding constraints for filtering, ordering, and statistic depth.
+ * - Resolves details related to grouped facets and facet statistics based on the provided selection set.
  */
 @RequiredArgsConstructor
-public class FacetSummaryResolver {
+public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 	/**
@@ -92,16 +104,27 @@ public class FacetSummaryResolver {
 		}
 
 		return facetSummaryFields.stream()
-			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
-			.map(f -> resolveFacetSummaryOfReference(f, desiredLocale))
+			.flatMap(facetSummaryField -> {
+				final Scope scope = resolveScope(facetSummaryField);
+				final DataFetchingFieldSelectionSet nestedFields = facetSummaryField.getSelectionSet();
+
+				return SelectionSetAggregator.getImmediateFields(nestedFields)
+					.stream()
+					.map(facetSummaryOfReferenceField -> new FacetSummaryOfReferenceFieldWithScopeInformation(facetSummaryOfReferenceField, scope));
+			})
+			.map(f -> resolveFacetSummaryOfReference(f.field(), f.scope(), desiredLocale))
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
-				throw new GraphQLInvalidResponseUsageException("Duplicate facet summaries for single reference.");
+				throw new GraphQLInvalidResponseUsageException(
+					"Duplicate facet summaries for single reference. For each reference name, there can be only one " +
+						"facet summary definition. Even across different scopes."
+				);
 			}))
 			.values();
 	}
 
 	@Nonnull
 	private Entry<String, RequireConstraint> resolveFacetSummaryOfReference(@Nonnull SelectedField field,
+																			@Nullable Scope scope,
 	                                                                        @Nullable Locale desiredLocale) {
 		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + this.entitySchema.getName() + "`."));
@@ -150,14 +173,20 @@ public class FacetSummaryResolver {
 		final EntityFetch facetEntityFetch = resolveFacetEntityFetch(field, desiredLocale, referenceName).orElse(null);
 		final EntityGroupFetch groupEntityFetch = resolveGroupEntityFetch(field, desiredLocale, referenceName).orElse(null);
 
+		final FacetSummaryOfReference facetSummaryOfReference =
+			facetSummaryOfReference(referenceName, depth, filterBy, filterGroupBy, orderBy, orderGroupBy, facetEntityFetch, groupEntityFetch);
+		Assert.isPremiseValid(
+			facetSummaryOfReference != null,
+			() -> new GraphQLQueryResolvingInternalError("Could not resolve facet summary of reference `" + referenceName + "`. It is null.")
+		);
 		return new SimpleEntry<>(
 			referenceName,
-			facetSummaryOfReference(referenceName, depth, filterBy, filterGroupBy, orderBy, orderGroupBy, facetEntityFetch, groupEntityFetch)
+			wrapInScopeConstraint(scope, facetSummaryOfReference)
 		);
 	}
 
 	@Nonnull
-	private FacetStatisticsDepth resolveStatisticsDepth(@Nonnull SelectedField field) {
+	private static FacetStatisticsDepth resolveStatisticsDepth(@Nonnull SelectedField field) {
 		final boolean impactNeeded = SelectionSetAggregator.getImmediateFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet())
 			.stream()
 			.anyMatch(f2 -> SelectionSetAggregator.containsImmediate(FacetStatisticsDescriptor.IMPACT.name(), f2.getSelectionSet()));
@@ -236,4 +265,12 @@ public class FacetSummaryResolver {
 				this.referencedGroupEntitySchemas.get(referenceName)
 			));
 	}
+
+	/**
+	 * Enriches a facet summary of reference field with scope based on nesting of the field.
+	 */
+	private record FacetSummaryOfReferenceFieldWithScopeInformation(
+		@Nonnull SelectedField field,
+		@Nullable Scope scope
+	) {}
 }

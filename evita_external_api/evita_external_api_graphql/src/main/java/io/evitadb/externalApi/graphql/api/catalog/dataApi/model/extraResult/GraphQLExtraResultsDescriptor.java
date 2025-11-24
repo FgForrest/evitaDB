@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,21 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
-import io.evitadb.api.query.require.HistogramBehavior;
-import io.evitadb.dataType.Scope;
-
-import javax.annotation.Nullable;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * Temporary holder for single histogram request parameters.
+ * Extension of {@link io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor}
+ * for GraphQL specific fields.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-record HistogramRequest(
-	@Nullable Scope scope,
-	int requestedBucketCount,
-	@Nullable HistogramBehavior behavior
-) {
+public interface GraphQLExtraResultsDescriptor extends ExtraResultsDescriptor {
+
+	PropertyDescriptor IN_SCOPE = PropertyDescriptor.builder()
+		.name("inScope")
+		.description("""
+             Encloses set of extra results that should be computed only for entities in specific scope.
+             """)
+		// type is expected to be extra results fields wrapped in `inScope` container
+		.build();
 }

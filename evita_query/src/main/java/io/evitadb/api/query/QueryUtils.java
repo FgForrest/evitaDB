@@ -81,6 +81,15 @@ public class QueryUtils {
 	}
 
 	/**
+	 * Method finds constraint of specified type in the passed constraint container and returns it. Lookup will ignore
+	 * all containers that are assignable to `stopContainerType`.
+	 */
+	@Nonnull
+	public static <T extends Constraint<?>> List<T> findConstraints(@Nonnull Constraint<?> constraint, @Nonnull Class<T> constraintType, @Nonnull Class<? extends Constraint<?>> stopContainerType) {
+		return FinderVisitor.findConstraints(constraint, new ConstraintTypeMatcher(constraintType), cnt -> cnt != constraint && stopContainerType.isInstance(cnt));
+	}
+
+	/**
 	 * Method finds all constraints in the query by passed predicate.
 	 */
 	@Nonnull
@@ -89,12 +98,11 @@ public class QueryUtils {
 	}
 
 	/**
-	 * Method finds constraint of specified type in the passed constraint container and returns it. Lookup will ignore
-	 * all containers that are assignable to `stopContainerType`.
+	 * Method finds all constraints in the query by passed predicate.
 	 */
 	@Nonnull
-	public static <T extends Constraint<?>> List<T> findConstraints(@Nonnull Constraint<?> constraint, @Nonnull Class<T> constraintType, @Nonnull Class<? extends Constraint<?>> stopContainerType) {
-		return FinderVisitor.findConstraints(constraint, new ConstraintTypeMatcher(constraintType), cnt -> cnt != constraint && stopContainerType.isInstance(cnt));
+	public static <T extends Constraint<?>> List<T> findConstraints(@Nonnull Constraint<?> constraint, @Nonnull Predicate<Constraint<?>> predicate, @Nonnull Predicate<Constraint<?>> stopper) {
+		return FinderVisitor.findConstraints(constraint, predicate, stopper);
 	}
 
 	/**

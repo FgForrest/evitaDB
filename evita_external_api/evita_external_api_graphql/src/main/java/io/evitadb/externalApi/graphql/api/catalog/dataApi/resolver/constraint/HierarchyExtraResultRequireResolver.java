@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
+import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
@@ -30,6 +31,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
@@ -76,7 +78,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class HierarchyExtraResultRequireResolver {
+public class HierarchyExtraResultRequireResolver extends AbstractExtraResultConstraintResolver {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
@@ -93,12 +95,22 @@ public class HierarchyExtraResultRequireResolver {
 		}
 
 		return hierarchyFields.stream()
-			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
-			.map(referenceField -> {
-				if (HierarchyDescriptor.SELF.name().equals(referenceField.getName())) {
-					return resolveHierarchyOfSelf(referenceField, desiredLocale);
+			.flatMap(hierarchyField -> {
+				final Scope scope = resolveScope(hierarchyField);
+				final DataFetchingFieldSelectionSet nestedFields = hierarchyField.getSelectionSet();
+
+				return SelectionSetAggregator.getImmediateFields(nestedFields)
+					.stream()
+					.map(hierarchyOfType -> new HierarchyOfTypeFieldWithScopeInformation(hierarchyOfType, scope));
+			})
+			.map(hierarchyOfTypeFieldWithScopeInformation -> {
+				final SelectedField field = hierarchyOfTypeFieldWithScopeInformation.field();
+				final Scope scope = hierarchyOfTypeFieldWithScopeInformation.scope();
+
+				if (HierarchyDescriptor.SELF.name().equals(field.getName())) {
+					return resolveHierarchyOfSelf(field, scope, desiredLocale);
 				} else {
-					return resolveHierarchyOfReference(referenceField, desiredLocale);
+					return resolveHierarchyOfReference(field, scope, desiredLocale);
 				}
 			})
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
@@ -107,10 +119,14 @@ public class HierarchyExtraResultRequireResolver {
 			.values();
 	}
 
-	@Nonnull
-	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(@Nonnull SelectedField field,
-	                                                                @Nullable Locale desiredLocale) {
 
+
+	@Nonnull
+	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(
+		@Nonnull SelectedField field,
+		@Nullable Scope scope,
+		@Nullable Locale desiredLocale
+	) {
 		final OrderBy orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyHeaderDescriptor.ORDER_BY.name()))
 			.map(it -> this.orderConstraintResolver.resolve(
 				new EntityDataLocator(new ManagedEntityTypePointer(this.entitySchema.getName())),
@@ -127,12 +143,22 @@ public class HierarchyExtraResultRequireResolver {
 		);
 
 		final HierarchyOfSelf hierarchyOfSelf = hierarchyOfSelf(orderBy, hierarchyRequires);
-		return new SimpleEntry<>(HierarchyDescriptor.SELF.name(), hierarchyOfSelf);
+		Assert.isPremiseValid(
+			hierarchyOfSelf != null,
+			() -> new GraphQLQueryResolvingInternalError("Could not resolve hierarchy of self. It is null.")
+		);
+		return new SimpleEntry<>(
+			HierarchyDescriptor.SELF.name(),
+			wrapInScopeConstraint(scope, hierarchyOfSelf)
+		);
 	}
 
 	@Nonnull
-	private Entry<String, RequireConstraint> resolveHierarchyOfReference(@Nonnull SelectedField field,
-	                                                                     @Nullable Locale desiredLocale) {
+	private Entry<String, RequireConstraint> resolveHierarchyOfReference(
+		@Nonnull SelectedField field,
+		@Nullable Scope scope,
+		@Nullable Locale desiredLocale
+	) {
 		final ReferenceSchemaContract referenceSchema = this.entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 			.orElseThrow(() ->
 				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + this.entitySchema.getName() + "`."));
@@ -174,7 +200,14 @@ public class HierarchyExtraResultRequireResolver {
 			orderBy,
 			hierarchyRequires
 		);
-		return new SimpleEntry<>(referenceName, hierarchyOfReference);
+		Assert.isPremiseValid(
+			hierarchyOfReference != null,
+			() -> new GraphQLQueryResolvingInternalError("Could not resolve hierarchy of reference `" + referenceName + "`. It is null.")
+		);
+		return new SimpleEntry<>(
+			referenceName,
+			wrapInScopeConstraint(scope, hierarchyOfReference)
+		);
 	}
 
 	@Nonnull
@@ -302,4 +335,12 @@ public class HierarchyExtraResultRequireResolver {
 
 		return new HierarchySiblings(null, stopAt);
 	}
+
+	/**
+	 * Enriches a hierarchy of type (self or reference) field with scope based on nesting of the field.
+	 */
+	private record HierarchyOfTypeFieldWithScopeInformation(
+		@Nonnull SelectedField field,
+		@Nullable Scope scope
+	) {}
 }

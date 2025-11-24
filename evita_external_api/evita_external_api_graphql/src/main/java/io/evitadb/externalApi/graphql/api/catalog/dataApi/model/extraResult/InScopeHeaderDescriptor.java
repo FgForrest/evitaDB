@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,21 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
-import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import javax.annotation.Nullable;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Temporary holder for single histogram request parameters.
+ * Defines arguments for {@link GraphQLExtraResultsDescriptor#IN_SCOPE}
+ * field.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
-record HistogramRequest(
-	@Nullable Scope scope,
-	int requestedBucketCount,
-	@Nullable HistogramBehavior behavior
-) {
+public interface InScopeHeaderDescriptor {
+
+	PropertyDescriptor SCOPE = PropertyDescriptor.builder()
+		.name("scope")
+		.description("Defines the scope to search the entities in.")
+		.type(nonNull(Scope.class))
+		.build();
 }
