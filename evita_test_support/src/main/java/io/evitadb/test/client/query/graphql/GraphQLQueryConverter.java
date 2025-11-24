@@ -56,7 +56,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -173,11 +172,7 @@ public class GraphQLQueryConverter {
 	) {
 		final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, query);
-		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, query);
-		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, query);
-		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, query);
-		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, query);
-		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, query);
+		final ExtraResultsConverter extraResultsConverter = new ExtraResultsConverter(catalogSchema, query);
 
 		final String entityType = ofNullable(query.getCollection())
 			.map(Collection::getEntityType)
@@ -195,47 +190,16 @@ public class GraphQLQueryConverter {
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
 						entityFetchConverter.convert(b2, entityType, locale, null)));
 		} else {
-			// builds records
 			final EntityFetch entityFetch = QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class);
 			final Page page = QueryUtils.findConstraint(require, Page.class, SeparateEntityContentRequireContainer.class);
 			final Strip strip = QueryUtils.findConstraint(require, Strip.class, SeparateEntityContentRequireContainer.class);
-			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, ExtraResultRequireConstraint.class::isInstance);
-			final QueryTelemetry queryTelemetry = QueryUtils.findConstraint(require, QueryTelemetry.class);
 
-			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, !extraResultConstraints.isEmpty());
+			final boolean extraResultConstraintsPresent = !QueryUtils.findConstraints(require, ExtraResultRequireConstraint.class::isInstance).isEmpty();
+			final boolean queryTelemetryPresent = QueryUtils.findConstraint(require, QueryTelemetry.class) != null;
 
-			// build extra results
-			if (!extraResultConstraints.isEmpty() || queryTelemetry != null) {
-				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
-					facetSummaryConverter.convert(
-						extraResultsBuilder,
-						entityType,
-						locale,
-						QueryUtils.findConstraint(require, FacetSummary.class),
-						QueryUtils.findConstraints(require, FacetSummaryOfReference.class)
-					);
-
-					hierarchyOfConverter.convert(
-						extraResultsBuilder,
-						entityType,
-						locale,
-						QueryUtils.findConstraint(require, HierarchyOfSelf.class),
-						QueryUtils.findConstraint(require, HierarchyOfReference.class)
-					);
-
-					Optional.of(QueryUtils.findConstraints(require, AttributeHistogram.class))
-						.ifPresent(attributeHistograms -> attributeHistogramConverter.convert(
-							extraResultsBuilder,
-							entityType,
-							attributeHistograms
-						));
-
-					ofNullable(QueryUtils.findConstraint(require, PriceHistogram.class))
-						.ifPresent(priceHistogram -> priceHistogramConverter.convert(extraResultsBuilder, priceHistogram));
-
-					ofNullable(queryTelemetry)
-						.ifPresent(it -> queryTelemetryConverter.convert(extraResultsBuilder, it));
-				});
+			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, extraResultConstraintsPresent);
+			if (extraResultConstraintsPresent || queryTelemetryPresent) {
+				extraResultsConverter.convert(fieldsBuilder, require, entityType, locale);
 			}
 		}
 

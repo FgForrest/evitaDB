@@ -52,12 +52,22 @@ scope, but the query is executed in the `ARCHIVED` scope, the engine will return
 
 </Note>
 
+<LS to="g">
+
+<Note type="warning">
+
+The `inScope` constraint container has limited support in GraphQL API (only extra results can be requested in specific scopes
+for now).
+You can check the status of the fully-featured support in the issue [#752](https://github.com/FgForrest/evitaDB/issues/752).
+
+</Note>
+
+</LS>
+
 For example, in our demo dataset we haven't created facet or hierarchy indexes for archived entities. The price 
 information is also not indexed. So if you tried to calculate facet summary or histogram information for entities in
 the archive scope, you'd get an error from the query engine. If you are querying entities in multiple scopes, you should
 use the `inScope` container and limit these calculations to only those scopes where the indexes are prepared:
-
-<LS to="e,j,c,r">
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -80,6 +90,12 @@ As you can see, the result contains calculations for the data that the engine ca
 ](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql.string.md)</MDInclude>
 
 </LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.inScope.priceHistogram">[##### The result of requested price histogram only for entities in live scope
+](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.graphql.json.md)</MDInclude>
+
+</LS>
 <LS to="r">
 
 <MDInclude sourceVariable="extraResults.priceHistogram">[##### The result of requested price histogram only for entities in live scope
@@ -88,18 +104,6 @@ As you can see, the result contains calculations for the data that the engine ca
 </LS>
 
 </Note>
-
-</LS>
-<LS to="g">
-
-<Note type="warning">
-
-Using `inScope` constraint container is not supported by the GraphQL API yet. You can check the status of the implementation
-in the issue [#752](https://github.com/FgForrest/evitaDB/issues/752). Otherwise, you can check out other languages/APIs.
-
-</Note>
-
-</LS>
 
 <Note type="info">
 
