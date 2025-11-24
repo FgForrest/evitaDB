@@ -27,6 +27,7 @@ import graphql.GraphQLContext;
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.HeadConstraint;
@@ -35,9 +36,6 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.filter.PriceInCurrency;
-import io.evitadb.api.query.filter.PriceInPriceLists;
-import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.head.Head;
 import io.evitadb.api.query.head.Label;
 import io.evitadb.api.query.order.OrderBy;
@@ -57,6 +55,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.FilterByAwareFie
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HeadAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.OrderByAwareFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RequireAwareFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.GraphQLExtraResultsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
@@ -68,9 +67,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.Currency;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -167,7 +164,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			this.requireConstraintResolver
 		);
 		this.attributeHistogramResolver = new AttributeHistogramResolver(entitySchema);
-		this.priceHistogramResolver = new PriceHistogramResolver();
+		this.priceHistogramResolver = PriceHistogramResolver.getInstance();
 		this.facetSummaryResolver = new FacetSummaryResolver(
 			entitySchema,
 			this.referencedEntitySchemas,
@@ -183,7 +180,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			this.orderConstraintResolver,
 			this.requireConstraintResolver
 		);
-		this.queryTelemetryResolver = new QueryTelemetryResolver();
+		this.queryTelemetryResolver = QueryTelemetryResolver.getInstance();
 	}
 
     @Nonnull
@@ -280,10 +277,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			}
 		}
 
-		final SelectionSetAggregator selectionSet = SelectionSetAggregator.from(environment.getSelectionSet());
+		final SelectionSetAggregator rootSelectionSet = SelectionSetAggregator.from(environment.getSelectionSet());
 
 		// build requires for returning records
-		final List<SelectedField> recordFields = selectionSet.getImmediateFields(Set.of(ResponseDescriptor.RECORD_PAGE.name(), ResponseDescriptor.RECORD_STRIP.name()));
+		final List<SelectedField> recordFields = rootSelectionSet.getImmediateFields(Set.of(ResponseDescriptor.RECORD_PAGE.name(), ResponseDescriptor.RECORD_STRIP.name()));
 		Assert.isTrue(
 			recordFields.size() <= 1,
 			() -> new GraphQLInvalidResponseUsageException(
@@ -299,10 +296,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			requireConstraints.add(this.pagingRequireResolver.resolve(recordField));
 
 			// build content requires
-			final List<SelectedField> recordData = SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), recordField.getSelectionSet());
-			if (!recordData.isEmpty()) {
+			final List<SelectedField> recordDataFields = SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), recordField.getSelectionSet());
+			if (!recordDataFields.isEmpty()) {
 				final SelectionSetAggregator selectionSetAggregator = SelectionSetAggregator.from(
-					recordData
+					recordDataFields
 						.stream()
 						.map(SelectedField::getSelectionSet)
 						.toList()
@@ -318,12 +315,24 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		}
 
 		// build extra result requires
-		final List<SelectedField> extraResults = selectionSet.getImmediateFields(ResponseDescriptor.EXTRA_RESULTS.name());
-		final SelectionSetAggregator extraResultsSelectionSet = SelectionSetAggregator.from(
-			extraResults.stream()
-				.map(SelectedField::getSelectionSet)
-				.toList()
-		);
+		final List<SelectedField> extraResultsFields = rootSelectionSet.getImmediateFields(ResponseDescriptor.EXTRA_RESULTS.name());
+		final List<DataFetchingFieldSelectionSet> extraResultsSelectionSets = new LinkedList<>();
+		for (final SelectedField extraResultsField : extraResultsFields) {
+			final DataFetchingFieldSelectionSet primarySelectionSetForField = extraResultsField.getSelectionSet();
+
+			extraResultsSelectionSets.add(primarySelectionSetForField);
+
+			// Hoists any scoped extra results fields to the root extra results fields to be able to recognize
+			// duplicate fields (evitaDB doesn't support the same extra results in multiple scopes at the same time,
+			// checkout issue https://github.com/FgForrest/evitaDB/issues/102)
+			final List<SelectedField> nestedInScopeFields = SelectionSetAggregator.getImmediateFields(
+				GraphQLExtraResultsDescriptor.IN_SCOPE.name(), primarySelectionSetForField);
+			for (final SelectedField nestedInScopeField : nestedInScopeFields) {
+				extraResultsSelectionSets.add(nestedInScopeField.getSelectionSet());
+			}
+		}
+		final SelectionSetAggregator extraResultsSelectionSet = SelectionSetAggregator.from(extraResultsSelectionSets);
+
 		requireConstraints.addAll(this.attributeHistogramResolver.resolve(extraResultsSelectionSet));
 		requireConstraints.add(this.priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
 		requireConstraints.addAll(this.facetSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));

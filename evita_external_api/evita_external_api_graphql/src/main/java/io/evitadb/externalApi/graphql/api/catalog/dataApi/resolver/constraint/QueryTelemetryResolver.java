@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,8 +27,11 @@ import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,7 +44,19 @@ import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class QueryTelemetryResolver {
+
+	@Nullable
+	private static QueryTelemetryResolver INSTANCE;
+
+	@Nonnull
+	public static QueryTelemetryResolver getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new QueryTelemetryResolver();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	public Optional<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet) {
