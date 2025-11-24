@@ -26,6 +26,10 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -47,6 +51,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for renaming an existing {@link EntitySchemaContract}. The mutation is used internally
@@ -128,6 +134,15 @@ public class ModifyEntitySchemaNameMutation
 	@Override
 	public String containerName() {
 		return this.name;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(this.name), new CollectionConflictKey(this.newName));
 	}
 
 	@Override

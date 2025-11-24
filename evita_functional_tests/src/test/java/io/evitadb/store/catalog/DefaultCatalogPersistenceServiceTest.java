@@ -168,6 +168,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
+		TEST_CATALOG,
 		this.transactionId,
 		this.kryo,
 		this.writeHandle
@@ -812,6 +813,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
 			TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
 			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
+			TransactionOptions.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			TransactionOptions.DEFAULT_FLUSH_FREQUENCY
 		);
 	}

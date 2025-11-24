@@ -26,6 +26,7 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionResolution;
@@ -38,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
@@ -95,13 +97,16 @@ public final class ConflictResolutionTransactionStage
 
 		Assert.isPremiseValid(
 			task.commitProgress() != null,
-			"Future is unexpectedly null on first stage!"
+			"Future is unexpectedly null in the first stage!"
 		);
 
 		final TransactionAcceptedEvent event = new TransactionAcceptedEvent(task.catalogName());
 
 		// identify conflicts with other transactions
-		this.transactionManager.identifyConflicts();
+		this.transactionManager.identifyConflicts(
+			task.commitProgress().getCommitStartTime(),
+			task.conflictKeys()
+		);
 
 		// assign new catalog version
 		final WalAppendingTransactionTask targetTask = new WalAppendingTransactionTask(
@@ -143,6 +148,7 @@ public final class ConflictResolutionTransactionStage
 	 * @param walSizeInBytes the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
 	 * @param catalogSchemaVersionDelta the difference between catalog schema version at the start of transaction and
 	 *                                  the end of transaction
+	 * @param conflictKeys the set of conflict keys involved in the transaction
 	 * @param walReference the reference to the WAL file
 	 * @param commitProgress the commit progress record for the transaction
 	 * @param transactionQueuedEvent the event to track the transaction
@@ -154,6 +160,7 @@ public final class ConflictResolutionTransactionStage
 		int mutationCount,
 		long walSizeInBytes,
 		int catalogSchemaVersionDelta,
+		@Nonnull Set<ConflictKey> conflictKeys,
 		@Nonnull OffHeapWithFileBackupReference walReference,
 		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
@@ -165,6 +172,7 @@ public final class ConflictResolutionTransactionStage
 			int mutationCount,
 			long walSizeInBytes,
 			int catalogSchemaVersionDelta,
+			@Nonnull Set<ConflictKey> conflictKeys,
 			@Nonnull OffHeapWithFileBackupReference walReference,
 			@Nonnull CommitProgressRecord commitProgress
 		) {
@@ -174,6 +182,7 @@ public final class ConflictResolutionTransactionStage
 				mutationCount,
 				walSizeInBytes,
 				catalogSchemaVersionDelta,
+				conflictKeys,
 				walReference,
 				commitProgress,
 				new TransactionQueuedEvent(catalogName, "conflict_resolution")

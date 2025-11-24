@@ -92,6 +92,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
 	);
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
+		TEST_CATALOG,
 		this.transactionId,
 		this.kryo,
 		this.writeHandle

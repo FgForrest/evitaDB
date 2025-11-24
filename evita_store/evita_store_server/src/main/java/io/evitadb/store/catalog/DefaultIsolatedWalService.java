@@ -26,14 +26,22 @@ package io.evitadb.store.catalog;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.CatalogConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -46,6 +54,14 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class DefaultIsolatedWalService implements IsolatedWalPersistenceService {
+	private static final Set<ConflictPolicy> CONFLICT_POLICIES = Set.of(
+		ConflictPolicy.CATALOG,
+		ConflictPolicy.ENTITY
+	);
+	/**
+	 * The catalogName is the name of the catalog associated with this isolated WAL instance.
+	 */
+	@Nonnull private final String catalogName;
 	/**
 	 * The transactionId is the unique identifier for the transaction.
 	 */
@@ -66,12 +82,18 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	 * The mutationSizeInBytes is the total size of the mutations written to this isolated WAL instance.
 	 */
 	@Getter private long mutationSizeInBytes;
+	/**
+	 * Container for the conflict keys registered for each of the mutations written to this isolated WAL instance.
+	 */
+	private final CompositeObjectArray<ConflictKey> conflictKeys = new CompositeObjectArray<>(ConflictKey.class);
 
 	public DefaultIsolatedWalService(
+		@Nonnull String catalogName,
 		@Nonnull UUID transactionId,
 		@Nonnull Kryo writeKryo,
 		@Nonnull WriteOnlyOffHeapWithFileBackupHandle writeHandle
 	) {
+		this.catalogName = catalogName;
 		this.transactionId = transactionId;
 		this.writeKryo = writeKryo;
 		this.writeHandle = writeHandle;
@@ -85,6 +107,23 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 			output -> {
 				final Mutation mutationToWrite = mutation instanceof ServerEntityMutation sem ?
 					sem.getDelegate() : mutation;
+				// collect conflict keys
+				final ConflictGenerationContext context = new ConflictGenerationContext();
+				final Iterator<ConflictKey> it = context.withCatalogName(
+					this.catalogName,
+					ctx -> mutationToWrite.collectConflictKeys(ctx, CONFLICT_POLICIES)
+				).iterator();
+				// register collected conflict keys
+				boolean conflictKeyCollected = false;
+				while (it.hasNext()) {
+					this.conflictKeys.add(it.next());
+					conflictKeyCollected = true;
+				}
+				// register catalog conflict key if none collected and catalog policy is requested
+				if (!conflictKeyCollected && CONFLICT_POLICIES.contains(ConflictPolicy.CATALOG)) {
+					this.conflictKeys.add(new CatalogConflictKey(this.catalogName));
+				}
+				// write the mutation
 				final StorageRecord<Mutation> record = new StorageRecord<>(
 					output, catalogVersion, false,
 					theOutput -> {
@@ -102,6 +141,20 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	@Override
 	public OffHeapWithFileBackupReference getWalReference() {
 		return this.writeHandle.toReadOffHeapWithFileBackupReference();
+	}
+
+	@Nonnull
+	@Override
+	public Set<ConflictKey> getConflictKeys() {
+		final Set<ConflictKey> resultConflictKeys = CollectionUtils.createHashSet(this.conflictKeys.getSize());
+		for (ConflictKey conflictKey : this.conflictKeys) {
+			resultConflictKeys.add(conflictKey);
+		}
+		if (resultConflictKeys.isEmpty() && CONFLICT_POLICIES.contains(ConflictPolicy.CATALOG)) {
+			// at least catalog conflict key must be present
+			resultConflictKeys.add(new CatalogConflictKey(this.catalogName));
+		}
+		return resultConflictKeys;
 	}
 
 	@Override

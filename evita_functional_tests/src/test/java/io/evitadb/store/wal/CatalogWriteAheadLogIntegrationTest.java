@@ -155,6 +155,7 @@ public class CatalogWriteAheadLogIntegrationTest {
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
 
 		final IsolatedWalPersistenceService walPersistenceService = new DefaultIsolatedWalService(
+			TEST_CATALOG,
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(

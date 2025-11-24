@@ -30,6 +30,10 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.AssociatedDataConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -42,7 +46,9 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Associated data {@link Mutation} allows to execute mutation operations on {@link AssociatedData} of
@@ -98,6 +104,23 @@ public abstract class AssociatedDataMutation implements NamedLocalMutation<Assoc
 	@Override
 	public AssociatedDataKey getComparableKey() {
 		return this.associatedDataKey;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.ASSOCIATED_DATA) && context.getEntityPrimaryKey() != null ?
+			Stream.of(
+				new AssociatedDataConflictKey(
+					context.getEntityType(),
+					context.getEntityPrimaryKey(),
+					this.associatedDataKey.associatedDataName()
+				)
+			) :
+			Stream.empty();
 	}
 
 	protected void verifyOrEvolveSchema(

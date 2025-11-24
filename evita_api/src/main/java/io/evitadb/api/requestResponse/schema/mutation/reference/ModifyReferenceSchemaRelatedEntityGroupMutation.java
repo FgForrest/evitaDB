@@ -59,7 +59,8 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class ModifyReferenceSchemaRelatedEntityGroupMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
+	extends AbstractModifyReferenceDataSchemaMutation
+	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 5652064385493788515L;
 	@Nullable @Getter private final String referencedGroupType;
 	@Getter private final boolean referencedGroupTypeManaged;

@@ -28,6 +28,10 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
@@ -45,6 +49,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -85,12 +90,6 @@ public class RemoveEntitySchemaMutation
 		return Operation.REMOVE;
 	}
 
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
-	}
-
 	@Nullable
 	@Override
 	public EntitySchemaContract mutate(
@@ -109,6 +108,21 @@ public class RemoveEntitySchemaMutation
 		final MutationPredicateContext context = predicate.getContext();
 		context.setEntityType(this.name);
 		return LocalCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(this.name));
 	}
 
 	@Override

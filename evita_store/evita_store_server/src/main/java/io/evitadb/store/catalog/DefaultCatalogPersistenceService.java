@@ -1784,6 +1784,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId) {
 		return new DefaultIsolatedWalService(
+			this.catalogName,
 			transactionId,
 			this.walKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(

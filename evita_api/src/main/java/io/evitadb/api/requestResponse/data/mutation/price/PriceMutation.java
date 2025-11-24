@@ -28,12 +28,18 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.PriceConflictKey;
 import io.evitadb.dataType.ContainerType;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Base mutation class for mutations that work with {@link Price} of the {@link Entity}.
@@ -58,6 +64,25 @@ public abstract class PriceMutation implements LocalMutation<PriceContract, Pric
 	protected PriceMutation(@Nonnull PriceKey priceKey, long decisiveTimestamp) {
 		this.priceKey = priceKey;
 		this.decisiveTimestamp = decisiveTimestamp;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.PRICE) && context.getEntityPrimaryKey() != null ?
+			Stream.of(
+				new PriceConflictKey(
+					context.getEntityType(),
+					context.getEntityPrimaryKey(),
+					this.priceKey.priceId(),
+					this.priceKey.currency(),
+					this.priceKey.priceList()
+				)
+			) :
+			Stream.empty();
 	}
 
 	@Nonnull

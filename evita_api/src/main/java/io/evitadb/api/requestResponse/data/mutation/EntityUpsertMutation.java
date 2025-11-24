@@ -31,6 +31,11 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -51,6 +56,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -266,6 +272,44 @@ public class EntityUpsertMutation implements EntityMutation {
 				entityMutation
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return context.withEntityType(
+			this.entityType,
+			this.entityPrimaryKey,
+			ctx -> {
+				final Stream.Builder<ConflictKey> keys = Stream.builder();
+				boolean atLeastOneKeyMissing = false;
+
+				for (LocalMutation<?, ?> localMutation : this.localMutations) {
+					boolean keyAdded = false;
+
+					// Avoid lambda and AtomicBoolean: iterate directly
+					final Iterator<ConflictKey> it = localMutation.collectConflictKeys(ctx, conflictPolicies).iterator();
+					while (it.hasNext()) {
+						keys.add(it.next());
+						keyAdded = true;
+					}
+
+					atLeastOneKeyMissing = atLeastOneKeyMissing || !keyAdded;
+				}
+
+				// If any mutation didn't produce a key and ENTITY policy is enabled,
+				// add the fallback entity conflict key directly into the same builder.
+				if (atLeastOneKeyMissing && conflictPolicies.contains(ConflictPolicy.ENTITY) && this.entityPrimaryKey != null) {
+					keys.add(new EntityConflictKey(this.entityType, this.entityPrimaryKey));
+				}
+
+				// Build a single stream instance
+				return keys.build();
+			}
+		);
 	}
 
 	@Override

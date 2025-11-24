@@ -64,6 +64,7 @@ transaction:                                      # [see Transaction configurati
   transactionMemoryRegionCount: 256
   walFileSizeBytes: 16MB
   walFileCountKept: 8
+  waitForTransactionAcceptanceInMillis: 20s
   flushFrequencyInMillis: 1s
 
 cache:                                            # [see Cache configuration](#cache-configuration)
@@ -660,12 +661,20 @@ This section contains configuration options for the storage layer of the databas
         <p>Number of WAL files to keep. Increase this number in combination with `walFileSizeBytes` if you want to
             keep longer history of changes.</p>
     </dd>
+    <dt>waitForTransactionAcceptanceInMillis</dt>
+    <dd>
+        <p>**Default:** `20s`</p>
+        <p>The maximum time in milliseconds the system will wait for a writing transaction to be accepted,
+            i.e., written to the shared transaction WAL. This time span covers both the conflict resolution phase
+            and appending to the shared WAL file. When the operation times out, the entire transaction will be
+            rolled back.</p>
+    </dd>
     <dt>flushFrequencyInMillis</dt>
     <dd>
         <p>**Default:** `1s`</p>
         <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
-            If database process the (small) transaction very quickly, it may decide to process next transaction before 
-            flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire 
+            If database process the (small) transaction very quickly, it may decide to process next transaction before
+            flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire
             `flushFrequencyInMillis` milliseconds before he gets the response.</p>
     </dd>
 </dl>

@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -73,6 +74,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -81,6 +83,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.RejectedExecutionException;
@@ -127,6 +130,10 @@ public class TransactionManager implements Closeable {
 	 * The executor used for handling transactional tasks.
 	 */
 	private final SystemObservableExecutorService transactionalExecutor;
+	/**
+	 * The maximum time in milliseconds the system will wait for a writing transaction to be accepted.
+	 */
+	private final long transactionAcceptanceTimeout;
 	/**
 	 * Lambda function that is called when a new catalog version is available.
 	 */
@@ -297,6 +304,7 @@ public class TransactionManager implements Closeable {
 		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		this.transactionAcceptanceTimeout = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
 		final ChangeDataCaptureOptions cdcOptions = this.configuration.server().changeDataCapture();
 		this.changeObserver = cdcOptions.enabled() ?
 			new CatalogChangeObserver(
@@ -369,6 +377,7 @@ public class TransactionManager implements Closeable {
 				walPersistenceService.getMutationCount(),
 				walPersistenceService.getMutationSizeInBytes(),
 				catalogSchemaVersionDelta,
+				walPersistenceService.getConflictKeys(),
 				walPersistenceService.getWalReference(),
 				commitProgress
 			),
@@ -593,12 +602,21 @@ public class TransactionManager implements Closeable {
 	/**
 	 * This method identifies concurrent transaction commits based on passed mutation keys.
 	 */
-	public void identifyConflicts() {
+	public void identifyConflicts(
+		@Nonnull OffsetDateTime commitTimestamp,
+		@Nonnull Set<ConflictKey> conflictKeys
+	) {
 		try {
-			if (this.conflictResolutionLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+			// calculate the rest of the timeout
+			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
+				OffsetDateTime.now(), commitTimestamp
+			).toMillis();
+			if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
 				// TOBEDONE JNO #503 - implement conflict resolution
 			} else {
-				throw new TransactionTimedOutException("Conflict resolution lock timed out!");
+				throw new TransactionTimedOutException(
+					"Conflict resolution lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
+				);
 			}
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("Conflict resolution lock interrupted!", e);
@@ -617,11 +635,17 @@ public class TransactionManager implements Closeable {
 	 * @return the length of the written WAL contents
 	 */
 	public long appendWalAndDiscard(
+		@Nonnull OffsetDateTime commitTimestamp,
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
 		try {
-			if (this.walAppendingLock.tryLock(0, TimeUnit.MILLISECONDS)) {
+			// calculate the rest of the timeout
+			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
+				OffsetDateTime.now(), commitTimestamp
+			).toMillis();
+			// try to obtain the lock within the timeout
+			if (this.walAppendingLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
 				final long theLastWrittenCatalogVersion = this.lastWrittenCatalogVersion.get();
 				Assert.isPremiseValid(
 					theLastWrittenCatalogVersion <= 0 || theLastWrittenCatalogVersion + 1 == transactionMutation.getVersion(),
@@ -634,7 +658,9 @@ public class TransactionManager implements Closeable {
 						walReference
 					);
 			} else {
-				throw new TransactionTimedOutException("WAL appending lock timed out!");
+				throw new TransactionTimedOutException(
+					"WAL appending lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
+				);
 			}
 		} catch (InterruptedException e) {
 			throw new GenericEvitaInternalError("WAL appending lock interrupted!", e);

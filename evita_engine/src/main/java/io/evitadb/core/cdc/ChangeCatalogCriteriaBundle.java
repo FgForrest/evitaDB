@@ -25,8 +25,8 @@ package io.evitadb.core.cdc;
 
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;

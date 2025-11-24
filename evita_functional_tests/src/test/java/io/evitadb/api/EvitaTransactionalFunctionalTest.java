@@ -2046,6 +2046,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		isolatedWalFilePath.toFile().delete();
 
 		final IsolatedWalPersistenceService walPersistenceService = new DefaultIsolatedWalService(
+			TEST_CATALOG,
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(

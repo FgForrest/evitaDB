@@ -42,6 +42,7 @@ import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.model.wal.EngineTransactionChanges;
+import io.evitadb.test.TestConstants;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -164,6 +165,7 @@ class EngineWriteAheadLogTest {
 	@Nonnull
 	private List<TxData> writeEngineWal(@Nonnull int[] transactionSizes, @Nullable OffsetDateTime initialTimestamp) {
 		final IsolatedWalPersistenceService walPersistenceService = new DefaultIsolatedWalService(
+			TestConstants.TEST_CATALOG,
 			UUID.randomUUID(),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(

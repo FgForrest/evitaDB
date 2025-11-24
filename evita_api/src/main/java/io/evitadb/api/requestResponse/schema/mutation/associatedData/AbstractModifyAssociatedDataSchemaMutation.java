@@ -27,12 +27,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -49,12 +44,13 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-@AllArgsConstructor
-abstract class AbstractModifyAssociatedDataSchemaMutation
-	implements LocalEntitySchemaMutation, AssociatedDataSchemaMutation, NamedSchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+abstract class AbstractModifyAssociatedDataSchemaMutation extends AbstractAssociatedDataSchemaMutation {
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
-	@Getter @Nonnull protected final String name;
+
+	AbstractModifyAssociatedDataSchemaMutation(@Nonnull String name) {
+		super(name);
+	}
 
 	@Nonnull
 	@Override
@@ -108,9 +104,4 @@ abstract class AbstractModifyAssociatedDataSchemaMutation
 		}
 	}
 
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
-	}
 }

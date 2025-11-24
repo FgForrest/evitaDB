@@ -117,6 +117,7 @@ public final class WalAppendingTransactionStage
 		final long writtenLength;
 		try {
 			writtenLength = this.transactionManager.appendWalAndDiscard(
+				task.commitProgress().getCommitStartTime(),
 				new TransactionMutation(
 					task.transactionId(),
 					task.catalogVersion(),

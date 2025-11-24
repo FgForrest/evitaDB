@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompound
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -57,16 +56,15 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifySortableAttributeCompoundSchemaNameMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation,
-	NamedSchemaMutation {
+	extends AbstractSortableAttributeCompoundSchemaMutation
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nonnull private final String newName;
 
 	public ModifySortableAttributeCompoundSchemaNameMutation(@Nonnull String name, @Nonnull String newName) {
-		this.name = name;
+		super(name);
 		this.newName = newName;
 	}
 
@@ -146,12 +144,6 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

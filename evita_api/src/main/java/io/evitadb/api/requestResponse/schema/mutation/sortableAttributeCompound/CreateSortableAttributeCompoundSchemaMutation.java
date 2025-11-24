@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -73,13 +72,13 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class CreateSortableAttributeCompoundSchemaMutation
+	extends AbstractSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation,
-	CreateMutation, NamedSchemaMutation {
+	CreateMutation {
 
 	@Serial private static final long serialVersionUID = 4126462217562106850L;
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Scope[] indexedInScopes;
@@ -92,8 +91,8 @@ public class CreateSortableAttributeCompoundSchemaMutation
 		@Nullable Scope[] indexedInScopes,
 		@Nonnull AttributeElement... attributeElements
 	) {
+		super(name);
 
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.indexedInScopes = indexedInScopes == null ? Scope.NO_SCOPE : indexedInScopes;
@@ -298,12 +297,6 @@ public class CreateSortableAttributeCompoundSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override
