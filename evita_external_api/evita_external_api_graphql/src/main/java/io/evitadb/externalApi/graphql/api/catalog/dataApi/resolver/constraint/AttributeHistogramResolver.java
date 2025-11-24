@@ -180,8 +180,8 @@ public class AttributeHistogramResolver extends AbstractExtraResultConstraintRes
 
 	/**
 	 * Enriches an attribute histogram field with scope based on nesting of the field.
-	 * @param field
-	 * @param scope
+	 * @param field field the selected GraphQL field representing the attribute histogram
+	 * @param scope the scope in which the attribute histogram is requested, or {@code null} if not specified
 	 */
 	private record AttributeHistogramFieldWithScopeInformation(
 		@Nonnull SelectedField field,

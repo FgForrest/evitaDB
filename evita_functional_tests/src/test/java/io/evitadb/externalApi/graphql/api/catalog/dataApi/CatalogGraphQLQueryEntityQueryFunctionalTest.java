@@ -6718,7 +6718,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return duplicate referenced hierarchy across scopes")
+	@DisplayName("Should not return duplicate referenced hierarchy across scopes")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
 	void shouldNotReturnReferencedHierarchyAcrossScopes(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {

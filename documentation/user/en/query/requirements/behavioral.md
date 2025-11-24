@@ -71,7 +71,7 @@ use the `inScope` container and limit these calculations to only those scopes wh
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Disginguishing requires in different scopes](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql)
+[Distinguishing requires in different scopes](/documentation/user/en/query/requirements/examples/behavioral/archived-entities-requirements.evitaql)
 
 </SourceCodeTabs>
 
