@@ -507,14 +507,16 @@ the output.
 <LS to="e,j,r,c">
 - [page](requirements/paging.md#page)
 - [strip](requirements/paging.md#strip)
+- [gap](requirements/paging.md#gap)
+- [spacing](requirements/paging.md#spacing)
 </LS>
 <LS to="g">
 - [`list` queries](requirements/paging.md#pagination-of-list-queries)
 - [`query` queries - `recordPage`](requirements/paging.md#page-recordpage)
 - [`query` queries - `recordStrip`](requirements/paging.md#page-recordstrip)
-</LS>
 - [gap](requirements/paging.md#gap)
 - [spacing](requirements/paging.md#spacing)
+</LS>
 
 ### Fetching (completeness)
 
