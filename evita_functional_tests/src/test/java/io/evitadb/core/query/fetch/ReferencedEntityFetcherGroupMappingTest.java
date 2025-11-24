@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query;
+package io.evitadb.core.query.fetch;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Tests for {@link ReferencedEntityFetcher.GroupMapping} covering:
+ * Tests for {@link GroupMapping} covering:
  * - single default group mapping
  * - multiple groups per different entityPrimaryKeys
  * - multiple groups for the same entityPrimaryKey
@@ -44,8 +44,8 @@ class ReferencedEntityFetcherGroupMappingTest {
 		final int e1 = 1;
 		final int e2 = 2;
 
-		final ReferencedEntityFetcher.GroupMapping mapping =
-			new ReferencedEntityFetcher.GroupMapping(e1, defaultGroup, 4);
+		final GroupMapping mapping =
+			new GroupMapping(e1, defaultGroup, 4);
 
 		// add another entity to the same default group
 		mapping.addMapping(e2, defaultGroup);
@@ -66,8 +66,8 @@ class ReferencedEntityFetcherGroupMappingTest {
 		final int g1 = 101;
 		final int g2 = 102;
 
-		final ReferencedEntityFetcher.GroupMapping mapping =
-			new ReferencedEntityFetcher.GroupMapping(e0, defaultGroup, 8);
+		final GroupMapping mapping =
+			new GroupMapping(e0, defaultGroup, 8);
 
 		// map entities to groups that are different from the default
 		mapping.addMapping(e1, g1);
@@ -86,8 +86,8 @@ class ReferencedEntityFetcherGroupMappingTest {
 		final int g1 = 200;
 		final int g2 = 201;
 
-		final ReferencedEntityFetcher.GroupMapping mapping =
-			new ReferencedEntityFetcher.GroupMapping(0, defaultGroup, 8);
+		final GroupMapping mapping =
+			new GroupMapping(0, defaultGroup, 8);
 
 		// same entity mapped to two different, non-default groups
 		mapping.addMapping(eSame, g1);

@@ -811,69 +811,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		}
 	}
 
-	/**
-	 * This is a special constructor used only when catalog is renamed. It builds on previous instance of the service
-	 * and reuses all data present in memory. Except the placement on disk nothing else is actually changed.
-	 */
-	public DefaultEntityCollectionPersistenceService(
-		long catalogVersion,
-		@Nonnull String catalogName,
-		@Nonnull Path catalogStoragePath,
-		@Nonnull DefaultEntityCollectionPersistenceService previous,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry
-	) {
-		final EntityCollectionHeader entityTypeHeader = previous.getEntityCollectionHeader();
-		this.entityCollectionFileReference = new CollectionFileReference(
-			entityTypeHeader.entityType(),
-			entityTypeHeader.entityTypePrimaryKey(),
-			entityTypeHeader.entityTypeFileIndex(),
-			entityTypeHeader.fileLocation()
-		);
-		this.entityCollectionFile = this.entityCollectionFileReference.toFilePath(catalogStoragePath);
-		this.entityCollectionHeader = entityTypeHeader;
-		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
-		this.observableOutputKeeper = previous.observableOutputKeeper;
-
-		final OffsetIndexStoragePartPersistenceService previousStoragePartService = previous.storagePartPersistenceService;
-		final OffsetIndex previousOffsetIndex = previousStoragePartService.offsetIndex;
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			catalogVersion,
-			catalogName,
-			this.entityCollectionFileReference.entityType(),
-			FileType.ENTITY_COLLECTION,
-			previousStoragePartService.transactionOptions,
-			new OffsetIndex(
-				catalogVersion,
-				this.entityCollectionFile,
-				storageOptions,
-				recordRegistry,
-				new WriteOnlyFileHandle(
-					catalogName,
-					FileType.ENTITY_COLLECTION,
-					this.entityCollectionFileReference.entityType(),
-					storageOptions,
-					this.entityCollectionFile,
-					this.observableOutputKeeper
-				),
-				nonFlushedBlock -> reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestHistoricalRecord -> reportOldestHistoricalRecord(catalogName, oldestHistoricalRecord.orElse(null)),
-				previousOffsetIndex,
-				new OffsetIndexDescriptor(
-					previousOffsetIndex.getVersion(),
-					previousOffsetIndex.getFileOffsetIndexLocation(),
-					entityTypeHeader.compressedKeys(),
-					VERSIONED_KRYO_FACTORY,
-					previousOffsetIndex.getActiveRecordShare(previousOffsetIndex.getTotalSizeBytes()),
-					this.entityCollectionFile.toFile().length()
-				)
-			),
-			previousStoragePartService.offHeapMemoryManager,
-			this.observableOutputKeeper,
-			VERSIONED_KRYO_FACTORY
-		);
-	}
-
 	@Override
 	public boolean isNew() {
 		return this.storagePartPersistenceService.isNew();

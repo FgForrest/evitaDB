@@ -25,24 +25,45 @@ package io.evitadb.core.query.response;
 
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
+import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
+import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.data.structure.ReferenceSetFetcher;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceAttributeValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This class is a server-side model decorator that adds the number of I/O fetches and bytes fetched from underlying
@@ -69,6 +90,10 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * Memoized ioFetchedBytes when {@link #getIoFetchedBytes()} is called for the first time.
 	 */
 	private int memoizedIoFetchedBytes = -1;
+	/**
+	 * Specialized reference sets accessible by reference content instance name.
+	 */
+	private Map<String, DataChunk<ReferenceContract>> namedReferenceSets;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -127,49 +152,18 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		);
 	}
 
-	/**
-	 * Method allows to create copy of the entity object with up-to-date schema definition. Data of the original
-	 * entity are kept untouched.
-	 */
-	@Nonnull
-	public static ServerEntityDecorator decorate(
-		@Nonnull Entity entity,
-		@Nonnull EntitySchemaContract entitySchema,
+	public ServerEntityDecorator(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull ServerEntityDecorator entity,
 		@Nullable EntityClassifierWithParent parentEntity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
-		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow,
-		int ioFetchCount,
-		int ioFetchedBytes,
-		@Nullable ReferenceFetcher referenceFetcher
+		@Nonnull ReferenceFetcher referenceFetcher
 	) {
-		return referenceFetcher == null || referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION ?
-			new ServerEntityDecorator(
-				entity, entitySchema, parentEntity,
-				localePredicate, hierarchyPredicate,
-				attributePredicate, associatedDataValuePredicate,
-				referencePredicate, pricePredicate,
-				alignedNow,
-				ioFetchCount, ioFetchedBytes
-			)
-			:
-			new ServerEntityDecorator(
-				entity, entitySchema, parentEntity,
-				localePredicate, hierarchyPredicate,
-				attributePredicate, associatedDataValuePredicate,
-				referencePredicate, pricePredicate,
-				alignedNow,
-				ioFetchCount,
-				ioFetchedBytes,
-				referenceFetcher
-			);
+		super(entity, parentEntity, referenceFetcher, evitaRequest);
+		this.ioFetchCount = entity.getIoFetchCount();
+		this.ioFetchedBytes = entity.getIoFetchedBytes();
 	}
 
-	public ServerEntityDecorator(
+	private ServerEntityDecorator(
 		@Nonnull Entity delegate,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable EntityClassifierWithParent parentEntity,
@@ -193,7 +187,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		this.ioFetchedBytes = ioFetchedBytes;
 	}
 
-	public ServerEntityDecorator(
+	private ServerEntityDecorator(
 		@Nonnull ServerEntityDecorator delegate,
 		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
@@ -216,52 +210,144 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		this.ioFetchedBytes = ioFetchedBytes;
 	}
 
-	public ServerEntityDecorator(
-		@Nonnull ServerEntityDecorator entity,
-		@Nullable EntityClassifierWithParent parentEntity,
-		@Nonnull ReferenceFetcher referenceFetcher
-	) {
-		super(entity, parentEntity, referenceFetcher);
-		this.ioFetchCount = entity.getIoFetchCount();
-		this.ioFetchedBytes = entity.getIoFetchedBytes();
-	}
-
-	public ServerEntityDecorator(
-		@Nonnull Entity entity,
+	@Override
+	protected int fillFilteredSortedAndFetchedReferences(
+		int entityPrimaryKey,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable EntityClassifierWithParent parentEntity,
-		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchySerializablePredicate hierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate attributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
-		@Nonnull PriceContractSerializablePredicate pricePredicate,
-		@Nonnull OffsetDateTime alignedNow,
-		int ioFetchCount,
-		int ioFetchedBytes,
-		@Nonnull ReferenceFetcher referenceFetcher
+		@Nonnull ReferenceSetFetcher referenceFetcher,
+		@Nonnull ReferenceContract[] inputReferences,
+		@Nonnull ReferenceDecorator[] outputReferences,
+		@Nullable EvitaRequest evitaRequest
 	) {
-		super(
-			entity, entitySchema, parentEntity,
-			localePredicate, hierarchyPredicate, attributePredicate, associatedDataPredicate,
-			referencePredicate, pricePredicate,
-			alignedNow, referenceFetcher
+		if (evitaRequest != null && referenceFetcher instanceof ReferencedEntityFetcher serverFetcher) {
+			final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
+			if (!namedReferenceEntityFetch.isEmpty()) {
+				final Entity entity = getDelegate();
+				this.namedReferenceSets = CollectionUtils.createHashMap(namedReferenceEntityFetch.size());
+				ReferenceSchemaContract referenceSchema = null;
+				int start = 0;
+				int end = inputReferences.length;
+				// iterator is sorted by ReferenceContentKey natural ordering
+				for (Map.Entry<ReferenceContentKey, RequirementContext> entry : namedReferenceEntityFetch.entrySet()) {
+					final ReferenceContentKey rck = entry.getKey();
+					final String referenceName = rck.referenceName();
+					// find the range of references with this name
+					if (referenceSchema == null || !referenceSchema.getName().equals(referenceName)) {
+						referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+						final int middle = ArrayUtils.binarySearch(
+							inputReferences,
+							referenceName,
+							start,
+							inputReferences.length,
+							(referenceContract, rn) -> referenceContract.getReferenceName().compareTo(rn)
+						);
+						if (middle < 0) {
+							start = -1;
+							end = -1;
+						} else {
+							start = middle;
+							while (start > 0 && inputReferences[start - 1].getReferenceName().equals(referenceName)) {
+								start--;
+							}
+							end = middle;
+							while (end < inputReferences.length && inputReferences[end].getReferenceName().equals(
+								referenceName)) {
+								end++;
+							}
+						}
+					}
+
+					if (start == -1) {
+						this.namedReferenceSets.put(
+							rck.instanceName(),
+							referenceFetcher.createChunk(
+								entity,
+								referenceName,
+								Collections.emptyList()
+							)
+						);
+					} else {
+						final ReferenceSetFetcher minimalReferenceFetcher = serverFetcher.getMinimalReferenceFetcher(
+							Objects.requireNonNull(rck.instanceName())
+						);
+						final Function<Integer, SealedEntity> entityFetcher = minimalReferenceFetcher.getEntityFetcher(
+							referenceSchema);
+						final Function<Integer, SealedEntity> entityGroupFetcher = minimalReferenceFetcher.getEntityGroupFetcher(
+							referenceSchema);
+						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = minimalReferenceFetcher.getEntityFilter(
+							referenceSchema);
+						final ReferenceComparator fetchedReferenceComparator = minimalReferenceFetcher.getEntityComparator(
+							referenceSchema);
+
+						final ReferenceContractSerializablePredicate namedReferencePredicate =
+							new ReferenceContractSerializablePredicate(
+								evitaRequest,
+								referenceName,
+								entry.getValue()
+							);
+						final ReferenceAttributeValueSerializablePredicate namedAttributePredicate =
+							namedReferencePredicate.getAttributePredicate(referenceName);
+						final int size = end - start;
+						for (int i = 0; i < size; i++) {
+							final ReferenceContract referenceContract = inputReferences[start + i];
+							outputReferences[i] = ofNullable(
+								fetchReference(
+									referenceContract,
+									referenceSchema,
+									entityFetcher,
+									entityGroupFetcher,
+									namedReferencePredicate
+								)
+							).orElseGet(
+								() -> new ReferenceDecorator(
+									referenceContract,
+									namedAttributePredicate
+								)
+							);
+						}
+
+						final int filteredOutReferences = sortAndFilterSubList(
+							entityPrimaryKey,
+							outputReferences,
+							fetchedReferenceComparator,
+							referenceFilter,
+							0, size
+						);
+						final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
+							entity,
+							referenceName,
+							Arrays.asList(Arrays.copyOf(outputReferences, size - filteredOutReferences))
+						);
+						this.namedReferenceSets.put(
+							rck.instanceName(),
+							chunk
+						);
+					}
+				}
+			}
+		}
+
+		return super.fillFilteredSortedAndFetchedReferences(
+			entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher, inputReferences, outputReferences,
+			evitaRequest
 		);
-		this.ioFetchCount = ioFetchCount;
-		this.ioFetchedBytes = ioFetchedBytes;
 	}
 
-	public ServerEntityDecorator(
-		@Nonnull Entity delegate,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable EntityClassifierWithParent parent,
-		@Nonnull EvitaRequest evitaRequest,
-		int ioFetchCount,
-		int ioFetchedBytes
-	) {
-		super(delegate, entitySchema, parent, evitaRequest);
-		this.ioFetchCount = ioFetchCount;
-		this.ioFetchedBytes = ioFetchedBytes;
+	/**
+	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name.
+	 *
+	 * @param instanceName name of the reference content instance
+	 * @return collection of references
+	 */
+	@Nonnull
+	public DataChunk<ReferenceContract> getReferencesForReferenceContentInstance(@Nonnull String instanceName) {
+		final DataChunk<ReferenceContract> referenceChunk = this.namedReferenceSets.get(instanceName);
+		Assert.isPremiseValid(
+			referenceChunk != null,
+			() -> "No reference set found for reference content instance: " + instanceName
+		);
+		return referenceChunk;
 	}
 
 	@Override

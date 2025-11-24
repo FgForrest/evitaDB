@@ -246,7 +246,8 @@ public class EntityConverter {
 					toReferenceOffsetAndLimits(grpcEntity.getReferenceOffsetAndLimitsMap()),
 					entitySchemaFetcher,
 					evitaRequest
-				)
+				),
+				evitaRequest
 			);
 
 			if (expectedType.isInstance(sealedEntity)) {
@@ -934,8 +935,10 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
-						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final String referenceName = it.getReferenceName();
+					final RequirementContext fetchCtx = ofNullable(
+						evitaRequest.getReferenceEntityFetch().get(referenceName)
+					).orElse(evitaRequest.getDefaultReferenceRequirement());
 					Assert.isPremiseValid(
 						fetchCtx != null && fetchCtx.entityFetch() != null,
 						"Server returned referenced entity, but it's not requested in the request?!"
@@ -953,8 +956,10 @@ public class EntityConverter {
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
-						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final String referenceName = it.getReferenceName();
+					final RequirementContext fetchCtx = ofNullable(
+						evitaRequest.getReferenceEntityFetch().get(referenceName)
+					).orElse(evitaRequest.getDefaultReferenceRequirement());
 					Assert.isPremiseValid(
 						fetchCtx != null && fetchCtx.entityGroupFetch() != null,
 						"Server returned referenced entity, but it's not requested in the request?!"
@@ -998,13 +1003,13 @@ public class EntityConverter {
 			return parentId -> this.parentEntity;
 		}
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return primaryKey -> this.entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
 		}
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return primaryKey -> this.groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
