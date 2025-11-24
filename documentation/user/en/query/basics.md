@@ -379,11 +379,21 @@ Logical constraints are used to perform logical operations on the products of ch
 - [or](filtering/logical.md#or)
 - [not](filtering/logical.md#not)
 
+### Behavioral constraints
+
+Behavioral constraints affect the behavior of the filtering process itself, rather than filtering entities based on
+their data. These constraints wrap other filtering constraints to modify their behavior:
+
+- [in scope](filtering/behavioral.md#in-scope)
+- [user filter](filtering/behavioral.md#user-filter)
+
 ### Constant constraints
 
-Constant constraints directly specify the entity primary keys that are expected on the output.
+Constant constraints directly specify the entity primary keys that are expected on the output, or define the scope
+where the filtering should be applied:
 
 - [entity primary key in set](filtering/constant.md#entity-primary-key-in-set)
+- [scope](filtering/constant.md#scope)
 
 ### Localization constraints
 
@@ -454,14 +464,8 @@ filtering of entities by the fact that they refer to a particular part of the tr
 - [excluding root](filtering/hierarchy.md#excluding-root)
 - [excluding](filtering/hierarchy.md#excluding)
 - [having](filtering/hierarchy.md#having)
+- [any having](filtering/hierarchy.md#any-having)
 - [direct relation](filtering/hierarchy.md#direct-relation)
-
-### Special constraints
-
-Special constraints are used only for the definition of a filter constraint scope, which has a different treatment in
-calculations:
-
-- [user filter](filtering/behavioral.md#user-filter)
 
 ## Order by
 
@@ -475,16 +479,25 @@ Order constraints allow you to define a rule that controls the order of entities
 - [attribute set exact](ordering/constant.md#exact-entity-attribute-value-order)
 - [attribute natural](ordering/comparable.md#attribute-natural)
 - [price natural](ordering/price.md#price-natural)
+- [price discount](ordering/price.md#price-discount)
 - [reference property](ordering/reference.md#reference-property)
 - [entity property](ordering/reference.md#entity-property)
 - [entity group property](ordering/reference.md#entity-group-property)
 - [random](ordering/random.md#random)
+- [in scope](ordering/behavioral.md#in-scope)
 
 ## Require
 
 Requirements have no direct parallel in other database languages. They define sideway calculations, paging, the amount
 of data fetched for each returned entity, and so on, but never affect the number or order of returned entities.
 Currently, these requirements are available to you:
+
+### Behavioral constraints
+
+Behavioral constraints affect the behavior of the requirement process itself. These constraints wrap other requirement
+constraints to modify their behavior:
+
+- [in scope](requirements/behavioral.md#in-scope)
 
 ### Paging
 
@@ -500,6 +513,8 @@ the output.
 - [`query` queries - `recordPage`](requirements/paging.md#page-recordpage)
 - [`query` queries - `recordStrip`](requirements/paging.md#page-recordstrip)
 </LS>
+- [gap](requirements/paging.md#gap)
+- [spacing](requirements/paging.md#spacing)
 
 ### Fetching (completeness)
 
@@ -513,6 +528,7 @@ of it:
 - [attribute content](requirements/fetching.md#attribute-content)
 - [associated data content](requirements/fetching.md#associated-data-content)
 - [price content](requirements/fetching.md#price-content)
+- [accompanying price content](requirements/fetching.md#accompanying-price-content)
 - [reference content](requirements/fetching.md#reference-content)
 - [hierarchy content](requirements/fetching.md#hierarchy-content)
 <LS to="e,j,r,c">
@@ -566,6 +582,7 @@ The price requirement controls which form of price for sale is taken into accoun
 or their histograms are calculated:
 
 - [price type](requirements/price.md#price-type)
+- [default accompanying price lists](requirements/price.md#default-accompanying-price-lists)
 
 ### Telemetry
 
