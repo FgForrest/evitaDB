@@ -105,7 +105,6 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -211,11 +210,11 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Callback that will be called when session is created.
 	 */
-	@Setter private Consumer<EvitaSessionContract> onSessionCreationCallback;
+	private final Consumer<EvitaSessionContract> onSessionCreationCallback;
 	/**
 	 * Callback that will be called when session is closed.
 	 */
-	@Setter private Consumer<EvitaSessionContract> onSessionTerminationCallback;
+	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
 
 	/**
 	 * Transforms the given Throwable into a RuntimeException based on its type.
