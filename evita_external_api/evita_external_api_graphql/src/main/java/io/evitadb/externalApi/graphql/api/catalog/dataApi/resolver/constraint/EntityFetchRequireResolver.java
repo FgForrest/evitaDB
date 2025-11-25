@@ -432,15 +432,27 @@ public class EntityFetchRequireResolver {
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
+		final String referenceName = referenceSchema.getName();
+
+		final FilterBy filterBy = resolveReferenceContentFilter(basicReferenceField, currentEntitySchema, referenceSchema);
+		final OrderBy orderBy = resolveReferenceContentOrder(basicReferenceField, currentEntitySchema, referenceSchema);
+
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(basicReferenceField.getSelectionSet());
+		final Set<String> attributes = resolveReferenceContentAttributes(nestedFields, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(nestedFields, desiredLocale, referenceSchema);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(nestedFields, desiredLocale, referenceSchema);
+		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromBasicField(basicReferenceField);
+
 		resolveReferenceContent(
 			contentsBuilder,
 			basicReferenceField,
-			nestedFields,
-			nestedFields,
-			desiredLocale,
-			currentEntitySchema,
-			referenceSchema
+			referenceName,
+			filterBy,
+			orderBy,
+			attributes,
+			entityFetch,
+			entityGroupFetch,
+			chunking
 		);
 	}
 
@@ -451,16 +463,28 @@ public class EntityFetchRequireResolver {
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
+		final String referenceName = referenceSchema.getName();
+
+		final FilterBy filterBy = resolveReferenceContentFilter(referencePageField, currentEntitySchema, referenceSchema);
+		final OrderBy orderBy = resolveReferenceContentOrder(referencePageField, currentEntitySchema, referenceSchema);
+
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referencePageField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferencePageDescriptor.DATA.name()));
+		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromPageField(referencePageField, nestedFields);
+
 		resolveReferenceContent(
 			contentsBuilder,
 			referencePageField,
-			nestedFields,
-			referenceBodyFields,
-			desiredLocale,
-			currentEntitySchema,
-			referenceSchema
+			referenceName,
+			filterBy,
+			orderBy,
+			attributes,
+			entityFetch,
+			entityGroupFetch,
+			chunking
 		);
 	}
 
@@ -471,38 +495,42 @@ public class EntityFetchRequireResolver {
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
-		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferenceStripDescriptor.DATA.name()));
-		resolveReferenceContent(
-			contentsBuilder,
-			referenceStripField,
-			nestedFields,
-			referenceBodyFields,
-			desiredLocale,
-			currentEntitySchema,
-			referenceSchema
-		);
-	}
-
-	private void resolveReferenceContent(
-		@Nonnull ReferenceContentsBuilder contentsBuilder,
-		@Nonnull SelectedField referenceField,
-		@Nonnull SelectionSetAggregator nestedFields,
-		@Nonnull SelectionSetAggregator referenceBodyFields,
-		@Nullable Locale desiredLocale,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
 		final String referenceName = referenceSchema.getName();
 
-		final FilterBy filterBy = resolveReferenceContentFilter(referenceField, currentEntitySchema, referenceSchema);
-		final OrderBy orderBy = resolveReferenceContentOrder(referenceField, currentEntitySchema, referenceSchema);
+		final FilterBy filterBy = resolveReferenceContentFilter(referenceStripField, currentEntitySchema, referenceSchema);
+		final OrderBy orderBy = resolveReferenceContentOrder(referenceStripField, currentEntitySchema, referenceSchema);
 
+		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
+		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferenceStripDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
-		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromStripField(referenceField, nestedFields);
+		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromStripField(referenceStripField, nestedFields);
 
+		resolveReferenceContent(
+			contentsBuilder,
+			referenceStripField,
+			referenceName,
+			filterBy,
+			orderBy,
+			attributes,
+			entityFetch,
+			entityGroupFetch,
+			chunking
+		);
+	}
+
+	private static void resolveReferenceContent(
+		@Nonnull ReferenceContentsBuilder contentsBuilder,
+		@Nonnull SelectedField referenceField,
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable Set<String> attributes,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
 		if (filterBy == null && orderBy == null && entityFetch == null && entityGroupFetch == null && chunking == null) {
 			// performance optimization
 			contentsBuilder.setGlobalContentRequested();
@@ -667,7 +695,7 @@ public class EntityFetchRequireResolver {
 		}
 		final Integer pageNumber = (Integer) referenceField.getArguments().get(PaginatedListFieldHeaderDescriptor.NUMBER.name());
 		final Integer pageSize = (Integer) referenceField.getArguments().get(PaginatedListFieldHeaderDescriptor.SIZE.name());
-		if (pageNumber == null || pageSize == null) {
+		if (pageNumber == null && pageSize == null) {
 			return null;
 		}
 		return page(pageNumber, pageSize);
@@ -684,7 +712,7 @@ public class EntityFetchRequireResolver {
 		}
 		final Integer offset = (Integer) referenceField.getArguments().get(StripListFieldHeaderDescriptor.OFFSET.name());
 		final Integer limit = (Integer) referenceField.getArguments().get(StripListFieldHeaderDescriptor.LIMIT.name());
-		if (offset == null || limit == null) {
+		if (offset == null && limit == null) {
 			return null;
 		}
 		return strip(offset, limit);

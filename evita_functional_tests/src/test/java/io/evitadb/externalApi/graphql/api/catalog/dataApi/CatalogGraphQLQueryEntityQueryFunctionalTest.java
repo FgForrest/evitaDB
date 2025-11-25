@@ -3625,8 +3625,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									     .e(
 										     ReferenceDescriptor.ATTRIBUTES.name(), map()
 											     .e(
-												     ATTRIBUTE_CAPACITY,
-												     reference.getAttribute(ATTRIBUTE_CAPACITY)
+												     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+												     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 											     )
 									     )
 									     .e(
@@ -3662,7 +3662,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                totalRecordCount
 		                                data {
 		                                    attributes {
-		                                        capacity
+		                                        storeVisibleForB2c
 		                                    }
 			                                referencedEntity {
 			                                    primaryKey
@@ -3714,8 +3714,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										     .e(
 											     ReferenceDescriptor.ATTRIBUTES.name(), map()
 												     .e(
-													     ATTRIBUTE_CAPACITY,
-													     reference.getAttribute(ATTRIBUTE_CAPACITY)
+													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
 												     )
 										     )
 										     .e(
@@ -3751,7 +3751,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                totalRecordCount
 		                                data {
 		                                    attributes {
-		                                        capacity
+		                                        storeVisibleForB2c
 	                                        }
 			                                referencedEntity {
 			                                    primaryKey
