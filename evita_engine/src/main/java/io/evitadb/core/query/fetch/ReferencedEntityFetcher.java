@@ -1467,6 +1467,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final ReferenceContentKey rck = namedEntry.getKey();
 				final RequirementContext namedRequirementContext = namedEntry.getValue();
 				if (namedRequirementContext.requiresInit()) {
+					final ChunkTransformer namedChunkTransformer = namedEntry.getValue().referenceChunkTransformer();
+					final ChunkTransformerAccessor namedChunkTransformerAccessor =referenceName -> namedChunkTransformer;
 					this.namedFetchedEntities.put(
 						rck.instanceName(),
 						new ReferencedSetEntityFetcher(
@@ -1486,7 +1488,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									filterByVisitor
 								)
 							),
-							this.chunkTransformerAccessor
+							namedChunkTransformerAccessor
 						)
 					);
 				}
