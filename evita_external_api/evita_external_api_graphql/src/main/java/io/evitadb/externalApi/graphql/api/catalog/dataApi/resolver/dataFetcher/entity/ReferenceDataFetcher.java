@@ -30,7 +30,6 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,16 +40,13 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class ReferenceDataFetcher extends AbstractReferenceDataFetcher<ReferenceContract> {
 
-    /**
-     * Schema of reference to which this fetcher is mapped to.
-     */
-    @Nonnull
-    private final ReferenceSchemaContract referenceSchema;
+	public ReferenceDataFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+		super(referenceSchema);
+	}
 
-    @Nullable
+	@Nullable
     @Override
     protected ReferenceContract doGet(@Nonnull DataFetchingEnvironment environment, @Nonnull DataChunk<ReferenceContract> references) {
         Assert.isPremiseValid(

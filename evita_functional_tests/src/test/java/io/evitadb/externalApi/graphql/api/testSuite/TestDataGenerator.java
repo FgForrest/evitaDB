@@ -79,8 +79,8 @@ public class TestDataGenerator {
 	public static final String ATTRIBUTE_CREATED = "created";
 	public static final String ATTRIBUTE_MANUFACTURED = "manufactured";
 	public static final String ATTRIBUTE_VISIBLE = "visible";
-	public static final String ATTRIBUTE_BRAND_VISIBLE_FOR_B2C = "brandVisibleForB2C";
-	public static final String ATTRIBUTE_STORE_VISIBLE_FOR_B2C = "storeVisibleForB2C";
+	public static final String ATTRIBUTE_BRAND_VISIBLE_FOR_B2C = "brandVisibleForB2c";
+	public static final String ATTRIBUTE_STORE_VISIBLE_FOR_B2C = "storeVisibleForB2c";
 	public static final String ATTRIBUTE_MARKET_SHARE = "marketShare";
 	public static final String ATTRIBUTE_FOUNDED = "founded";
 	public static final String ATTRIBUTE_CAPACITY = "capacity";

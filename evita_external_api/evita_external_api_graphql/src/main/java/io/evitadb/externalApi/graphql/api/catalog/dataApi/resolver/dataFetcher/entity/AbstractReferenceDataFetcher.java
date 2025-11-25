@@ -26,8 +26,11 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.DataChunk;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;
@@ -37,7 +40,14 @@ import java.util.Objects;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 abstract class AbstractReferenceDataFetcher<T> implements DataFetcher<T> {
+
+	/**
+	 * Schema of reference to which this fetcher is mapped to.
+	 */
+	@Nonnull
+	protected final ReferenceSchemaContract referenceSchema;
 
 	@Override
 	public T get(DataFetchingEnvironment environment) throws Exception {
@@ -48,10 +58,13 @@ abstract class AbstractReferenceDataFetcher<T> implements DataFetcher<T> {
 	protected abstract T doGet(@Nonnull DataFetchingEnvironment environment, @Nonnull DataChunk<ReferenceContract> references);
 
 	@Nonnull
-	private static DataChunk<ReferenceContract> retrieveReferences(@Nonnull DataFetchingEnvironment environment) {
+	private DataChunk<ReferenceContract> retrieveReferences(@Nonnull DataFetchingEnvironment environment) {
 		final ServerEntityDecorator entity = Objects.requireNonNull(environment.getSource());
+		final String referenceName = this.referenceSchema.getName();
 		final String instanceName = resolveInstanceName(environment);
-		return entity.getReferencesForReferenceContentInstance(instanceName);
+		// todo lho scope to reference name?
+		return entity.getReferencesForReferenceContentInstance(instanceName)
+			.orElseGet(() -> entity.getReferenceChunk(referenceName));
 	}
 
 	private static String resolveInstanceName(@Nonnull DataFetchingEnvironment environment) {

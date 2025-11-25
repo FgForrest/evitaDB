@@ -63,6 +63,7 @@ import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -335,19 +336,19 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name.
+	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name,
+	 * if the named request exists.
 	 *
 	 * @param instanceName name of the reference content instance
 	 * @return collection of references
 	 */
 	@Nonnull
-	public DataChunk<ReferenceContract> getReferencesForReferenceContentInstance(@Nonnull String instanceName) {
+	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull String instanceName) {
+		if (this.namedReferenceSets == null) {
+			return empty();
+		}
 		final DataChunk<ReferenceContract> referenceChunk = this.namedReferenceSets.get(instanceName);
-		Assert.isPremiseValid(
-			referenceChunk != null,
-			() -> "No reference set found for reference content instance: " + instanceName
-		);
-		return referenceChunk;
+		return ofNullable(referenceChunk);
 	}
 
 	@Override

@@ -1990,11 +1990,11 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
 					final DataChunk<ReferenceContract> shadowfull = serverEntity.getReferencesForReferenceContentInstance(
 						"shadowfull"
-					);
+					).orElseThrow();
 					shadowfull.forEach(ref -> assertTrue(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
 					final DataChunk<ReferenceContract> shadowless = serverEntity.getReferencesForReferenceContentInstance(
 						"shadowless"
-					);
+					).orElseThrow();
 					shadowless.forEach(ref -> assertFalse(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
 					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
 					assertFalse(allCategories.isEmpty());
@@ -2048,7 +2048,8 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				for (SealedEntity product : productByPk.getRecordData()) {
 					assertInstanceOf(ServerEntityDecorator.class, product);
 					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
-					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance("myPriceLists");
+					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance("myPriceLists")
+						.orElseThrow();
 					assertEquals(2, myPriceLists.getData().size());
 					assertTrue(myPriceLists.getTotalRecordCount() > 2);
 				}
