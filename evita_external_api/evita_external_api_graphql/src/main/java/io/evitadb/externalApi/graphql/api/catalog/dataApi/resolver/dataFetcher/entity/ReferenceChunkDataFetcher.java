@@ -24,12 +24,10 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.StripList;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -37,12 +35,12 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 
 /**
- * Finds strip list of references in parent entity that conforms to specified name.
+ * Finds a data chunk of references in the parent entity that conforms to a specified name.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferenceStripDataFetcher implements DataFetcher<StripList<ReferenceContract>> {
+public class ReferenceChunkDataFetcher extends AbstractReferenceDataFetcher<DataChunk<ReferenceContract>> {
 
     /**
      * Schema of reference to which this fetcher is mapped to.
@@ -52,15 +50,16 @@ public class ReferenceStripDataFetcher implements DataFetcher<StripList<Referenc
 
     @Nonnull
     @Override
-    public StripList<ReferenceContract> get(DataFetchingEnvironment environment) throws Exception {
-        final EntityDecorator entity = environment.getSource();
-        Assert.isPremiseValid(entity != null, "Entity must not be null");
+    protected DataChunk<ReferenceContract> doGet(
+		@Nonnull DataFetchingEnvironment environment,
+	    @Nonnull DataChunk<ReferenceContract> references
+    ) {
         Assert.isPremiseValid(
 	        this.referenceSchema.getCardinality().getMax() > 1,
             () -> new GraphQLQueryResolvingInternalError(
                 "Reference `" + this.referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        return (StripList<ReferenceContract>) entity.getReferenceChunk(this.referenceSchema.getName());
+        return references;
     }
 }

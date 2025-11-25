@@ -78,7 +78,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class HierarchyExtraResultRequireResolver extends AbstractExtraResultConstraintResolver {
+public class HierarchyOfResolver extends AbstractExtraResultConstraintResolver {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
@@ -101,17 +101,13 @@ public class HierarchyExtraResultRequireResolver extends AbstractExtraResultCons
 
 				return SelectionSetAggregator.getImmediateFields(nestedFields)
 					.stream()
-					.map(hierarchyOfType -> new HierarchyOfTypeFieldWithScopeInformation(hierarchyOfType, scope));
-			})
-			.map(hierarchyOfTypeFieldWithScopeInformation -> {
-				final SelectedField field = hierarchyOfTypeFieldWithScopeInformation.field();
-				final Scope scope = hierarchyOfTypeFieldWithScopeInformation.scope();
-
-				if (HierarchyDescriptor.SELF.name().equals(field.getName())) {
-					return resolveHierarchyOfSelf(field, scope, desiredLocale);
-				} else {
-					return resolveHierarchyOfReference(field, scope, desiredLocale);
-				}
+					.map(hierarchyOfType -> {
+						if (HierarchyDescriptor.SELF.name().equals(hierarchyOfType.getName())) {
+							return resolveHierarchyOfSelf(hierarchyOfType, scope, desiredLocale);
+						} else {
+							return resolveHierarchyOfReference(hierarchyOfType, scope, desiredLocale);
+						}
+					});
 			})
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
 				throw new GraphQLInvalidResponseUsageException("Duplicate hierarchies for single reference.");
@@ -335,12 +331,4 @@ public class HierarchyExtraResultRequireResolver extends AbstractExtraResultCons
 
 		return new HierarchySiblings(null, stopAt);
 	}
-
-	/**
-	 * Enriches a hierarchy of type (self or reference) field with scope based on nesting of the field.
-	 */
-	private record HierarchyOfTypeFieldWithScopeInformation(
-		@Nonnull SelectedField field,
-		@Nullable Scope scope
-	) {}
 }

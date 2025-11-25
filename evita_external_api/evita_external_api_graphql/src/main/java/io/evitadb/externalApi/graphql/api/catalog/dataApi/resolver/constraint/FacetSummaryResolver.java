@@ -110,9 +110,14 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 
 				return SelectionSetAggregator.getImmediateFields(nestedFields)
 					.stream()
-					.map(facetSummaryOfReferenceField -> new FacetSummaryOfReferenceFieldWithScopeInformation(facetSummaryOfReferenceField, scope));
+					.map(facetSummaryOfReferenceField ->
+					     resolveFacetSummaryOfReference(
+							facetSummaryOfReferenceField,
+							scope,
+							desiredLocale
+						)
+					);
 			})
-			.map(f -> resolveFacetSummaryOfReference(f.field(), f.scope(), desiredLocale))
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
 				throw new GraphQLInvalidResponseUsageException(
 					"Duplicate facet summaries for single reference. For each reference name, there can be only one " +
@@ -265,12 +270,4 @@ public class FacetSummaryResolver extends AbstractExtraResultConstraintResolver 
 				this.referencedGroupEntitySchemas.get(referenceName)
 			));
 	}
-
-	/**
-	 * Enriches a facet summary of reference field with scope based on nesting of the field.
-	 */
-	private record FacetSummaryOfReferenceFieldWithScopeInformation(
-		@Nonnull SelectedField field,
-		@Nullable Scope scope
-	) {}
 }

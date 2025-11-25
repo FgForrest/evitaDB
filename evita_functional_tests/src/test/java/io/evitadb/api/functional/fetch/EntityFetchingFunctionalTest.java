@@ -2005,6 +2005,58 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("In internal API, named reference set with different pagination settings could be fetched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchMultipleNamedPaginatedReferenceSets(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PRICE_LIST).size() > 2
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"myPriceLists",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.PRICE_LIST },
+									new RequireConstraint[]{
+										attributeContentAll(),
+										entityFetchAll(),
+										strip(0, 2)
+									},
+									new Constraint[0]
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance("myPriceLists");
+					assertEquals(2, myPriceLists.getData().size());
+					assertTrue(myPriceLists.getTotalRecordCount() > 2);
+				}
+				return null;
+			}
+		);
+	}
+
 	/*
 		PRIVATE METHODS
 	 */

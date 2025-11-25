@@ -3615,16 +3615,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e("storePage", map()
 					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
 					.e(
-						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						                                       .stream()
-						                                       .skip(2)
-						                                       .limit(2)
-						                                       .map(reference ->
-							map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
-								.build())
-						                                       .toList()))
+						DataChunkDescriptor.DATA.name(),
+						entity.getReferences(Entities.STORE)
+							.stream()
+							.skip(2)
+							.limit(2)
+							.map(reference ->
+								     map()
+									     .e(
+										     ReferenceDescriptor.ATTRIBUTES.name(), map()
+											     .e(
+												     ATTRIBUTE_CAPACITY,
+												     reference.getAttribute(ATTRIBUTE_CAPACITY)
+											     )
+									     )
+									     .e(
+										     ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											     .e(
+												     EntityDescriptor.PRIMARY_KEY.name(),
+												     reference.getReferencedPrimaryKey()
+											     )
+									     )
+									     .build())
+							.toList()
+					)
+				)
 				.build()
 		);
 
@@ -3646,6 +3661,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            storePage(number: 2, size: 2) {
 		                                totalRecordCount
 		                                data {
+		                                    attributes {
+		                                        capacity
+		                                    }
 			                                referencedEntity {
 			                                    primaryKey
 			                                }
@@ -3680,19 +3698,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			entity -> map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-				.e("storeStrip", map()
-					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
-					.e(
-						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						                                       .stream()
-						                                       .skip(2)
-						                                       .limit(2)
-						                                       .map(reference ->
-							map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
-								.build())
-						                                       .toList()))
+				.e(
+					"storeStrip", map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							entity.getReferences(Entities.STORE).size()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+								.stream()
+								.skip(2)
+								.limit(2)
+								.map(reference ->
+									     map()
+										     .e(
+											     ReferenceDescriptor.ATTRIBUTES.name(), map()
+												     .e(
+													     ATTRIBUTE_CAPACITY,
+													     reference.getAttribute(ATTRIBUTE_CAPACITY)
+												     )
+										     )
+										     .e(
+											     ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+												     .e(
+													     EntityDescriptor.PRIMARY_KEY.name(),
+													     reference.getReferencedPrimaryKey()
+												     )
+										     )
+										     .build())
+								.toList()
+						)
+				)
 				.build()
 		);
 
@@ -3714,6 +3750,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            storeStrip(offset: 2, limit: 2) {
 		                                totalRecordCount
 		                                data {
+		                                    attributes {
+		                                        capacity
+	                                        }
 			                                referencedEntity {
 			                                    primaryKey
 			                                }

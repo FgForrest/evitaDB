@@ -25,8 +25,9 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -40,7 +41,7 @@ import java.util.Objects;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReferencedEntityDataFetcher implements DataFetcher<SealedEntity> {
+public class ReferencedEntityDataFetcher implements DataFetcher<EntityClassifier> {
 
 	@Nullable
 	private static ReferencedEntityDataFetcher INSTANCE;
@@ -55,8 +56,13 @@ public class ReferencedEntityDataFetcher implements DataFetcher<SealedEntity> {
 
 	@Nullable
 	@Override
-	public SealedEntity get(DataFetchingEnvironment environment) throws Exception {
+	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
 		final ReferenceContract reference = Objects.requireNonNull(environment.getSource());
-		return reference.getReferencedEntity().orElse(null);
+		return reference.getReferencedEntity()
+			.map(EntityClassifier.class::cast)
+			.orElseGet(() -> new EntityReference(
+				reference.getReferencedEntityType(),
+				reference.getReferencedPrimaryKey()
+			));
 	}
 }
