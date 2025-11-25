@@ -94,7 +94,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	/**
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
-	private Map<String, DataChunk<ReferenceContract>> namedReferenceSets;
+	private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -261,7 +261,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 
 					if (start == -1) {
 						this.namedReferenceSets.put(
-							rck.instanceName(),
+							rck,
 							referenceFetcher.createChunk(
 								entity,
 								referenceName,
@@ -320,10 +320,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							referenceName,
 							Arrays.asList(Arrays.copyOf(outputReferences, size - filteredOutReferences))
 						);
-						this.namedReferenceSets.put(
-							rck.instanceName(),
-							chunk
-						);
+						this.namedReferenceSets.put(rck, chunk);
 					}
 				}
 			}
@@ -343,7 +340,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	 * @return collection of references
 	 */
 	@Nonnull
-	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull String instanceName) {
+	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull ReferenceContentKey instanceName) {
 		if (this.namedReferenceSets == null) {
 			return empty();
 		}

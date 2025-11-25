@@ -37,6 +37,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -1989,11 +1990,17 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					assertInstanceOf(ServerEntityDecorator.class, product);
 					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
 					final DataChunk<ReferenceContract> shadowfull = serverEntity.getReferencesForReferenceContentInstance(
-						"shadowfull"
+						new ReferenceContentKey(
+							"shadowfull",
+							Entities.CATEGORY
+						)
 					).orElseThrow();
 					shadowfull.forEach(ref -> assertTrue(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
 					final DataChunk<ReferenceContract> shadowless = serverEntity.getReferencesForReferenceContentInstance(
-						"shadowless"
+						new ReferenceContentKey(
+							"shadowless",
+							Entities.CATEGORY
+						)
 					).orElseThrow();
 					shadowless.forEach(ref -> assertFalse(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
 					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
@@ -2048,7 +2055,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				for (SealedEntity product : productByPk.getRecordData()) {
 					assertInstanceOf(ServerEntityDecorator.class, product);
 					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
-					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance("myPriceLists")
+					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey("myPriceLists", Entities.PRICE_LIST)
+					)
 						.orElseThrow();
 					assertEquals(2, myPriceLists.getData().size());
 					assertTrue(myPriceLists.getTotalRecordCount() > 2);

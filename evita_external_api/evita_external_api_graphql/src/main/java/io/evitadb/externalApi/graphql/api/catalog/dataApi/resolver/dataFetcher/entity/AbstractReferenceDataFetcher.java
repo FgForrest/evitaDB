@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -62,8 +63,7 @@ abstract class AbstractReferenceDataFetcher<T> implements DataFetcher<T> {
 		final ServerEntityDecorator entity = Objects.requireNonNull(environment.getSource());
 		final String referenceName = this.referenceSchema.getName();
 		final String instanceName = resolveInstanceName(environment);
-		// todo lho scope to reference name?
-		return entity.getReferencesForReferenceContentInstance(instanceName)
+		return entity.getReferencesForReferenceContentInstance(new ReferenceContentKey(instanceName, referenceName))
 			.orElseGet(() -> entity.getReferenceChunk(referenceName));
 	}
 
