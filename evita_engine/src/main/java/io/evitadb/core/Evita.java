@@ -83,6 +83,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.EnginePersistenceServiceFactory;
 import io.evitadb.store.spi.model.EngineState;
@@ -228,6 +229,14 @@ public final class Evita implements EvitaContract {
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
 	@Getter private boolean readOnly;
+	/**
+	 * Callback that will be called when a new session is created.
+	 */
+	private final Consumer<EvitaSessionContract> onSessionCreationCallback;
+	/**
+	 * Callback that will be called when an old session is closed.
+	 */
+	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -251,11 +260,45 @@ public final class Evita implements EvitaContract {
 	}
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
-		this(configuration, true);
+		this(configuration, true, null, null);
 	}
 
-	public Evita(@Nonnull EvitaConfiguration configuration, boolean scheduleCatalogLoading) {
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
+		this(
+			configuration,
+			true,
+			onSessionCreationCallback,
+			onSessionTerminationCallback
+		);
+	}
+
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		boolean scheduleCatalogLoading
+	) {
+		this(
+			configuration,
+			scheduleCatalogLoading,
+			null,
+			null
+		);
+	}
+
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		boolean scheduleCatalogLoading,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
 		this.configuration = configuration;
+		this.onSessionCreationCallback = onSessionCreationCallback == null ?
+			Functions.noOpConsumer() : onSessionCreationCallback;
+		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
+			Functions.noOpConsumer() : onSessionTerminationCallback;
 
 		this.serviceExecutor = configuration.server().directExecutor() ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
@@ -1218,9 +1261,12 @@ public final class Evita implements EvitaContract {
 				}
 
 				final EvitaSessionTerminationCallback terminationCallback =
-					session -> sessionRegistry.removeSession((EvitaSession) session);
+					session -> {
+						sessionRegistry.removeSession((EvitaSession) session);
+						this.onSessionTerminationCallback.accept(session);
+					};
 
-				return sessionRegistry.addSession(
+				final EvitaInternalSessionContract internalSession = sessionRegistry.addSession(
 					catalog.supportsTransaction(),
 					() -> new EvitaSession(
 						this, catalog, this.reflectionLookup,
@@ -1230,6 +1276,10 @@ public final class Evita implements EvitaContract {
 						sessionRegistry::createCatalogConsumerControl
 					)
 				);
+
+				this.onSessionCreationCallback.accept(internalSession);
+
+				return internalSession;
 			}
 		);
 
