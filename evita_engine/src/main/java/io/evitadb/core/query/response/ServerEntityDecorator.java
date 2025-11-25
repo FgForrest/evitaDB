@@ -315,7 +315,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							referenceFilter,
 							0, size
 						);
-						final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
+						final DataChunk<ReferenceContract> chunk = minimalReferenceFetcher.createChunk(
 							entity,
 							referenceName,
 							Arrays.asList(Arrays.copyOf(outputReferences, size - filteredOutReferences))
