@@ -58,7 +58,7 @@ scope, but the query is executed in the `ARCHIVED` scope, the engine will return
 
 The `inScope` constraint container has limited support in GraphQL API (only extra results can be requested in specific scopes
 for now).
-You can check the status of the fully-featured support in the issue [#752](https://github.com/FgForrest/evitaDB/issues/752).
+You can check the status of the following issue [#752](https://github.com/FgForrest/evitaDB/issues/1012).
 
 </Note>
 
