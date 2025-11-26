@@ -24,10 +24,12 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -60,13 +62,23 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.Reference
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -438,7 +450,7 @@ public class EntityFetchRequireResolver {
 		final OrderBy orderBy = resolveReferenceContentOrder(basicReferenceField, currentEntitySchema, referenceSchema);
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(basicReferenceField.getSelectionSet());
-		final Set<String> attributes = resolveReferenceContentAttributes(nestedFields, referenceSchema);
+		final Set<String> attributes = resolveReferenceContentAttributes(nestedFields, filterBy, orderBy, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(nestedFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(nestedFields, desiredLocale, referenceSchema);
 		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromBasicField(basicReferenceField);
@@ -470,7 +482,7 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referencePageField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferencePageDescriptor.DATA.name()));
-		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
+		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, filterBy, orderBy, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromPageField(referencePageField, nestedFields);
@@ -502,7 +514,7 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferenceStripDescriptor.DATA.name()));
-		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
+		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, filterBy, orderBy, referenceSchema);
 		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
 		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromStripField(referenceStripField, nestedFields);
@@ -604,25 +616,65 @@ public class EntityFetchRequireResolver {
 	@Nullable
 	private static Set<String> resolveReferenceContentAttributes(
 		@Nonnull SelectionSetAggregator referenceBodyFields,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final List<SelectedField> attributesFields = referenceBodyFields.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name());
-		if (attributesFields.isEmpty()) {
-			return null;
+		Set<String> attributes = null;
+		if (filterBy != null) {
+			//noinspection rawtypes
+			final List<AttributeConstraint> attributeConstraints = QueryUtils.findConstraints(
+				filterBy, AttributeConstraint.class, SeparateEntityScopeContainer.class
+			);
+			if (!attributeConstraints.isEmpty()) {
+				attributes = CollectionUtils.createHashSet(16);
+			}
+			//noinspection rawtypes
+			for (AttributeConstraint attributeConstraint : attributeConstraints) {
+				attributes.add(attributeConstraint.getAttributeName());
+			}
 		}
 
-		final Set<String> neededAttributes = SelectionSetAggregator.getImmediateFields(
+		if (orderBy != null) {
+			//noinspection rawtypes
+			final List<AttributeConstraint> attributeConstraints = QueryUtils.findConstraints(
+				orderBy, AttributeConstraint.class, SeparateEntityScopeContainer.class
+			);
+			if (!attributeConstraints.isEmpty()) {
+				attributes = CollectionUtils.createHashSet(16);
+			}
+			//noinspection rawtypes
+			for (AttributeConstraint attributeConstraint : attributeConstraints) {
+				attributes.add(attributeConstraint.getAttributeName());
+			}
+		}
+
+		final List<SelectedField> attributesFields = referenceBodyFields.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name());
+		if (attributesFields.isEmpty()) {
+			return attributes;
+		}
+
+		final Stream<String> attributeStream = SelectionSetAggregator.getImmediateFields(
 				attributesFields.stream().map(SelectedField::getSelectionSet).toList()
 			)
 			.stream()
 			.map(f -> referenceSchema.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
-			.map(AttributeSchemaContract::getName)
-			.collect(Collectors.toUnmodifiableSet());
+			.map(AttributeSchemaContract::getName);
+
+		final Set<String> neededAttributes;
+		if (attributes == null) {
+			neededAttributes = attributeStream
+				.collect(Collectors.toSet());
+		} else {
+			neededAttributes = attributes;
+			attributeStream.forEach(neededAttributes::add);
+		}
+
 		if (neededAttributes.isEmpty()) {
 			// performance optimization
-			return null;
+			return attributes;
 		}
 		return neededAttributes;
 	}
