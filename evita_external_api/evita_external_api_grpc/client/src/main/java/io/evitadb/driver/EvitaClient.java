@@ -105,7 +105,6 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -211,11 +210,11 @@ public class EvitaClient implements EvitaContract {
 	/**
 	 * Callback that will be called when session is created.
 	 */
-	@Setter private Consumer<EvitaClientSession> onCreationCallback;
+	private final Consumer<EvitaSessionContract> onSessionCreationCallback;
 	/**
 	 * Callback that will be called when session is closed.
 	 */
-	@Setter private Consumer<EvitaClientSession> onTerminationCallback;
+	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
 
 	/**
 	 * Transforms the given Throwable into a RuntimeException based on its type.
@@ -295,15 +294,38 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
-	public EvitaClient(@Nonnull EvitaClientConfiguration configuration) {
-		this(configuration, null);
+	public EvitaClient(
+		@Nonnull EvitaClientConfiguration configuration
+	) {
+		this(configuration, null, null, null);
+	}
+
+	public EvitaClient(
+		@Nonnull EvitaClientConfiguration configuration,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
+		this(configuration, null, onSessionCreationCallback, onSessionTerminationCallback);
 	}
 
 	public EvitaClient(
 		@Nonnull EvitaClientConfiguration configuration,
 		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator
 	) {
+		this(configuration, grpcConfigurator, null, null);
+	}
+
+	public EvitaClient(
+		@Nonnull EvitaClientConfiguration configuration,
+		@Nullable Consumer<GrpcClientBuilder> grpcConfigurator,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
 		this.configuration = configuration;
+		this.onSessionCreationCallback = onSessionCreationCallback == null ?
+			Functions.noOpConsumer() : onSessionCreationCallback;
+		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
+			Functions.noOpConsumer() : onSessionTerminationCallback;
 		ClientFactoryBuilder clientFactoryBuilder = ClientFactory
 			.builder()
 	        .workerGroup(Runtime.getRuntime().availableProcessors())
@@ -538,17 +560,13 @@ public class EvitaClient implements EvitaContract {
 				this.activeSessions.remove(evitaSession.getId());
 				ofNullable(traits.onTermination())
 					.ifPresent(it -> it.onTermination(evitaSession));
-				if (this.onTerminationCallback != null) {
-					this.onTerminationCallback.accept(evitaSession);
-				}
+				this.onSessionTerminationCallback.accept(evitaSession);
 			},
 			Objects.requireNonNull(this.timeout.get().peek())
 		);
 
 		this.activeSessions.put(evitaClientSession.getId(), evitaClientSession);
-		if (this.onCreationCallback != null) {
-			this.onCreationCallback.accept(evitaClientSession);
-		}
+		this.onSessionCreationCallback.accept(evitaClientSession);
 		return evitaClientSession;
 	}
 
