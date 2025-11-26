@@ -3862,7 +3862,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(
 					"storesWithVisibility",
 					map()
-						.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							(int) entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.count()
+						)
 						.e(
 							DataChunkDescriptor.DATA.name(),
 							entity.getReferences(Entities.STORE)
@@ -4004,7 +4010,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(
 					"storesWithVisibility",
 					map()
-						.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							(int) entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.count()
+						)
 						.e(
 							DataChunkDescriptor.DATA.name(),
 							entity.getReferences(Entities.STORE)
