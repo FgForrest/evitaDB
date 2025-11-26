@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
@@ -638,7 +639,7 @@ public class EntityFetchRequireResolver {
 		if (orderBy != null) {
 			//noinspection rawtypes
 			final List<AttributeConstraint> attributeConstraints = QueryUtils.findConstraints(
-				orderBy, AttributeConstraint.class, SeparateEntityScopeContainer.class
+				orderBy, AttributeConstraint.class::isInstance, it -> !(it instanceof EntityConstraint)
 			);
 			if (!attributeConstraints.isEmpty()) {
 				attributes = CollectionUtils.createHashSet(16);
