@@ -48,7 +48,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -269,17 +268,13 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							)
 						);
 					} else {
-						final ReferenceSetFetcher minimalReferenceFetcher = serverFetcher.getMinimalReferenceFetcher(
+						final ReferenceSetFetcher mrf = serverFetcher.getMinimalReferenceFetcher(
 							Objects.requireNonNull(rck.instanceName())
 						);
-						final Function<Integer, SealedEntity> entityFetcher = minimalReferenceFetcher.getEntityFetcher(
-							referenceSchema);
-						final Function<Integer, SealedEntity> entityGroupFetcher = minimalReferenceFetcher.getEntityGroupFetcher(
-							referenceSchema);
-						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = minimalReferenceFetcher.getEntityFilter(
-							referenceSchema);
-						final ReferenceComparator fetchedReferenceComparator = minimalReferenceFetcher.getEntityComparator(
-							referenceSchema);
+						final Function<Integer, SealedEntity> entityFetcher = mrf.getEntityFetcher(referenceSchema);
+						final Function<Integer, SealedEntity> entityGroupFetcher = mrf.getEntityGroupFetcher(referenceSchema);
+						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = mrf.getEntityFilter(referenceSchema);
+						final ReferenceComparator fetchedReferenceComparator = mrf.getEntityComparator(referenceSchema);
 
 						final ReferenceContractSerializablePredicate namedReferencePredicate =
 							new ReferenceContractSerializablePredicate(
@@ -315,7 +310,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							referenceFilter,
 							0, size
 						);
-						final DataChunk<ReferenceContract> chunk = minimalReferenceFetcher.createChunk(
+						final DataChunk<ReferenceContract> chunk = mrf.createChunk(
 							entity,
 							referenceName,
 							Arrays.asList(Arrays.copyOf(outputReferences, size - filteredOutReferences))

@@ -124,7 +124,10 @@ class BitmapSlicer {
 	 * on per entity basis by {@link #chunker}
 	 */
 	@Nonnull
-	public Bitmap sliceEntityIds(@Nonnull Formula referencedEntityIds) {
+	public Bitmap sliceEntityIds(
+		@Nonnull Formula referencedEntityIds,
+		@Nonnull ValidEntityToReferenceMapping validityMapping
+	) {
 		this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
 		return FormulaFactory.or(
 			this.entityPrimaryKey
@@ -134,7 +137,8 @@ class BitmapSlicer {
 				.mapToObj(epk -> {
 					final Bitmap filteredReferenceEntityIds = FormulaFactory.and(
 						this.referencedEntityIdsFormula.apply(this.referenceName, epk),
-						referencedEntityIds
+						referencedEntityIds,
+						validityMapping.getValidReferencedEntitiesFormula(epk)
 					).compute();
 					final Bitmap chunk = this.chunker.apply(filteredReferenceEntityIds);
 					this.groupsForEntity.put(

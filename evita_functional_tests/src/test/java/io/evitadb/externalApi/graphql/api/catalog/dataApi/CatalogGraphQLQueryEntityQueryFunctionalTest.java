@@ -3881,11 +3881,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										}
 									);
 									return map()
-										.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+										.e(
+											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
-											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
+											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
 										.build();
 								})
 								.toList()

@@ -23,8 +23,11 @@
 
 package io.evitadb.index.bitmap;
 
+import com.carrotsearch.hppc.predicates.IntPredicate;
 import org.roaringbitmap.PeekableIntIterator;
+import org.roaringbitmap.RoaringBatchIterator;
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -124,6 +127,83 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 			}
 		}
 		this.memoizedCardinality = -1;
+	}
+
+	/**
+	 * Removes all elements from the bitmap that satisfy the specified predicate.
+	 *
+	 * @param predicate a non-null predicate to test each element in the bitmap.
+	 *                  Elements for which {@code predicate.apply(int)} returns {@code true} will be removed.
+	 */
+	public void removeAll(@Nonnull IntPredicate predicate) {
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		if (size() > 64) {
+			final int[] buffer = new int[64];
+			final RoaringBatchIterator batchIterator = this.roaringBitmap.getBatchIterator();
+			while (batchIterator.hasNext()) {
+				final int peek = batchIterator.nextBatch(buffer);
+				for (int i = 0; i < peek; i++) {
+					final int next = buffer[i];
+					if (predicate.apply(next)) {
+						writer.add(next);
+					}
+				}
+			}
+		} else {
+			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
+			while (it.hasNext()) {
+				int next = it.next();
+				if (predicate.apply(next)) {
+					writer.add(next);
+				}
+			}
+		}
+		this.roaringBitmap.andNot(writer.get());
+		this.memoizedCardinality = -1;
+	}
+
+	/**
+	 * Retains only the elements in the bitmap that satisfy the specified predicate.
+	 *
+	 * @param predicate a non-null predicate that tests each element in the bitmap.
+	 *                  Elements for which {@code predicate.apply(int)} returns {@code false} are removed.
+	 *                  Elements for which it returns {@code true} are retained.
+	 */
+	public void retainAll(@Nonnull IntPredicate predicate) {
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		if (size() > 64) {
+			final int[] buffer = new int[64];
+			final RoaringBatchIterator batchIterator = this.roaringBitmap.getBatchIterator();
+			while (batchIterator.hasNext()) {
+				final int peek = batchIterator.nextBatch(buffer);
+				for (int i = 0; i < peek; i++) {
+					final int next = buffer[i];
+					if (!predicate.apply(next)) {
+						writer.add(next);
+					}
+				}
+			}
+		} else {
+			final PeekableIntIterator it = this.roaringBitmap.getIntIterator();
+			while (it.hasNext()) {
+				int next = it.next();
+				if (!predicate.apply(next)) {
+					writer.add(next);
+				}
+			}
+		}
+		this.roaringBitmap.andNot(writer.get());
+		this.memoizedCardinality = -1;
+	}
+
+	/**
+	 * Clears all data in the bitmap.
+	 * This method resets the internal bitmap structure, effectively removing all stored record IDs,
+	 * and also resets the memoized cardinality to zero.
+	 */
+	public void clear() {
+		this.roaringBitmap.clear();
+		this.memoizedCardinality = 0;
 	}
 
 	@Override
