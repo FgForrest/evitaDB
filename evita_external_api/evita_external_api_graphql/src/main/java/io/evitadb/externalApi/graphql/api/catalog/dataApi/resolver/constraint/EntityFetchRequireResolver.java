@@ -639,7 +639,7 @@ public class EntityFetchRequireResolver {
 		if (orderBy != null) {
 			//noinspection rawtypes
 			final List<AttributeConstraint> attributeConstraints = QueryUtils.findConstraints(
-				orderBy, AttributeConstraint.class::isInstance, it -> !(it instanceof EntityConstraint)
+				orderBy, AttributeConstraint.class::isInstance, EntityConstraint.class::isInstance
 			);
 			if (!attributeConstraints.isEmpty()) {
 				attributes = CollectionUtils.createHashSet(16);
