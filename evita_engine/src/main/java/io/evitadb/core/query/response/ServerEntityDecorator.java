@@ -238,7 +238,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						final int middle = ArrayUtils.binarySearch(
 							inputReferences,
 							referenceName,
-							start,
+							Math.max(start, 0),
 							inputReferences.length,
 							(referenceContract, rn) -> referenceContract.getReferenceName().compareTo(rn)
 						);

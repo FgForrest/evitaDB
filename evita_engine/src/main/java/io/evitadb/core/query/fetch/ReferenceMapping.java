@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
@@ -99,7 +100,10 @@ class ReferenceMapping {
 		this.referenceReferencedEntitiesToGroupCalculationIndex = new HashSet<>(5);
 		this.referenceReferencedEntitiesToGroupLazyRetriever = (referenceName, container) -> {
 			for (SealedEntity richEnoughEntity : richEnoughEntities) {
-				for (ReferenceContract reference : richEnoughEntity.getReferences(referenceName)) {
+				// we can safely cast here, because we work only with server side entities
+				final EntityDecorator entityDecorator = (EntityDecorator) richEnoughEntity;
+				// we need to skip predicate, because named reference content is not considered a predicate
+				for (ReferenceContract reference : entityDecorator.getReferencesWithoutCheckingPredicate(referenceName)) {
 					if (reference.getGroup().isPresent()) {
 						container.compute(
 							reference.getReferenceKey(),

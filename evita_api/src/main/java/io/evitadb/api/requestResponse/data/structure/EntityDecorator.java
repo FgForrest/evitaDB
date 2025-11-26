@@ -955,11 +955,39 @@ public class EntityDecorator implements SealedEntity {
 			.map(it -> avoidDuplicates(referenceKey, it));
 	}
 
+	/**
+	 * Retrieves a collection of ReferenceContract objects without applying any predicate check.
+	 *
+	 * @return a collection of ReferenceContract objects containing all references from the underlying data structure
+	 */
 	@Nonnull
 	public Collection<ReferenceContract> getReferencesWithoutCheckingPredicate() {
 		return getFilteredReferences().values();
 	}
 
+	/**
+	 * Retrieves a DataChunk of ReferenceContract objects associated with the specified reference name
+	 * without evaluating or applying any predicate checks.
+	 *
+	 * @param referenceName the name of the reference for which the DataChunk should be retrieved; must not be null
+	 * @return a DataChunk containing ReferenceContract objects associated with the given reference name, or an empty DataChunk if no references are found
+	 */
+	@Nonnull
+	public DataChunk<ReferenceContract> getReferencesWithoutCheckingPredicate(@Nonnull String referenceName) {
+		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
+		return chunk == null ?
+			this.delegate.references
+				.getReferenceChunkTransformer()
+				.apply(referenceName)
+				.createChunk(Collections.emptyList()) :
+			chunk;
+	}
+
+	/**
+	 * Retrieves the implicit locale determined by the locale predicate.
+	 *
+	 * @return the implicit {@link Locale}, or {@code null} if no implicit locale is available
+	 */
 	@Nullable
 	public Locale getImplicitLocale() {
 		return this.localePredicate.getImplicitLocale();
