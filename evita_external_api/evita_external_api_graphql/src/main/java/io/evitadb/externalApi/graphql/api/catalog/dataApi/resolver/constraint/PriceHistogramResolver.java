@@ -82,15 +82,11 @@ public class PriceHistogramResolver extends AbstractExtraResultConstraintResolve
 
 				return SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), nestedFields)
 					.stream()
-					.map(bucketsField -> new PriceHistogramFieldWithScopeInformation(bucketsField, scope));
-			})
-			.map(bucketsFieldWithScopeInformation -> {
-				final SelectedField bucketsField = bucketsFieldWithScopeInformation.bucketsField();
-				final Scope scope = bucketsFieldWithScopeInformation.scope();
-
-				final int requestedBucketCount = (int) bucketsField.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
-				final HistogramBehavior behavior = (HistogramBehavior) bucketsField.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
-				return new HistogramRequest(scope, requestedBucketCount, behavior);
+					.map(bucketsField -> {
+						final int requestedBucketCount = (int) bucketsField.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
+						final HistogramBehavior behavior = (HistogramBehavior) bucketsField.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
+						return new HistogramRequest(scope, requestedBucketCount, behavior);
+					});
 			})
 			.collect(Collectors.toSet());
 
@@ -113,12 +109,4 @@ public class PriceHistogramResolver extends AbstractExtraResultConstraintResolve
 		final PriceHistogram priceHistogram = priceHistogram(request.requestedBucketCount(), request.behavior());
 		return Optional.of(wrapInScopeConstraint(scope, priceHistogram));
 	}
-
-	/**
-	 * Enriches a price histogram field with scope based on nesting of the field.
-	 */
-	private record PriceHistogramFieldWithScopeInformation(
-		@Nonnull SelectedField bucketsField,
-		@Nullable Scope scope
-	) {}
 }

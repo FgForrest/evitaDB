@@ -48,7 +48,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -63,6 +62,7 @@ import java.util.Optional;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -93,7 +93,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	/**
 	 * Specialized reference sets accessible by reference content instance name.
 	 */
-	private Map<String, DataChunk<ReferenceContract>> namedReferenceSets;
+	private Map<ReferenceContentKey, DataChunk<ReferenceContract>> namedReferenceSets;
 
 	/**
 	 * Method allows creating the entityDecorator object with up-to-date schema definition. Data of the entity are kept
@@ -260,7 +260,7 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 
 					if (start == -1) {
 						this.namedReferenceSets.put(
-							rck.instanceName(),
+							rck,
 							referenceFetcher.createChunk(
 								entity,
 								referenceName,
@@ -268,17 +268,13 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							)
 						);
 					} else {
-						final ReferenceSetFetcher minimalReferenceFetcher = serverFetcher.getMinimalReferenceFetcher(
+						final ReferenceSetFetcher mrf = serverFetcher.getMinimalReferenceFetcher(
 							Objects.requireNonNull(rck.instanceName())
 						);
-						final Function<Integer, SealedEntity> entityFetcher = minimalReferenceFetcher.getEntityFetcher(
-							referenceSchema);
-						final Function<Integer, SealedEntity> entityGroupFetcher = minimalReferenceFetcher.getEntityGroupFetcher(
-							referenceSchema);
-						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = minimalReferenceFetcher.getEntityFilter(
-							referenceSchema);
-						final ReferenceComparator fetchedReferenceComparator = minimalReferenceFetcher.getEntityComparator(
-							referenceSchema);
+						final Function<Integer, SealedEntity> entityFetcher = mrf.getEntityFetcher(referenceSchema);
+						final Function<Integer, SealedEntity> entityGroupFetcher = mrf.getEntityGroupFetcher(referenceSchema);
+						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = mrf.getEntityFilter(referenceSchema);
+						final ReferenceComparator fetchedReferenceComparator = mrf.getEntityComparator(referenceSchema);
 
 						final ReferenceContractSerializablePredicate namedReferencePredicate =
 							new ReferenceContractSerializablePredicate(
@@ -314,15 +310,12 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 							referenceFilter,
 							0, size
 						);
-						final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
+						final DataChunk<ReferenceContract> chunk = mrf.createChunk(
 							entity,
 							referenceName,
 							Arrays.asList(Arrays.copyOf(outputReferences, size - filteredOutReferences))
 						);
-						this.namedReferenceSets.put(
-							rck.instanceName(),
-							chunk
-						);
+						this.namedReferenceSets.put(rck, chunk);
 					}
 				}
 			}
@@ -335,19 +328,19 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 	}
 
 	/**
-	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name.
+	 * Returns the filtered, sorted and deeply fetched references identified by special reference content instance name,
+	 * if the named request exists.
 	 *
 	 * @param instanceName name of the reference content instance
 	 * @return collection of references
 	 */
 	@Nonnull
-	public DataChunk<ReferenceContract> getReferencesForReferenceContentInstance(@Nonnull String instanceName) {
+	public Optional<DataChunk<ReferenceContract>> getReferencesForReferenceContentInstance(@Nonnull ReferenceContentKey instanceName) {
+		if (this.namedReferenceSets == null) {
+			return empty();
+		}
 		final DataChunk<ReferenceContract> referenceChunk = this.namedReferenceSets.get(instanceName);
-		Assert.isPremiseValid(
-			referenceChunk != null,
-			() -> "No reference set found for reference content instance: " + instanceName
-		);
-		return referenceChunk;
+		return ofNullable(referenceChunk);
 	}
 
 	@Override

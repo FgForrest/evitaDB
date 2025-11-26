@@ -712,7 +712,7 @@ public class EntityObjectBuilder {
 								.argument(PaginatedListFieldHeaderDescriptor.SIZE
 									.to(this.argumentBuilderTransformer))
 								.build(),
-							new ReferencePageDataFetcher(referenceSchema)
+							new ReferenceChunkDataFetcher(referenceSchema)
 						));
 
 						fields.add(new BuiltFieldDescriptor(
@@ -733,7 +733,7 @@ public class EntityObjectBuilder {
 								.argument(StripListFieldHeaderDescriptor.LIMIT
 									.to(this.argumentBuilderTransformer))
 								.build(),
-							new ReferenceStripDataFetcher(referenceSchema)
+							new ReferenceChunkDataFetcher(referenceSchema)
 						));
 					}
 				}

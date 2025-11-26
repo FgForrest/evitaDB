@@ -3600,7 +3600,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference page for products")
-	void shouldReturnReferencePageForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferencePageForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() >= 4,
@@ -3615,16 +3615,46 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e("storePage", map()
 					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
 					.e(
-						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						                                       .stream()
-						                                       .skip(2)
-						                                       .limit(2)
-						                                       .map(reference ->
-							map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
-								.build())
-						                                       .toList()))
+						DataChunkDescriptor.DATA.name(),
+						entity.getReferences(Entities.STORE)
+							.stream()
+							.skip(2)
+							.limit(2)
+							.map(reference -> {
+								final SealedEntity referencedEntity = evita.queryCatalog(
+									TEST_CATALOG,
+									session -> {
+										return session.getEntity(
+											Entities.STORE,
+											reference.getReferencedPrimaryKey()
+										).orElseThrow();
+									}
+								);
+
+								return map()
+									.e(
+										ReferenceDescriptor.ATTRIBUTES.name(), map()
+											.e(
+												ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
+											)
+									)
+									.e(
+										ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(
+												EntityDescriptor.PRIMARY_KEY.name(),
+												reference.getReferencedPrimaryKey()
+											)
+											.e(
+												EntityDescriptor.VERSION.name(),
+												referencedEntity.version()
+											)
+									)
+									.build();
+							})
+							.toList()
+					)
+				)
 				.build()
 		);
 
@@ -3646,8 +3676,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            storePage(number: 2, size: 2) {
 		                                totalRecordCount
 		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
 			                                referencedEntity {
 			                                    primaryKey
+			                                    version
 			                                }
 		                                }
 		                            }
@@ -3680,19 +3714,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			entity -> map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-				.e("storeStrip", map()
-					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
-					.e(
-						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						                                       .stream()
-						                                       .skip(2)
-						                                       .limit(2)
-						                                       .map(reference ->
-							map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
-								.build())
-						                                       .toList()))
+				.e(
+					"storeStrip", map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							entity.getReferences(Entities.STORE).size()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+								.stream()
+								.skip(2)
+								.limit(2)
+								.map(reference ->
+									     map()
+										     .e(
+											     ReferenceDescriptor.ATTRIBUTES.name(), map()
+												     .e(
+													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
+												     )
+										     )
+										     .e(
+											     ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+												     .e(
+													     EntityDescriptor.PRIMARY_KEY.name(),
+													     reference.getReferencedPrimaryKey()
+												     )
+										     )
+										     .build())
+								.toList()
+						)
+				)
 				.build()
 		);
 
@@ -3714,6 +3766,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            storeStrip(offset: 2, limit: 2) {
 		                                totalRecordCount
 		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+	                                        }
 			                                referencedEntity {
 			                                    primaryKey
 			                                }
@@ -3770,6 +3825,302 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                        type
 		                            storePage {
 		                                totalRecordCount
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return named reference configuration with nested data for products")
+	void shouldReturnNamedReferenceConfigurationWithNestedDataForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.STORE);
+				return references.size() >= 4 &&
+					references.stream().anyMatch(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class));
+			},
+			2
+		);
+
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e(
+					"storesWithVisibility",
+					map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							(int) entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.count()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.sorted(Comparator.comparing(ReferenceContract::getReferencedPrimaryKey))
+								.limit(1)
+								.map(ref -> {
+									final SealedEntity referencedEntity = evita.queryCatalog(
+										TEST_CATALOG,
+										session -> {
+											return session.getEntity(
+												Entities.STORE,
+												ref.getReferencedPrimaryKey()
+											).orElseThrow();
+										}
+									);
+									return map()
+										.e(
+											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
+											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
+										.build();
+								})
+								.toList()
+						)
+				)
+				.build()
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            storesWithVisibility: storePage(
+		                                filterBy: { attributeStoreVisibleForB2cEquals: true },
+		                                orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
+		                                size: 1
+	                                ) {
+		                                totalRecordCount
+		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
+			                                referencedEntity {
+			                                    primaryKey
+			                                    version
+			                                }
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return different reference configurations for products")
+	void shouldReturnDifferentReferenceConfigurationsForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> {
+				final Map<Boolean, Long> storeVisibility = it.getReferences(Entities.STORE)
+					.stream()
+					.collect(
+						Collectors.groupingBy(
+							ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class),
+							Collectors.counting()
+						)
+					);
+
+				return storeVisibility.getOrDefault(true, 0L) > 1 &&
+					storeVisibility.getOrDefault(false, 0L) > 0 &&
+					it.getReferences(Entities.STORE).size() >= 4;
+			},
+			2
+		);
+
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e(
+					"store",
+					entity.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> map()
+							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
+							.build())
+						.toList()
+				)
+				.e(
+					"storeWithAttributes",
+					entity.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> map()
+							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
+							.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+								.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+							.build())
+						.toList()
+				)
+				.e(
+					"storePage",
+					map()
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.map(ref -> map()
+								     .e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
+								     .build())
+								.toList()
+						)
+				)
+				.e(
+					"storesWithVisibility",
+					map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							(int) entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.count()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.sorted(Comparator.comparing(ReferenceContract::getReferencedPrimaryKey))
+								.limit(1)
+								.map(ref -> {
+									final SealedEntity referencedEntity = evita.queryCatalog(
+										TEST_CATALOG,
+										session -> {
+											return session.getEntity(
+												Entities.STORE,
+												ref.getReferencedPrimaryKey()
+											).orElseThrow();
+										}
+									);
+									return map()
+										.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
+											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
+										.build();
+								})
+								.toList()
+						)
+				)
+				.e(
+					"storesWithoutVisibility",
+					map()
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.map(ref -> map()
+									.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+										.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+									.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))
+									.build())
+								.toList()
+						)
+				)
+				.build()
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        store {
+			                            referencedPrimaryKey
+			                        }
+			                        storeWithAttributes: store {
+			                            referencedPrimaryKey
+			                            attributes {
+			                                storeVisibleForB2c
+			                            }
+			                        }
+			                        storePage {
+			                            data {
+			                                referencedPrimaryKey
+			                            }
+			                        }
+		                            storesWithVisibility: storePage(
+		                                filterBy: { attributeStoreVisibleForB2cEquals: true },
+		                                orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
+		                                size: 1
+	                                ) {
+		                                totalRecordCount
+		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
+			                                referencedEntity {
+			                                    primaryKey
+			                                    version
+			                                }
+		                                }
+		                            }
+		                            storesWithoutVisibility: storeStrip(
+		                                filterBy: { attributeStoreVisibleForB2cEquals: false }
+		                            ) {
+		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
+			                                referencedEntity {
+			                                    primaryKey
+			                                }
+		                                }
 		                            }
 	                            }
 	                        }

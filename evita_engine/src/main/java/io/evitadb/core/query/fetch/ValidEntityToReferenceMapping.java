@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
@@ -114,6 +116,23 @@ class ValidEntityToReferenceMapping {
 		final OfInt it = referencedPrimaryKeys.iterator();
 		while (it.hasNext()) {
 			matchingReferencedPrimaryKeys.add(it.nextInt());
+		}
+	}
+
+	/**
+	 * Retrieves a formula representation of valid referenced entities for the given entity primary key.
+	 * If there is no mapping for the provided primary key, an empty formula is returned.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity for which the valid referenced entities formula is to be retrieved
+	 * @return a formula representing the valid referenced entities, or an empty formula if no mapping exists for the entity
+	 */
+	@Nonnull
+	public Formula getValidReferencedEntitiesFormula(int entityPrimaryKey) {
+		final RepresentativeMapping representativeMapping = this.mapping.get(entityPrimaryKey);
+		if (representativeMapping == null) {
+			return EmptyFormula.INSTANCE;
+		} else {
+			return representativeMapping.toFormula();
 		}
 	}
 
@@ -204,4 +223,5 @@ class ValidEntityToReferenceMapping {
 		}
 		return sb.toString();
 	}
+
 }

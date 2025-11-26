@@ -37,6 +37,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -1989,16 +1990,77 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					assertInstanceOf(ServerEntityDecorator.class, product);
 					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
 					final DataChunk<ReferenceContract> shadowfull = serverEntity.getReferencesForReferenceContentInstance(
-						"shadowfull"
-					);
+						new ReferenceContentKey(
+							"shadowfull",
+							Entities.CATEGORY
+						)
+					).orElseThrow();
 					shadowfull.forEach(ref -> assertTrue(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
 					final DataChunk<ReferenceContract> shadowless = serverEntity.getReferencesForReferenceContentInstance(
-						"shadowless"
-					);
+						new ReferenceContentKey(
+							"shadowless",
+							Entities.CATEGORY
+						)
+					).orElseThrow();
 					shadowless.forEach(ref -> assertFalse(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
 					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
 					assertFalse(allCategories.isEmpty());
 					assertEquals(allCategories.size(), shadowfull.getTotalRecordCount() + shadowless.getTotalRecordCount());
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, named reference set with different pagination settings could be fetched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchMultipleNamedPaginatedReferenceSets(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PRICE_LIST).size() > 2
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"myPriceLists",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.PRICE_LIST },
+									new RequireConstraint[]{
+										attributeContentAll(),
+										entityFetchAll(),
+										strip(0, 2)
+									},
+									new Constraint[0]
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey("myPriceLists", Entities.PRICE_LIST)
+					)
+						.orElseThrow();
+					assertEquals(2, myPriceLists.getData().size());
+					assertTrue(myPriceLists.getTotalRecordCount() > 2);
 				}
 				return null;
 			}

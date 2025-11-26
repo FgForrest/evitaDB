@@ -1379,7 +1379,11 @@ public class EvitaRequest {
 		 */
 		public boolean requiresInit() {
 			return this.managedReferencesBehaviour != ManagedReferencesBehaviour.ANY ||
-				this.entityFetch != null || this.entityGroupFetch != null || this.filterBy != null || this.orderBy != null;
+				this.entityFetch != null ||
+				this.entityGroupFetch != null ||
+				this.filterBy != null ||
+				this.orderBy != null ||
+				!(this.referenceChunkTransformer instanceof NoTransformer);
 		}
 
 	}

@@ -816,7 +816,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                                    primaryKey: 1000000000
 	                                    attributeMutation: {
 	                                        upsertAttributeMutation: {
-	                                            name: "storeVisibleForB2C"
+	                                            name: "storeVisibleForB2c"
 	                                            value: true
 	                                            valueType: Boolean
 	                                        }
@@ -828,7 +828,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        store {
 	                            referencedPrimaryKey
 	                            attributes {
-	                                storeVisibleForB2C
+	                                storeVisibleForB2c
 	                            }
 	                        }
 	                    }
@@ -847,7 +847,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        store {
 	                            referencedPrimaryKey,
 	                            attributes {
-	                                storeVisibleForB2C
+	                                storeVisibleForB2c
 	                            }
 	                        }
 	                    }

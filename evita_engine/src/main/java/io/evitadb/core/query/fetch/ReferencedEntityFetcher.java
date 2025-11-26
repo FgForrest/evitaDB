@@ -1467,6 +1467,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final ReferenceContentKey rck = namedEntry.getKey();
 				final RequirementContext namedRequirementContext = namedEntry.getValue();
 				if (namedRequirementContext.requiresInit()) {
+					final ChunkTransformer namedChunkTransformer = namedEntry.getValue().referenceChunkTransformer();
+					final ChunkTransformerAccessor namedChunkTransformerAccessor =referenceName -> namedChunkTransformer;
 					this.namedFetchedEntities.put(
 						rck.instanceName(),
 						new ReferencedSetEntityFetcher(
@@ -1486,7 +1488,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									filterByVisitor
 								)
 							),
-							this.chunkTransformerAccessor
+							namedChunkTransformerAccessor
 						)
 					);
 				}
@@ -1567,7 +1569,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// are we requested to (are we able to) fetch the entity bodies?
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
-				entityPrimaryKey, executionContext, entitySchema, referenceSchema,
+				entityPrimaryKey,
+				executionContext,
+				entitySchema,
+				referenceSchema,
 				referenceSchema.getReferencedEntityType(),
 				filterByVisitor,
 				requirements.managedReferencesBehaviour(),
@@ -1580,7 +1585,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// apply chunking if necessary
 			if (requirements.entityFetch() != null) {
 				final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds(
-					toFormula(filteredReferencedEntityIds)
+					toFormula(filteredReferencedEntityIds),
+					validityMapping
 				);
 				if (!filteredAndSlicedReferencedIds.isEmpty()) {
 					// if so, fetch them
@@ -1618,7 +1624,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				referenceSchema.getReferencedGroupType(),
 				filterByVisitor,
 				requirements.managedReferencesBehaviour(),
-				null, null,
+				null,
+				null,
 				null,
 				slicer::getGroupIds
 			);

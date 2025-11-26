@@ -24,16 +24,18 @@
 package io.evitadb.core.query.fetch;
 
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -54,7 +56,7 @@ class RepresentativeMapping {
 	/**
 	 * Set of all valid referenced entity primary keys for particular entity.
 	 */
-	private final IntSet referencedEntityIds;
+	private final BaseBitmap referencedEntityIds;
 	/**
 	 * Set of allowed representative keys - if empty or null, all representative keys are allowed.
 	 */
@@ -65,7 +67,22 @@ class RepresentativeMapping {
 		int expectedSize
 	) {
 		this.representativeKeyProducer = representativeKeyProducer;
-		this.referencedEntityIds = new IntHashSet(expectedSize);
+		this.referencedEntityIds = new BaseBitmap();
+	}
+
+	/**
+	 * Converts the set of referenced entity identifiers into a {@link Formula} representation.
+	 * If the set of identifiers is empty, a predefined {@link EmptyFormula} instance is returned,
+	 * representing no entities. Otherwise, a new {@link ConstantFormula} is created with the set of identifiers.
+	 *
+	 * @return a {@link Formula} instance representing the current state of referenced entity identifiers.
+	 *         Returns {@link EmptyFormula#INSTANCE} if the set is empty, otherwise returns a {@link ConstantFormula}.
+	 */
+	@Nonnull
+	public Formula toFormula() {
+		return this.referencedEntityIds.isEmpty() ?
+			EmptyFormula.INSTANCE :
+			new ConstantFormula(this.referencedEntityIds);
 	}
 
 	/**
@@ -142,9 +159,9 @@ class RepresentativeMapping {
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder(this.referencedEntityIds.size() * 5);
-		final Iterator<IntCursor> it = this.referencedEntityIds.iterator();
+		final OfInt it = this.referencedEntityIds.iterator();
 		while (it.hasNext()) {
-			int pk = it.next().value;
+			int pk = it.next();
 			sb.append(pk);
 			if (it.hasNext()) {
 				sb.append(", ");
@@ -163,5 +180,4 @@ class RepresentativeMapping {
 		}
 		return sb.toString();
 	}
-
 }

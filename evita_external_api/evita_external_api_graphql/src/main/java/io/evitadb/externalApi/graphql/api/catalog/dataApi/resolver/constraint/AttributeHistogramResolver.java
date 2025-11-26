@@ -72,45 +72,40 @@ public class AttributeHistogramResolver extends AbstractExtraResultConstraintRes
 
 		final Map<String, HistogramRequest> requestedAttributeHistograms = createHashMap(10);
 
-		attributeHistogramFields.stream()
-			.flatMap(attributeHistogramField -> {
+		attributeHistogramFields
+			.forEach(attributeHistogramField -> {
 				final Scope scope = resolveScope(attributeHistogramField);
 				final DataFetchingFieldSelectionSet nestedFields = attributeHistogramField.getSelectionSet();
 
-				return SelectionSetAggregator.getImmediateFields(nestedFields)
-					.stream()
-					.map(attributeHistogramForAttributeField -> new AttributeHistogramFieldWithScopeInformation(attributeHistogramForAttributeField, scope));
-			})
-			.forEach(attributeHistogramForAttributeFieldWithScope -> {
-				final SelectedField field = attributeHistogramForAttributeFieldWithScope.field();
-				final Scope scope = attributeHistogramForAttributeFieldWithScope.scope();
+				SelectionSetAggregator.getImmediateFields(nestedFields)
+					.forEach(attributeHistogramForAttributeField -> {
+						final AttributeSchemaContract attributeSchema = this.entitySchema
+							.getAttributeByName(attributeHistogramForAttributeField.getName(), PROPERTY_NAME_NAMING_CONVENTION)
+							.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + attributeHistogramForAttributeField.getName() + "`."));
+						final String originalAttributeName = attributeSchema.getName();
 
-				final AttributeSchemaContract attributeSchema = this.entitySchema
-					.getAttributeByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
-					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + field.getName() + "`."));
-				final String originalAttributeName = attributeSchema.getName();
+						final List<SelectedField> bucketsFields = SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), attributeHistogramForAttributeField.getSelectionSet());
+						Assert.isTrue(
+							!bucketsFields.isEmpty(),
+							() -> new GraphQLInvalidResponseUsageException(
+								"Attribute histogram for attribute `" + originalAttributeName + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
+							)
+						);
 
-				final List<SelectedField> bucketsFields = SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), field.getSelectionSet());
-				Assert.isTrue(
-					!bucketsFields.isEmpty(),
-					() -> new GraphQLInvalidResponseUsageException(
-						"Attribute histogram for attribute `" + originalAttributeName + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-					)
-				);
-
-				bucketsFields.forEach(bucketsField -> {
-					final int requestedBucketCount = (int) bucketsField.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
-					final HistogramBehavior behavior = (HistogramBehavior) bucketsField.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
-					final HistogramRequest newRequest = new HistogramRequest(scope, requestedBucketCount, behavior);
-					final HistogramRequest existingRequest = requestedAttributeHistograms.put(originalAttributeName, newRequest);
-					Assert.isTrue(
-						existingRequest == null || existingRequest.equals(newRequest),
-						() -> new GraphQLInvalidResponseUsageException(
-							"Attribute histogram for attribute `" + originalAttributeName + "` was already requested with different bucket count or behavior." +
-							" There may be only a single histogram request for each attribute. Even across different scopes."
-						)
-					);
-				});
+						bucketsFields.forEach(bucketsField -> {
+							final int requestedBucketCount = (int) bucketsField.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
+							final HistogramBehavior behavior = (HistogramBehavior) bucketsField.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
+							final HistogramRequest newRequest = new HistogramRequest(scope, requestedBucketCount, behavior);
+							final HistogramRequest existingRequest = requestedAttributeHistograms.put(originalAttributeName, newRequest);
+							Assert.isTrue(
+								existingRequest == null || existingRequest.equals(newRequest),
+								() -> new GraphQLInvalidResponseUsageException(
+									"Attribute histogram for attribute `" + originalAttributeName + "` was already requested with different bucket count or behavior." +
+										" There may be only a single histogram request for each attribute. Even across different scopes."
+								)
+							);
+						});
+					});
 			});
 
 		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
@@ -177,14 +172,4 @@ public class AttributeHistogramResolver extends AbstractExtraResultConstraintRes
 			})
 			.toList();
 	}
-
-	/**
-	 * Enriches an attribute histogram field with scope based on nesting of the field.
-	 * @param field field the selected GraphQL field representing the attribute histogram
-	 * @param scope the scope in which the attribute histogram is requested, or {@code null} if not specified
-	 */
-	private record AttributeHistogramFieldWithScopeInformation(
-		@Nonnull SelectedField field,
-		@Nullable Scope scope
-	) {}
 }

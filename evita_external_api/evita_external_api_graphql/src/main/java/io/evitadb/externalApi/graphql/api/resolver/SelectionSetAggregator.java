@@ -71,6 +71,16 @@ public class SelectionSetAggregator {
 	}
 
 	/**
+	 * Creates wrapper without filtering of fields. Functions same as original {@link DataFetchingFieldSelectionSet}.
+	 */
+	public static SelectionSetAggregator fromFields(@Nonnull List<SelectedField> originalSelectedFields) {
+		final List<DataFetchingFieldSelectionSet> originalSelectionSets = originalSelectedFields.stream()
+			.map(SelectedField::getSelectionSet)
+			.toList();
+		return new SelectionSetAggregator(null, originalSelectionSets, null);
+	}
+
+	/**
 	 * Creates wrapper with filtering of fields of original {@link DataFetchingFieldSelectionSet} to fields for
 	 * {@code entityDtoObjectTypeName}.
 	 */

@@ -112,7 +112,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final AttributeHistogramResolver attributeHistogramResolver;
 	@Nonnull private final PriceHistogramResolver priceHistogramResolver;
 	@Nonnull private final FacetSummaryResolver facetSummaryResolver;
-	@Nonnull private final HierarchyExtraResultRequireResolver hierarchyExtraResultRequireResolver;
+	@Nonnull private final HierarchyOfResolver hierarchyOfResolver;
 	@Nonnull private final QueryTelemetryResolver queryTelemetryResolver;
 
 	@Nullable
@@ -173,7 +173,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			this.filterConstraintResolver,
 			this.orderConstraintResolver
 		);
-		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
+		this.hierarchyOfResolver = new HierarchyOfResolver(
 			entitySchema,
 			catalogSchema::getEntitySchemaOrThrowException,
 			this.entityFetchRequireResolver,
@@ -336,7 +336,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		requireConstraints.addAll(this.attributeHistogramResolver.resolve(extraResultsSelectionSet));
 		requireConstraints.add(this.priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
 		requireConstraints.addAll(this.facetSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));
-		requireConstraints.addAll(this.hierarchyExtraResultRequireResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.addAll(this.hierarchyOfResolver.resolve(extraResultsSelectionSet, desiredLocale));
 		requireConstraints.add(this.queryTelemetryResolver.resolve(extraResultsSelectionSet).orElse(null));
 
 		return require(

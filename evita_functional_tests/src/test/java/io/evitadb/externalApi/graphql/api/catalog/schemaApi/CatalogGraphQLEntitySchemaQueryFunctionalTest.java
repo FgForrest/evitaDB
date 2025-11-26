@@ -866,7 +866,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								brand {
 									attributes {
 										__typename
-										brandVisibleForB2C {
+										brandVisibleForB2c {
 											__typename
 											name
 											nameVariants {
