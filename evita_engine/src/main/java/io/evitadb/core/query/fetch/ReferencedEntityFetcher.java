@@ -475,7 +475,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull QueryExecutionContext nestedQueryContext,
 		@Nonnull ChunkTransformerAccessor chunkTransformerAccessor
 	) {
-		return requirementContext.isEmpty() && hierarchyContent == null ?
+		return requirementContext.isEmpty() && namedRequirementContext.isEmpty() && hierarchyContent == null ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				hierarchyContent,
