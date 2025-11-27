@@ -306,22 +306,6 @@ class RestWSSubProtocol<CTX extends RestHandlingContext> {
         out.tryWrite(event);
     }
 
-    private void writeError(@Nonnull WebSocketWriter out, @Nonnull String operationId, @Nonnull RestExecutionError error)
-            throws JsonProcessingException {
-        final Map<String, Object> errorResponse = Map.of(
-            "type", "error",
-            "id", operationId,
-            "payload", Map.of(
-                "error", Map.of(
-			        "message", error.message()
-		        )
-            )
-        );
-        final String event = serializeToJson(errorResponse);
-        log.trace("ERROR: {}", event);
-        out.tryWrite(event);
-    }
-
     private void writeError(WebSocketWriter out, String operationId, Throwable t) {
         final Map<String, Object> errorResponse = Map.of(
                 "type", "error",

@@ -122,7 +122,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 	@Override
 	protected void beforeRequestHandled(@Nonnull RestEndpointExecutionContext executionContext) {
 		// tries to create evita session for this exchange
-		createSession(executionContext).ifPresent(executionContext::provideSession);
+		createSession().ifPresent(executionContext::provideSession);
 	}
 
 	@Override
@@ -158,7 +158,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext>
 	 * Tries to create a {@link EvitaSessionContract} automatically from context.
 	 */
 	@Nonnull
-	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExecutionContext exchange) {
+	protected Optional<EvitaSessionContract> createSession() {
 		if (!(this.restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
 			// we don't have any catalog to create session on
 			return Optional.empty();
