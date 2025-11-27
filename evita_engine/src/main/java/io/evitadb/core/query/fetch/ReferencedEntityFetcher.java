@@ -1457,7 +1457,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						)
 					)
 				),
-			this.chunkTransformerAccessor
+			this.chunkTransformerAccessor,
+			globalPrefetchCollector
 		);
 		if (namedReferenceFetch.isEmpty()) {
 			this.namedFetchedEntities = Collections.emptyMap();
@@ -1469,6 +1470,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				if (namedRequirementContext.requiresInit()) {
 					final ChunkTransformer namedChunkTransformer = namedEntry.getValue().referenceChunkTransformer();
 					final ChunkTransformerAccessor namedChunkTransformerAccessor =referenceName -> namedChunkTransformer;
+					final DefaultPrefetchRequirementCollector namedCollector = new DefaultPrefetchRequirementCollector();
 					this.namedFetchedEntities.put(
 						rck.instanceName(),
 						new ReferencedSetEntityFetcher(
@@ -1484,11 +1486,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									entityPrimaryKey,
 									rck.referenceName(),
 									namedRequirementContext,
-									globalPrefetchCollector,
+									namedCollector,
 									filterByVisitor
 								)
 							),
-							namedChunkTransformerAccessor
+							namedChunkTransformerAccessor,
+							namedCollector
 						)
 					);
 				}

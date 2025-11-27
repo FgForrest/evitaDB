@@ -1386,6 +1386,27 @@ public class EvitaRequest {
 				!(this.referenceChunkTransformer instanceof NoTransformer);
 		}
 
+		/**
+		 * Extends the current attribute content requirement of the `RequirementContext` by combining it with
+		 * the provided attribute content. If the current attribute content is null, the provided attribute content
+		 * will be used as-is. Otherwise, it merges the existing attribute content with the new one.
+		 *
+		 * @param attributeContent the new {@link AttributeContent} to extend the current attribute content requirement
+		 * @return a new {@link RequirementContext} instance with the updated attribute content requirement
+		 * @throws NullPointerException if the provided attribute content is null
+		 */
+		@Nonnull
+		public RequirementContext withExtendedAttributeContentRequirement(@Nonnull AttributeContent attributeContent) {
+			return new RequirementContext(
+				this.managedReferencesBehaviour,
+				this.attributeContent == null ? attributeContent : this.attributeContent.combineWith(attributeContent),
+				this.entityFetch,
+				this.entityGroupFetch,
+				this.filterBy,
+				this.orderBy,
+				this.referenceChunkTransformer
+			);
+		}
 	}
 
 	/**

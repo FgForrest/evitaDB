@@ -28,6 +28,7 @@ import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -1043,6 +1044,12 @@ public class EntityConverter {
 			} else {
 				return chunker.createChunk(references);
 			}
+		}
+
+		@Nullable
+		@Override
+		public AttributeContent getAttributeContentToPrefetch(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return null;
 		}
 
 		/**

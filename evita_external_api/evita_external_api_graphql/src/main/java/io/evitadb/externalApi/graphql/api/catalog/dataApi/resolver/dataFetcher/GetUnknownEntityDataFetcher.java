@@ -277,7 +277,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
         return Optional.of(
             entityFetch
                 .map(EntityFetch::getRequirements)
-                .orElse(new EntityContentRequire[0])
+                .orElse(EntityContentRequire.EMPTY_ARRAY)
         );
     }
 

@@ -134,7 +134,7 @@ public class GrpcArtificialPageReadState extends AbstractGrpcArtificialState {
 			page(benchmarkState.getRandom().nextInt(5) + 1, 20)
 		);
 		requirements.add(
-			entityFetch(contentRequirements.toArray(new EntityContentRequire[0]))
+			entityFetch(contentRequirements.toArray(EntityContentRequire.EMPTY_ARRAY))
 		);
 
 		setQuery(Query.query(

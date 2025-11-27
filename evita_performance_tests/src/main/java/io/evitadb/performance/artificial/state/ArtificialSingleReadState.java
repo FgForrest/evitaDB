@@ -138,7 +138,7 @@ public class ArtificialSingleReadState extends AbstractArtificialState {
 					priceConstraint
 				)
 			),
-			require(entityFetch(requirements.toArray(new EntityContentRequire[0])))
+			require(entityFetch(requirements.toArray(EntityContentRequire.EMPTY_ARRAY)))
 		);
 	}
 

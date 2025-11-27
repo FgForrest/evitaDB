@@ -40,7 +40,7 @@ import java.util.LinkedHashMap;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class DefaultPrefetchRequirementCollector implements FetchRequirementCollector {
-	public static final EntityContentRequire[] EMPTY_REQUIREMENTS = new EntityContentRequire[0];
+	public static final EntityContentRequire[] EMPTY_REQUIREMENTS = EntityContentRequire.EMPTY_ARRAY;
 	private LinkedHashMap<Class<? extends EntityContentRequire>, EntityContentRequire[]> requirements;
 
 	public DefaultPrefetchRequirementCollector() {

@@ -299,7 +299,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         return Optional.of(
             entityFetch
                 .map(EntityFetch::getRequirements)
-                .orElse(new EntityContentRequire[0])
+                .orElse(EntityContentRequire.EMPTY_ARRAY)
         );
     }
 

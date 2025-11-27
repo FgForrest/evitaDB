@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -31,6 +32,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
+import io.evitadb.function.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,13 +76,13 @@ public interface ReferenceFetcher extends ReferenceSetFetcher {
 		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return null;
+			return Functions.noOpFunction();
 		}
 
 		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return null;
+			return Functions.noOpFunction();
 		}
 
 		@Nonnull
@@ -99,6 +101,12 @@ public interface ReferenceFetcher extends ReferenceSetFetcher {
 		@Override
 		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
 			return new PlainChunk<>(references);
+		}
+
+		@Nullable
+		@Override
+		public AttributeContent getAttributeContentToPrefetch(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return null;
 		}
 	};
 

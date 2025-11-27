@@ -1372,7 +1372,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final String require = request.getRequire();
 				final Optional<SealedEntity> entity;
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-					new EntityContentRequire[0] :
+					EntityContentRequire.EMPTY_ARRAY :
 					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
@@ -1650,7 +1650,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 
 				final String require = request.getRequire();
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-					new EntityContentRequire[0] :
+					EntityContentRequire.EMPTY_ARRAY :
 					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
@@ -1724,7 +1724,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final String require = request.getRequire();
 				final Optional<SealedEntity> entity;
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-					new EntityContentRequire[0] :
+					EntityContentRequire.EMPTY_ARRAY :
 					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
@@ -1784,7 +1784,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final int primaryKey = request.getPrimaryKey().getValue();
 				final String require = request.getRequire();
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-					new EntityContentRequire[0] :
+					EntityContentRequire.EMPTY_ARRAY :
 					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
@@ -1900,7 +1900,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final String require = request.getRequire();
 				final Optional<SealedEntity> entity;
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-					new EntityContentRequire[0] :
+					EntityContentRequire.EMPTY_ARRAY :
 					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
@@ -1958,7 +1958,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				final String require = request.getRequire();
 				final Optional<SealedEntity> entity;
 				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-					new EntityContentRequire[0] :
+					EntityContentRequire.EMPTY_ARRAY :
 					QueryUtil.parseEntityRequiredContents(
 						request.getRequire(),
 						request.getPositionalQueryParamsList(),
