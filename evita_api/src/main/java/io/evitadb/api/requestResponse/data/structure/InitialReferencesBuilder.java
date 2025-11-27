@@ -968,12 +968,12 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 			allReferenceNames.addAll(this.entitySchema.getReferences().keySet());
 		}
 
-		final List<ReferenceContract> theReferences;
+		final ReferenceContract[] theReferences;
 		if (this.referenceCollection == null) {
-			theReferences = Collections.emptyList();
+			theReferences = References.EMPTY_REFERENCES;
 		} else {
-			theReferences = new ArrayList<>(this.referenceCollection);
-			theReferences.sort(ReferenceContract.FULL_COMPARATOR);
+			theReferences = this.referenceCollection.toArray(ReferenceContract[]::new);
+			Arrays.sort(theReferences, ReferenceContract.FULL_COMPARATOR);
 		}
 		return new References(
 			this.entitySchema,

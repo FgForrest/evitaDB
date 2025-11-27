@@ -584,7 +584,7 @@ public class Entity implements SealedEntity {
 
 		return new References(
 			entitySchema,
-			mergedReferences,
+			mergedReferences.toArray(ReferenceContract[]::new),
 			mergedReferenceNames,
 			possibleEntity
 				.map(it -> it.references.getReferenceChunkTransformer())
@@ -1025,6 +1025,20 @@ public class Entity implements SealedEntity {
 	@Override
 	public boolean referencesAvailable(@Nonnull String referenceName) {
 		return true;
+	}
+
+	/**
+	 * This method returns original array of references without any safety checks or wrapping. It is meant to be used
+	 * only internally to avoid unnecessary array copying.
+	 *
+	 * !!BEWARE!! - modifying the returned array will have impact on this instance! Caller is responsible for
+	 * not breaking the immutability
+	 *
+	 * @return original references array
+	 */
+	@Nonnull
+	public ReferenceContract[] getUnsafeReferencesArray() {
+		return this.references.getUnsafeReferencesArray();
 	}
 
 	@Nonnull

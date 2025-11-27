@@ -163,10 +163,10 @@ public class EntityConverter {
 		if (EntityReference.class.isAssignableFrom(expectedType)) {
 			throw new EvitaInvalidUsageException("EntityReference is not expected in this method!");
 		} else {
-			final List<ReferenceContract> references = grpcEntity.getReferencesList()
+			final ReferenceContract[] references = grpcEntity.getReferencesList()
 				.stream()
 				.map(it -> toReference(entitySchema, it))
-				.collect(Collectors.toList());
+				.toArray(ReferenceContract[]::new);
 
 			final PriceContractSerializablePredicate pricePredicate;
 			if (grpcEntity.hasPriceForSale()) {

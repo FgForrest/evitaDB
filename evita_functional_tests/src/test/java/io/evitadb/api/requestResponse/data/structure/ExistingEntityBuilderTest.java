@@ -1251,7 +1251,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				null,
 				new References(
 					schema,
-					List.of(
+					new ReferenceContract[]{
 						new Reference(
 							referenceSchema,
 							new ReferenceKey(BRAND, 1, 1),
@@ -1266,7 +1266,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 								Map.of()
 							)
 						)
-					),
+					},
 					Set.of(BRAND),
 					References.DEFAULT_CHUNK_TRANSFORMER
 				),

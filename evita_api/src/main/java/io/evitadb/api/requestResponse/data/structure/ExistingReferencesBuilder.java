@@ -1094,7 +1094,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		if (isThereAnyChangeInMutations()) {
 			return new References(
 				this.entitySchema,
-				getReferences(),
+				getReferences().toArray(ReferenceContract[]::new),
 				getReferenceNames(),
 				this.baseReferences.getReferenceChunkTransformer()
 			);
