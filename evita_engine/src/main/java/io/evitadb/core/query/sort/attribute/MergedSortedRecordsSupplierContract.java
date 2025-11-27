@@ -25,6 +25,8 @@ package io.evitadb.core.query.sort.attribute;
 
 
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.sorter.MergedComparableSortedRecordsSupplierSorter;
+import io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSupplierSorter;
 
 /**
  * Generic interface for sorted records suppliers that merge multiple sorted records suppliers into one.

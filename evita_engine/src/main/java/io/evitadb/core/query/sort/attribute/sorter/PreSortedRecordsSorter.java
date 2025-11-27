@@ -21,11 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute;
+package io.evitadb.core.query.sort.attribute.sorter;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplierContract;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

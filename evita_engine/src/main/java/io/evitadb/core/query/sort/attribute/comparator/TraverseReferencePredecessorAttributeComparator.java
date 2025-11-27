@@ -22,7 +22,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.attribute.comparator;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
@@ -36,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
@@ -53,8 +53,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplierSorter.createSortedRecordsOffsets;
-import static io.evitadb.core.query.sort.attribute.translator.PredecessorAttributeComparator.computeIfAbsent;
+import static io.evitadb.core.query.sort.attribute.comparator.PredecessorAttributeComparator.computeIfAbsent;
+import static io.evitadb.core.query.sort.attribute.sorter.MergedSortedRecordsSupplierSorter.createSortedRecordsOffsets;
 
 /**
  * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for

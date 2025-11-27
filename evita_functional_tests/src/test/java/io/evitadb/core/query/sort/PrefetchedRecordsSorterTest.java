@@ -31,7 +31,7 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
-import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
+import io.evitadb.core.query.sort.attribute.comparator.AttributeComparator;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;

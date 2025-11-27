@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,23 +21,19 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
-
+package io.evitadb.core.query.sort.attribute.comparator;
 
 import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Optional;
@@ -45,70 +41,79 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
- * comparators into one. This implementation adheres to {@link MergeMode#APPEND_FIRST} which relates
- * to {@link PickFirstByEntityProperty} ordering.
+ * Attribute comparator sorts entities according to a specified attribute value. It needs to provide a function for
+ * accessing the entity attribute value and the simple {@link Comparable} comparator implementation. This implementation
+ * adheres to {@link MergeMode#APPEND_FIRST} which relates to {@link PickFirstByEntityProperty} ordering.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class PickFirstReferenceCompoundAttributeComparator extends AbstractReferenceCompoundAttributeComparator {
-	@Serial private static final long serialVersionUID = 2199278500724685085L;
-
+public class PickFirstReferenceAttributeComparator extends AbstractReferenceAttributeComparator {
+	@Serial private static final long serialVersionUID = 2969632214608241409L;
 	/**
 	 * Supplier of the index of the referenced id positions in the main ordering.
 	 */
-	@Nonnull private final Supplier<IntIntMap> referencePositionMapSupplier;
+	@Nonnull protected final Supplier<IntIntMap> referencePositionMapSupplier;
+	/**
+	 * Function that extracts the attribute value from the reference contract.
+	 */
+	private final Function<ReferenceContract, Comparable<?>> attributeExtractor;
 	/**
 	 * Memoized result from {@link #referencePositionMapSupplier} supplier.
 	 */
-	private IntIntMap referencePositionMap;
+	protected IntIntMap referencePositionMap;
 
-	public PickFirstReferenceCompoundAttributeComparator(
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
+	public PickFirstReferenceAttributeComparator(
+		@Nonnull String attributeName,
+		@Nonnull Class<?> type,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
-		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection,
 		@Nonnull Supplier<IntIntMap> referencePositionMapSupplier
 	) {
 		super(
-			compoundSchemaContract,
+			attributeName,
+			type,
 			referenceSchema,
 			locale,
-			attributeSchemaExtractor,
 			orderDirection
 		);
 		this.referencePositionMapSupplier = referencePositionMapSupplier;
+		this.attributeExtractor = locale == null ?
+			referenceContract -> referenceContract.getAttribute(attributeName) :
+			referenceContract -> referenceContract.getAttribute(attributeName, locale);
 	}
 
-	@Override
 	@Nonnull
+	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
 		// initialize the reference position map if it hasn't been initialized yet
 		if (this.referencePositionMap == null) {
 			this.referencePositionMap = this.referencePositionMapSupplier.get();
 		}
 		// find the reference contract that has the attribute we are looking for
-		return entity.getReferences(this.referenceSchema.getName())
+		return entity.getReferences(this.referenceName)
 			.stream()
-			.filter(it -> Arrays.stream(this.attributeElements).anyMatch(ae -> it.getAttribute(ae.attributeName()) != null))
+			.filter(it -> this.attributeExtractor.apply(it) != null)
 			.min(Comparator.comparingInt(it -> this.referencePositionMap.get(it.getReferencedPrimaryKey())));
 	}
 
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
-		final ReferenceAttributeValue valueToCompare1 = getAndMemoizeValue(o1);
-		final ReferenceAttributeValue valueToCompare2 = getAndMemoizeValue(o2);
-		if (valueToCompare1 != ReferenceAttributeValue.MISSING && valueToCompare2 != ReferenceAttributeValue.MISSING) {
-			return valueToCompare1.compareTo(valueToCompare2);
-		} else {
-			if (valueToCompare1 != ReferenceAttributeValue.MISSING) {
-				return -1;
-			} else if (valueToCompare2 != ReferenceAttributeValue.MISSING) {
-				return 1;
+		final ReferenceAttributeValue attribute1 = this.attributeValueFetcher.apply(o1);
+		final ReferenceAttributeValue attribute2 = this.attributeValueFetcher.apply(o2);
+		if (attribute1 != null && attribute2 != null) {
+			final int result = attribute1.compareTo(attribute2);
+			if (result == 0) {
+				return this.pkComparator.compare(o1, o2);
 			} else {
-				return 0;
+				return result;
 			}
+		} else if (attribute1 == null && attribute2 != null) {
+			return 1;
+		} else if (attribute1 != null) {
+			return -1;
+		} else {
+			return 0;
 		}
 	}
 
