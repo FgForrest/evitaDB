@@ -306,8 +306,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						final int filteredOutReferences = sortAndFilterSubList(
 							entityPrimaryKey,
 							outputReferences,
-							fetchedReferenceComparator,
+							namedReferencePredicate,
 							referenceFilter,
+							fetchedReferenceComparator,
 							0, size
 						);
 						final DataChunk<ReferenceContract> chunk = mrf.createChunk(
@@ -322,7 +323,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		}
 
 		return super.fillFilteredSortedAndFetchedReferences(
-			entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher, inputReferences, outputReferences,
+			entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher,
+			inputReferences, outputReferences,
 			evitaRequest
 		);
 	}
