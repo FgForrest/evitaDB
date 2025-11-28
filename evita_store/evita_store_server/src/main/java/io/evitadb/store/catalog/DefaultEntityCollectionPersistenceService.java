@@ -857,7 +857,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
+		final long lastKnownMinimalActiveVersion = Math.min(
+			lastKnownMinimalActiveVersionRead,
+			lastKnownMinimalActiveVersionWritten
+		);
 		this.storagePartPersistenceService.purgeHistoryOlderThan(lastKnownMinimalActiveVersion);
 	}
 

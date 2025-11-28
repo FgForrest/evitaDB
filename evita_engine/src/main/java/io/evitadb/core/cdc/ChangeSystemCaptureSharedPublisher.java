@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
+import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory.TruePredicate;
 import io.evitadb.core.cdc.predicate.VersionAndIndexPredicate;
 import io.evitadb.utils.Assert;

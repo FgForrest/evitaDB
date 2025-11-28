@@ -163,14 +163,21 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 * asynchronous file removal. This method does nothing when time travel is enabled, because the files are removed
 	 * when WAL files are removed and this logic is executed in {@link ObsoleteWalPurgeCallback} callback.
 	 *
-	 * @param lastKnownMinimalActiveVersion the minimal catalog version that is still being used, NULL when there is no
-	 *                                      active session
+	 * @param lastKnownMinimalActiveVersionRead the minimal catalog version that is still being read from
+	 * @param lastKnownMinimalActiveVersionWritten the minimal catalog version that is still being written on top of
 	 */
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
 		assertNotClosed();
 		// immediate file purging on catalog version exchange is not used when time travel is enabled
 		if (!this.timeTravelEnabled) {
+			final long lastKnownMinimalActiveVersion = Math.min(
+				lastKnownMinimalActiveVersionRead,
+				lastKnownMinimalActiveVersionWritten
+			);
 			if (lastKnownMinimalActiveVersion > 0L && this.firstCatalogVersion.get() < lastKnownMinimalActiveVersion) {
 				this.lastKnownMinimalActiveVersion.accumulateAndGet(
 					lastKnownMinimalActiveVersion,

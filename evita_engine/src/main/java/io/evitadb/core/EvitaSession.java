@@ -98,7 +98,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import lombok.EqualsAndHashCode;
@@ -1407,8 +1406,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
 			pastMoment, catalogVersion, includingWAL,
-			ccControl::registerConsumerOfCatalogInVersion,
-			ccControl::unregisterConsumerOfCatalogInVersion
+			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
+			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
 		);
 	}
 
@@ -1425,8 +1424,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.fullBackup(
-			ccControl::registerConsumerOfCatalogInVersion,
-			ccControl::unregisterConsumerOfCatalogInVersion
+			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
+			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
 		);
 	}
 
@@ -1636,7 +1635,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nullable Long recordingSizeLimitInBytes,
 		long chunkFileSizeInBytes
 	) throws SingletonTaskAlreadyRunningException {
-		Assert.isTrue(
+		isTrue(
 			!isReadOnly(),
 			ReadOnlyException::sessionReadOnly
 		);
@@ -1662,7 +1661,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) {
-		Assert.isTrue(
+		isTrue(
 			!isReadOnly(),
 			ReadOnlyException::sessionReadOnly
 		);
@@ -1720,6 +1719,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	public <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
 		return this.proxyFactory.createEntityProxy(contract, sealedEntity, getEntitySchemaIndex());
+	}
+
+	/**
+	 * Returns traits the session was created with.
+	 *
+	 * @return session traits
+	 */
+	@Nonnull
+	public SessionTraits getSessionTraits() {
+		return this.sessionTraits;
 	}
 
 	/**
@@ -1858,7 +1867,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// then apply termination callbacks
 		String finishedWithError = null;
 		try {
-			Assert.isPremiseValid(
+			isPremiseValid(
 				this.beingClosed.compareAndSet(false, true),
 				"Expectation failed!"
 			);
@@ -1874,7 +1883,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			}
 		} finally {
 			theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
-			Assert.isPremiseValid(
+			isPremiseValid(
 				this.beingClosed.compareAndSet(true, false),
 				"Expectation failed!"
 			);

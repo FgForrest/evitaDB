@@ -2586,12 +2586,27 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
+		final long lastKnownMinimalActiveVersion = Math.min(
+			lastKnownMinimalActiveVersionRead,
+			lastKnownMinimalActiveVersionWritten
+		);
 		this.catalogStoragePartPersistenceService.values().forEach(
 			it -> it.purgeHistoryOlderThan(lastKnownMinimalActiveVersion));
-		this.obsoleteFileMaintainer.consumersLeft(lastKnownMinimalActiveVersion);
+		this.obsoleteFileMaintainer.catalogConsumersLeft(
+			lastKnownMinimalActiveVersionRead,
+			lastKnownMinimalActiveVersionWritten
+		);
 		this.entityCollectionPersistenceServices.values()
-			.forEach(it -> it.consumersLeft(lastKnownMinimalActiveVersion));
+			.forEach(
+				it -> it.catalogConsumersLeft(
+					lastKnownMinimalActiveVersionRead,
+					lastKnownMinimalActiveVersionWritten
+				)
+			);
 	}
 
 	@Override

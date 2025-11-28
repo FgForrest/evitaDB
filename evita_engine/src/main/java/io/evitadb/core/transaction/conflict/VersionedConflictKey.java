@@ -21,27 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.cdc;
+package io.evitadb.core.transaction.conflict;
 
+
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+
+import javax.annotation.Nonnull;
 
 /**
- * A record representing a position in the Write-Ahead Log (WAL).
- * It consists of a catalog version and an index within that version.
+ * TODO JNO - document me
  *
- * @param version the catalog version
- * @param index   the index within the catalog version
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-record WalPointer(
+public record VersionedConflictKey(
 	long version,
-	int index
-) implements Comparable<WalPointer> {
+	int index,
+	@Nonnull ConflictKey conflictKey
+) {
 
-	@Override
-	public int compareTo(WalPointer o) {
-		int versionComparison = Long.compare(this.version, o.version);
-		if (versionComparison != 0) {
-			return versionComparison;
-		}
-		return Integer.compare(this.index, o.index);
-	}
 }

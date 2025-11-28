@@ -814,7 +814,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
 			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
 			TransactionOptions.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
-			TransactionOptions.DEFAULT_FLUSH_FREQUENCY
+			TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
+			TransactionOptions.DEFAULT_CONFLICT_RING_BUFFER_SIZE
 		);
 	}
 

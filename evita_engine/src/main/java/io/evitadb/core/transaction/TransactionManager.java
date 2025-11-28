@@ -45,19 +45,19 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
 import io.evitadb.core.Transaction;
+import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SystemObservableExecutorService;
-import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
-import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
+import io.evitadb.core.transaction.conflict.ConflictRingBuffer;
+import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage;
+import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.TransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
-import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
-import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -157,7 +157,7 @@ public class TransactionManager implements Closeable {
 	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
 	 * asynchronous reactive manner.
 	 */
-	private final SubmissionPublisher<ConflictResolutionTransactionTask> transactionalPipeline;
+	private final SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> transactionalPipeline;
 	/**
 	 * Change observer that is used to notify all registered {@link io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher} about changes in the
 	 * catalog.
@@ -212,6 +212,10 @@ public class TransactionManager implements Closeable {
 	 * that is usually empty.
 	 */
 	private final Deque<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue = new LinkedList<>();
+	/**
+	 * Conflict ring buffer that holds the conflict keys for recent catalog versions.
+	 */
+	private final ConflictRingBuffer conflictRingBuffer;
 	/**
 	 * Name of the catalog.
 	 */
@@ -296,7 +300,8 @@ public class TransactionManager implements Closeable {
 		@Nonnull Scheduler scheduler,
 		@Nonnull ObservableExecutorService requestExecutor,
 		@Nonnull ObservableExecutorService transactionalExecutor,
-		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
+		long catalogVersion
 	) {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
@@ -319,7 +324,7 @@ public class TransactionManager implements Closeable {
 		this.livingCatalog = new AtomicReference<>(catalog);
 		this.catalogName = catalog.getName();
 		// fetch from the persistence store initially - might be greater than current version
-		this.lastAssignedCatalogVersion = new AtomicLong(catalog.getLastCatalogVersionInMutationStream());
+		this.lastAssignedCatalogVersion = new AtomicLong(catalogVersion);
 		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
 		this.accumulatedCatalogSchemaVersionDelta = new AtomicInteger(0);
 		this.lastWrittenCatalogVersion = new AtomicLong(this.lastAssignedCatalogVersion.get());
@@ -332,6 +337,11 @@ public class TransactionManager implements Closeable {
 			"The last finalized catalog version must be greater or equal to last assigned catalog version!"
 		);
 
+		this.conflictRingBuffer = new ConflictRingBuffer(
+			catalog.getVersion(),
+			catalog.getVersion(),
+			this.configuration.transaction().conflictRingBufferSize()
+		);
 		this.walDrainingTask = new DelayedAsyncTask(
 			catalog.getName(), "WAL draining task",
 			scheduler,
@@ -371,7 +381,7 @@ public class TransactionManager implements Closeable {
 		@Nonnull CommitProgressRecord commitProgress
 	) {
 		this.transactionalPipeline.offer(
-			new ConflictResolutionTransactionTask(
+			new ConflictResolutionAndWalAppendingTransactionTask(
 				getCatalogName(),
 				transactionId,
 				walPersistenceService.getMutationCount(),
@@ -411,10 +421,7 @@ public class TransactionManager implements Closeable {
 	 * This is design decision form the authors of the {@link java.util.concurrent.Flow} API.
 	 */
 	public void retryTransactionProcessing(@Nonnull TransactionTask task, @Nonnull Throwable ex) {
-		if (
-			(task instanceof WalAppendingTransactionTask && ex.getCause() instanceof RejectedExecutionException) ||
-			task instanceof TrunkIncorporationTransactionTask
-		) {
+		if (task instanceof TrunkIncorporationTransactionTask) {
 			this.walDrainingTask.schedule();
 		}
 	}
@@ -574,11 +581,11 @@ public class TransactionManager implements Closeable {
 					"Expected " + theLastFinalizedVersion + ", got " + catalogVersion + "."
 			);
 		}
-		this.lastAssignedCatalogVersion.updateAndGet(current -> Math.max(current, catalogVersion));
-		this.lastCatalogSchemaVersion.updateAndGet(current -> Math.max(current, livingCatalog.getSchema().version()));
+
 		this.livingCatalog.set(livingCatalog);
 		this.catalogName = livingCatalog.getName();
 
+		this.lastCatalogSchemaVersion.updateAndGet(current -> Math.max(current, livingCatalog.getSchema().version()));
 		this.lastFinalizedCatalogVersionSchemaDelta.removeIf(
 			finalizedCatalogVersion -> {
 				if (finalizedCatalogVersion.catalogVersion() <= catalogVersion) {
@@ -603,6 +610,7 @@ public class TransactionManager implements Closeable {
 	 * This method identifies concurrent transaction commits based on passed mutation keys.
 	 */
 	public void identifyConflicts(
+		long catalogVersion,
 		@Nonnull OffsetDateTime commitTimestamp,
 		@Nonnull Set<ConflictKey> conflictKeys
 	) {
@@ -612,19 +620,55 @@ public class TransactionManager implements Closeable {
 				OffsetDateTime.now(), commitTimestamp
 			).toMillis();
 			if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
-				// TOBEDONE JNO #503 - implement conflict resolution
+				this.conflictRingBuffer.forEachSince(
+					catalogVersion,
+					vck -> {
+						if (conflictKeys.contains(vck.conflictKey())) {
+							throw new TransactionException(
+								"Transaction conflict detected on conflict key: " + vck.conflictKey() +
+									" with catalog version: " + vck.version() + "."
+							);
+						}
+					}
+				);
 			} else {
 				throw new TransactionTimedOutException(
 					"Conflict resolution lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
 				);
 			}
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Conflict resolution lock interrupted!", e);
+		} catch (OutsideScopeException e) {
+			/* TODO JNO - HANDLE */
+			throw new RuntimeException(e);
 		} finally {
 			if (this.conflictResolutionLock.isHeldByCurrentThread()) {
 				this.conflictResolutionLock.unlock();
 			}
 		}
+	}
+
+	/**
+	 * Releases all conflict keys up to the specified catalog version (including).
+	 *
+	 * @param catalogVersion the catalog version up to which all conflict keys should be released.
+	 */
+	public void releaseConflictKeys(
+		long catalogVersion
+	) {
+		this.conflictRingBuffer.clearAllUntil(catalogVersion);
+	}
+
+	/**
+	 * Rolls back and clears all conflict keys in the buffer that have been added
+	 * in the specified catalog version or after it.
+	 *
+	 * @param sinceCatalogVersion the catalog version after which all conflict keys
+	 *                            will be rolled back and cleared
+	 */
+	public void rollbackConflictKeys(long sinceCatalogVersion) {
+		this.conflictRingBuffer.clearAllAfter(sinceCatalogVersion);
 	}
 
 	/**
@@ -941,7 +985,7 @@ public class TransactionManager implements Closeable {
 	 *
 	 * @return the last assigned catalog version
 	 */
-	private long getLastAssignedCatalogVersion() {
+	public long getLastAssignedCatalogVersion() {
 		return this.lastAssignedCatalogVersion.get();
 	}
 
@@ -979,23 +1023,19 @@ public class TransactionManager implements Closeable {
 	 * @return the submission publisher for conflict resolution transaction tasks
 	 */
 	@Nonnull
-	private SubmissionPublisher<ConflictResolutionTransactionTask> createTransactionalPublisher() {
+	private SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> createTransactionalPublisher() {
 		final int maxBufferCapacity = this.configuration.server().transactionThreadPool().queueSize();
 
-		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(
+		final SubmissionPublisher<ConflictResolutionAndWalAppendingTransactionTask> txPublisher = new SubmissionPublisher<>(
 			this.transactionalExecutor, maxBufferCapacity
 		);
-		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(
+		final ConflictResolutionAndWalAppendingTransactionStage stage1 = new ConflictResolutionAndWalAppendingTransactionStage(
 			this.transactionalExecutor, maxBufferCapacity, this,
 			// do nothing on error
 			(transactionTask, throwable) -> {
 			}
 		);
-		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(
-			this.transactionalExecutor, maxBufferCapacity, this,
-			this::retryTransactionProcessing
-		);
-		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(
+		final TrunkIncorporationTransactionStage stage2 = new TrunkIncorporationTransactionStage(
 			this,
 			this.configuration.transaction().flushFrequencyInMillis(),
 			this::retryTransactionProcessing
@@ -1003,7 +1043,6 @@ public class TransactionManager implements Closeable {
 
 		txPublisher.subscribe(stage1);
 		stage1.subscribe(stage2);
-		stage2.subscribe(stage3);
 		return txPublisher;
 	}
 

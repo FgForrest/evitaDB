@@ -565,7 +565,8 @@ public final class Catalog
 			this.scheduler,
 			evita.getRequestExecutor(),
 			this.transactionalExecutor,
-			newCatalogVersionConsumer
+			newCatalogVersionConsumer,
+			catalogVersion
 		);
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			internalCatalogSchema.getName(),
@@ -664,7 +665,8 @@ public final class Catalog
 			this.scheduler,
 			evita.getRequestExecutor(),
 			this.transactionalExecutor,
-			newCatalogVersionConsumer
+			newCatalogVersionConsumer,
+			catalogVersion
 		);
 		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
@@ -1734,9 +1736,18 @@ public final class Catalog
 	}
 
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
+		// we may now release conflict keys, there is no active transaction that may need them
+		this.transactionManager.releaseConflictKeys(lastKnownMinimalActiveVersionWritten);
+		// notify persistence service as well
 		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
-			cvbthl.consumersLeft(lastKnownMinimalActiveVersion);
+			cvbthl.catalogConsumersLeft(
+				lastKnownMinimalActiveVersionRead,
+				lastKnownMinimalActiveVersionWritten
+			);
 		}
 	}
 

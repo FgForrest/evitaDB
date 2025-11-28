@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
+import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;

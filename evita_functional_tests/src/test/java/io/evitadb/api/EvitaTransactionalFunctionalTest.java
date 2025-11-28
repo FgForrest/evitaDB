@@ -1428,7 +1428,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			);
 
 			log.info("Original catalog finished with version: " + originalCatalogVersion);
-			evita.activateCatalog(restoredCatalogName);
 
 			evita.queryCatalog(
 				restoredCatalogName,
@@ -1529,7 +1528,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			log.info("Original catalog finished with version: " + originalCatalogVersion);
 
-			evita.activateCatalog(restoredCatalogName);
 			evita.queryCatalog(
 				restoredCatalogName,
 				session -> {
@@ -1797,7 +1795,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 											.getFutureResult().get(2, TimeUnit.MINUTES);
 										restartedEvita.activateCatalog(restoredCatalogName);
 									}
-									restartedEvita.activateCatalog(restoredCatalogName);
 									// connect to it and check existence of the first record
 									catalogChecker.accept(restartedEvita, record.catalogVersion(), restoredCatalogName);
 

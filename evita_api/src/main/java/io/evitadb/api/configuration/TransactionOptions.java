@@ -60,6 +60,11 @@ import java.util.Optional;
  *                                              changes to the disk. If the client waits for {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE}
  *                                              he may wait entire {@link #flushFrequencyInMillis} milliseconds before he gets
  *                                              the response.
+ * @param conflictRingBufferSize                Size of the array inside transaction conflict keys ring buffer.
+ *                                              The larger the size, the more conflict keys the ring buffer can keep
+ *                                              in volatile memory. Amount of necessary conflict keys is dependent on
+ *                                              granularity of conflict keys, the number of concurrent transactions,
+ *                                              and the age of the oldest writable session (e.g. transaction).
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TransactionOptions(
@@ -69,7 +74,8 @@ public record TransactionOptions(
 	long walFileSizeBytes,
 	int walFileCountKept,
 	long waitForTransactionAcceptanceInMillis,
-	long flushFrequencyInMillis
+	long flushFrequencyInMillis,
+	int conflictRingBufferSize
 ) {
 	public static final Path DEFAULT_TX_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir"), "evita/transaction");
 	public static final long DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE = 16_777_216;
@@ -78,6 +84,7 @@ public record TransactionOptions(
 	public static final int DEFAULT_WAL_FILE_COUNT_KEPT = 8;
 	public static final int DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE = 20_000;
 	public static final int DEFAULT_FLUSH_FREQUENCY = 1_000;
+	public static final int DEFAULT_CONFLICT_RING_BUFFER_SIZE = 65_536;
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -90,7 +97,8 @@ public record TransactionOptions(
 			8_388_608,
 			1,
 			100,
-			100
+			100,
+			256
 		);
 	}
 
@@ -116,7 +124,8 @@ public record TransactionOptions(
 			DEFAULT_WAL_SIZE_BYTES,
 			DEFAULT_WAL_FILE_COUNT_KEPT,
 			DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
-			DEFAULT_FLUSH_FREQUENCY
+			DEFAULT_FLUSH_FREQUENCY,
+			DEFAULT_CONFLICT_RING_BUFFER_SIZE
 		);
 	}
 
@@ -127,7 +136,8 @@ public record TransactionOptions(
 		long walFileSizeBytes,
 		int walFileCountKept,
 		long waitForTransactionAcceptanceInMillis,
-		long flushFrequencyInMillis
+		long flushFrequencyInMillis,
+		int conflictRingBufferSize
 	) {
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
 		this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
@@ -136,6 +146,7 @@ public record TransactionOptions(
 		this.walFileCountKept = walFileCountKept;
 		this.waitForTransactionAcceptanceInMillis = waitForTransactionAcceptanceInMillis;
 		this.flushFrequencyInMillis = flushFrequencyInMillis;
+		this.conflictRingBufferSize = conflictRingBufferSize;
 	}
 
 	/**
@@ -150,6 +161,7 @@ public record TransactionOptions(
 		private int walFileCountKept = DEFAULT_WAL_FILE_COUNT_KEPT;
 		private long waitForTransactionAcceptance = DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE;
 		private long flushFrequency = DEFAULT_FLUSH_FREQUENCY;
+		private int conflictRingBufferSize = DEFAULT_CONFLICT_RING_BUFFER_SIZE;
 
 		Builder() {
 		}
@@ -162,6 +174,7 @@ public record TransactionOptions(
 			this.walFileCountKept = TransactionOptions.walFileCountKept;
 			this.waitForTransactionAcceptance = TransactionOptions.waitForTransactionAcceptanceInMillis;
 			this.flushFrequency = TransactionOptions.flushFrequencyInMillis;
+			this.conflictRingBufferSize = TransactionOptions.conflictRingBufferSize;
 		}
 
 		@Nonnull
@@ -207,6 +220,12 @@ public record TransactionOptions(
 		}
 
 		@Nonnull
+		public TransactionOptions.Builder conflictRingBufferSize(int conflictRingBufferSize) {
+			this.conflictRingBufferSize = conflictRingBufferSize;
+			return this;
+		}
+
+		@Nonnull
 		public TransactionOptions build() {
 			return new TransactionOptions(
 				this.transactionWorkDirectory,
@@ -215,7 +234,8 @@ public record TransactionOptions(
 				this.walFileSizeBytes,
 				this.walFileCountKept,
 				this.waitForTransactionAcceptance,
-				this.flushFrequency
+				this.flushFrequency,
+				this.conflictRingBufferSize
 			);
 		}
 
