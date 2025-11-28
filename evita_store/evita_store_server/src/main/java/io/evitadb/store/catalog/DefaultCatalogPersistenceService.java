@@ -1786,6 +1786,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		return new DefaultIsolatedWalService(
 			this.catalogName,
 			transactionId,
+			this.transactionOptions.conflictPolicy(),
 			this.walKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.transactionOptions.transactionWorkDirectory()

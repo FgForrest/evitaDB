@@ -24,12 +24,15 @@
 package io.evitadb.api.configuration;
 
 import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Optional;
 
 /**
@@ -65,6 +68,9 @@ import java.util.Optional;
  *                                              in volatile memory. Amount of necessary conflict keys is dependent on
  *                                              granularity of conflict keys, the number of concurrent transactions,
  *                                              and the age of the oldest writable session (e.g. transaction).
+ * @param conflictPolicy                        Set of conflict policies that will be used to resolve conflicts with
+ *                                              other parallel sessions during the transaction commit. By default,
+ *                                              {@link ConflictPolicy#ENTITY} is enabled.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public record TransactionOptions(
@@ -75,7 +81,8 @@ public record TransactionOptions(
 	int walFileCountKept,
 	long waitForTransactionAcceptanceInMillis,
 	long flushFrequencyInMillis,
-	int conflictRingBufferSize
+	int conflictRingBufferSize,
+	@Nonnull EnumSet<ConflictPolicy> conflictPolicy
 ) {
 	public static final Path DEFAULT_TX_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir"), "evita/transaction");
 	public static final long DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE = 16_777_216;
@@ -85,6 +92,7 @@ public record TransactionOptions(
 	public static final int DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE = 20_000;
 	public static final int DEFAULT_FLUSH_FREQUENCY = 1_000;
 	public static final int DEFAULT_CONFLICT_RING_BUFFER_SIZE = 65_536;
+	public static final EnumSet<ConflictPolicy> DEFAULT_CONFLICT_POLICY = EnumSet.of(ConflictPolicy.ENTITY);
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -98,7 +106,8 @@ public record TransactionOptions(
 			1,
 			100,
 			100,
-			256
+			256,
+			DEFAULT_CONFLICT_POLICY
 		);
 	}
 
@@ -125,7 +134,8 @@ public record TransactionOptions(
 			DEFAULT_WAL_FILE_COUNT_KEPT,
 			DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			DEFAULT_FLUSH_FREQUENCY,
-			DEFAULT_CONFLICT_RING_BUFFER_SIZE
+			DEFAULT_CONFLICT_RING_BUFFER_SIZE,
+			DEFAULT_CONFLICT_POLICY
 		);
 	}
 
@@ -137,7 +147,8 @@ public record TransactionOptions(
 		int walFileCountKept,
 		long waitForTransactionAcceptanceInMillis,
 		long flushFrequencyInMillis,
-		int conflictRingBufferSize
+		int conflictRingBufferSize,
+		@Nonnull EnumSet<ConflictPolicy> conflictPolicy
 	) {
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
 		this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
@@ -147,6 +158,7 @@ public record TransactionOptions(
 		this.waitForTransactionAcceptanceInMillis = waitForTransactionAcceptanceInMillis;
 		this.flushFrequencyInMillis = flushFrequencyInMillis;
 		this.conflictRingBufferSize = conflictRingBufferSize;
+		this.conflictPolicy = conflictPolicy;
 	}
 
 	/**
@@ -162,6 +174,7 @@ public record TransactionOptions(
 		private long waitForTransactionAcceptance = DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE;
 		private long flushFrequency = DEFAULT_FLUSH_FREQUENCY;
 		private int conflictRingBufferSize = DEFAULT_CONFLICT_RING_BUFFER_SIZE;
+		private final EnumSet<ConflictPolicy> conflictPolicy = EnumSet.copyOf(DEFAULT_CONFLICT_POLICY);
 
 		Builder() {
 		}
@@ -226,6 +239,19 @@ public record TransactionOptions(
 		}
 
 		@Nonnull
+		public TransactionOptions.Builder conflictPolicy(@Nonnull ConflictPolicy... conflictPolicy) {
+			this.conflictPolicy.clear();
+			Collections.addAll(this.conflictPolicy, conflictPolicy);
+			return this;
+		}
+
+		@Nonnull
+		public TransactionOptions.Builder conflictPolicyLastWriterWins() {
+			this.conflictPolicy.clear();
+			return this;
+		}
+
+		@Nonnull
 		public TransactionOptions build() {
 			return new TransactionOptions(
 				this.transactionWorkDirectory,
@@ -235,7 +261,8 @@ public record TransactionOptions(
 				this.walFileCountKept,
 				this.waitForTransactionAcceptance,
 				this.flushFrequency,
-				this.conflictRingBufferSize
+				this.conflictRingBufferSize,
+				this.conflictPolicy
 			);
 		}
 

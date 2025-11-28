@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
@@ -187,6 +188,8 @@ public class EntityRemoveMutation implements EntityMutation {
 	) {
 		if (conflictPolicies.contains(ConflictPolicy.ENTITY)) {
 			return Stream.of(new EntityConflictKey(this.entityType, this.entityPrimaryKey));
+		} else if (conflictPolicies.contains(ConflictPolicy.COLLECTION)) {
+			return Stream.of(new CollectionConflictKey(this.entityType));
 		} else {
 			return Stream.empty();
 		}

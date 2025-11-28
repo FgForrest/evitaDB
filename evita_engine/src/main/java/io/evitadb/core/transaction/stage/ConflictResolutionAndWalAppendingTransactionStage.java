@@ -152,7 +152,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		final TransactionAcceptedEvent conflictResolutionEvent = new TransactionAcceptedEvent(task.catalogName());
 
 		this.transactionManager.identifyConflicts(
-			expectedCatalogVersion,
+			task.sessionCatalogVersion(),
 			task.commitProgress().getCommitStartTime(),
 			task.conflictKeys()
 		);
@@ -236,6 +236,8 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				this.transactionManager.getRequestExecutor()
 			);
 
+		this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
+
 		// now the WAL is safely written - no version is lost
 		this.droppedCatalogVersions = 0;
 		this.droppedCatalogSchemaVersionDelta = 0;
@@ -245,8 +247,6 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			task.mutationCount() + 1,
 			writtenLength
 		).commit();
-
-		this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
 	}
 
 	@Override
@@ -267,6 +267,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 	 * Represents a task for resolving conflicts during a transaction.
 	 *
 	 * @param catalogName the name of the catalog the transaction is bound to
+	 * @param sessionCatalogVersion the catalog version this transaction session started with (the SNAPSHOT isolation version)
 	 * @param transactionId the ID of the transaction
 	 * @param mutationCount the number of mutations in the transaction (excluding the leading mutation)
 	 * @param walSizeInBytes the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
@@ -280,6 +281,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 	@NonRepeatableTask
 	public record ConflictResolutionAndWalAppendingTransactionTask(
 		@Nonnull String catalogName,
+		long sessionCatalogVersion,
 		@Nonnull UUID transactionId,
 		int mutationCount,
 		long walSizeInBytes,
@@ -292,6 +294,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 
 		public ConflictResolutionAndWalAppendingTransactionTask(
 			@Nonnull String catalogName,
+			long sessionCatalogVersion,
 			@Nonnull UUID transactionId,
 			int mutationCount,
 			long walSizeInBytes,
@@ -302,6 +305,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		) {
 			this(
 				catalogName,
+				sessionCatalogVersion,
 				transactionId,
 				mutationCount,
 				walSizeInBytes,

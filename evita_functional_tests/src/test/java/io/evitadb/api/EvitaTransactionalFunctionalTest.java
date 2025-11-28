@@ -34,6 +34,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
@@ -47,6 +48,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -998,6 +1000,230 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("When two parallel transactions update same product, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoProductsAreUpdatedConcurrently(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Random rnd = new Random();
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final BiFunction<String, Faker, Integer> rep1 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+						entityType, session, faker);
+					final ModificationFunction mf1 = this.dataGenerator.createModificationFunction(rep1, rnd);
+
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					mf1.apply(
+						session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+							.orElseThrow()
+					).upsertVia(session);
+
+					final CountDownLatch latch = new CountDownLatch(1);
+					new Thread(() -> {
+						try {
+							// this concurrent session will try to do the same, and commits first
+							evita.updateCatalog(
+								TEST_CATALOG,
+								concurrentSession -> {
+									final BiFunction<String, Faker, Integer> rep2 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+										entityType, concurrentSession, faker);
+									final ModificationFunction mf2 = this.dataGenerator.createModificationFunction(
+										rep2, rnd);
+
+									// this mutation will generate a conflict, but only at the time of the commit, not now
+									mf2.apply(
+										concurrentSession.getEntity(
+												productSchema.getName(), addedEntity.getPrimaryKey(),
+												entityFetchAllContent()
+											)
+											.orElseThrow()
+									).upsertVia(concurrentSession);
+								}
+							);
+						} finally {
+							latch.countDown();
+						}
+					}).start();
+
+					try {
+						latch.await();
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+
+		// but no conflict should be raised when there is another update after everything settled
+		evita.updateCatalog(
+			TEST_CATALOG,
+			followUpSession -> {
+				final BiFunction<String, Faker, Integer> rep3 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, followUpSession, faker);
+				final ModificationFunction mf3 = this.dataGenerator.createModificationFunction(
+					rep3, rnd);
+
+				// this mutation will generate a conflict, but only at the time of the commit, not now
+				mf3.apply(
+					followUpSession.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(),
+							entityFetchAllContent()
+						)
+						.orElseThrow()
+				).upsertVia(followUpSession);
+			}
+		);
+	}
+
+	@DisplayName("When parallel transactions remove and update same product, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenProductIsRemovedAndUpdatedConcurrently(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Random rnd = new Random();
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					session.deleteEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+
+					final CountDownLatch latch = new CountDownLatch(1);
+					new Thread(() -> {
+						try {
+							// this concurrent session will try to do the same, and commits first
+							evita.updateCatalog(
+								TEST_CATALOG,
+								concurrentSession -> {
+									final BiFunction<String, Faker, Integer> rep2 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+										entityType, concurrentSession, faker);
+									final ModificationFunction mf2 = this.dataGenerator.createModificationFunction(
+										rep2, rnd);
+
+									// this mutation will generate a conflict, but only at the time of the commit, not now
+									mf2.apply(
+										concurrentSession.getEntity(
+												productSchema.getName(), addedEntity.getPrimaryKey(),
+												entityFetchAllContent()
+											)
+											.orElseThrow()
+									).upsertVia(concurrentSession);
+								}
+							);
+						} finally {
+							latch.countDown();
+						}
+					}).start();
+
+					try {
+						latch.await();
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When parallel transactions update and remove same product, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenProductIsUpdatedAndRemovedConcurrently(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Random rnd = new Random();
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					final BiFunction<String, Faker, Integer> rep1 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+						entityType, session, faker);
+					final ModificationFunction mf1 = this.dataGenerator.createModificationFunction(
+						rep1, rnd);
+
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					mf1.apply(
+						session.getEntity(
+								productSchema.getName(), addedEntity.getPrimaryKey(),
+								entityFetchAllContent()
+							)
+							.orElseThrow()
+					).upsertVia(session);
+
+					final CountDownLatch latch = new CountDownLatch(1);
+					new Thread(() -> {
+						try {
+							// this concurrent session will try to do the same, and commits first
+							evita.updateCatalog(
+								TEST_CATALOG,
+								concurrentSession -> {
+									concurrentSession.deleteEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+								}
+							);
+						} finally {
+							latch.countDown();
+						}
+					}).start();
+
+					try {
+						latch.await();
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	/* TODO JNO - write tests for more granular levels and combination of update / remove */
+
 	@DisplayName("Update catalog with another product - synchronously using runnable.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1239,6 +1465,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.transaction(
 					TransactionOptions.builder()
 						.flushFrequencyInMillis(60_000)
+						.conflictPolicyLastWriterWins()
 						.build()
 				)
 				.server(
@@ -1588,6 +1815,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						TransactionOptions.builder()
 							.walFileSizeBytes(4_096)
 							.walFileCountKept(2)
+							.conflictPolicyLastWriterWins()
 							.build()
 					)
 					.server(
@@ -2045,6 +2273,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final IsolatedWalPersistenceService walPersistenceService = new DefaultIsolatedWalService(
 			TEST_CATALOG,
 			UUID.randomUUID(),
+			EnumSet.noneOf(ConflictPolicy.class),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,

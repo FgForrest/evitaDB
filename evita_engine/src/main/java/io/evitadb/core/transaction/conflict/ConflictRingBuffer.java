@@ -28,13 +28,28 @@ import io.evitadb.core.buffer.RingBuffer;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer.CatalogVersionIndex;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.ThreadSafe;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
- * TODO JNO - document me
+ * A ring buffer implementation for storing and retrieving {@link VersionedConflictKey} objects.
+ * This buffer maintains a fixed-size circular array of versioned conflict keys, automatically
+ * discarding the oldest entries when the buffer becomes full.
+ *
+ * The buffer tracks the effective start and end versions of the conflict keys it contains,
+ * allowing clients to query for keys starting from a specific catalog version and index position.
+ * When the buffer is full and new items are added, the oldest items are removed, and the
+ * effective start version and index are updated accordingly.
+ *
+ * This implementation uses a {@link ReentrantLock} to ensure thread safety for reading operations.
+ * However, writing operations must always be performed from the same thread to maintain consistency.
+ *
+ * Class is thread safe for reading, but not thread safe for writing (writing must be always done from the same thread).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@ThreadSafe
 public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, CatalogVersionIndex> {
 
 	/**
@@ -64,6 +79,15 @@ public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, Catalog
 				return Integer.compare(vck.index(), cvi.index());
 			}
 		);
+	}
+
+	/**
+	 * Sets the effective start position of the buffer to the specified catalog version
+	 *
+	 * @param catalogVersion the catalog version to set as the effective end
+	 */
+	public void setEffectiveLastCatalogVersion(long catalogVersion) {
+		setEffectiveEnd(new CatalogVersionIndex(catalogVersion, Integer.MAX_VALUE));
 	}
 
 	/**

@@ -106,7 +106,7 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> extends RingBuffer<T, Wal
 	/**
 	 * Sets the effective start position of the buffer to the specified catalog version and index.
 	 *
-	 * @param catalogVersion the catalog version to set as the effective start
+	 * @param catalogVersion the catalog version to set as the effective end
 	 */
 	public void setEffectiveLastCatalogVersion(long catalogVersion) {
 		setEffectiveEnd(new WalPointer(catalogVersion, Integer.MAX_VALUE));

@@ -29,7 +29,21 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * Represents a stable key used to track and resolve write conflicts in a ring buffer.
+ *
+ * The key combines:
+ * - `version` — monotonically increasing version of the buffer slot that allows distinguishing
+ *   an old entry from a newly overwritten one even when the slot `index` is reused.
+ * - `index` — physical position in the ring buffer where the conflicting operation was recorded.
+ * - `conflictKey` — logical key describing the affected entity or resource as defined by
+ *   {@link io.evitadb.api.requestResponse.mutation.conflict.ConflictKey ConflictKey}.
+ *
+ * This composite is used by the transaction/CDC infrastructure to quickly identify whether two
+ * mutations target the same logical resource and originate from the same buffer slot incarnation.
+ *
+ * @param version	monotonically increasing version associated with the ring buffer slot
+ * @param index	zero-based index of the slot within the ring buffer
+ * @param conflictKey	the logical conflict key describing the targeted resource, never {@code null}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

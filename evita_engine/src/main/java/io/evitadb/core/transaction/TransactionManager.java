@@ -26,6 +26,7 @@ package io.evitadb.core.transaction;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
@@ -37,6 +38,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -53,6 +55,7 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer;
+import io.evitadb.core.transaction.conflict.VersionedConflictKey;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.TransactionTask;
@@ -217,6 +220,14 @@ public class TransactionManager implements Closeable {
 	 */
 	private final ConflictRingBuffer conflictRingBuffer;
 	/**
+	 * Set of conflict policies that are used in this transaction manager.
+	 */
+	private final EnumSet<ConflictPolicy> conflictPolicy;
+	/**
+	 * Indicates whether any of the conflict policies is granular.
+	 */
+	private final boolean granularConflictPolicy;
+	/**
 	 * Name of the catalog.
 	 */
 	private String catalogName;
@@ -305,6 +316,8 @@ public class TransactionManager implements Closeable {
 	) {
 		this.evita = evita;
 		this.configuration = evita.getConfiguration();
+		this.conflictPolicy = this.configuration.transaction().conflictPolicy();
+		this.granularConflictPolicy = this.conflictPolicy.stream().anyMatch(ConflictPolicy::isGranular);
 		this.requestExecutor = requestExecutor;
 		this.transactionalExecutor = new SystemObservableExecutorService("transactionalPipeline", transactionalExecutor);
 		this.transactionalPipeline = createTransactionalPublisher();
@@ -375,6 +388,7 @@ public class TransactionManager implements Closeable {
 	 * Commits the transaction to the transactional pipeline.
 	 */
 	public void commit(
+		long sessionCatalogVersion,
 		@Nonnull UUID transactionId,
 		int catalogSchemaVersionDelta,
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
@@ -383,6 +397,7 @@ public class TransactionManager implements Closeable {
 		this.transactionalPipeline.offer(
 			new ConflictResolutionAndWalAppendingTransactionTask(
 				getCatalogName(),
+				sessionCatalogVersion,
 				transactionId,
 				walPersistenceService.getMutationCount(),
 				walPersistenceService.getMutationSizeInBytes(),
@@ -485,7 +500,7 @@ public class TransactionManager implements Closeable {
 			theLastWrittenCatalogVersion <= catalogVersion,
 			"Unexpected catalog version " + catalogVersion + " vs. " + theLastWrittenCatalogVersion + "!"
 		);
-		this.lastWrittenCatalogVersion.set(catalogVersion);
+		updateLastWrittenCatalogVersion(catalogVersion);
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
 		Assert.isPremiseValid(
 			theLastFinalizedCatalogVersion <= catalogVersion,
@@ -509,19 +524,23 @@ public class TransactionManager implements Closeable {
 	 * @param catalogVersion the last written catalog version
 	 */
 	public void updateLastWrittenCatalogVersion(long catalogVersion) {
-		final long theLastWrittenCatalogVersion = getLastWrittenCatalogVersion();
-		Assert.isPremiseValid(
-			theLastWrittenCatalogVersion < catalogVersion,
-			"Catalog versions written to WAL must be in order! " +
-				"Expected " + (theLastWrittenCatalogVersion + 1) + ", got " + catalogVersion + "."
-		);
-		final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
-		Assert.isPremiseValid(
-			theLastAssignedCatalogVersion >= catalogVersion,
-			"Last assigned catalog version is expected to be larger or same as WAL written version! " +
-				"Expected " + theLastAssignedCatalogVersion + ", got " + catalogVersion + "."
-		);
-		this.lastWrittenCatalogVersion.set(catalogVersion);
+		try {
+			final long theLastWrittenCatalogVersion = getLastWrittenCatalogVersion();
+			Assert.isPremiseValid(
+				theLastWrittenCatalogVersion < catalogVersion,
+				"Catalog versions written to WAL must be in order! " +
+					"Expected " + (theLastWrittenCatalogVersion + 1) + ", got " + catalogVersion + "."
+			);
+			final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
+			Assert.isPremiseValid(
+				theLastAssignedCatalogVersion >= catalogVersion,
+				"Last assigned catalog version is expected to be larger or same as WAL written version! " +
+					"Expected " + theLastAssignedCatalogVersion + ", got " + catalogVersion + "."
+			);
+			this.lastWrittenCatalogVersion.set(catalogVersion);
+		} finally {
+			this.conflictRingBuffer.setEffectiveLastCatalogVersion(catalogVersion);
+		}
 	}
 
 	/**
@@ -624,13 +643,18 @@ public class TransactionManager implements Closeable {
 					catalogVersion,
 					vck -> {
 						if (conflictKeys.contains(vck.conflictKey())) {
-							throw new TransactionException(
-								"Transaction conflict detected on conflict key: " + vck.conflictKey() +
-									" with catalog version: " + vck.version() + "."
+							throw new ConflictingCatalogMutationException(
+								this.catalogName,
+								vck.conflictKey(),
+								vck.version()
 							);
 						}
 					}
 				);
+				int index = 0;
+				for (ConflictKey conflictKey : conflictKeys) {
+					this.conflictRingBuffer.offer(new VersionedConflictKey(catalogVersion, index++, conflictKey));
+				}
 			} else {
 				throw new TransactionTimedOutException(
 					"Conflict resolution lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
@@ -987,6 +1011,25 @@ public class TransactionManager implements Closeable {
 	 */
 	public long getLastAssignedCatalogVersion() {
 		return this.lastAssignedCatalogVersion.get();
+	}
+
+	/**
+	 * Retrieves the set of conflict policies associated with the transaction configuration.
+	 *
+	 * @return a non-null set of ConflictPolicy objects representing the conflict policies.
+	 */
+	@Nonnull
+	public Set<ConflictPolicy> getConflictPolicy() {
+		return this.conflictPolicy;
+	}
+
+	/**
+	 * Determines if a granular (sub-entity level) conflict policy is used.
+	 *
+	 * @return true if a granular conflict policy is enabled; false otherwise
+	 */
+	public boolean hasGranularConflictPolicy() {
+		return this.granularConflictPolicy;
 	}
 
 	/**

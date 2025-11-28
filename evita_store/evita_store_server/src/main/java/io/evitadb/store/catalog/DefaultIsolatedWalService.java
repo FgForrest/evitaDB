@@ -40,6 +40,7 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.UUID;
@@ -54,14 +55,14 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class DefaultIsolatedWalService implements IsolatedWalPersistenceService {
-	private static final Set<ConflictPolicy> CONFLICT_POLICIES = Set.of(
-		ConflictPolicy.CATALOG,
-		ConflictPolicy.ENTITY
-	);
 	/**
 	 * The catalogName is the name of the catalog associated with this isolated WAL instance.
 	 */
 	@Nonnull private final String catalogName;
+	/**
+	 * The set of conflict policies that are considered when collecting conflict keys.
+	 */
+	@Nonnull private final EnumSet<ConflictPolicy> conflictPolicy;
 	/**
 	 * The transactionId is the unique identifier for the transaction.
 	 */
@@ -90,11 +91,13 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 	public DefaultIsolatedWalService(
 		@Nonnull String catalogName,
 		@Nonnull UUID transactionId,
+		@Nonnull EnumSet<ConflictPolicy> conflictPolicy,
 		@Nonnull Kryo writeKryo,
 		@Nonnull WriteOnlyOffHeapWithFileBackupHandle writeHandle
 	) {
 		this.catalogName = catalogName;
 		this.transactionId = transactionId;
+		this.conflictPolicy = conflictPolicy;
 		this.writeKryo = writeKryo;
 		this.writeHandle = writeHandle;
 	}
@@ -111,7 +114,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 				final ConflictGenerationContext context = new ConflictGenerationContext();
 				final Iterator<ConflictKey> it = context.withCatalogName(
 					this.catalogName,
-					ctx -> mutationToWrite.collectConflictKeys(ctx, CONFLICT_POLICIES)
+					ctx -> mutationToWrite.collectConflictKeys(ctx, this.conflictPolicy)
 				).iterator();
 				// register collected conflict keys
 				boolean conflictKeyCollected = false;
@@ -120,7 +123,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 					conflictKeyCollected = true;
 				}
 				// register catalog conflict key if none collected and catalog policy is requested
-				if (!conflictKeyCollected && CONFLICT_POLICIES.contains(ConflictPolicy.CATALOG)) {
+				if (!conflictKeyCollected && this.conflictPolicy.contains(ConflictPolicy.CATALOG)) {
 					this.conflictKeys.add(new CatalogConflictKey(this.catalogName));
 				}
 				// write the mutation
@@ -150,7 +153,7 @@ public class DefaultIsolatedWalService implements IsolatedWalPersistenceService 
 		for (ConflictKey conflictKey : this.conflictKeys) {
 			resultConflictKeys.add(conflictKey);
 		}
-		if (resultConflictKeys.isEmpty() && CONFLICT_POLICIES.contains(ConflictPolicy.CATALOG)) {
+		if (resultConflictKeys.isEmpty() && this.conflictPolicy.contains(ConflictPolicy.CATALOG)) {
 			// at least catalog conflict key must be present
 			resultConflictKeys.add(new CatalogConflictKey(this.catalogName));
 		}

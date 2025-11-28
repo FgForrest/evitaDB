@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.executor.Scheduler;
@@ -50,6 +51,7 @@ import org.mockito.Mockito;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -94,6 +96,7 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
 		TEST_CATALOG,
 		this.transactionId,
+		EnumSet.noneOf(ConflictPolicy.class),
 		this.kryo,
 		this.writeHandle
 	);

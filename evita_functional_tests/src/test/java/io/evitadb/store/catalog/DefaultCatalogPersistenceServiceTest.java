@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -170,6 +171,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private final DefaultIsolatedWalService walService = new DefaultIsolatedWalService(
 		TEST_CATALOG,
 		this.transactionId,
+		EnumSet.noneOf(ConflictPolicy.class),
 		this.kryo,
 		this.writeHandle
 	);
@@ -815,7 +817,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
 			TransactionOptions.DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE,
 			TransactionOptions.DEFAULT_FLUSH_FREQUENCY,
-			TransactionOptions.DEFAULT_CONFLICT_RING_BUFFER_SIZE
+			TransactionOptions.DEFAULT_CONFLICT_RING_BUFFER_SIZE,
+			TransactionOptions.DEFAULT_CONFLICT_POLICY
 		);
 	}
 

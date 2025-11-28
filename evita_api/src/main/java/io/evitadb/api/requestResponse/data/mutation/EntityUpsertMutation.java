@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
-import io.evitadb.api.requestResponse.mutation.conflict.EntityConflictKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -197,7 +196,8 @@ public class EntityUpsertMutation implements EntityMutation {
 			pkMutation = empty();
 		}
 		// collect schema mutations from the local entity mutations
-		final Optional<LocalEntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(catalogSchema, entitySchema, this.localMutations);
+		final Optional<LocalEntitySchemaMutation[]> additionalMutations = EntityMutation.verifyOrEvolveSchema(
+			catalogSchema, entitySchema, this.localMutations);
 		// combine mutation local mutations with the entity primary key mutation is provided
 		return additionalMutations
 			.map(
@@ -232,6 +232,21 @@ public class EntityUpsertMutation implements EntityMutation {
 
 	@Nonnull
 	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return context.withEntityType(
+			this.entityType,
+			this.entityPrimaryKey,
+			ctx -> EntityMutation.getConflictKeyStream(
+				this.entityType, this.entityPrimaryKey, this.localMutations, conflictPolicies, ctx
+			)
+		);
+	}
+
+	@Nonnull
+	@Override
 	public Stream<ChangeCatalogCapture> toChangeCatalogCapture(
 		@Nonnull MutationPredicate predicate,
 		@Nonnull ChangeCaptureContent content
@@ -262,7 +277,8 @@ public class EntityUpsertMutation implements EntityMutation {
 					.flatMap(it -> it.toChangeCatalogCapture(predicate, content))
 			);
 		} else {
-			final ListIterator<? extends LocalMutation<?, ?>> iterator = this.localMutations.listIterator(this.localMutations.size());
+			final ListIterator<? extends LocalMutation<?, ?>> iterator = this.localMutations.listIterator(
+				this.localMutations.size());
 			return Stream.concat(
 				Stream.generate(() -> null)
 					.takeWhile(x -> iterator.hasPrevious())
@@ -272,44 +288,6 @@ public class EntityUpsertMutation implements EntityMutation {
 				entityMutation
 			);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public Stream<ConflictKey> collectConflictKeys(
-		@Nonnull ConflictGenerationContext context,
-		@Nonnull Set<ConflictPolicy> conflictPolicies
-	) {
-		return context.withEntityType(
-			this.entityType,
-			this.entityPrimaryKey,
-			ctx -> {
-				final Stream.Builder<ConflictKey> keys = Stream.builder();
-				boolean atLeastOneKeyMissing = false;
-
-				for (LocalMutation<?, ?> localMutation : this.localMutations) {
-					boolean keyAdded = false;
-
-					// Avoid lambda and AtomicBoolean: iterate directly
-					final Iterator<ConflictKey> it = localMutation.collectConflictKeys(ctx, conflictPolicies).iterator();
-					while (it.hasNext()) {
-						keys.add(it.next());
-						keyAdded = true;
-					}
-
-					atLeastOneKeyMissing = atLeastOneKeyMissing || !keyAdded;
-				}
-
-				// If any mutation didn't produce a key and ENTITY policy is enabled,
-				// add the fallback entity conflict key directly into the same builder.
-				if (atLeastOneKeyMissing && conflictPolicies.contains(ConflictPolicy.ENTITY) && this.entityPrimaryKey != null) {
-					keys.add(new EntityConflictKey(this.entityType, this.entityPrimaryKey));
-				}
-
-				// Build a single stream instance
-				return keys.build();
-			}
-		);
 	}
 
 	@Override
@@ -348,6 +326,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Override
 	public String toString() {
 		return "entity `" + this.entityType + "` upsert (" + this.entityType + "): " + this.entityPrimaryKey +
-			" and mutations: [" + this.localMutations.stream().map(Object::toString).collect(Collectors.joining(", ")) + "]";
+			" and mutations: [" + this.localMutations.stream().map(Object::toString).collect(
+			Collectors.joining(", ")) + "]";
 	}
 }

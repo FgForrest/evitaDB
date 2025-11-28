@@ -24,6 +24,9 @@
 package io.evitadb.api.requestResponse.mutation.conflict;
 
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * Describes the granularity at which write conflicts are detected and serialized.
  *
@@ -56,6 +59,7 @@ package io.evitadb.api.requestResponse.mutation.conflict;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@RequiredArgsConstructor
 public enum ConflictPolicy {
 
 	/**
@@ -64,21 +68,21 @@ public enum ConflictPolicy {
 	 * write to the same catalog, which will effectively mean, that there will be no concurrent writes to the same
 	 * catalog allowed.
 	 */
-	CATALOG,
+	CATALOG(false),
 
 	/**
 	 * This policy generates conflict keys that are scoped to collections within the catalog. Mutations targeting
 	 * different collections can be processed concurrently, while concurrent mutations targeting the same collection
 	 * will generate conflicts.
 	 */
-	COLLECTION,
+	COLLECTION(false),
 
 	/**
 	 * This policy generates conflict keys that are scoped to individual entities within a collection. Mutations
 	 * targeting different entities can be processed concurrently, while concurrent mutations targeting the same
 	 * entity will generate conflicts.
 	 */
-	ENTITY,
+	ENTITY(false),
 
 	/**
 	 * This policy generates conflict keys that are scoped to specific attributes of entities. Concurrent mutations
@@ -87,41 +91,46 @@ public enum ConflictPolicy {
 	 *
 	 * This policy doesn't cover attributes of references, see {@link #REFERENCE_ATTRIBUTE} for that.
 	 */
-	ENTITY_ATTRIBUTE,
+	ENTITY_ATTRIBUTE(true),
 
 	/**
 	 * This policy generates conflict keys that are scoped to specific references of entities. Concurrent mutations
 	 * targeting the same reference of the same entity will generate conflicts, while mutations targeting different
 	 * references, parts of the same entity or different entities can be processed concurrently.
 	 */
-	REFERENCE,
+	REFERENCE(true),
 
 	/**
 	 * This policy generates conflict keys that are scoped to specific attributes of references within entities. Concurrent
 	 * mutations targeting the same attribute of the same reference of the same entity will generate conflicts, while mutations
 	 * targeting different attributes, references, parts of the same entity or different entities can be processed concurrently.
 	 */
-	REFERENCE_ATTRIBUTE,
+	REFERENCE_ATTRIBUTE(true),
 
 	/**
 	 * This policy generates conflict keys that are scoped to associated data of entities. Concurrent mutations
 	 * targeting the same associated data of the same entity will generate conflicts, while mutations targeting different
 	 * associated data, parts of the same entity or different entities can be processed concurrently.
 	 */
-	ASSOCIATED_DATA,
+	ASSOCIATED_DATA(true),
 
 	/**
 	 * This policy generates conflict keys that are scoped to prices of entities. Concurrent mutations
 	 * targeting the same price of the same entity will generate conflicts, while mutations targeting different
 	 * prices, parts of the same entity or different entities can be processed concurrently.
 	 */
-	PRICE,
+	PRICE(true),
 
 	/**
 	 * This policy generates conflict keys that are scoped to the hierarchy of entities. Concurrent mutations
 	 * targeting the same position in the hierarchy of the same entity will generate conflicts, while mutations targeting different
 	 * positions, parts of the same entity or different entities can be processed concurrently.
 	 */
-	HIERARCHY
+	HIERARCHY(true);
+
+	/**
+	 * True for all policies that are more granular than entity level.
+	 */
+	@Getter private final boolean granular;
 
 }

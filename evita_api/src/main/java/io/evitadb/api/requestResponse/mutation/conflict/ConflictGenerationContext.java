@@ -24,7 +24,6 @@
 package io.evitadb.api.requestResponse.mutation.conflict;
 
 
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
@@ -59,11 +58,6 @@ public class ConflictGenerationContext {
 	 * a primary key yet or if not within an entity context.
 	 */
 	@Nullable private Integer entityPrimaryKey;
-
-	/**
-	 * The reference key currently being processed. May be null if not within a reference context.
-	 */
-	@Nullable private ReferenceKey referenceKey;
 
 	/**
 	 * Retrieves the catalog name associated with the current context.
@@ -114,22 +108,6 @@ public class ConflictGenerationContext {
 	@Nullable
 	public Integer getEntityPrimaryKey() {
 		return this.entityPrimaryKey;
-	}
-
-	/**
-	 * Retrieves the reference key associated with the current context.
-	 * If the reference key is not set, an assertion error is triggered.
-	 *
-	 * @return the reference key set in the current context
-	 * @throws GenericEvitaInternalError if the catalog name is not set in the context
-	 */
-	@Nonnull
-	public ReferenceKey getReferenceKey() {
-		Assert.isPremiseValid(
-			this.referenceKey != null,
-			"The reference key is not set in the current context!"
-		);
-		return this.referenceKey;
 	}
 
 	/**
