@@ -24,12 +24,13 @@
 package io.evitadb.core.buffer;
 
 
+import io.evitadb.core.metric.event.system.RingBufferStatisticsEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import lombok.Getter;
-import lombok.Setter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.lang.reflect.Array;
@@ -65,11 +66,16 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ThreadSafe
-public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
+public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 	/**
 	 * Lock used to ensure thread safety for reading operations.
 	 */
 	private final ReentrantLock lock = new ReentrantLock();
+
+	/**
+	 * Name of the catalog this buffer is associated with (for metrics purposes).
+	 */
+	private final String catalogName;
 
 	/**
 	 * The circular array that stores the data elements.
@@ -103,7 +109,7 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 	 * The latest boundary value that defines the upper limit of data visibility.
 	 * Data elements with boundaries greater than this are not returned when copying to a target queue.
 	 */
-	@Setter @Getter private BOUNDARY effectiveEnd;
+	@Getter private BOUNDARY effectiveEnd;
 
 	/**
 	 * Function to extract the boundary value from a data element.
@@ -123,6 +129,31 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 	@Nonnull private final ToIntBiFunction<DATA, BOUNDARY> dataWatermarkComparator;
 
 	/**
+	 * Counter of items accepted into the buffer since creation.
+	 */
+	private long itemsAcceptedTotal;
+
+	/**
+	 * Counter of items copied via {@link #copyTo(Comparable, Queue)} since creation.
+	 */
+	private long itemsCopiedTotal;
+
+	/**
+	 * Counter of items scanned via {@link #forEachSince(Comparable, Consumer)} since creation.
+	 */
+	private long itemsScannedTotal;
+
+	/**
+	 * Cached gauge: number of items currently present in the buffer (occupied slots).
+	 */
+	private int itemsPresentTotal;
+
+	/**
+	 * Cached gauge: number of items currently available to scan/copy with respect to {@link #effectiveEnd}.
+	 */
+	private int itemsAvailableTotal;
+
+	/**
 	 * Constructs a new ring buffer with the specified initial state and size.
 	 *
 	 * @param effectiveStart the boundary value of the oldest data element that will be stored in the buffer
@@ -134,6 +165,7 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 	 * @param dataWatermarkComparator comparator to compare data elements with watermarks
 	 */
 	protected RingBuffer(
+		@Nullable final String catalogName,
 		final BOUNDARY effectiveStart,
 		final BOUNDARY effectiveEnd,
 		final int bufferSize,
@@ -142,6 +174,7 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		@Nonnull ToIntBiFunction<BOUNDARY, BOUNDARY> boundaryWatermarkComparator,
 		@Nonnull ToIntBiFunction<DATA, BOUNDARY> dataWatermarkComparator
 	) {
+		this.catalogName = catalogName;
 		this.effectiveStart = effectiveStart;
 		this.effectiveEnd = effectiveEnd;
 		//noinspection unchecked
@@ -149,6 +182,24 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		this.boundaryExtractor = boundaryExtractor;
 		this.boundaryWatermarkComparator = boundaryWatermarkComparator;
 		this.dataWatermarkComparator = dataWatermarkComparator;
+		// initialize cached gauges
+		recomputeGaugesLocked();
+	}
+
+	/**
+	 * Sets the effective end boundary.
+	 *
+	 * @param effectiveEnd the boundary to set as the effective end; must not be null
+	 */
+	public void setEffectiveEnd(@Nonnull BOUNDARY effectiveEnd) {
+		this.lock.lock();
+		try {
+			this.effectiveEnd = effectiveEnd;
+			// changing watermark affects only availability gauge - present stays the same
+			this.itemsAvailableTotal = computeItemsAvailableLocked();
+		} finally {
+			this.lock.unlock();
+		}
 	}
 
 	/**
@@ -162,6 +213,8 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 	public void offer(@Nonnull DATA data) {
 		this.lock.lock();
 		try {
+			// increment accepted items counter
+			this.itemsAcceptedTotal++;
 			this.endIndex++;
 			// wrap around the ring buffer
 			if (this.endIndex == this.workspace.length + 1) {
@@ -175,6 +228,11 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 				final DATA startData = Objects.requireNonNull(this.workspace[newStartIndex]);
 				this.effectiveStart = this.boundaryExtractor.apply(startData);
 				this.startIndex = newStartIndex;
+				// update cached gauges
+				recomputeGaugesLocked();
+			} else {
+				// update just items present (effective boundary hasn't changed)
+				this.itemsPresentTotal = computeItemsPresentLocked();
 			}
 			// add the new element
 			this.workspace[this.endIndex - 1] = data;
@@ -313,6 +371,8 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 			} else {
 				this.effectiveStart = boundary;
 			}
+			// indices and boundaries changed -> recompute gauges
+			recomputeGaugesLocked();
 		} finally {
 			this.lock.unlock();
 		}
@@ -355,7 +415,8 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 				this.endIndex = lastValidEntry < 0 ? this.startIndex : lastValidEntry;
 				this.wrappedAround = false;
 			}
-			// If buffer is empty, nothing to clear
+			// update cached gauges (even if nothing was cleared, indices may have been adjusted)
+			recomputeGaugesLocked();
 		} finally {
 			this.lock.unlock();
 		}
@@ -429,6 +490,9 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 			this.startIndex = 0;
 			this.endIndex = 0;
 			this.wrappedAround = false;
+			// reset gauges without scanning
+			this.itemsPresentTotal = 0;
+			this.itemsAvailableTotal = 0;
 		} finally {
 			this.lock.unlock();
 		}
@@ -456,16 +520,24 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		int index = from;
 		DATA currentData = null;
 		DATA lastData = null;
+		int copiedNow = 0;
 		while (continueCopy) {
 			lastData = currentData;
 			currentData = this.workspace[index];
 			// stop if we reach `to` index or if the data element boundary exceeds the effective end boundary
-			continueCopy = index++ < to &&
+			final boolean shouldCopyData = index++ < to &&
 				currentData != null &&
-				this.boundaryExtractor.apply(currentData).compareTo(this.effectiveEnd) <= 0 &&
-				target.offer(currentData) &&
-				index < this.workspace.length;
+				this.boundaryExtractor.apply(currentData).compareTo(this.effectiveEnd) <= 0;
+			// offer data to the target queue
+			if (shouldCopyData && target.offer(currentData)) {
+				copiedNow++;
+				continueCopy = index < this.workspace.length;
+			} else {
+				continueCopy = false;
+			}
 		}
+		// update copied counter
+		this.itemsCopiedTotal += copiedNow;
 		return ofNullable(lastData);
 	}
 
@@ -487,11 +559,13 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		boolean continueIteration = true;
 		int index = from;
 		DATA currentData;
+		int scannedNow = 0;
 		while (continueIteration) {
 			currentData = this.workspace[index++];
 			final boolean withinEffectiveEnd = this.boundaryExtractor.apply(currentData).compareTo(this.effectiveEnd) <= 0;
 			if (currentData != null && withinEffectiveEnd) {
 				dataConsumer.accept(currentData);
+				scannedNow++;
 			}
 			// stop if we reach `to` index or if the data element boundary exceeds the effective end boundary
 			continueIteration = index < to &&
@@ -499,6 +573,99 @@ public class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 				withinEffectiveEnd &&
 				index < this.workspace.length;
 		}
+		// update scanned counter
+		this.itemsScannedTotal += scannedNow;
+	}
+
+
+	/**
+	 * Creates a statistics JFR event snapshot reflecting current metrics of this ring buffer and emits it.
+	 */
+	public void emitObservabilityEvents() {
+		final int present = this.itemsPresentTotal;
+		final int available = this.itemsAvailableTotal;
+		new RingBufferStatisticsEvent(
+			this.catalogName,
+			this.getRingBufferType(),
+			this.itemsAcceptedTotal,
+			this.itemsCopiedTotal,
+			this.itemsScannedTotal,
+			present,
+			available
+		).commit();
+	}
+
+	/**
+	 * Returns the type of the ring buffer, typically represented as a string.
+	 * This is an abstract method that must be implemented by subclasses to
+	 * specify the specific type of the ring buffer being used.
+	 *
+	 * @return the type of the ring buffer as a non-null string
+	 */
+	@Nonnull
+	protected abstract String getRingBufferType();
+
+	/**
+	 * Counts items within [from,to) that are not null and have boundary <= effectiveEnd.
+	 */
+	private int countAvailableInRange(int from, int to) {
+		int count = 0;
+		for (int i = from; i < to; i++) {
+			final DATA data = this.workspace[i];
+			if (data == null) {
+				break;
+			}
+			if (this.boundaryExtractor.apply(data).compareTo(this.effectiveEnd) <= 0) {
+				count++;
+			} else {
+				break;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Recomputes cached gauges under the assumption the lock is already held.
+	 */
+	private void recomputeGaugesLocked() {
+		this.itemsPresentTotal = computeItemsPresentLocked();
+		this.itemsAvailableTotal = computeItemsAvailableLocked();
+	}
+
+	/**
+	 * Computes the number of items present in a locked state, considering
+	 * the indices and whether the buffer has wrapped around.
+	 *
+	 * @return the total number of items present. Returns 0 if none are present,
+	 *         the difference between endIndex and startIndex if not wrapped around,
+	 *         the length of the workspace if fully wrapped, or the sum of indices
+	 *         considering the wrap-around logic.
+	 */
+	private int computeItemsPresentLocked() {
+		if (!this.wrappedAround) {
+			return Math.max(0, this.endIndex - this.startIndex);
+		} else if (this.endIndex == this.startIndex) {
+			return this.workspace.length;
+		} else {
+			return (this.workspace.length - this.startIndex) + this.endIndex;
+		}
+	}
+
+	/**
+	 * Computes the total number of items available in the locked section of the workspace.
+	 * The calculation considers wrapping around scenarios based on start and end indexes.
+	 *
+	 * @return the total count of available items based on current indices and workspace state.
+	 */
+	private int computeItemsAvailableLocked() {
+		int available = 0;
+		if (this.startIndex >= this.endIndex && this.wrappedAround) {
+			available += countAvailableInRange(this.startIndex, this.workspace.length);
+			available += countAvailableInRange(0, this.endIndex);
+		} else if (this.startIndex < this.endIndex) {
+			available += countAvailableInRange(this.startIndex, this.endIndex);
+		}
+		return available;
 	}
 
 	/**

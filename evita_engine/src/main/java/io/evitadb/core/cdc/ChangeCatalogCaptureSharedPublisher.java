@@ -164,8 +164,10 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.cdcExecutor = cdcExecutor;
 		this.onNextConsumer = onNextConsumer;
 		this.onClose = onClose;
+		/* TODO JNO - emit observability events */
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new ChangeCaptureRingBuffer<>(
+			catalog.getName(),
 			// we need to use the current catalog version plus one, because the current catalog version mutations will not
 			// be in memory, but only in the WAL, this version will enforce reading them from WAL
 			currentCatalogVersion + 1, 0,
@@ -348,6 +350,13 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			.takeWhile(it -> it.getKey() < startCatalogVersion)
 			.mapToInt(Entry::getValue)
 			.sum();
+	}
+
+	/**
+	 * Emits observability events related to the ring buffer statistics.
+	 */
+	public void emitObservabilityEvents() {
+		this.lastCaptures.emitObservabilityEvents();
 	}
 
 	/**

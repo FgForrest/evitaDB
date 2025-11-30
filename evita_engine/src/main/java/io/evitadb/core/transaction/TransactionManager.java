@@ -351,6 +351,7 @@ public class TransactionManager implements Closeable {
 		);
 
 		this.conflictRingBuffer = new ConflictRingBuffer(
+			this.catalogName,
 			catalog.getVersion(),
 			catalog.getVersion(),
 			this.configuration.transaction().conflictRingBufferSize()
@@ -1030,6 +1031,16 @@ public class TransactionManager implements Closeable {
 	 */
 	public boolean hasGranularConflictPolicy() {
 		return this.granularConflictPolicy;
+	}
+
+	/**
+	 * Emits observability events by delegating to internal components.
+	 * This method triggers the emission of observability events from
+	 * the conflictRingBuffer and changeObserver components.
+	 */
+	public void emitObservabilityEvents() {
+		this.conflictRingBuffer.emitObservabilityEvents();
+		this.changeObserver.emitObservabilityEvents();
 	}
 
 	/**

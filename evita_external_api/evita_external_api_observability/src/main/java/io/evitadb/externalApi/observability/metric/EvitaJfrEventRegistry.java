@@ -51,6 +51,7 @@ import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.RingBufferStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.metric.event.transaction.*;
@@ -137,6 +138,7 @@ public class EvitaJfrEventRegistry {
 		RequestForkJoinPoolStatisticsEvent.class,
 		TransactionForkJoinPoolStatisticsEvent.class,
 		ScheduledExecutorStatisticsEvent.class,
+		RingBufferStatisticsEvent.class,
 
 		//cdc
 		ChangeCatalogCaptureStatisticsEvent.class,

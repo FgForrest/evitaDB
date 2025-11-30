@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.core.buffer.RingBuffer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -62,6 +63,7 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> extends RingBuffer<T, Wal
 	 * @param bufferSize the size of the ring buffer (maximum number of captures that can be stored)
 	 */
 	public ChangeCaptureRingBuffer(
+		@Nullable final String catalogName,
 		final long effectiveStartCatalogVersion,
 		final int effectiveStartIndex,
 		long effectiveLastCatalogVersion,
@@ -69,6 +71,7 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> extends RingBuffer<T, Wal
 		@Nonnull Class<T> type
 	) {
 		super(
+			catalogName,
 			new WalPointer(effectiveStartCatalogVersion, effectiveStartIndex),
 			new WalPointer(effectiveLastCatalogVersion, Integer.MAX_VALUE),
 			bufferSize,
@@ -141,4 +144,11 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> extends RingBuffer<T, Wal
 	public void forEachSince(@Nonnull WalPointer watermark, @Nonnull java.util.function.Consumer<T> dataConsumer) throws OutsideScopeException {
 		super.forEachSince(watermark, dataConsumer);
 	}
+
+	@Nonnull
+	@Override
+	protected String getRingBufferType() {
+		return "ChangeCapture";
+	}
+
 }

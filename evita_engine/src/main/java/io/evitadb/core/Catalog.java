@@ -1726,7 +1726,7 @@ public final class Catalog
 	 */
 	public void emitObservabilityEvents() {
 		this.persistenceService.emitObservabilityEvents();
-		this.transactionManager.getChangeObserver().emitObservabilityEvents();
+		this.transactionManager.emitObservabilityEvents();
 	}
 
 	/**

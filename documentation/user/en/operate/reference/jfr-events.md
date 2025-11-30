@@ -128,6 +128,8 @@
   <dd>Event that is triggered when the evitaDB instance is started.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RequestForkJoinPoolStatisticsEvent.java</SourceClass> Request executor statistics</dt>
   <dd>Event that is fired on regular intervals to track request executor statistics.</dd>
+  <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/RingBufferStatisticsEvent.java</SourceClass> Ring buffer statistics</dt>
+  <dd>Event that regularly monitors in-memory ring buffer statistics.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/ScheduledExecutorStatisticsEvent.java</SourceClass> Scheduled executor statistics</dt>
   <dd>Event that is fired on regular intervals to track scheduled executor statistics.</dd>
   <dt><SourceClass>evita_engine/src/main/java/io/evitadb/core/metric/event/system/TransactionForkJoinPoolStatisticsEvent.java</SourceClass> Transaction executor statistics</dt>

@@ -36,6 +36,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory.TruePredicate;
 import io.evitadb.core.cdc.predicate.VersionAndIndexPredicate;
+import io.evitadb.core.metric.event.cdc.ChangeSystemCaptureStatisticsEvent;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -80,6 +81,12 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * The evita instance that this publisher is associated with. It provides access to the engine mutations.
 	 */
 	private final Evita evita;
+
+	/**
+	 * Observability statistics event.
+	 */
+	private final ChangeSystemCaptureStatisticsEvent statisticsEvent = new ChangeSystemCaptureStatisticsEvent();
+
 	/**
 	 * Flag indicating whether this publisher has been closed. Once closed, no new subscriptions
 	 * will be accepted and existing ones will be cancelled.
@@ -158,8 +165,10 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		final long engineVersion = evita.getEngineState().version();
 		this.version = new AtomicLong(engineVersion);
 		this.onNextConsumer = onNextConsumer;
+		/* TODO JNO - emit observability events */
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new ChangeCaptureRingBuffer<>(
+			null,
 			// we need to use current catalog version plus one, because the current catalog version mutations will not
 			// be in memory, but only in the WAL, this version will enforce reading them from WAL
 			engineVersion + 1L, 0,
@@ -346,6 +355,24 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 			.takeWhile(it -> it.getKey() < startCatalogVersion)
 			.mapToInt(Entry::getValue)
 			.sum();
+	}
+
+	/**
+	 * Emits statistics related to change capture events if the current statistics event
+	 * meets the criteria to commit. It includes the number of subscribers, lagging
+	 * subscribers, and the total events sent.
+	 *
+	 * @param sentEvents the number of events that have been sent since the last statistics emission
+	 */
+	public void emitChangeCaptureStatistics(long sentEvents) {
+		if (this.statisticsEvent.shouldCommit()) {
+			this.statisticsEvent.emitEvent(
+				getSubscribersCount(),
+				getLaggingSubscribersCount(),
+				sentEvents
+			);
+		}
+		this.lastCaptures.emitObservabilityEvents();
 	}
 
 	/**

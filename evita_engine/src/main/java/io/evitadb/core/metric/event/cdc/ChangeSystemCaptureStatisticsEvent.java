@@ -47,27 +47,34 @@ public class ChangeSystemCaptureStatisticsEvent extends AbstractChangeCaptureEve
 	@Label("Subscriber count")
 	@Description("The number of subscribers active in the system.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int subscribers;
+	private int subscribers;
 
 	@Label("Lagging subscribers")
 	@Description("The number of subscribers fetching the WAL records.")
 	@ExportMetric(metricType = MetricType.GAUGE)
-	private final int laggingSubscribers;
+	private int laggingSubscribers;
 
 	@Label("Published events")
 	@Description("The number of events published to all subscribers.")
 	@ExportMetric(metricType = MetricType.COUNTER)
-	private final long eventsPublishedTotal;
+	private long eventsPublishedTotal;
 
-	public ChangeSystemCaptureStatisticsEvent(
+	public ChangeSystemCaptureStatisticsEvent() {
+		super();
+	}
+
+	/**
+	 * Emits the event with provided statistics.
+	 */
+	public void emitEvent(
 		int subscribers,
 		int laggingSubscribers,
 		long eventsPublishedTotal
 	) {
-		super();
 		this.subscribers = subscribers;
 		this.laggingSubscribers = laggingSubscribers;
 		this.eventsPublishedTotal = eventsPublishedTotal;
+		this.commit();
 	}
 
 }

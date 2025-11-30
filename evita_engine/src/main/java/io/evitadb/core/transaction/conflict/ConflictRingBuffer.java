@@ -60,11 +60,13 @@ public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, Catalog
 	 * @param bufferSize the size of the ring buffer (maximum number of keys that can be stored)
 	 */
 	public ConflictRingBuffer(
+		@Nonnull final String catalogName,
 		final long effectiveStartCatalogVersion,
 		long effectiveLastCatalogVersion,
 		final int bufferSize
 	) {
 		super(
+			catalogName,
 			new CatalogVersionIndex(effectiveStartCatalogVersion, 0),
 			new CatalogVersionIndex(effectiveLastCatalogVersion, Integer.MAX_VALUE),
 			bufferSize,
@@ -128,6 +130,12 @@ public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, Catalog
 			new CatalogVersionIndex(catalogVersion, 0),
 			conflictKeyConsumer
 		);
+	}
+
+	@Nonnull
+	@Override
+	protected String getRingBufferType() {
+		return "Conflict";
 	}
 
 	public record CatalogVersionIndex(
