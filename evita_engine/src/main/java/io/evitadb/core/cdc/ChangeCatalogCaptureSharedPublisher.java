@@ -164,7 +164,6 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.cdcExecutor = cdcExecutor;
 		this.onNextConsumer = onNextConsumer;
 		this.onClose = onClose;
-		/* TODO JNO - emit observability events */
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new ChangeCaptureRingBuffer<>(
 			catalog.getName(),

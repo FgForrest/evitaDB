@@ -165,7 +165,6 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		final long engineVersion = evita.getEngineState().version();
 		this.version = new AtomicLong(engineVersion);
 		this.onNextConsumer = onNextConsumer;
-		/* TODO JNO - emit observability events */
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new ChangeCaptureRingBuffer<>(
 			null,
