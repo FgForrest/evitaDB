@@ -59,62 +59,57 @@ public class RingBufferStatisticsEvent extends AbstractSystemCatalogEvent {
      * Total number of items accepted into the buffer since creation.
      */
     @Label("Accepted items")
-    @Name("itemsAcceptedTotal")
     @Description("Total number of items accepted into the buffer since creation.")
     @ExportMetric(metricType = MetricType.COUNTER)
-    private final long itemsAcceptedTotal;
+    private final long itemsAccepted;
 
     /**
      * Total number of items copied out of the buffer via copy operations since creation.
      */
     @Label("Copied items")
-    @Name("itemsCopiedTotal")
     @Description("Total number of items copied out of the buffer via copy operations since creation.")
     @ExportMetric(metricType = MetricType.COUNTER)
-    private final long itemsCopiedTotal;
+    private final long itemsCopied;
 
     /**
      * Total number of items scanned via forEach operations since creation.
      */
     @Label("Scanned items")
-    @Name("itemsScannedTotal")
     @Description("Total number of items scanned via forEach operations since creation.")
     @ExportMetric(metricType = MetricType.COUNTER)
-    private final long itemsScannedTotal;
+    private final long itemsScanned;
 
     /**
      * Current number of items present in the buffer.
      */
     @Label("Items present")
-    @Name("itemsPresentTotal")
     @Description("Current number of items present in the buffer.")
     @ExportMetric(metricType = MetricType.GAUGE)
-    private final int itemsPresentTotal;
+    private final int itemsPresent;
 
     /**
      * Current number of items available to be scanned/copied respecting the effective end watermark.
      */
     @Label("Items available")
-    @Name("itemsAvailableTotal")
     @Description("Current number of items available to be scanned/copied respecting the effective end watermark.")
     @ExportMetric(metricType = MetricType.GAUGE)
-    private final int itemsAvailableTotal;
+    private final int itemsAvailable;
 
 	public RingBufferStatisticsEvent(
 		@Nonnull String catalogName,
 		@Nonnull String ringBufferType,
-		long itemsAcceptedTotal,
-		long itemsCopiedTotal,
-		long itemsScannedTotal,
-		int itemsPresentTotal,
-		int itemsAvailableTotal
+		long itemsAccepted,
+		long itemsCopied,
+		long itemsScanned,
+		int itemsPresent,
+		int itemsAvailable
 	) {
 		super(catalogName);
 		this.ringBufferType = ringBufferType;
-		this.itemsAcceptedTotal = itemsAcceptedTotal;
-		this.itemsCopiedTotal = itemsCopiedTotal;
-		this.itemsScannedTotal = itemsScannedTotal;
-		this.itemsPresentTotal = itemsPresentTotal;
-		this.itemsAvailableTotal = itemsAvailableTotal;
+		this.itemsAccepted = itemsAccepted;
+		this.itemsCopied = itemsCopied;
+		this.itemsScanned = itemsScanned;
+		this.itemsPresent = itemsPresent;
+		this.itemsAvailable = itemsAvailable;
 	}
 }

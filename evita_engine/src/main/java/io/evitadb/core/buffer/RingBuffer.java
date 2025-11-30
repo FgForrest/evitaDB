@@ -131,17 +131,17 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 	/**
 	 * Counter of items accepted into the buffer since creation.
 	 */
-	private long itemsAcceptedTotal;
+	private long itemsAccepted;
 
 	/**
 	 * Counter of items copied via {@link #copyTo(Comparable, Queue)} since creation.
 	 */
-	private long itemsCopiedTotal;
+	private long itemsCopied;
 
 	/**
 	 * Counter of items scanned via {@link #forEachSince(Comparable, Consumer)} since creation.
 	 */
-	private long itemsScannedTotal;
+	private long itemsScanned;
 
 	/**
 	 * Cached gauge: number of items currently present in the buffer (occupied slots).
@@ -214,7 +214,7 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		this.lock.lock();
 		try {
 			// increment accepted items counter
-			this.itemsAcceptedTotal++;
+			this.itemsAccepted++;
 			this.endIndex++;
 			// wrap around the ring buffer
 			if (this.endIndex == this.workspace.length + 1) {
@@ -537,7 +537,7 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 			}
 		}
 		// update copied counter
-		this.itemsCopiedTotal += copiedNow;
+		this.itemsCopied += copiedNow;
 		return ofNullable(lastData);
 	}
 
@@ -574,7 +574,7 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 				index < this.workspace.length;
 		}
 		// update scanned counter
-		this.itemsScannedTotal += scannedNow;
+		this.itemsScanned += scannedNow;
 	}
 
 
@@ -587,9 +587,9 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		new RingBufferStatisticsEvent(
 			this.catalogName,
 			this.getRingBufferType(),
-			this.itemsAcceptedTotal,
-			this.itemsCopiedTotal,
-			this.itemsScannedTotal,
+			this.itemsAccepted,
+			this.itemsCopied,
+			this.itemsScanned,
 			present,
 			available
 		).commit();

@@ -501,7 +501,9 @@ public class TransactionManager implements Closeable {
 			theLastWrittenCatalogVersion <= catalogVersion,
 			"Unexpected catalog version " + catalogVersion + " vs. " + theLastWrittenCatalogVersion + "!"
 		);
-		updateLastWrittenCatalogVersion(catalogVersion);
+		if (theLastWrittenCatalogVersion < catalogVersion) {
+			updateLastWrittenCatalogVersion(catalogVersion);
+		}
 		final long theLastFinalizedCatalogVersion = getLastFinalizedCatalogVersion();
 		Assert.isPremiseValid(
 			theLastFinalizedCatalogVersion <= catalogVersion,

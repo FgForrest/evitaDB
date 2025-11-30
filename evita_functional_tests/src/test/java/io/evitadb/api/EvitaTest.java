@@ -3383,6 +3383,9 @@ class EvitaTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 				       .withAttribute("someAttribute", String.class)
 				       .updateVia(session);
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withAttribute("someAttribute", String.class)
+					.updateVia(session);
 				session.goLiveAndClose();
 			}
 		);
@@ -3407,7 +3410,7 @@ class EvitaTest implements EvitaTestSupport {
 		        .withDescription("This is my beautiful product collection.")
 		        .updateVia(session1);
 
-		session2.getEntitySchema(Entities.PRODUCT)
+		session2.getEntitySchema(Entities.CATEGORY)
 		        .orElseThrow()
 		        .openForWrite()
 		        .withAttribute("someAttribute", String.class, thatIs -> thatIs.localized().filterable())
@@ -3429,20 +3432,20 @@ class EvitaTest implements EvitaTestSupport {
 		session1CommitProgress.onWalAppended().thenAccept(
 			commitVersions -> worklog.add("Session 1 WAL appended: " + commitVersions));
 
-		final CompletableFuture<CommitVersions> session1Future = session1CommitProgress.onChangesVisible()
-		                                                                               .thenApply(commitVersions -> {
-			                                                                               worklog.add(
-				                                                                               "Session 1 changes visible: " + commitVersions);
-			                                                                               return commitVersions;
-		                                                                               })
-		                                                                               .toCompletableFuture();
-		final CompletableFuture<CommitVersions> session2Future = session2CommitProgress.onChangesVisible()
-		                                                                               .thenApply(commitVersions -> {
-			                                                                               worklog.add(
-				                                                                               "Session 2 changes visible: " + commitVersions);
-			                                                                               return commitVersions;
-		                                                                               })
-		                                                                               .toCompletableFuture();
+		final CompletableFuture<CommitVersions> session1Future = session1CommitProgress
+			.onChangesVisible()
+			.thenApply(commitVersions -> {
+				worklog.add("Session 1 changes visible: " + commitVersions);
+				return commitVersions;
+			})
+			.toCompletableFuture();
+		final CompletableFuture<CommitVersions> session2Future = session2CommitProgress
+			.onChangesVisible()
+			.thenApply(commitVersions -> {
+				worklog.add("Session 2 changes visible: " + commitVersions);
+				return commitVersions;
+			})
+			.toCompletableFuture();
 
 		CompletableFuture.allOf(
 			session1Future,
@@ -3472,12 +3475,85 @@ class EvitaTest implements EvitaTestSupport {
 				final SealedEntitySchema productSchema = session.getEntitySchema(Entities.PRODUCT).orElseThrow();
 				assertEquals("This is my beautiful product collection.", productSchema.getDescription());
 
-				final AttributeSchemaContract someAttributeSchema = productSchema
+				final SealedEntitySchema categorySchema = session.getEntitySchema(Entities.CATEGORY).orElseThrow();
+				final AttributeSchemaContract someAttributeSchema = categorySchema
 					.getAttribute("someAttribute")
 					.orElseThrow();
 
 				assertTrue(someAttributeSchema.isLocalized());
 				assertTrue(someAttributeSchema.isFilterable());
+			}
+		);
+	}
+
+	/**
+	 * Tests that conflict is detected when altering the same entity schema from parallel sessions.
+	 *
+	 * The test verifies that:
+	 * - When two parallel sessions attempt to alter the same entity schema, a conflict is detected
+	 * - A ConflictingCatalogMutationException is thrown when the second session tries to commit
+	 */
+	@Test
+	@DisplayName("Throw exception when altering same entity schema from parallel sessions")
+	void shouldThrowExceptionWhenAlteringSameEntitySchemaFromParallelSessions() {
+		// create some initial state
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute("someAttribute", String.class)
+					.updateVia(session);
+				session.goLiveAndClose();
+			}
+		);
+
+		final int initialCatalogSchemaVersion = this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getCatalogSchema().version();
+			}
+		);
+
+		// create two parallel sessions
+		final EvitaSessionContract session1 = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+		final EvitaSessionContract session2 = this.evita.createSession(
+			new SessionTraits(TEST_CATALOG, SessionFlags.READ_WRITE));
+
+		// in both modify entity schema
+		session1.getEntitySchema(Entities.PRODUCT)
+			.orElseThrow()
+			.openForWrite()
+			.withDescription("This is my beautiful product collection.")
+			.updateVia(session1);
+
+		session2.getEntitySchema(Entities.PRODUCT)
+			.orElseThrow()
+			.openForWrite()
+			.withAttribute("someAttribute", String.class, thatIs -> thatIs.localized().filterable())
+			.updateVia(session2);
+
+		// commit second first
+		final CommitProgress session2CommitProgress = session2.closeNowWithProgress();
+
+		// commit first
+		final CommitProgress session1CommitProgress = session1.closeNowWithProgress();
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> {
+				try {
+					CompletableFuture.allOf(
+						session1CommitProgress
+							.onChangesVisible()
+							.toCompletableFuture(),
+						session2CommitProgress
+							.onChangesVisible()
+							.toCompletableFuture()
+					).join();
+				} catch (CompletionException ex) {
+					throw ex.getCause();
+				}
 			}
 		);
 	}

@@ -386,15 +386,15 @@ duration of the probe.</dd>
   <dd><strong>Workers running</strong>: An estimate of the number of worker threads that are not blocked waiting to join tasks or for other managed synchronization threads</dd>
   <dt><code>io_evitadb_system_request_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
   <dd><strong>Tasks stolen</strong>: Estimate of the total number of tasks stolen from one thread's work queue by another. The reported value underestimates the actual total number of steals when the pool is not quiescent</dd>
-  <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted_total</code> (COUNTER)</dt>
+  <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted</code> (COUNTER)</dt>
   <dd><strong>Accepted items</strong>: Total number of items accepted into the buffer since creation.</dd>
-  <dt><code>io_evitadb_system_ring_buffer_statistics_items_available_total</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_system_ring_buffer_statistics_items_available</code> (GAUGE)</dt>
   <dd><strong>Items available</strong>: Current number of items available to be scanned/copied respecting the effective end watermark.</dd>
-  <dt><code>io_evitadb_system_ring_buffer_statistics_items_copied_total</code> (COUNTER)</dt>
+  <dt><code>io_evitadb_system_ring_buffer_statistics_items_copied</code> (COUNTER)</dt>
   <dd><strong>Copied items</strong>: Total number of items copied out of the buffer via copy operations since creation.</dd>
-  <dt><code>io_evitadb_system_ring_buffer_statistics_items_present_total</code> (GAUGE)</dt>
+  <dt><code>io_evitadb_system_ring_buffer_statistics_items_present</code> (GAUGE)</dt>
   <dd><strong>Items present</strong>: Current number of items present in the buffer.</dd>
-  <dt><code>io_evitadb_system_ring_buffer_statistics_items_scanned_total</code> (COUNTER)</dt>
+  <dt><code>io_evitadb_system_ring_buffer_statistics_items_scanned</code> (COUNTER)</dt>
   <dd><strong>Scanned items</strong>: Total number of items scanned via forEach operations since creation.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
