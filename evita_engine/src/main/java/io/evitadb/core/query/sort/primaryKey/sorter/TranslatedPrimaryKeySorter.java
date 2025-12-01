@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.primaryKey;
+package io.evitadb.core.query.sort.primaryKey.sorter;
 
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.Sorter;

@@ -26,7 +26,7 @@ package io.evitadb.core.query.sort.random.translator;
 import io.evitadb.api.query.order.Random;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.random.RandomSorter;
+import io.evitadb.core.query.sort.random.sorter.RandomSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;

@@ -170,7 +170,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer
 	}
 
 	public FacetSummary() {
-		super(new Serializable[]{FacetStatisticsDepth.COUNTS}, new EntityContentRequire[0]);
+		super(new Serializable[]{FacetStatisticsDepth.COUNTS}, EntityContentRequire.EMPTY_ARRAY);
 	}
 
 	public FacetSummary(@Nullable FacetStatisticsDepth statisticsDepth) {

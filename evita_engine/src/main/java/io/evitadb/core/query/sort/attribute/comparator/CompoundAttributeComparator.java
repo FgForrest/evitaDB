@@ -21,20 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.attribute.comparator;
 
 
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
-import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,7 +43,6 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -52,17 +51,17 @@ import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
 import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
 
 /**
- * Comparator for sorting entities according to a sortable compound attribute value set on particular reference.
- * It combines multiple attribute comparators into one.
+ * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
+ * comparators into one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class ReferenceCompoundAttributeReferenceComparator implements ReferenceComparator, ReferenceComparator.EntityPrimaryKeyAwareComparator, Serializable {
+public class CompoundAttributeComparator implements EntityComparator, Serializable {
 	@Serial private static final long serialVersionUID = 3531363761422177481L;
 	/**
 	 * Function for fetching the attribute value from the entity.
 	 */
-	@Nonnull private final BiFunction<ReferenceContract, String, Serializable> attributeValueFetcher;
+	@Nonnull private final BiFunction<EntityContract, String, Serializable> attributeValueFetcher;
 	/**
 	 * Function for normalizing the attribute values (such as string values or BigDecimals).
 	 */
@@ -76,16 +75,16 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 	 */
 	@Nonnull private final ComparatorSource[] comparatorSource;
 	/**
-	 * Comparator for comparing the normalized attribute values.
+	 * Array of attribute elements that are to be compared.
 	 */
 	@Nonnull private final AttributeElement[] attributeElements;
 	/**
 	 * Memoized normalized value arrays for the entities. Memoization is used because the very same entity may occur
 	 * in compare method multiple times.
 	 */
-	@Nonnull private final Map<ReferenceKey, ComparableArray> memoizedValues = CollectionUtils.createHashMap(128);
+	@Nonnull private final IntObjectMap<ComparableArray> memoizedValues = new IntObjectHashMap<>(128);
 
-	public ReferenceCompoundAttributeReferenceComparator(
+	public CompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
@@ -111,61 +110,45 @@ public class ReferenceCompoundAttributeReferenceComparator implements ReferenceC
 			baseComparator : (o1, o2) -> baseComparator.compare(o2, o1);
 		this.attributeValueFetcher = locale == null ?
 			AttributesContract::getAttribute :
-			(referenceContract, attributeName) -> referenceContract.getAttribute(attributeName, locale);
+			(entityContract, attributeName) -> entityContract.getAttribute(attributeName, locale);
 		this.attributeElements = attributeElements.toArray(new AttributeElement[0]);
-	}
-
-	@Override
-	public void setEntityPrimaryKey(int entityPrimaryKey) {
-		this.memoizedValues.clear();
-	}
-
-	@Override
-	public int getNonSortedReferenceCount() {
-		return 0;
 	}
 
 	@Nonnull
 	@Override
-	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return this;
-	}
-
-	@Nullable
-	@Override
-	public ReferenceComparator getNextComparator() {
-		return null;
+	public Iterable<EntityContract> getNonSortedEntities() {
+		return List.of();
 	}
 
 	@Override
-	public int compare(ReferenceContract o1, ReferenceContract o2) {
+	public int compare(EntityContract o1, EntityContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
 		final ComparableArray valueToCompare2 = getAndMemoizeValue(o2);
 		return this.comparator.compare(valueToCompare1, valueToCompare2);
 	}
 
 	/**
-	 * Retrieves and memoizes the comparable value array for the given entity reference.
+	 * Retrieves and memoizes the comparable value array for the given entity.
 	 * If the value is already memoized, it returns the memoized value.
 	 * Otherwise, computes the value, memoizes it, and then returns it.
 	 *
-	 * @param reference the entity for which the value is to be memoized, must not be null.
+	 * @param entity the entity for which the value is to be memoized, must not be null.
 	 * @return the memoized comparable array value for the entity, never null.
 	 */
 	@Nonnull
-	private ComparableArray getAndMemoizeValue(@Nonnull ReferenceContract reference) {
-		ComparableArray value = this.memoizedValues.get(reference.getReferenceKey());
+	private ComparableArray getAndMemoizeValue(@Nonnull EntityContract entity) {
+		ComparableArray value = this.memoizedValues.get(entity.getPrimaryKeyOrThrowException());
 		if (value == null) {
 			final Serializable[] valueArray = new Serializable[this.attributeElements.length];
 			for (int i = 0; i < this.attributeElements.length; i++) {
 				final AttributeElement attributeElement = this.attributeElements[i];
-				valueArray[i] = this.attributeValueFetcher.apply(reference, attributeElement.attributeName());
+				valueArray[i] = this.attributeValueFetcher.apply(entity, attributeElement.attributeName());
 			}
 			value = new ComparableArray(
 				this.comparatorSource,
 				(Serializable[]) this.normalizer.apply(valueArray)
 			);
-			this.memoizedValues.put(reference.getReferenceKey(), value);
+			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), value);
 		}
 		return value;
 	}

@@ -32,7 +32,7 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.AttributeExactSorter;
+import io.evitadb.core.query.sort.attribute.sorter.AttributeExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.EntityIndex;

@@ -89,9 +89,9 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
-import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator.EntityGroupPropertyWithScopes;
-import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator.EntityPropertyWithScopes;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityGroupPropertyWithScopes;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
@@ -1457,7 +1457,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						)
 					)
 				),
-			this.chunkTransformerAccessor
+			this.chunkTransformerAccessor,
+			globalPrefetchCollector
 		);
 		if (namedReferenceFetch.isEmpty()) {
 			this.namedFetchedEntities = Collections.emptyMap();
@@ -1469,6 +1470,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				if (namedRequirementContext.requiresInit()) {
 					final ChunkTransformer namedChunkTransformer = namedEntry.getValue().referenceChunkTransformer();
 					final ChunkTransformerAccessor namedChunkTransformerAccessor =referenceName -> namedChunkTransformer;
+					final DefaultPrefetchRequirementCollector namedCollector = new DefaultPrefetchRequirementCollector();
 					this.namedFetchedEntities.put(
 						rck.instanceName(),
 						new ReferencedSetEntityFetcher(
@@ -1484,11 +1486,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									entityPrimaryKey,
 									rck.referenceName(),
 									namedRequirementContext,
-									globalPrefetchCollector,
+									namedCollector,
 									filterByVisitor
 								)
 							),
-							namedChunkTransformerAccessor
+							namedChunkTransformerAccessor,
+							namedCollector
 						)
 					);
 				}

@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface EntityContentRequire extends RequireConstraint {
+	EntityContentRequire[] EMPTY_ARRAY = new EntityContentRequire[0];
 
 	/**
 	 * Combines two EntityFetchRequire requirements into one combined requirement.

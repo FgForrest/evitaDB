@@ -21,12 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute;
+package io.evitadb.core.query.sort.attribute.sorter;
 
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplierContract;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;

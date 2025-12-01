@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.attribute.comparator;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.TraverseByEntityProperty;
@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;

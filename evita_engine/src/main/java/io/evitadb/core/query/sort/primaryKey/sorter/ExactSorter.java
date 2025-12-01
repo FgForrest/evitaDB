@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.primaryKey;
+package io.evitadb.core.query.sort.primaryKey.sorter;
 
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;

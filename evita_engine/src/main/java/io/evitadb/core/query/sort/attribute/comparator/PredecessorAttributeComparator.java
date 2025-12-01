@@ -21,14 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.attribute.comparator;
 
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.bitmap.Bitmap;

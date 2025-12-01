@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -65,6 +66,9 @@ public interface ReferenceSetFetcher {
 	 * Creates a fetcher lambda that for passed referenced entity primary key fetches the rich form of the entity.
 	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
 	 * If none the init methods is not called, the exception is thrown.
+	 *
+	 * @param referenceSchema the reference schema for which the attribute content is requested
+	 * @return fetcher lambda that retrieves the entity by its primary key
 	 */
 	@Nonnull
 	Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema);
@@ -73,6 +77,9 @@ public interface ReferenceSetFetcher {
 	 * Creates a fetcher lambda that for passed referenced entity group primary key fetches the rich form of the entity.
 	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
 	 * If none the init methods is not called, the exception is thrown.
+	 *
+	 * @param referenceSchema the reference schema for which the attribute content is requested
+	 * @return fetcher lambda that retrieves the entity group by its primary key
 	 */
 	@Nonnull
 	Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema);
@@ -81,6 +88,7 @@ public interface ReferenceSetFetcher {
 	 * Creates a comparator that orders the references according to requirements.
 	 * The comparator is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
 	 *
+	 * @param referenceSchema the reference schema for which the attribute content is requested
 	 * @return null if the references should remain in the order they were fetched
 	 */
 	@Nullable
@@ -89,9 +97,21 @@ public interface ReferenceSetFetcher {
 	/**
 	 * Returns FALSE if the entity should contain references with empty {@link ReferenceDecorator#getReferencedEntity()}.
 	 * The predicate is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
+	 *
+	 * @param referenceSchema the reference schema for which the attribute content is requested
+	 * @return filtering predicate or null if no filtering should be applied
 	 */
 	@Nullable
 	BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);
+
+	/**
+	 * Retrieves the list of entity content requirements that are scheduled for prefetching.
+	 *
+	 * @param referenceSchema the reference schema for which the attribute content is requested
+	 * @return the attribute content requirementsto prefetch or null if no attributes should be prefetched
+	 */
+	@Nullable
+	AttributeContent getAttributeContentToPrefetch(@Nonnull ReferenceSchemaContract referenceSchema);
 
 	/**
 	 * Creates a chunk of data containing reference contracts. This method processes the provided entity,

@@ -176,28 +176,29 @@ public class EntityDecorator implements SealedEntity {
 	protected static int sortAndFilterSubList(
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
-		@Nullable ReferenceComparator referenceComparator,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nullable BiPredicate<Integer, ReferenceDecorator> referenceFilter,
+		@Nullable ReferenceComparator referenceComparator,
 		int start,
 		int end
 	) {
+		// when filter is not provided, make it always return true
+		final BiPredicate<Integer, ReferenceDecorator> theReferenceFilter = referenceFilter == null ?
+			(pk, ref) -> true : referenceFilter;
 		if (referenceComparator == null) {
-			if (referenceFilter != null) {
-				// In‑place filtering when no comparator is provided
-				return filterOutReferences(entityPrimaryKey, references, referenceFilter, start, end);
-			} else {
-				return 0;
-			}
+			// In‑place filtering when no comparator is provided
+			return filterOutReferences(
+				entityPrimaryKey, references, referencePredicate, theReferenceFilter, start, end
+			);
 		} else {
 			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
 				epkAware.setEntityPrimaryKey(entityPrimaryKey);
 			}
-			final int filteredOutCount;
-			if (referenceFilter == null) {
-				filteredOutCount = 0;
-			} else {
-				filteredOutCount = filterOutReferences(entityPrimaryKey, references, referenceFilter, start, end);
-			}
+			final int filteredOutCount = filterOutReferences(
+				entityPrimaryKey, references, referencePredicate,
+				theReferenceFilter,
+				start, end
+			);
 			final int sortEnd = end - filteredOutCount;
 			// now do the sorting in multiple passes if needed
 			int nonSortedReferenceCount;
@@ -222,6 +223,7 @@ public class EntityDecorator implements SealedEntity {
 	 *
 	 * @param entityPrimaryKey the primary key of the entity used in the filtering condition
 	 * @param references an array of ReferenceDecorator objects to be filtered
+	 * @param referencePredicate a predicate that matches all requested references
 	 * @param referenceFilter a BiPredicate that defines the filtering condition
 	 * @param start the starting index of the range within the references array to be processed
 	 * @param end the ending index (exclusive) of the range within the references array to be processed
@@ -230,6 +232,7 @@ public class EntityDecorator implements SealedEntity {
 	private static int filterOutReferences(
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nonnull BiPredicate<Integer, ReferenceDecorator> referenceFilter,
 		int start,
 		int end
@@ -237,7 +240,7 @@ public class EntityDecorator implements SealedEntity {
 		int writeIndex = start;
 		for (int i = start; i < end; i++) {
 			final ReferenceDecorator reference = references[i];
-			if (referenceFilter.test(entityPrimaryKey, reference)) {
+			if (referencePredicate.test(reference) && referenceFilter.test(entityPrimaryKey, reference)) {
 				references[writeIndex++] = reference;
 			}
 		}
@@ -464,20 +467,16 @@ public class EntityDecorator implements SealedEntity {
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
 
-		final ReferenceContract[] requestedReferences = entity.getReferences()
-			.stream()
-			.filter(referencePredicate)
-			.sorted(Comparator.comparing(ReferenceContract::getReferenceName))
-			.toArray(ReferenceContract[]::new);
-
-		final ReferenceDecorator[] filteredSortedAndFetchedReferences = new ReferenceDecorator[requestedReferences.length];
+		// we work with the source array directly - it will not be modified, only traversed
+		final ReferenceContract[] allReferences = entity.getReferences().toArray(ReferenceContract[]::new);
+		final ReferenceDecorator[] outputReferences = new ReferenceDecorator[allReferences.length];
 		final int filteredOutReferences = fillFilteredSortedAndFetchedReferences(
 			getPrimaryKeyOrThrowException(),
 			entitySchema,
 			referencePredicate,
 			referenceFetcher,
-			requestedReferences,
-			filteredSortedAndFetchedReferences,
+			allReferences,
+			outputReferences,
 			evitaRequest
 		);
 
@@ -490,7 +489,7 @@ public class EntityDecorator implements SealedEntity {
 				// client requests references with specific names
 				referencePredicate.getReferenceSet().keySet(),
 			referenceFetcher,
-			filteredSortedAndFetchedReferences,
+			outputReferences,
 			filteredOutReferences
 		);
 	}
@@ -503,7 +502,7 @@ public class EntityDecorator implements SealedEntity {
 	 * @param entitySchema       The schema of the entity specifying structure and rules applicable to its references.
 	 * @param referencePredicate A predicate used to filter and evaluate which references should be included or excluded.
 	 * @param referenceFetcher   The fetcher utility responsible for retrieving additional data for references or their related entities.
-	 * @param inputReferences    An array of input reference contracts to be processed.
+	 * @param inputReferences      Collection of all references of the entity to be processed.
 	 * @param outputReferences   An array of reference decorators to be filled with processed references; outputs filtered and sorted references.
 	 * @return The count of references filtered out during the operation.
 	 */
@@ -539,8 +538,10 @@ public class EntityDecorator implements SealedEntity {
 			} else if (!referenceSchema.getName().equals(thisReferenceName)) {
 				filteredOutReferences += sortAndFilterSubList(
 					entityPrimaryKey,
-					outputReferences, fetchedReferenceComparator,
+					outputReferences,
+					referencePredicate,
 					referenceFetcher.getEntityFilter(referenceSchema),
+					fetchedReferenceComparator,
 					index, i - filteredOutReferences
 				);
 				index = i - filteredOutReferences;
@@ -562,11 +563,13 @@ public class EntityDecorator implements SealedEntity {
 				referencePredicate.getAttributePredicate(thisReferenceName)
 			));
 		}
-		if (referenceSchema != null && (entityFilter != null || fetchedReferenceComparator != null)) {
+		if (referenceSchema != null) {
 			filteredOutReferences += sortAndFilterSubList(
 				entityPrimaryKey,
-				outputReferences, fetchedReferenceComparator,
+				outputReferences,
+				referencePredicate,
 				entityFilter,
+				fetchedReferenceComparator,
 				index, outputReferences.length - filteredOutReferences
 			);
 		}

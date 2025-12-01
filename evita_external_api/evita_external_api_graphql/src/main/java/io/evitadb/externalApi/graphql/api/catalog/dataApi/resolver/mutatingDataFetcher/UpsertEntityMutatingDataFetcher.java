@@ -126,7 +126,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 		);
 		return entityFetch
 			.map(EntityFetch::getRequirements)
-			.orElse(new EntityContentRequire[0]);
+			.orElse(EntityContentRequire.EMPTY_ARRAY);
 	}
 
 	/**

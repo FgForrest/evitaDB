@@ -26,7 +26,7 @@ package io.evitadb.core.query.sort.primaryKey.translator;
 import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.primaryKey.ExactSorter;
+import io.evitadb.core.query.sort.primaryKey.sorter.ExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;

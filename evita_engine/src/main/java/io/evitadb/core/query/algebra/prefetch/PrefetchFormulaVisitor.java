@@ -206,7 +206,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		}
 		if (formula instanceof final RequirementsDefiner requirementsDefiner) {
 			final EntityFetchRequire entityRequire = requirementsDefiner.getEntityRequire();
-			final EntityContentRequire[] requirements = entityRequire == null ? new EntityContentRequire[0] : entityRequire.getRequirements();
+			final EntityContentRequire[] requirements = entityRequire == null ? EntityContentRequire.EMPTY_ARRAY : entityRequire.getRequirements();
 			for (EntityContentRequire requirement : requirements) {
 				addRequirement(requirement);
 			}

@@ -24,6 +24,11 @@
 package io.evitadb.core.query.fetch;
 
 
+import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.FetchRequirementCollector;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -37,12 +42,14 @@ import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformer
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiPredicate;
@@ -59,23 +66,38 @@ import static java.util.Optional.ofNullable;
  * ordering, or slicing operations from the same source of base entity references. This allows multiple views of the
  * same reference data with different constraints applied to each view.
  *
- * @param fetchedEntities Index of prefetched entities assembled in constructor and quickly available when the entity is
- *                        requested by the {@link EntityDecorator} constructor.
- *                        The key is {@link ReferenceSchemaContract#getName()}, the value is the information containing
- *                        the indexes of fetched entities and their groups, information about their ordering and
- *                        validity index.
+ * @param fetchedEntities          Index of prefetched entities assembled in constructor and quickly available when the entity is
+ *                                 requested by the {@link EntityDecorator} constructor.
+ *                                 The key is {@link ReferenceSchemaContract#getName()}, the value is the information containing
+ *                                 the indexes of fetched entities and their groups, information about their ordering and
+ *                                 validity index.
  * @param chunkTransformerAccessor Function providing access to {@link ChunkTransformer} implementations for particular
  *                                 references. Accessor is simple wrapper over {@link EvitaRequest} method references.
- *
+ * @param requirementCollector     Collector of fetch requirements that were used to fetch the referenced entities.
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see PrefetchedEntities
  * @see ReferencedEntityFetcher
  * @see ReferenceSetFetcher
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public record ReferencedSetEntityFetcher(
 	@Nonnull Map<String, PrefetchedEntities> fetchedEntities,
-	@Nonnull ChunkTransformerAccessor chunkTransformerAccessor
+	@Nonnull ChunkTransformerAccessor chunkTransformerAccessor,
+	@Nonnull FetchRequirementCollector requirementCollector,
+	@Nonnull Map<String, AttributeContent> resolvedAttributeContent
 ) implements ReferenceSetFetcher {
+
+	public ReferencedSetEntityFetcher(
+		@Nonnull Map<String, PrefetchedEntities> fetchedEntities,
+		@Nonnull ChunkTransformerAccessor chunkTransformerAccessor,
+		@Nonnull DefaultPrefetchRequirementCollector requirementCollector
+	) {
+		this(
+			fetchedEntities,
+			chunkTransformerAccessor,
+			requirementCollector,
+			new LazyHashMap<>(8)
+		);
+	}
 
 	@Nonnull
 	@Override
@@ -144,6 +166,26 @@ public record ReferencedSetEntityFetcher(
 		);
 		return this.chunkTransformerAccessor.apply(referenceName)
 			.createChunk(references);
+	}
+
+	@Nullable
+	@Override
+	public AttributeContent getAttributeContentToPrefetch(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return this.resolvedAttributeContent.computeIfAbsent(
+			referenceSchema.getName(),
+			refName -> {
+				final EntityContentRequire[] requirementsToPrefetch = this.requirementCollector.getRequirementsToPrefetch();
+				for (EntityContentRequire requirement : requirementsToPrefetch) {
+					if (requirement instanceof ReferenceContent referenceContent) {
+						final String[] referenceNames = referenceContent.getReferenceNames();
+						if (referenceNames.length == 0 || Arrays.asList(referenceNames).contains(refName)) {
+							return referenceContent.getAttributeContent().orElse(null);
+						}
+					}
+				}
+				return null;
+			}
+		);
 	}
 
 }

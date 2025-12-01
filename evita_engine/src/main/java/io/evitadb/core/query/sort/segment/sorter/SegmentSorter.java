@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.segment;
+package io.evitadb.core.query.sort.segment.sorter;
 
 
 import io.evitadb.api.query.order.SegmentLimit;

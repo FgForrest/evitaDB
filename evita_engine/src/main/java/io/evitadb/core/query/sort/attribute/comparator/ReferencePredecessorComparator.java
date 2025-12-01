@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.attribute.translator;
+package io.evitadb.core.query.sort.attribute.comparator;
 
 
 import com.carrotsearch.hppc.IntHashSet;

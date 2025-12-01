@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.response;
 
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.EntityFetchAwareDecorator;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
@@ -275,12 +276,15 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						final Function<Integer, SealedEntity> entityGroupFetcher = mrf.getEntityGroupFetcher(referenceSchema);
 						final BiPredicate<Integer, ReferenceDecorator> referenceFilter = mrf.getEntityFilter(referenceSchema);
 						final ReferenceComparator fetchedReferenceComparator = mrf.getEntityComparator(referenceSchema);
+						final AttributeContent attributeContentToPrefetch = mrf.getAttributeContentToPrefetch(referenceSchema);
 
 						final ReferenceContractSerializablePredicate namedReferencePredicate =
 							new ReferenceContractSerializablePredicate(
 								evitaRequest,
 								referenceName,
-								entry.getValue()
+								attributeContentToPrefetch == null ?
+									entry.getValue() :
+									entry.getValue().withExtendedAttributeContentRequirement(attributeContentToPrefetch)
 							);
 						final ReferenceAttributeValueSerializablePredicate namedAttributePredicate =
 							namedReferencePredicate.getAttributePredicate(referenceName);
@@ -306,8 +310,9 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 						final int filteredOutReferences = sortAndFilterSubList(
 							entityPrimaryKey,
 							outputReferences,
-							fetchedReferenceComparator,
+							namedReferencePredicate,
 							referenceFilter,
+							fetchedReferenceComparator,
 							0, size
 						);
 						final DataChunk<ReferenceContract> chunk = mrf.createChunk(
@@ -322,7 +327,8 @@ public class ServerEntityDecorator extends EntityDecorator implements EntityFetc
 		}
 
 		return super.fillFilteredSortedAndFetchedReferences(
-			entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher, inputReferences, outputReferences,
+			entityPrimaryKey, entitySchema, referencePredicate, referenceFetcher,
+			inputReferences, outputReferences,
 			evitaRequest
 		);
 	}

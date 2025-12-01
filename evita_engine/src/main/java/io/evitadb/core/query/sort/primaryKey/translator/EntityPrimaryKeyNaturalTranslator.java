@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.comparator.IntComparator;
@@ -37,12 +38,15 @@ import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
+import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
-import io.evitadb.core.query.sort.primaryKey.ReversedPrimaryKeySorter;
+import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyComparator;
+import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -71,7 +75,8 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTranslator<EntityPrimaryKeyNatural> {
+public class EntityPrimaryKeyNaturalTranslator
+	implements OrderingConstraintTranslator<EntityPrimaryKeyNatural>, ReferenceOrderingConstraintTranslator<EntityPrimaryKeyNatural> {
 
 	@Nonnull
 	@Override
@@ -128,6 +133,22 @@ public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTran
 				)
 			);
 		}
+	}
+
+	@Override
+	public void createComparator(
+		@Nonnull EntityPrimaryKeyNatural entityPrimaryKeyNatural,
+		@Nonnull ReferenceOrderByVisitor orderByVisitor
+	) {
+		final OrderDirection orderDirection = entityPrimaryKeyNatural.getOrderDirection();
+
+		final ReferenceComparator comparator = new ReferencePrimaryKeyComparator(
+			orderDirection == OrderDirection.DESC ?
+				IntDescendingComparator.INSTANCE : IntAscendingComparator.INSTANCE
+		);
+
+		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
+		orderByVisitor.addComparator(comparator);
 	}
 
 	/**

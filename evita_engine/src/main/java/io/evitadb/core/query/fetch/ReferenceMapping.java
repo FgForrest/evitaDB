@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
 import io.evitadb.utils.ArrayUtils;
