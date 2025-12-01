@@ -28,6 +28,11 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
@@ -50,6 +55,7 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -174,6 +180,15 @@ public class ModifyEntitySchemaMutation
 			);
 
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(this.name));
 	}
 
 	@Override

@@ -54,7 +54,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithAssignedPrimaryKeys;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;

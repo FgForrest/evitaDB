@@ -24,11 +24,16 @@
 package io.evitadb.api.requestResponse.mutation;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * This interface denotes all mutation operations that can be cast on Evita data objects.
@@ -48,12 +53,17 @@ public sealed interface Mutation extends Serializable permits EngineMutation, Ca
 	Operation operation();
 
 	/**
-	 * Direction of the change catalog capture stream.
+	 * Collects all conflict keys that this mutation may produce when applied to the data.
+	 *
+	 * @param context          context allowing to pass additional information for conflict key generation from outer
+	 *                         mutations / context of the generation
+	 * @param conflictPolicies policies that should be considered when collecting conflict keys
+	 * @return stream providing conflict keys
 	 */
-	enum StreamDirection {
-
-		FORWARD, REVERSE;
-
-	}
+	@Nonnull
+	Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	);
 
 }

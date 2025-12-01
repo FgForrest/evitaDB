@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,9 +25,11 @@ package io.evitadb.store.spi;
 
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 
 import javax.annotation.Nonnull;
 import java.io.Closeable;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -83,6 +85,17 @@ public interface IsolatedWalPersistenceService extends Closeable {
 	@Nonnull
 	OffHeapWithFileBackupReference getWalReference();
 
+	/**
+	 * Returns the set of mutation conflict keys associated with the mutations captured in IsolatedWalPersistenceService.
+	 *
+	 * @return the set of conflict keys
+	 */
+	@Nonnull
+	Set<ConflictKey> getConflictKeys();
+
+	/**
+	 * Closes the IsolatedWalPersistenceService, releasing any resources held by it.
+	 */
 	@Override
 	void close();
 

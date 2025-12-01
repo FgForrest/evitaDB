@@ -29,6 +29,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -46,6 +47,11 @@ import java.util.function.BiConsumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class CommitProgressRecord implements CommitProgress {
+
+	/**
+	 * Timestamp marking the start time of the commit process.
+	 */
+	@Getter private final OffsetDateTime commitStartTime = OffsetDateTime.now();
 
 	/**
 	 * Callback that is executed just before the particular stage is marked as completed.

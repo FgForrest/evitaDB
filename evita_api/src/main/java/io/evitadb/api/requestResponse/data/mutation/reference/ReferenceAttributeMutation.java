@@ -35,6 +35,10 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvo
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -51,7 +55,9 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * This mutation allows to create / update / remove {@link AttributeValue} of the {@link Reference}.
@@ -59,7 +65,8 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true, exclude = "comparableKey")
-public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey> implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKeyWithAttributeKey> {
+public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWithAttributeKey>
+	implements SchemaEvolvingLocalMutation<ReferenceContract, ReferenceKeyWithAttributeKey> {
 	@Serial private static final long serialVersionUID = -5135310891814031602L;
 	/**
 	 * Contains wrapped attribute mutation that affects the attribute of the reference.
@@ -77,18 +84,28 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	@Nonnull
 	private final ReferenceKeyWithAttributeKey comparableKey;
 
-	public ReferenceAttributeMutation(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeMutation attributeMutation) {
+	public ReferenceAttributeMutation(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull AttributeMutation attributeMutation
+	) {
 		super(referenceKey);
 		this.attributeMutation = attributeMutation;
 		this.attributeKey = attributeMutation.getAttributeKey();
 		this.comparableKey = new ReferenceKeyWithAttributeKey(referenceKey, this.attributeKey);
 	}
 
-	public ReferenceAttributeMutation(@Nonnull String referenceName, int primaryKey, @Nonnull AttributeMutation attributeMutation) {
+	public ReferenceAttributeMutation(
+		@Nonnull String referenceName,
+		int primaryKey,
+		@Nonnull AttributeMutation attributeMutation) {
 		this(new ReferenceKey(referenceName, primaryKey), attributeMutation);
 	}
 
-	private ReferenceAttributeMutation(@Nonnull ReferenceKey referenceKey, @Nonnull AttributeMutation attributeMutation, long decisiveTimestamp) {
+	private ReferenceAttributeMutation(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull AttributeMutation attributeMutation,
+		long decisiveTimestamp
+	) {
 		super(referenceKey, decisiveTimestamp);
 		this.attributeMutation = attributeMutation;
 		this.attributeKey = attributeMutation.getAttributeKey();
@@ -97,17 +114,33 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 	@Nonnull
 	@Override
-	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return new ReferenceAttributeSkipToken(this.referenceKey.referenceName(), this.attributeKey);
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
+			Stream.of(
+				new ReferenceAttributeConflictKey(
+					context.getEntityType(),
+					context.getEntityPrimaryKey(),
+					this.referenceKey.referenceName(),
+					this.referenceKey.primaryKey(),
+					this.attributeKey.attributeName()
+				)
+			) :
+			Stream.empty();
 	}
 
 	@Override
-	public void verifyOrEvolveSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaBuilder entitySchemaBuilder) throws InvalidMutationException {
+	public void verifyOrEvolveSchema(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaBuilder entitySchemaBuilder
+	) throws InvalidMutationException {
 		if (this.attributeMutation instanceof final AttributeSchemaEvolvingMutation schemaValidatingMutation) {
 			final ReferenceSchemaContract referenceSchema = entitySchemaBuilder.getReference(this.referenceKey.referenceName())
 				.orElseThrow(() -> new GenericEvitaInternalError("Reference to type `" + this.referenceKey.referenceName() + "` was not found!"));
 
-			this.attributeMutation.verifyOrEvolveSchema(
+			schemaValidatingMutation.verifyOrEvolveSchema(
 				catalogSchema,
 				entitySchemaBuilder,
 				referenceSchema.getAttribute(this.attributeKey.attributeName()).orElse(null),
@@ -117,7 +150,8 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 						esb.withLocale(this.attributeKey.locale());
 					}
 					final Consumer<ReferenceSchemaBuilder> referenceSchemaUpdater = whichIs -> {
-						final boolean attributeExists = whichIs.getAttribute(this.attributeKey.attributeName()).isPresent();
+						final boolean attributeExists = whichIs.getAttribute(this.attributeKey.attributeName())
+							.isPresent();
 						whichIs.withAttribute(
 							this.attributeKey.attributeName(),
 							schemaValidatingMutation.getAttributeValue().getClass(),
@@ -151,12 +185,49 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 
 	@Nonnull
 	@Override
-	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
+	public Serializable getSkipToken(
+		@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
+		return new ReferenceAttributeSkipToken(this.referenceKey.referenceName(), this.attributeKey);
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceContract mutateLocal(
+		@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
 		return mutateLocal(
 			entitySchema,
 			existingValue,
 			Map.of()
 		);
+	}
+
+	@Override
+	public long getPriority() {
+		// we need that attribute removals are placed before insert/remove reference itself
+		final long priority = this.attributeMutation.getPriority();
+		if (priority >= PRIORITY_REMOVAL) {
+			return priority + 1;
+		} else {
+			return priority - 1;
+		}
+	}
+
+	@Nonnull
+	@Override
+	public ReferenceKeyWithAttributeKey getComparableKey() {
+		return this.comparableKey;
+	}
+
+	@Nonnull
+	@Override
+	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
+		return new ReferenceAttributeMutation(this.referenceKey, this.attributeMutation, newDecisiveTimestamp);
+	}
+
+	@Nonnull
+	@Override
+	public Operation operation() {
+		return Operation.UPSERT;
 	}
 
 	@Nonnull
@@ -168,7 +239,8 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot update attributes on reference `" + this.referenceKey + "` - reference doesn't exist!")
+			() -> new InvalidMutationException(
+				"Cannot update attributes on reference `" + this.referenceKey + "` - reference doesn't exist!")
 		);
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
 		final ExistingReferenceAttributesBuilder attributeBuilder = new ExistingReferenceAttributesBuilder(
@@ -196,46 +268,8 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 	}
 
 	@Override
-	public long getPriority() {
-		// we need that attribute removals are placed before insert/remove reference itself
-		final long priority = this.attributeMutation.getPriority();
-		if (priority >= PRIORITY_REMOVAL) {
-			return priority + 1;
-		} else {
-			return priority - 1;
-		}
-	}
-
-	@Nonnull
-	@Override
-	public Operation operation() {
-		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
-		return new ReferenceAttributeMutation(this.referenceKey, this.attributeMutation, newDecisiveTimestamp);
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceMutation<ReferenceKeyWithAttributeKey> withInternalPrimaryKey(int internalPrimaryKey) {
-		return new ReferenceAttributeMutation(
-			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
-			this.attributeMutation, this.decisiveTimestamp
-		);
-	}
-
-	@Override
 	public String toString() {
 		return "reference `" + this.referenceKey + "` attribute mutation: " + this.attributeMutation;
-	}
-
-	@Nonnull
-	@Override
-	public ReferenceKeyWithAttributeKey getComparableKey() {
-		return this.comparableKey;
 	}
 
 }

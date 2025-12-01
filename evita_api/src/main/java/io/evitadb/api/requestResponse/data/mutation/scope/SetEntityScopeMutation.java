@@ -25,6 +25,9 @@ package io.evitadb.api.requestResponse.data.mutation.scope;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.dataType.Scope;
@@ -34,6 +37,8 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Mutation that sets the scope of the target entity. It either archives or restored the entity back to the living set
@@ -93,6 +98,15 @@ public class SetEntityScopeMutation implements LocalMutation<Scope, Scope> {
 	@Override
 	public LocalMutation<?, ?> withDecisiveTimestamp(long newDecisiveTimestamp) {
 		return new SetEntityScopeMutation(this.scope, newDecisiveTimestamp);
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.empty();
 	}
 
 	@Override

@@ -35,13 +35,11 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,16 +62,14 @@ import java.util.stream.Collectors;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class RemoveSortableAttributeCompoundSchemaMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation,
-	NamedSchemaMutation {
+	extends AbstractSortableAttributeCompoundSchemaMutation
+	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = 7583003492609737038L;
 
-	@Getter @Nonnull private final String name;
-
 	public RemoveSortableAttributeCompoundSchemaMutation(@Nonnull String name) {
-		this.name = name;
+		super(name);
 	}
 
 	@Nullable
@@ -203,12 +199,6 @@ public class RemoveSortableAttributeCompoundSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

@@ -49,7 +49,7 @@ import java.util.function.BiPredicate;
 @Slf4j
 public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	implements Flow.Subscriber<T>
-	permits ConflictResolutionTransactionStage, WalAppendingTransactionStage, TrunkIncorporationTransactionStage {
+	permits ConflictResolutionAndWalAppendingTransactionStage, TrunkIncorporationTransactionStage {
 
 	/**
 	 * Reference to transactional manager which is a singleton per catalog, and maintains

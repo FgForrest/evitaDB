@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -565,7 +566,8 @@ public final class Catalog
 			this.scheduler,
 			evita.getRequestExecutor(),
 			this.transactionalExecutor,
-			newCatalogVersionConsumer
+			newCatalogVersionConsumer,
+			catalogVersion
 		);
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
 			internalCatalogSchema.getName(),
@@ -664,7 +666,8 @@ public final class Catalog
 			this.scheduler,
 			evita.getRequestExecutor(),
 			this.transactionalExecutor,
-			newCatalogVersionConsumer
+			newCatalogVersionConsumer,
+			catalogVersion
 		);
 		this.entityTypeSequence = this.sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, catalogHeader.lastEntityCollectionPrimaryKey()
@@ -1528,6 +1531,7 @@ public final class Catalog
 	/**
 	 * Commits a Write-Ahead Log (WAL) for and processes the transaction.
 	 *
+	 * @param sessionCatalogVersion                  The catalog version the session is operating on (SNAPSHOT isolation version).
 	 * @param transactionId                          The ID of the transaction to commit.
 	 * @param catalogSchemaVersionAtTransactionStart catalog schema version valid at transaction start
 	 * @param walPersistenceService                  The Write-Ahead Log persistence service.
@@ -1535,6 +1539,7 @@ public final class Catalog
 	 * @throws TransactionException If an unknown exception occurs while processing the transaction.
 	 */
 	public void commitWal(
+		long sessionCatalogVersion,
 		@Nonnull UUID transactionId,
 		int catalogSchemaVersionAtTransactionStart,
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
@@ -1542,6 +1547,7 @@ public final class Catalog
 	) {
 		try {
 			this.transactionManager.commit(
+				sessionCatalogVersion,
 				transactionId,
 				this.getSchema().version() - catalogSchemaVersionAtTransactionStart,
 				walPersistenceService,
@@ -1720,7 +1726,7 @@ public final class Catalog
 	 */
 	public void emitObservabilityEvents() {
 		this.persistenceService.emitObservabilityEvents();
-		this.transactionManager.getChangeObserver().emitObservabilityEvents();
+		this.transactionManager.emitObservabilityEvents();
 	}
 
 	/**
@@ -1734,10 +1740,38 @@ public final class Catalog
 	}
 
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
+		// we may now release conflict keys, there is no active transaction that may need them
+		this.transactionManager.releaseConflictKeys(lastKnownMinimalActiveVersionWritten);
+		// notify persistence service as well
 		if (this.persistenceService instanceof CatalogConsumersListener cvbthl) {
-			cvbthl.consumersLeft(lastKnownMinimalActiveVersion);
+			cvbthl.catalogConsumersLeft(
+				lastKnownMinimalActiveVersionRead,
+				lastKnownMinimalActiveVersionWritten
+			);
 		}
+	}
+
+	/**
+	 * Retrieves the set of conflict policies associated with the transaction configuration.
+	 *
+	 * @return a non-null set of ConflictPolicy objects representing the conflict policies.
+	 */
+	@Nonnull
+	public Set<ConflictPolicy> getConflictPolicy() {
+		return this.transactionManager.getConflictPolicy();
+	}
+
+	/**
+	 * Determines if a granular (sub-entity level) conflict policy is used.
+	 *
+	 * @return true if a granular conflict policy is enabled; false otherwise
+	 */
+	public boolean hasGranularConflictPolicy() {
+		return this.transactionManager.hasGranularConflictPolicy();
 	}
 
 	/*

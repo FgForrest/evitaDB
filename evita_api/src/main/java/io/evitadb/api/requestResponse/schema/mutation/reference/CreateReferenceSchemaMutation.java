@@ -40,7 +40,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
@@ -77,12 +76,12 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class CreateReferenceSchemaMutation
-	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation, NamedSchemaMutation {
+	extends AbstractReferenceDataSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -5200773391501101688L;
 
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Cardinality cardinality;
@@ -127,9 +126,9 @@ public class CreateReferenceSchemaMutation
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable Scope[] facetedInScopes
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
@@ -309,12 +308,6 @@ public class CreateReferenceSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

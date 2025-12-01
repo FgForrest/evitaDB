@@ -32,10 +32,9 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -299,7 +298,7 @@ class MutationPredicateFactoryTest {
     @DisplayName("create criteria predicate for schema area")
     void shouldCreateCriteriaPredicateForSchemaArea() {
         // Create a context
-        MutationPredicateContext context = new MutationPredicateContext(Mutation.StreamDirection.FORWARD);
+        MutationPredicateContext context = new MutationPredicateContext(StreamDirection.FORWARD);
 
         // Create criteria for schema area
         ChangeCatalogCaptureCriteria criteria = ChangeCatalogCaptureCriteria.builder()
@@ -350,7 +349,7 @@ class MutationPredicateFactoryTest {
     @DisplayName("create criteria predicate for data area")
     void shouldCreateCriteriaPredicateForDataArea() {
         // Create a context
-        MutationPredicateContext context = new MutationPredicateContext(Mutation.StreamDirection.FORWARD);
+        MutationPredicateContext context = new MutationPredicateContext(StreamDirection.FORWARD);
 
         // Create criteria for data area
         ChangeCatalogCaptureCriteria criteria = ChangeCatalogCaptureCriteria.builder()

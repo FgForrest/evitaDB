@@ -24,6 +24,10 @@
 package io.evitadb.api.requestResponse.schema.mutation.entity;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
@@ -41,6 +45,8 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for setting a {@link EntitySchemaContract#getDescription()}
@@ -107,6 +113,15 @@ public class ModifyEntitySchemaDescriptionMutation implements CombinableLocalEnt
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(context.getEntityType()));
 	}
 
 	@Override

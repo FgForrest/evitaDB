@@ -41,7 +41,6 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.utils.Assert;
@@ -68,16 +67,16 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifyAttributeSchemaDefaultValueMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, NamedSchemaMutation {
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -7126530716174758452L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final Serializable defaultValue;
 
 	public ModifyAttributeSchemaDefaultValueMutation(@Nonnull String name, @Nullable Serializable defaultValue) {
-		this.name = name;
+		super(name);
 		this.defaultValue = defaultValue;
 	}
 
@@ -270,12 +269,6 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

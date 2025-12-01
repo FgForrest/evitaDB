@@ -26,7 +26,7 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
+import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -77,7 +77,8 @@ class ChangeCaptureRingBufferTest {
     void shouldHandleHalfEmptyBuffer() {
         // Create a buffer with size 5
         final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
-            1L, 0, 10L, 5, ChangeCatalogCapture.class
+            null, 1L, 0, 10L, 5,
+            ChangeCatalogCapture.class
         );
 
         // Add 3 captures to the buffer (less than capacity)
@@ -106,7 +107,8 @@ class ChangeCaptureRingBufferTest {
     void shouldHandleWrappingButNotFullBuffer() {
         // Create a buffer with size 5
         final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
-            1L, 0, 10L, 5, ChangeCatalogCapture.class
+            null, 1L, 0, 10L, 5,
+            ChangeCatalogCapture.class
         );
 
         // Add 7 captures to the buffer (more than capacity, causing wrap)
@@ -140,7 +142,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle wrapping and full buffer scenario")
     void shouldHandleWrappingAndFullBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add exactly 5 captures to fill the buffer
         for (int i = 0; i < 5; i++) {
@@ -169,7 +174,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("copy data with correct count and order")
     void shouldCopyDataWithCorrectCountAndOrder() {
         // Create a buffer with size 10
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 10, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 10,
+			ChangeCatalogCapture.class
+        );
 
         // Add captures with different versions and indexes
         buffer.offer(createCapture(1L, 0, "entity1"));
@@ -201,7 +209,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("respect effective last catalog version")
     void shouldRespectEffectiveLastCatalogVersion() {
         // Create a buffer with size 10 and effectiveLastCatalogVersion of 2
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 2L, 10, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 2L, 10,
+			ChangeCatalogCapture.class
+        );
 
         // Add captures with different versions
         buffer.offer(createCapture(1L, 0, "entity1"));
@@ -229,6 +240,182 @@ class ChangeCaptureRingBufferTest {
         try {
             buffer.copyTo(new WalPointer(1L, 0), result);
             assertEquals(5, result.size()); // Now should return all 5 items
+        } catch (OutsideScopeException e) {
+            fail("Should not throw OutsideScopeException");
+        }
+    }
+
+    /**
+     * Tests a half-empty buffer scenario using forEachSince.
+     */
+    @Test
+    @DisplayName("handle half-empty buffer scenario with forEachSince")
+    void shouldHandleHalfEmptyBufferWithForEachSince() {
+        // Create a buffer with size 5
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+            null, 1L, 0, 10L, 5,
+            ChangeCatalogCapture.class
+        );
+
+        // Add 3 captures to the buffer (less than capacity)
+        final ChangeCatalogCapture capture1 = createCapture(1L, 0, "entity1");
+        final ChangeCatalogCapture capture2 = createCapture(1L, 1, "entity1");
+        final ChangeCatalogCapture capture3 = createCapture(1L, 2, "entity2");
+
+        buffer.offer(capture1);
+        buffer.offer(capture2);
+        buffer.offer(capture3);
+
+        // Verify buffer state
+        assertEquals(1L, buffer.getEffectiveStartCatalogVersion());
+        assertEquals(0, buffer.getEffectiveStartIndex());
+
+        // Iterate over data from the buffer starting from version 1, index 0
+        final List<ChangeCatalogCapture> captureList = List.of(capture1, capture2, capture3);
+        verifyForEachSinceOperationWithList(buffer, 1L, 0, 3, captureList);
+    }
+
+    /**
+     * Tests a buffer that wraps but is not yet full using forEachSince.
+     */
+    @Test
+    @DisplayName("handle wrapping but not full buffer scenario with forEachSince")
+    void shouldHandleWrappingButNotFullBufferWithForEachSince() {
+        // Create a buffer with size 5
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+            null, 1L, 0, 10L, 5,
+            ChangeCatalogCapture.class
+        );
+
+        // Add 7 captures to the buffer (more than capacity, causing wrap)
+        for (int i = 0; i < 7; i++) {
+            buffer.offer(createCapture(1L, i, "entity" + i));
+        }
+
+        // Verify buffer state - the first two items should be removed
+        assertEquals(1L, buffer.getEffectiveStartCatalogVersion());
+        assertEquals(2, buffer.getEffectiveStartIndex()); // second index (we're indexing from zero)
+
+        // Iterate over data from the buffer starting from version 1, index 2
+        verifyForEachSinceOperation(buffer, 1L, 2, 5, DEFAULT_ASSERTIONS, 2, 7);
+
+        // Iterate over data from the buffer starting from version 1, index 4
+        verifyForEachSinceOperation(buffer, 1L, 4, 3, DEFAULT_ASSERTIONS, 4, 7);
+
+        // Try to iterate from an index that's no longer in the buffer
+        try {
+            buffer.forEachSince(new WalPointer(1L, 0), capture -> {});
+            fail("Should throw OutsideScopeException");
+        } catch (OutsideScopeException e) {
+            // Expected exception
+        }
+    }
+
+    /**
+     * Tests a buffer that wraps and is completely full using forEachSince.
+     */
+    @Test
+    @DisplayName("handle wrapping and full buffer scenario with forEachSince")
+    void shouldHandleWrappingAndFullBufferWithForEachSince() {
+        // Create a buffer with size 5
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
+
+        // Add exactly 5 captures to fill the buffer
+        for (int i = 0; i < 5; i++) {
+            buffer.offer(createCapture(1L, i, "entity" + i));
+        }
+
+        // Verify buffer state
+        assertEquals(1L, buffer.getEffectiveStartCatalogVersion());
+        assertEquals(0, buffer.getEffectiveStartIndex());
+
+        // Add one more capture to cause the buffer to wrap and remove the oldest item
+        buffer.offer(createCapture(1L, 5, "entity5"));
+
+        // Verify buffer state - the first item should be removed
+        assertEquals(1L, buffer.getEffectiveStartCatalogVersion());
+        assertEquals(1, buffer.getEffectiveStartIndex());
+
+        // Iterate over data from the buffer starting from version 1, index 1
+        verifyForEachSinceOperation(buffer, 1L, 1, 5, DEFAULT_ASSERTIONS, 1, 6);
+    }
+
+    /**
+     * Tests the forEachSince method to verify it returns the correct count and order of items.
+     */
+    @Test
+    @DisplayName("iterate over data with correct count and order with forEachSince")
+    void shouldIterateOverDataWithCorrectCountAndOrderWithForEachSince() {
+        // Create a buffer with size 10
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 10,
+			ChangeCatalogCapture.class
+        );
+
+        // Add captures with different versions and indexes
+        buffer.offer(createCapture(1L, 0, "entity1"));
+        buffer.offer(createCapture(1L, 1, "entity1"));
+        buffer.offer(createCapture(2L, 0, "entity2"));
+        buffer.offer(createCapture(2L, 1, "entity2"));
+        buffer.offer(createCapture(3L, 0, "entity3"));
+
+        // Iterate over data from version 1, index 1
+        final List<ChangeCatalogCapture> expectedCaptures1 = new ArrayList<>();
+        expectedCaptures1.add(createCapture(1L, 1, "entity1"));
+        expectedCaptures1.add(createCapture(2L, 0, "entity2"));
+        expectedCaptures1.add(createCapture(2L, 1, "entity2"));
+        expectedCaptures1.add(createCapture(3L, 0, "entity3"));
+        verifyForEachSinceOperationWithList(buffer, 1L, 1, 4, expectedCaptures1);
+
+        // Iterate over data from version 2, index 0
+        final List<ChangeCatalogCapture> expectedCaptures2 = new ArrayList<>();
+        expectedCaptures2.add(createCapture(2L, 0, "entity2"));
+        expectedCaptures2.add(createCapture(2L, 1, "entity2"));
+        expectedCaptures2.add(createCapture(3L, 0, "entity3"));
+        verifyForEachSinceOperationWithList(buffer, 2L, 0, 3, expectedCaptures2);
+    }
+
+    /**
+     * Tests the effectiveLastCatalogVersion property to ensure it limits the items returned by forEachSince.
+     */
+    @Test
+    @DisplayName("respect effective last catalog version with forEachSince")
+    void shouldRespectEffectiveLastCatalogVersionWithForEachSince() {
+        // Create a buffer with size 10 and effectiveLastCatalogVersion of 2
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 2L, 10,
+			ChangeCatalogCapture.class
+        );
+
+        // Add captures with different versions
+        buffer.offer(createCapture(1L, 0, "entity1"));
+        buffer.offer(createCapture(1L, 1, "entity1"));
+        buffer.offer(createCapture(2L, 0, "entity2"));
+        buffer.offer(createCapture(2L, 1, "entity2"));
+        buffer.offer(createCapture(3L, 0, "entity3")); // This should not be returned due to effectiveLastCatalogVersion
+
+        // Iterate over data from version 1, index 0
+        verifyForEachSinceOperation(buffer, 1L, 0, 4, (i, capture) -> {
+            if (i < 2) {
+                assertEquals(1L, capture.version());
+            } else {
+                assertEquals(2L, capture.version());
+                i -= 2;
+            }
+            assertEquals(i, capture.index());
+        }, 0, 4);
+
+        // Update effectiveLastCatalogVersion to include version 3
+        buffer.setEffectiveLastCatalogVersion(3L);
+
+        // Iterate over data again and verify it returns 5 items now
+        final AtomicInteger count = new AtomicInteger(0);
+        try {
+            buffer.forEachSince(new WalPointer(1L, 0), capture -> count.incrementAndGet());
+            assertEquals(5, count.get()); // Now should return all 5 items
         } catch (OutsideScopeException e) {
             fail("Should not throw OutsideScopeException");
         }
@@ -337,6 +524,71 @@ class ChangeCaptureRingBufferTest {
             fail("Should not throw OutsideScopeException");
         }
     }
+
+    /**
+     * Helper method to verify the buffer forEachSince operation with expected captures.
+     *
+     * @param buffer           the buffer to iterate over
+     * @param version          the version to start iterating from
+     * @param index            the index to start iterating from
+     * @param expectedSize     the expected number of items to be iterated
+     * @param expectedCaptures the list of expected captures
+     */
+    private static void verifyForEachSinceOperationWithList(
+        @Nonnull ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer,
+        long version,
+        int index,
+        int expectedSize,
+        @Nonnull List<ChangeCatalogCapture> expectedCaptures
+    ) {
+        final List<ChangeCatalogCapture> result = new ArrayList<>();
+        try {
+            buffer.forEachSince(new WalPointer(version, index), result::add);
+            assertEquals(expectedSize, result.size());
+
+            // Verify the order of items
+            for (int i = 0; i < expectedCaptures.size(); i++) {
+                assertEquals(expectedCaptures.get(i), result.get(i));
+            }
+        } catch (OutsideScopeException e) {
+            fail("Should not throw OutsideScopeException");
+        }
+    }
+
+    /**
+     * Helper method to verify the buffer forEachSince operation.
+     *
+     * @param buffer     the buffer to iterate over (must not be null)
+     * @param version    the version to start iterating from
+     * @param index      the index to start iterating from
+     * @param expectedSize the expected number of items to be iterated
+     * @param validator  callback to validate each captured change (must not be null)
+     * @param startIndex start index (inclusive) in expected sequence
+     * @param endIndexExcl end index (exclusive) in expected sequence
+     */
+    private static void verifyForEachSinceOperation(
+        @Nonnull ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer,
+        long version,
+        int index,
+        int expectedSize,
+        @Nonnull BiConsumer<Integer, ChangeCatalogCapture> validator,
+        int startIndex,
+        int endIndexExcl
+    ) {
+        final List<ChangeCatalogCapture> result = new ArrayList<>();
+        try {
+            buffer.forEachSince(new WalPointer(version, index), result::add);
+            assertEquals(expectedSize, result.size());
+
+            // Verify the order of items
+            for (int i = startIndex; i < endIndexExcl; i++) {
+                ChangeCatalogCapture capture = result.get(i - startIndex);
+                validator.accept(i, capture);
+            }
+        } catch (OutsideScopeException e) {
+            fail("Should not throw OutsideScopeException");
+        }
+    }
     /**
      * Tests the clearAllUntil method on an empty buffer.
      * Verifies that calling clearAllUntil on an empty buffer doesn't cause any issues.
@@ -345,7 +597,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllUntil on empty buffer")
     void shouldHandleClearAllUntilOnEmptyBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Call clearAllUntil on the empty buffer
         buffer.clearAllUntil(2L);
@@ -377,7 +632,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllUntil on partially filled buffer")
     void shouldHandleClearAllUntilOnPartiallyFilledBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add captures with different versions
         buffer.offer(createCapture(1L, 0, "entity0"));
@@ -426,7 +684,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllUntil on full buffer")
     void shouldHandleClearAllUntilOnFullBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add exactly 5 captures to fill the buffer
         for (int i = 0; i < 5; i++) {
@@ -467,7 +728,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllUntil on wrapped around buffer")
     void shouldHandleClearAllUntilOnWrappedAroundBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add 7 captures to the buffer (more than capacity, causing wrap)
         for (int i = 0; i < 7; i++) {
@@ -510,7 +774,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllAfter on empty buffer")
     void shouldHandleClearAllAfterOnEmptyBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Call clearAllAfter on the empty buffer
         buffer.clearAllAfter(2L);
@@ -542,7 +809,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllAfter on partially filled buffer")
     void shouldHandleClearAllAfterOnPartiallyFilledBuffer() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add captures with different versions
         buffer.offer(createCapture(1L, 0, "entity0"));
@@ -585,7 +855,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllAfter on wrapped around buffer at the boundary")
     void shouldHandleClearAllAfterOnWrappedAroundBufferAtTheBoundary() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add 7 captures to the buffer (more than capacity, causing wrap)
         for (int i = 0; i < 7; i++) {
@@ -625,7 +898,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllAfter on wrapped around buffer at tail")
     void shouldHandleClearAllAfterOnWrappedAroundBufferAtTail() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add 7 captures to the buffer (more than capacity, causing wrap)
         for (int i = 0; i < 7; i++) {
@@ -665,7 +941,10 @@ class ChangeCaptureRingBufferTest {
     @DisplayName("handle clearAllAfter on wrapped around buffer at head")
     void shouldHandleClearAllAfterOnWrappedAroundBufferAtHead() {
         // Create a buffer with size 5
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, 5, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, 5,
+			ChangeCatalogCapture.class
+        );
 
         // Add 7 captures to the buffer (more than capacity, causing wrap)
         for (int i = 0; i < 7; i++) {
@@ -712,7 +991,10 @@ class ChangeCaptureRingBufferTest {
 
         // Create a buffer with a random size between 5 and 20
         final int bufferSize = random.nextInt(16) + 5;
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, bufferSize, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, bufferSize,
+			ChangeCatalogCapture.class
+        );
 
         // Create a control ArrayList to verify the results
         final ArrayList<ChangeCatalogCapture> controlList = new ArrayList<>();
@@ -781,7 +1063,10 @@ class ChangeCaptureRingBufferTest {
     void shouldHandleParallelOfferAndCopyToOperations() throws InterruptedException {
         // Create a buffer with a reasonable size
         final int bufferSize = 100;
-        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(1L, 0, 10L, bufferSize, ChangeCatalogCapture.class);
+        final ChangeCaptureRingBuffer<ChangeCatalogCapture> buffer = new ChangeCaptureRingBuffer<>(
+			null, 1L, 0, 10L, bufferSize,
+			ChangeCatalogCapture.class
+        );
 
         // Create atomic variables for thread coordination
         final AtomicBoolean running = new AtomicBoolean(true);

@@ -53,6 +53,7 @@ transaction:
   walFileSizeBytes: ${transaction.walFilSize:16M}
   walFileCountKept: ${transaction.walFileCountKept:8}
   flushFrequencyInMillis: ${transaction.flushFrequencyInMillis:1000}
+  conflictPolicy: ${transaction.conflictPolicy:[ENTITY]}
 
 cache:
   enabled: ${cache.enabled:false}

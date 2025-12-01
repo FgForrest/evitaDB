@@ -25,6 +25,7 @@ package io.evitadb.core;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
@@ -195,7 +196,9 @@ public final class SessionRegistry {
 			do {
 				final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
 				for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
+					//noinspection resource
 					final EvitaSession plainSession = sessionTuple.plainSession();
+					//noinspection resource
 					final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
 					if (proxySession.isActive()) {
 						proxySession
@@ -295,7 +298,7 @@ public final class SessionRegistry {
 					this.activeSessions.put(newSession.getId(), sessionTuple);
 					this.sessionsFifoQueue.add(sessionTuple);
 					this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
-						.registerSessionConsumingCatalogInVersion(catalogVersion);
+						.registerSessionConsumingCatalogInVersion(catalogVersion, newSession.getSessionTraits());
 					this.sharedDataStore.addSession(sessionTuple);
 				}
 			);
@@ -334,7 +337,11 @@ public final class SessionRegistry {
 					});
 
 					this.catalogConsumedVersions.get(session.getCatalogName())
-						.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion(), this.catalog);
+						.unregisterSessionConsumingCatalogInVersion(
+							session.getCatalogVersion(),
+							session.getSessionTraits(),
+							this.catalog
+						);
 
 					// emit event
 					//noinspection CastToIncompatibleInterface,resource
@@ -829,18 +836,28 @@ public final class SessionRegistry {
 	private static class VersionConsumingSessions {
 		/**
 		 * ConcurrentHashMap representing a collection of sessions that are consuming catalogs in different versions.
-		 * The keys of the map are the versions of the catalogs, and the values are the number of sessions consuming
-		 * catalogs in that version.
+		 * The keys of the map are the versions of the catalogs, and the values are the number of the read-only sessions
+		 * consuming catalogs in that version.
 		 */
-		private final ConcurrentHashMap<Long, Integer> versionConsumingSessions = CollectionUtils.createConcurrentHashMap(32);
+		private final ConcurrentHashMap<Long, Integer> versionConsumingReadOnlySessions = CollectionUtils.createConcurrentHashMap(32);
+		/**
+		 * ConcurrentHashMap representing a collection of sessions that are consuming catalogs in different versions.
+		 * The keys of the map are the versions of the catalogs, and the values are the number of the read-write
+		 * sessions consuming catalogs in that version.
+		 */
+		private final ConcurrentHashMap<Long, Integer> versionConsumingReadWriteSessions = CollectionUtils.createConcurrentHashMap(32);
 
 		/**
 		 * Registers a session consuming catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
 		 */
-		void registerSessionConsumingCatalogInVersion(long version) {
-			this.versionConsumingSessions.compute(
+		void registerSessionConsumingCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
+				this.versionConsumingReadWriteSessions :
+				this.versionConsumingReadOnlySessions;
+
+			targetIndex.compute(
 				version,
 				(k, v) -> v == null ? 1 : v + 1
 			);
@@ -852,8 +869,12 @@ public final class SessionRegistry {
 		 * @param version the version of the catalog
 		 * @param catalog the supplier of currently active catalog instance
 		 */
-		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull Supplier<Catalog> catalog) {
-			final Integer readerCount = this.versionConsumingSessions.compute(
+		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull SessionTraits traits, @Nonnull Supplier<Catalog> catalog) {
+			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
+				this.versionConsumingReadWriteSessions :
+				this.versionConsumingReadOnlySessions;
+
+			final Integer readerCount = targetIndex.compute(
 				version,
 				(k, v) -> v == null || v == 1 ? null : v - 1
 			);
@@ -863,7 +884,7 @@ public final class SessionRegistry {
 			// TRUE when the session was the last reader
 			final boolean lastReader;
 			if (readerCount == null) {
-				minimalActiveCatalogVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
+				minimalActiveCatalogVersion = getMinimalVersionFrom(targetIndex);
 				lastReader = true;
 			} else {
 				minimalActiveCatalogVersion = OptionalLong.of(version);
@@ -876,9 +897,29 @@ public final class SessionRegistry {
 				// in rare cases (catalog replacement) the catalog might not have been available already
 				if (theCatalog != null) {
 					final long minimalActiveVersion = minimalActiveCatalogVersion.orElse(theCatalog.getVersion());
-					theCatalog.consumersLeft(minimalActiveVersion);
+					theCatalog.catalogConsumersLeft(
+						traits.isReadWrite() ?
+							getMinimalVersionFrom(this.versionConsumingReadOnlySessions).orElse(minimalActiveVersion) :
+							minimalActiveVersion,
+						traits.isReadWrite() ?
+							minimalActiveVersion :
+							getMinimalVersionFrom(this.versionConsumingReadWriteSessions).orElse(minimalActiveVersion)
+					);
 				}
 			}
+		}
+
+		/**
+		 * Retrieves the minimal version from the provided ConcurrentHashMap of versions.
+		 *
+		 * @param targetIndex a ConcurrentHashMap where the keys represent version numbers
+		 *                    and the values are associated integer data.
+		 * @return an {@link OptionalLong} containing the minimum version number
+		 *         if the ConcurrentHashMap is not empty, otherwise an empty {@link OptionalLong}.
+		 */
+		@Nonnull
+		private static OptionalLong getMinimalVersionFrom(@Nonnull ConcurrentHashMap<Long, Integer> targetIndex) {
+			return targetIndex.keySet().stream().mapToLong(Long::longValue).min();
 		}
 
 	}
@@ -943,13 +984,13 @@ public final class SessionRegistry {
 		private final Supplier<Catalog> catalog;
 
 		@Override
-		public void registerConsumerOfCatalogInVersion(long version) {
-			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version);
+		public void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version, traits);
 		}
 
 		@Override
-		public void unregisterConsumerOfCatalogInVersion(long version) {
-			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, this.catalog);
+		public void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, traits, this.catalog);
 		}
 
 	}

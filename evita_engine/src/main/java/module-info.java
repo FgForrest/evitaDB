@@ -54,6 +54,7 @@ module evita.engine {
 	exports io.evitadb.core.task;
 	exports io.evitadb.core.traffic;
 	exports io.evitadb.core.transaction;
+	exports io.evitadb.core.transaction.conflict;
 	exports io.evitadb.core.transaction.memory;
 	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
@@ -98,7 +99,7 @@ module evita.engine {
 	requires evita.store.entity;
 
 	requires zero.allocation.hashing;
-    requires com.carrotsearch.hppc;
+	requires com.carrotsearch.hppc;
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 

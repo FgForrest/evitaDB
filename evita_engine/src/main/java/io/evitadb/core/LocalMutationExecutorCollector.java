@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.traffic.TrafficRecordingEngine.MutationApplicationRecord;
+import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -187,12 +188,14 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
+
 		// add the mutation to the list of mutations, but only for root level mutations
 		// mutations on lower levels are implicit mutations which should not be written to WAL (considered), because
 		// are automatically generated when top level mutation is applied (replayed)
 		final MutationApplicationRecord record;
+		final boolean addToWAL;
 		if (this.level == 0) {
-			this.entityMutations.add(entityMutation);
+			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
 			// record mutation to the traffic recorder
@@ -204,6 +207,7 @@ class LocalMutationExecutorCollector {
 					entityMutation
 			);
 		} else {
+			addToWAL = false;
 			// while implicit mutations are trapped in memory and stored on next flush
 			changeCollector.setTrapChanges(true);
 			// no record is created for implicit mutations
@@ -216,9 +220,19 @@ class LocalMutationExecutorCollector {
 			this.level++;
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
-			if (entityMutation instanceof EntityRemoveMutation) {
+			if (entityMutation instanceof EntityRemoveMutation erm) {
 				result = getFullEntityContents(changeCollector);
 				localMutations = computeLocalMutationsForEntityRemoval(result.entity());
+				// collect conflict keys for removal mutation
+				if (this.catalog.hasGranularConflictPolicy()) {
+					// we need to wrap the remove mutation to one which takes granular conflict keys into account
+					// and this requires to fetch full entity body to compute all conflict keys
+					entityMutation = new EntityRemoveMutationWithConflictKeys(
+						erm,
+						this.catalog.getConflictPolicy(),
+						localMutations
+					);
+				}
 			} else if (entityMutation instanceof EntityUpsertMutation) {
 				localMutations = entityMutation.getLocalMutations();
 				entityIndexUpdater.prepare(localMutations);
@@ -226,6 +240,9 @@ class LocalMutationExecutorCollector {
 				throw new GenericEvitaInternalError(
 					"Unsupported entity mutation type: " + entityMutation.getClass().getName()
 				);
+			}
+			if (addToWAL) {
+				this.entityMutations.add(entityMutation);
 			}
 
 			for (LocalMutation<?, ?> localMutation : localMutations) {

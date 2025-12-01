@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.cdc.ChangeCaptureRingBuffer.OutsideScopeException;
+import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -166,6 +166,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.onClose = onClose;
 		// Initialize the ring buffer with the current catalog version
 		this.lastCaptures = new ChangeCaptureRingBuffer<>(
+			catalog.getName(),
 			// we need to use the current catalog version plus one, because the current catalog version mutations will not
 			// be in memory, but only in the WAL, this version will enforce reading them from WAL
 			currentCatalogVersion + 1, 0,
@@ -348,6 +349,13 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			.takeWhile(it -> it.getKey() < startCatalogVersion)
 			.mapToInt(Entry::getValue)
 			.sum();
+	}
+
+	/**
+	 * Emits observability events related to the ring buffer statistics.
+	 */
+	public void emitObservabilityEvents() {
+		this.lastCaptures.emitObservabilityEvents();
 	}
 
 	/**

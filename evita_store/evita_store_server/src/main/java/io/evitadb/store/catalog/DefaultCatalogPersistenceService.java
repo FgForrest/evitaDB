@@ -1784,7 +1784,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId) {
 		return new DefaultIsolatedWalService(
+			this.catalogName,
 			transactionId,
+			this.transactionOptions.conflictPolicy(),
 			this.walKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				this.transactionOptions.transactionWorkDirectory()
@@ -2110,7 +2112,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return Stream.empty();
 		} else {
 			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
-				startCatalogVersion, requestedCatalogVersion);
+				startCatalogVersion, requestedCatalogVersion
+			);
 		}
 	}
 
@@ -2585,12 +2588,27 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void consumersLeft(long lastKnownMinimalActiveVersion) {
+	public void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	) {
+		final long lastKnownMinimalActiveVersion = Math.min(
+			lastKnownMinimalActiveVersionRead,
+			lastKnownMinimalActiveVersionWritten
+		);
 		this.catalogStoragePartPersistenceService.values().forEach(
 			it -> it.purgeHistoryOlderThan(lastKnownMinimalActiveVersion));
-		this.obsoleteFileMaintainer.consumersLeft(lastKnownMinimalActiveVersion);
+		this.obsoleteFileMaintainer.catalogConsumersLeft(
+			lastKnownMinimalActiveVersionRead,
+			lastKnownMinimalActiveVersionWritten
+		);
 		this.entityCollectionPersistenceServices.values()
-			.forEach(it -> it.consumersLeft(lastKnownMinimalActiveVersion));
+			.forEach(
+				it -> it.catalogConsumersLeft(
+					lastKnownMinimalActiveVersionRead,
+					lastKnownMinimalActiveVersionWritten
+				)
+			);
 	}
 
 	@Override

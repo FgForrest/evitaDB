@@ -37,7 +37,6 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -65,11 +64,11 @@ import static io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema.to
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaGloballyUniqueMutation
-	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, NamedSchemaMutation {
+	extends AbstractAttributeSchemaMutation
+	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 6770930613525155912L;
-	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
 
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType unique) {
@@ -81,7 +80,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 
 	@SerializableCreator
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes) {
-		this.name = name;
+		super(name);
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
 			new ScopedGlobalAttributeUniquenessType[]{
 				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE)
@@ -161,12 +160,6 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

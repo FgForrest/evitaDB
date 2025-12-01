@@ -247,17 +247,6 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 
 	/**
 	 * Collects and emits statistics related to change data capture (CDC) operations.
-	 * This method creates a new instance of {@link ChangeCatalogCaptureStatisticsEvent} and populates
-	 * it with the current catalog name, the count of unique publishers, the total number
-	 * of subscribers, the count of lagging subscribers, and the total number of events published.
-	 * After initializing the event with these metrics, it commits the event for further processing or logging.
-	 *
-	 * The statistical data are derived as follows:
-	 * - The catalog name is retrieved from the current catalog instance.
-	 * - The total number of unique publishers is calculated by determining the size of the unique publishers map.
-	 * - The total subscriber count is computed by aggregating the subscriber counts of all shared publishers.
-	 * - The total lagging subscriber count is computed by aggregating the lagging subscriber counts of all shared publishers.
-	 * - The total number of events published is computed by summing the event counts from all shared publishers.
 	 */
 	@Override
 	public void emitObservabilityEvents() {
@@ -266,6 +255,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			subscriberCount += sharedPublisher.getSubscribersCount();
 			laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
+			sharedPublisher.emitObservabilityEvents();
 		}
 		final String catalogName = this.currentCatalog.get().getName();
 		new ChangeCatalogCaptureStatisticsEvent(

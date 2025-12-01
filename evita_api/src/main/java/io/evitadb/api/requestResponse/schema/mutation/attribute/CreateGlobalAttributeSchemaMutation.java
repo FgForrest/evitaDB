@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -76,13 +75,12 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class CreateGlobalAttributeSchemaMutation
-	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation,
-	CreateMutation, NamedSchemaMutation {
+	extends AbstractAttributeSchemaMutation
+	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = 496202593310308290L;
 
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
@@ -141,11 +139,11 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
 		}
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.uniqueInScopes = uniqueInScopes == null ?
@@ -289,7 +287,11 @@ public class CreateGlobalAttributeSchemaMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
+	public <S extends AttributeSchemaContract> S mutate(
+		@Nullable CatalogSchemaContract catalogSchema,
+		@Nullable S attributeSchema,
+		@Nonnull Class<S> schemaType
+	) {
 		//noinspection unchecked,rawtypes
 		return (S) GlobalAttributeSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
@@ -303,7 +305,10 @@ public class CreateGlobalAttributeSchemaMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
+	) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(this.name).orElse(null);
@@ -344,12 +349,6 @@ public class CreateGlobalAttributeSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
-	}
-
-	@Nonnull
-	@Override
-	public String containerName() {
-		return this.name;
 	}
 
 	@Override

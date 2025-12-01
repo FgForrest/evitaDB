@@ -28,6 +28,7 @@ import io.evitadb.api.exception.ConflictingEngineMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressRecord;
@@ -54,9 +55,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +68,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -215,9 +219,13 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver
 	) {
+		final Set<ConflictKey> conflictKeys = engineMutation.collectConflictKeys(
+				new ConflictGenerationContext(), Collections.emptySet()
+			)
+			.collect(Collectors.toSet());
+
 		// on completion remove the mutation conflicting keys from the processed mutations
-		final Runnable onFinalize = () -> engineMutation.getConflictKeys()
-		                                                .forEach(this.processedEngineMutations::remove);
+		final Runnable onFinalize = () -> conflictKeys.forEach(this.processedEngineMutations::remove);
 
 		try {
 			if (this.engineStateLock.tryLock(this.engineMutationWaitIntervalInMillis, TimeUnit.MILLISECONDS)) {
@@ -225,12 +233,11 @@ public class EngineTransactionManager implements Closeable {
 				this.engineStateLock.lock();
 				try {
 					// verify that we can perform the mutation
-					verifyEngineMutationIsNotInConflictWithOthers(engineMutation);
+					verifyEngineMutationIsNotInConflictWithOthers(engineMutation, conflictKeys);
 					// verify that we can perform the mutation
 					engineMutation.verifyApplicability(this.evita);
 					// append the mutation to the WAL
-					engineMutation.getConflictKeys().forEach(
-						key -> this.processedEngineMutations.put(key, transactionId));
+					conflictKeys.forEach(key -> this.processedEngineMutations.put(key, transactionId));
 				} finally {
 					this.engineStateLock.unlock();
 				}
@@ -492,21 +499,22 @@ public class EngineTransactionManager implements Closeable {
 	 * @param engineMutation the mutation to be checked for conflicts; must not be null
 	 * @throws ConflictingEngineMutationException if the provided mutation conflicts with already processed mutations
 	 */
-	private void verifyEngineMutationIsNotInConflictWithOthers(@Nonnull EngineMutation<?> engineMutation) {
-		engineMutation
-			.getConflictKeys()
-			.forEach(
-				conflictKey -> {
-					final UUID txUUID = this.processedEngineMutations.get(conflictKey);
-					if (txUUID != null) {
-						throw new ConflictingEngineMutationException(
-							"Engine mutation `" + engineMutation.getClass().getSimpleName() + "` with key `" +
-								conflictKey + "` is in conflict with already processed transaction `" +
-								txUUID + "`!"
-						);
-					}
+	private void verifyEngineMutationIsNotInConflictWithOthers(
+		@Nonnull EngineMutation<?> engineMutation,
+		@Nonnull Set<ConflictKey> conflictKeys
+	) {
+		conflictKeys.forEach(
+			conflictKey -> {
+				final UUID txUUID = this.processedEngineMutations.get(conflictKey);
+				if (txUUID != null) {
+					throw new ConflictingEngineMutationException(
+						"Engine mutation `" + engineMutation.getClass().getSimpleName() + "` with key `" +
+							conflictKey + "` is in conflict with already processed transaction `" +
+							txUUID + "`!"
+					);
 				}
-			);
+			}
+		);
 	}
 
 }

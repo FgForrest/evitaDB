@@ -27,6 +27,10 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ReferenceConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.ContainerType;
@@ -37,6 +41,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Base mutation class for mutations that work with {@link Reference} of the {@link Entity}.
@@ -78,15 +84,23 @@ public abstract class ReferenceMutation<T extends Comparable<T>> implements Name
 		return this.referenceKey.referenceName();
 	}
 
-	/**
-	 * Creates a new mutation instance that is identical to the current one but contains also the internal primary key
-	 * of the referenced entity.
-	 *
-	 * @param internalPrimaryKey - internal primary key of the referenced entity
-	 * @return new mutation instance with the internal primary key set
-	 */
 	@Nonnull
-	public abstract ReferenceMutation<T> withInternalPrimaryKey(int internalPrimaryKey);
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.REFERENCE) && context.getEntityPrimaryKey() != null ?
+			Stream.of(
+				new ReferenceConflictKey(
+					context.getEntityType(),
+					context.getEntityPrimaryKey(),
+					this.referenceKey.referenceName(),
+					this.referenceKey.primaryKey()
+				)
+			) :
+			Stream.empty();
+	}
 
 	/**
 	 * Specialized method used in local builders to apply this mutation and keep information about shared attribute

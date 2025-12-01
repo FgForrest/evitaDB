@@ -235,15 +235,6 @@ public class InsertReferenceMutation extends ReferenceMutation<ComparableReferen
 		);
 	}
 
-	@Nonnull
-	@Override
-	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
-		return new InsertReferenceMutation(
-			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
-			this.referenceCardinality, this.referencedEntityType, this.decisiveTimestamp
-		);
-	}
-
 	/**
 	 * Creates a new instance of {@code InsertReferenceMutation} with the updated cardinality.
 	 * This method is used to modify the cardinality of a reference mutation while keeping other fields unchanged.
