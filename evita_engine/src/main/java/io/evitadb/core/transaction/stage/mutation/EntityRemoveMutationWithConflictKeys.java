@@ -39,13 +39,20 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * TODO JNO - document me
+ * Artificial mutation that wraps {@link EntityRemoveMutation} and is able to provide conflict keys based reflecting
+ * all the local mutations that were used to remove it completely.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class EntityRemoveMutationWithConflictKeys extends EntityRemoveMutation implements EntityMutation {
 	@Serial private static final long serialVersionUID = -1035994756036407695L;
+	/**
+	 * The original mutation that is being wrapped.
+	 */
 	@Getter private final EntityRemoveMutation delegate;
+	/**
+	 * Conflict key stream taking in account all the local mutations that were used to remove the entity.
+	 */
 	@Getter private final Stream<ConflictKey> conflictKeyStream;
 
 
