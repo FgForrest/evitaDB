@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -55,6 +56,7 @@ import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer;
+import io.evitadb.core.transaction.conflict.ConflictRingBuffer.CatalogVersionIndex;
 import io.evitadb.core.transaction.conflict.VersionedConflictKey;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
@@ -667,11 +669,64 @@ public class TransactionManager implements Closeable {
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Conflict resolution lock interrupted!", e);
 		} catch (OutsideScopeException e) {
-			/* TODO JNO - HANDLE */
-			throw new RuntimeException(e);
+			// this means that the conflict ring buffer has already cleared the catalog version
+			// and was able to check only partial set of conflict keys
+			identifyConflictsInOldCommittedTransactions(catalogVersion, conflictKeys, e.getEffectiveStart());
 		} finally {
 			if (this.conflictResolutionLock.isHeldByCurrentThread()) {
 				this.conflictResolutionLock.unlock();
+			}
+		}
+	}
+
+	/**
+	 * Identifies conflicts in old committed transactions within a catalog over a specified range of versions.
+	 * This method iterates through all committed live mutations from the given catalog version up to a specified version,
+	 * and checks if any of the conflict keys provided are present in the mutations. If a conflict is detected,
+	 * it throws a {@link ConflictingCatalogMutationException}.
+	 *
+	 * @param catalogVersion the starting version of the catalog to check for conflicts in committed transactions
+	 * @param conflictKeys a set of conflict keys to check against in the committed transactions
+	 * @param until the upper bound versioned conflict key, up to which committed transactions are analyzed
+	 */
+	private void identifyConflictsInOldCommittedTransactions(
+		long catalogVersion,
+		@Nonnull Set<ConflictKey> conflictKeys,
+		@Nonnull CatalogVersionIndex until
+	) {
+		final ConflictGenerationContext context = new ConflictGenerationContext();
+		long processedCatalogVersion = catalogVersion;
+		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
+			.getCommittedLiveMutationStream(catalogVersion, until.catalogVersion())
+			.iterator();
+
+		int index = -1;
+		while (mutationIterator.hasNext()) {
+			final Mutation mutation = mutationIterator.next();
+			if (mutation instanceof TransactionMutation tm) {
+				processedCatalogVersion = tm.getVersion();
+				index = 0;
+			} else {
+				index++;
+			}
+
+			if (until.catalogVersion() == processedCatalogVersion && index == until.index()) {
+				// stop at the mutation that is the upper bound
+				break;
+			}
+
+			final Iterator<ConflictKey> conflictKeyIterator = mutation
+				.collectConflictKeys(context, this.conflictPolicy)
+				.iterator();
+			while (conflictKeyIterator.hasNext()) {
+				final ConflictKey conflictKey = conflictKeyIterator.next();
+				if (conflictKeys.contains(conflictKey)) {
+					throw new ConflictingCatalogMutationException(
+						this.catalogName,
+						conflictKey,
+						processedCatalogVersion
+					);
+				}
 			}
 		}
 	}

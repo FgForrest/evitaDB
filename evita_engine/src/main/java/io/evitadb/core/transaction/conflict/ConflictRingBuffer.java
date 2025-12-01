@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.conflict.ConflictRingBuffer.CatalogVersionInd
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.Serializable;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
@@ -141,7 +142,7 @@ public class ConflictRingBuffer extends RingBuffer<VersionedConflictKey, Catalog
 	public record CatalogVersionIndex(
 		long catalogVersion,
 		int index
-	) implements Comparable<CatalogVersionIndex> {
+	) implements Serializable, Comparable<CatalogVersionIndex> {
 
 		@Override
 		public int compareTo(@Nonnull CatalogVersionIndex o) {

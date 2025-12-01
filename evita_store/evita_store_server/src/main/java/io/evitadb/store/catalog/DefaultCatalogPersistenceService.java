@@ -2112,7 +2112,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return Stream.empty();
 		} else {
 			return this.catalogWal.getCommittedMutationStreamAvoidingPartiallyWrittenBuffer(
-				startCatalogVersion, requestedCatalogVersion);
+				startCatalogVersion, requestedCatalogVersion
+			);
 		}
 	}
 

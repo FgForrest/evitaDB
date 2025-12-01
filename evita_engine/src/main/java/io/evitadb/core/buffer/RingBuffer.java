@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Objects;
@@ -66,7 +67,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ThreadSafe
-public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
+public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY> & Serializable> {
 	/**
 	 * Lock used to ensure thread safety for reading operations.
 	 */
@@ -261,7 +262,7 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		try {
 			// throw exception if the watermark is outside the covered scope
 			if (this.boundaryWatermarkComparator.applyAsInt(this.effectiveStart, watermark) > 0) {
-				throw new OutsideScopeException();
+				throw new OutsideScopeException(this.effectiveStart);
 			}
 			if (this.startIndex >= this.endIndex && this.wrappedAround) {
 				// The buffer has wrapped around, so we need to search in two segments
@@ -310,9 +311,13 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		this.lock.lock();
 		try {
 			// throw exception if the watermark is outside the covered scope
+			final OutsideScopeException exceptionToThrow;
 			if (this.boundaryWatermarkComparator.applyAsInt(this.effectiveStart, watermark) > 0) {
-				throw new OutsideScopeException();
+				exceptionToThrow = new OutsideScopeException(this.effectiveStart);
+			} else {
+				exceptionToThrow = null;
 			}
+			// now apply the data consumer
 			if (this.startIndex >= this.endIndex && this.wrappedAround) {
 				// The buffer has wrapped around, so we need to search in two segments
 				final InsertionPosition headIndex = ArrayUtils.computeInsertPositionOfObjInOrderedArray(watermark, this.workspace, this.startIndex, this.workspace.length, this.dataWatermarkComparator);
@@ -333,6 +338,10 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 				if (index.alreadyPresent() || index.position() < this.endIndex) {
 					forEach(index.position(), this.endIndex, dataConsumer);
 				}
+			}
+			// throw exception if needed
+			if (exceptionToThrow != null) {
+				throw exceptionToThrow;
 			}
 		} finally {
 			this.lock.unlock();
@@ -681,6 +690,27 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY>> {
 		 * Serial version UID for serialization.
 		 */
 		@Serial private static final long serialVersionUID = -7914519281407020017L;
+		/**
+		 * The effective start boundary of the buffer when the exception was thrown.
+		 */
+		private final Serializable effectiveStart;
+
+		public OutsideScopeException(@Nonnull Serializable effectiveStart) {
+			this.effectiveStart = effectiveStart;
+		}
+
+		/**
+		 * Retrieves the effective start boundary of the buffer when the exception was thrown.
+		 *
+		 * @param <BOUNDARY> the type of the boundary, which extends {@link Comparable}.
+		 * @return the effective start boundary, cast to the specified type.
+		 */
+		@Nonnull
+		public <BOUNDARY extends Comparable<BOUNDARY>> BOUNDARY getEffectiveStart() {
+			//noinspection unchecked
+			return (BOUNDARY) this.effectiveStart;
+		}
+
 	}
 
 }
