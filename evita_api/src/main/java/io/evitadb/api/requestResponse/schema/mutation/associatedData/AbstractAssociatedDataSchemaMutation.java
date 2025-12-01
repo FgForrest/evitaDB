@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutati
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -74,14 +73,22 @@ abstract class AbstractAssociatedDataSchemaMutation
 	/**
 	 * Name of the associated data schema affected by this mutation. Never `null`.
 	 */
-	@Getter @Nonnull protected final String name;
+	@Nonnull protected final String name;
 
+	@Nonnull
+	@Override
+	public String getName() {
+		return this.name;
+	}
+
+	@Override
 	@Nonnull
 	public String containerName() {
 		// Container name for associated data mutations equals the associated data schema name
 		return this.name;
 	}
 
+	@Override
 	@Nonnull
 	public Stream<ConflictKey> collectConflictKeys(
 		@Nonnull ConflictGenerationContext context,

@@ -141,6 +141,7 @@ class ChangeCaptureRingBuffer<T extends ChangeCapture> extends RingBuffer<T, Wal
 	 * @param dataConsumer the consumer that will process each data element
 	 * @throws OutsideScopeException if the watermark is outside the scope of data currently in the buffer
 	 */
+	@Override
 	public void forEachSince(@Nonnull WalPointer watermark, @Nonnull java.util.function.Consumer<T> dataConsumer) throws OutsideScopeException {
 		super.forEachSince(watermark, dataConsumer);
 	}
