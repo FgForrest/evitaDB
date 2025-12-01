@@ -1417,6 +1417,7 @@ To get an entity with reference to categories and brand, use the following query
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1454,6 +1455,7 @@ the bodies of the groups the references refer to. One such common scenario is fe
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1494,6 +1496,7 @@ related entities: product → group → tag → tag category. The query looks li
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity groups and their tags](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1605,6 +1608,7 @@ following query:
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1660,6 +1664,7 @@ query:
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1710,6 +1715,7 @@ Let's say you need only to check whether there is any parameter for the product.
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values count without fetching them](/documentation/user/en/query/requirements/examples/fetching/referenceContentPageEmpty.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -1746,6 +1752,7 @@ the `orderBy` constraint should be handy:
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity parameter values count without fetching them](/documentation/user/en/query/requirements/examples/fetching/referenceContentPage.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -2022,15 +2029,48 @@ system) and the attributes set on those references. The `referenceContentAllWith
 of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify
 the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
 shared by all of the references. This constraint is only useful in exploration scenarios.
+
 </LS>
 
 For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
+
+<LS to="g">
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Need different configurations of the same reference?
+</NoteTitle>
+
+If you need different configurations of the same reference, you can leverage [GraphQL aliases](https://graphql.org/learn/queries/#aliases)
+to define multiple reference fields with different parameters.
+
+To get media files distinguished by a gallery as separate collections, you can define multiple reference fields with
+unique aliases and custom filtering: 
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Example query to request different configurations of the same reference type](/documentation/user/en/query/requirements/examples/fetching/namedReferenceContent.graphql)
+
+</SourceCodeTabs>
+
+This will produce the following result:
+
+<MDInclude sourceVariable="data.listProduct">[The result of an entity fetched with different configurations of the same reference](/documentation/user/en/query/requirements/examples/fetching/namedReferenceContent.graphql.json.md)</MDInclude>
+
+</Note>
+
+</LS>
+
+<LS to="e,j,c,r">
 
 To obtain an entity with all the references and their attributes, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Getting entity with all of the references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -2054,6 +2094,8 @@ The returned `Product` entity will contain all the references and the attributes
 </LS>
 
 </Note>
+
+</LS>
 
 <LS to="e,j,c,r">
 

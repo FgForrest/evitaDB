@@ -1,0 +1,39 @@
+{
+  listProduct(
+    filterBy: {
+      entityLocaleEquals: cs
+      attributeCodeStartsWith: "apple"
+      referenceMediaHaving: {}
+    }
+    orderBy: {
+      attributeCodeNatural: ASC
+    }
+    limit: 4
+  ) {
+    attributes {
+      code
+    }
+    motive: media(filterBy: {attributeGalleryEquals: "hlavni-motiv"}) {
+      attributes {
+        mediaOrder
+      }
+      referencedEntity {
+        attributes {
+          fileName
+        }
+      }
+    }
+    gallery: media(filterBy: {attributeGalleryEquals: "galerie"}) {
+      attributes {
+        mediaOrder
+      }
+      referencedEntity {
+        attributes {
+          name
+          description
+          fileName
+        }
+      }
+    }
+  }
+}
