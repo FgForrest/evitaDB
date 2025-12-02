@@ -62,7 +62,7 @@ public class SortableAttributeCompoundSchema implements SortableAttributeCompoun
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Set<Scope> indexedInScopes;
 	@Getter @Nonnull private final List<AttributeElement> attributeElements;
-	private Boolean memoizedLocalized;
+	private volatile Boolean memoizedLocalized;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from

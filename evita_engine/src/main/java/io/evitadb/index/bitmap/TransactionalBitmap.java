@@ -58,7 +58,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final RoaringBitmap roaringBitmap;
-	private int memoizedCardinality;
+	private volatile int memoizedCardinality;
 
 	public TransactionalBitmap() {
 		this.roaringBitmap = new RoaringBitmap();
