@@ -41,6 +41,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -50,6 +52,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
 import io.evitadb.dataType.set.LazyHashSet;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -956,7 +959,78 @@ public class InitialReferencesBuilder implements ReferencesBuilder {
 		addOrReplaceReferenceInternal(referenceBuilder.build());
 	}
 
-	@Nonnull
+    @Nonnull
+    @Override
+    public ReferencesBuilder mutateReference(@Nonnull ReferenceMutation<?> referenceMutation) {
+        if (referenceMutation instanceof InsertReferenceMutation lm) {
+            final String referenceName = referenceMutation.getReferenceKey().referenceName();
+            final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrCreateImplicit(
+                referenceName, lm.getReferencedEntityType(), lm.getReferenceCardinality()
+            );
+            this.addOrReplaceReferenceInternal(
+                new Reference(
+                    this.entitySchema,
+                    referenceSchema,
+                    referenceMutation.getReferenceKey(),
+                    null
+                )
+            );
+        } else if (referenceMutation instanceof SetReferenceGroupMutation lm) {
+            final ReferenceContract existingReference = this.getReference(lm.getReferenceKey())
+                .orElseThrow(() -> new ReferenceNotFoundException(lm.getReferenceKey().referenceName()));
+            final ReferenceSchemaContract referenceSchema = existingReference.getReferenceSchemaOrThrow();
+            final String groupType = ofNullable(lm.getGroupType()).orElse(referenceSchema.getReferencedGroupType());
+            Assert.isTrue(
+                groupType != null,
+                () -> new InvalidMutationException(
+                    "Cannot set group for reference `" + lm.getReferenceKey().referenceName() +
+                        "` because neither mutation nor schema defines the group type!"
+                )
+            );
+            addOrReplaceReferenceInternal(
+                new Reference(
+                    this.entitySchema,
+                    referenceSchema,
+                    existingReference.getReferenceKey(),
+                    new ReferenceContract.GroupEntityReference(
+                        groupType,
+                        lm.getGroupPrimaryKey()
+                    )
+                )
+            );
+        } else if (referenceMutation instanceof RemoveReferenceGroupMutation lm) {
+            final ReferenceContract existingReference = this.getReference(lm.getReferenceKey())
+                .orElseThrow(() -> new ReferenceNotFoundException(lm.getReferenceKey().referenceName()));
+            final ReferenceSchemaContract referenceSchema = existingReference.getReferenceSchemaOrThrow();
+            addOrReplaceReferenceInternal(
+                new Reference(
+                    this.entitySchema,
+                    referenceSchema,
+                    existingReference.getReferenceKey(),
+                    null
+                )
+            );
+        } else if (referenceMutation instanceof RemoveReferenceMutation lm) {
+            removeReference(lm.getReferenceKey());
+        } else if (referenceMutation instanceof ReferenceAttributeMutation lm) {
+            final ReferenceContract existingReference = this.getReference(lm.getReferenceKey())
+                .orElseThrow(() -> new ReferenceNotFoundException(lm.getReferenceKey().referenceName()));
+            addOrReplaceReferenceInternal(
+                new ExistingReferenceBuilder(
+                    existingReference,
+                    this.entitySchema,
+                    getReferenceBundleForUpdate(
+                        existingReference.getReferenceKey().referenceName(), 8).getAttributeTypes())
+                    .mutateAttribute(lm.getAttributeMutation()).build()
+            );
+        } else {
+            // SHOULD NOT EVER HAPPEN
+            throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+        }
+        return this;
+    }
+
+    @Nonnull
 	@Override
 	public References build() {
 		final Set<String> allReferenceNames;

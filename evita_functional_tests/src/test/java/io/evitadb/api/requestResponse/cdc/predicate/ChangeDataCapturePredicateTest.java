@@ -154,7 +154,7 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 					final EntityBuilder baseMutation = modificationFunction.apply(products.get(updatedPk));
 
 					if (rnd.nextInt(7) == 0) {
-						((ExistingEntityBuilder)baseMutation).addMutation(
+						((ExistingEntityBuilder)baseMutation).mutate(
 							new ApplyDeltaAttributeMutation<>(DataGenerator.ATTRIBUTE_QUANTITY, BigDecimal.ONE)
 						);
 					}

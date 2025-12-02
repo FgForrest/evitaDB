@@ -100,7 +100,7 @@ public abstract sealed class NumberRange<T extends Number> implements Range<T>, 
 	 * Returns TRUE when value to check is withing the current number range (inclusive).
 	 */
 	@Override
-	public boolean isWithin(@Nonnull T valueToCheck) {
+	public boolean isWithin(@Nonnull Number valueToCheck) {
 		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
 		final long valueToCompare = toComparableLong(EvitaDataTypes.toTargetType(valueToCheck, getSupportedType()), 0L);
 		return this.fromToCompare <= valueToCompare && valueToCompare <= this.toToCompare;
