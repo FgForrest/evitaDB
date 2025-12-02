@@ -260,7 +260,6 @@ public class EngineTransactionManager implements Closeable {
 			onFinalize.run();
 			throw e;
 		} catch (InterruptedException e) {
-			// do nothing
 			Thread.currentThread().interrupt();
 			throw new TransactionTimedOutException("Interrupted while waiting for an engine state lock!");
 		} finally {

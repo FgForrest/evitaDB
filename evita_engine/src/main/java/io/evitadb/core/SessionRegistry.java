@@ -995,7 +995,10 @@ public final class SessionRegistry {
 				return true;
 			} catch (TimeoutException e) {
 				return false;
-			} catch (InterruptedException | ExecutionException e) {
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw SessionBusyException.INSTANCE;
+			} catch (ExecutionException e) {
 				throw SessionBusyException.INSTANCE;
 			}
 		}
@@ -1233,7 +1236,10 @@ public final class SessionRegistry {
 				return true;
 			} catch (TimeoutException e) {
 				return false;
-			} catch (InterruptedException | ExecutionException e) {
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw SessionBusyException.INSTANCE;
+			} catch (ExecutionException e) {
 				throw SessionBusyException.INSTANCE;
 			}
 		}

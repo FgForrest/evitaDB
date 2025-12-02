@@ -96,14 +96,6 @@ public final class TrunkIncorporationTransactionStage
 			// emit queue event
 			task.transactionQueuedEvent().finish().commit();
 
-			synchronized (this) {
-				try {
-					this.wait(50);
-				} catch (InterruptedException e) {
-					throw new RuntimeException(e);
-				}
-			}
-
 			final TransactionIncorporatedToTrunkEvent event = new TransactionIncorporatedToTrunkEvent(this.transactionManager.getCatalogName());
 			this.transactionManager.processTransactions(
 					task.catalogVersion(),
@@ -131,7 +123,8 @@ public final class TrunkIncorporationTransactionStage
 							0,
 							0
 						).commit();
-					});
+					}
+				);
 		}
 	}
 

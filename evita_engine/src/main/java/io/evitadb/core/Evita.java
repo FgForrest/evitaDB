@@ -256,6 +256,7 @@ public final class Evita implements EvitaContract {
 		} catch (InterruptedException ex) {
 			log.warn("EvitaDB executor `" + name + "` did not terminate in time (interrupted), forcing shutdown.");
 			executorService.shutdownNow();
+			Thread.currentThread().interrupt();
 		}
 	}
 

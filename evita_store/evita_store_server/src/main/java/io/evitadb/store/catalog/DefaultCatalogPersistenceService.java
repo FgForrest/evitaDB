@@ -1368,6 +1368,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			);
 			return persistenceService;
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(
 				"Interrupted while trying to lock the catalog persistence service versions!",
 				"Interrupted while trying to lock the catalog persistence service versions!",
@@ -2824,6 +2825,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				}
 
 			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				throw new GenericEvitaInternalError(
 					"Failed to lock the catalog persistence service for catalog `" + this.catalogName + "`!",
 					"Failed to lock the catalog persistence service!",
@@ -2896,6 +2898,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				}
 			}
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(
 				"Failed to lock the bootstrap file for catalog `" + this.catalogName + "`!",
 				"Failed to lock the bootstrap file!",
@@ -3081,6 +3084,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 			return bootstrapRecord;
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(
 				"Failed to lock the bootstrap file for catalog `" + this.catalogName + "`!",
 				"Failed to lock the bootstrap file!",
@@ -3343,6 +3347,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				doRemoveCatalogPersistenceServiceForVersion(catalogVersion);
 			}
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError(
 				"Failed to lock the catalog persistence service for catalog `" + this.catalogName + "`!",
 				"Failed to lock the catalog persistence service!",

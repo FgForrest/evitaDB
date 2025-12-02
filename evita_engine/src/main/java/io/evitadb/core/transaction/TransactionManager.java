@@ -919,6 +919,7 @@ public class TransactionManager implements Closeable {
 				);
 			}
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("WAL appending lock interrupted!", e);
 		} finally {
 			if (this.walAppendingLock.isHeldByCurrentThread()) {
@@ -1089,6 +1090,7 @@ public class TransactionManager implements Closeable {
 				return empty();
 			}
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Trunk incorporation lock interrupted!", e);
 		} finally {
 			if (this.trunkIncorporationLock.isHeldByCurrentThread()) {
@@ -1126,6 +1128,7 @@ public class TransactionManager implements Closeable {
 				throw new TransactionTimedOutException("Catalog propagation lock timed out!");
 			}
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Catalog propagation lock interrupted!", e);
 		} finally {
 			if (this.catalogPropagationLock.isHeldByCurrentThread()) {

@@ -162,6 +162,7 @@ public class SanityChecker implements EvitaTestSupport {
 					}
 				}
 			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				// finish
 			}
 		}

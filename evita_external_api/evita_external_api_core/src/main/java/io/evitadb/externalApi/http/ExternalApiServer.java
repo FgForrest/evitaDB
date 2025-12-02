@@ -426,7 +426,10 @@ public class ExternalApiServer implements AutoCloseable {
 		try {
 			this.server.start().get();
 			this.registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
-		} catch (InterruptedException | ExecutionException e) {
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException(e);
+		} catch (ExecutionException e) {
 			throw new RuntimeException(e);
 		}
 	}

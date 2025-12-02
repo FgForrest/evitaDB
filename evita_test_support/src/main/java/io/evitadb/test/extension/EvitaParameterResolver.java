@@ -616,6 +616,7 @@ public class EvitaParameterResolver
 				// if not ready wait for a while
 				Thread.sleep(200);
 			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				return evitaServer;
 			}
 			// try at most 5 times

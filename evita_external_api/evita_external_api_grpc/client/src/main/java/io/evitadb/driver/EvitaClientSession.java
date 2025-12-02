@@ -2643,6 +2643,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					return Optional.ofNullable(valueWrapper.value());
 				}
 			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				// finalize stream
 				return Optional.empty();
 			}

@@ -202,6 +202,7 @@ public class TrafficRecorderTask extends ClientInfiniteCallableTask<TrafficRecor
 
 		} catch (InterruptedException e) {
 			this.trafficRecordingEngine.stopRecording();
+			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Traffic recording task finished abnormally (interrupt).", e);
 		} catch (FileNotFoundException e) {
 			throw new GenericEvitaInternalError(

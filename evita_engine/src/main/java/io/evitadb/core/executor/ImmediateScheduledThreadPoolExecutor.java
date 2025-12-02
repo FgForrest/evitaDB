@@ -119,7 +119,7 @@ public class ImmediateScheduledThreadPoolExecutor extends ScheduledThreadPoolExe
 	}
 
 	@Override
-	public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+	public boolean awaitTermination(long timeout, TimeUnit unit) {
 		return true; // Always terminated since tasks are executed immediately
 	}
 
