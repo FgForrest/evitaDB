@@ -62,7 +62,7 @@ There are also special types of safe mutations that can help minimize conflict. 
 
 <Note type="warning">
 
-Granular conflict handling is a work in progress (see issue #503: https://github.com/FGForrest/evitaDB/issues/503).
+Granular conflict handling is a work in progress (see [issue #503](https://github.com/FGForrest/evitaDB/issues/503)).
 
 Ultimately, we want the general conflict policy to be overridable at the catalog, schema, entity type, or sub-schema level (e.g., attribute, associated data, etc.). We believe this approach provides the necessary versatility and fine-grained control.
 
