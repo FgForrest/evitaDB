@@ -159,7 +159,9 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 *
 	 * @param mutation mutation to set price inner record handling
 	 */
-	public void addMutation(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
+    @Nonnull
+    @Override
+	public ExistingPricesBuilder mutateInnerPriceHandling(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
 		assertPricesAllowed(this.entitySchema);
 		final PriceInnerRecordHandling updatedValue = mutation.mutateLocal(
 			this.entitySchema, this.basePrices
@@ -169,6 +171,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		} else {
 			this.priceInnerRecordHandlingEntityMutation = null;
 		}
+        return this;
 	}
 
 	/**
@@ -184,7 +187,9 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @throws AmbiguousPriceException  when the resulting combination would be ambiguous
 	 * @throws InvalidMutationException when removing a non-existing price
 	 */
-	public void addMutation(@Nonnull PriceMutation mutation) {
+    @Nonnull
+    @Override
+	public ExistingPricesBuilder mutatePrice(@Nonnull PriceMutation mutation) {
 		if (mutation instanceof UpsertPriceMutation upsertPriceMutation) {
 			final PriceKey priceKey = upsertPriceMutation.getPriceKey();
 			assertPricesAllowed(this.entitySchema, priceKey.currency());
@@ -227,6 +232,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		} else {
 			throw new GenericEvitaInternalError("Unknown Evita price mutation: `" + mutation.getClass() + "`!");
 		}
+        return this;
 	}
 
 	/**
@@ -241,7 +247,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @param indexed         whether the price should be indexed for filtering/sorting
 	 * @return this builder
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed
@@ -264,7 +271,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @param indexed         whether the price should be indexed
 	 * @return this builder
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
@@ -287,7 +295,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @param indexed         whether the price should be indexed
 	 * @return this builder
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean indexed
@@ -312,13 +321,14 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @param indexed         whether indexed
 	 * @return this builder
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
 		@Nullable DateTimeRange validity, boolean indexed
 	) {
-		addMutation(
+		mutatePrice(
 			new UpsertPriceMutation(
 				new PriceKey(priceId, priceList, currency),
 				innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, indexed
@@ -336,9 +346,10 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @return this builder
 	 * @throws InvalidMutationException when the price does not exist
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
-		addMutation(new RemovePriceMutation(new PriceKey(priceId, priceList, currency)));
+		mutatePrice(new RemovePriceMutation(new PriceKey(priceId, priceList, currency)));
 		return this;
 	}
 
@@ -349,7 +360,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 *
 	 * @return builder instance to allow command chaining
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removeAllPrices() {
 		for (PriceContract price : getPrices()) {
 			removePrice(price.priceId(), price.priceList(), price.currency());
@@ -363,9 +375,10 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @param priceInnerRecordHandling handling strategy
 	 * @return this builder
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
-		addMutation(new SetPriceInnerRecordHandlingMutation(priceInnerRecordHandling));
+		mutateInnerPriceHandling(new SetPriceInnerRecordHandlingMutation(priceInnerRecordHandling));
 		return this;
 	}
 
@@ -374,9 +387,10 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 *
 	 * @return this builder
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removePriceInnerRecordHandling() {
-		addMutation(new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE));
+		mutateInnerPriceHandling(new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.NONE));
 		return this;
 	}
 
@@ -387,7 +401,8 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @return this builder
 	 * @throws IllegalArgumentException when prices were not fetched with required content mode
 	 */
-	@Override
+	@Nonnull
+    @Override
 	public PricesBuilder removeAllNonTouchedPrices() {
 		assertPricesAllowed(this.entitySchema);
 		assertPricesFetched(PriceContentMode.ALL);
@@ -589,7 +604,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		return this.basePrices.version();
 	}
 
-	/**
+    /**
 	 * Builds the stream of local mutations representing changes accumulated in this builder.
 	 *
 	 * - Emits {@link SetPriceInnerRecordHandlingMutation} when changed

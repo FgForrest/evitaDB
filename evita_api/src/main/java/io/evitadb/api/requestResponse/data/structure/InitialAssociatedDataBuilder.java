@@ -351,7 +351,15 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public AssociatedDataBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
-		throw new UnsupportedOperationException("You cannot apply mutation when entity is just being created!");
+        final AssociatedDataKey associatedDataKey = mutation.getAssociatedDataKey();
+        final Optional<AssociatedDataValue> existingValue = getAssociatedDataValue(associatedDataKey);
+        final AssociatedDataValue associatedDataValue = mutation.mutateLocal(this.entitySchema, existingValue.orElse(null));
+        if (associatedDataValue.dropped()) {
+			this.associatedDataValues.remove(associatedDataKey);
+        } else {
+			this.associatedDataValues.put(associatedDataKey, associatedDataValue);
+        }
+        return this;
 	}
 
 	@Nonnull

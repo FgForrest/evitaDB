@@ -402,7 +402,15 @@ public interface ReferencesEditor<W extends ReferencesEditor<W>> extends Referen
 	@Nonnull
 	W removeReferences(@Nonnull Predicate<ReferenceContract> filter);
 
-	/**
+    /**
+     * Alters reference in a way defined by the passed mutation implementation.
+     *
+     * @return self (builder pattern)
+     */
+    @Nonnull
+    W mutateReference(@Nonnull ReferenceMutation<?> referenceMutation);
+
+    /**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
 	interface ReferencesBuilder extends ReferencesEditor<ReferencesEditor.ReferencesBuilder>, BuilderContract<References> {

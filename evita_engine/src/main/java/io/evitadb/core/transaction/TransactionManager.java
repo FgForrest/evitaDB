@@ -37,9 +37,12 @@ import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.api.requestResponse.mutation.conflict.AttributeDeltaConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.CommutativeConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -55,8 +58,11 @@ import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.executor.SystemObservableExecutorService;
+import io.evitadb.core.transaction.conflict.AttributeDeltaResolver;
+import io.evitadb.core.transaction.conflict.CommutativeConflictResolver;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer;
 import io.evitadb.core.transaction.conflict.ConflictRingBuffer.CatalogVersionIndex;
+import io.evitadb.core.transaction.conflict.ReferenceAttributeDeltaResolver;
 import io.evitadb.core.transaction.conflict.VersionedConflictKey;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
@@ -66,6 +72,7 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.Trun
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
@@ -81,15 +88,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.EnumSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SubmissionPublisher;
@@ -104,6 +103,7 @@ import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * Transaction manager is propagated through different versions / instances of the same catalog and is responsible for
@@ -643,23 +643,56 @@ public class TransactionManager implements Closeable {
 			final long timeout = this.transactionAcceptanceTimeout - Duration.between(
 				OffsetDateTime.now(), commitTimestamp
 			).toMillis();
-			if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
-				this.conflictRingBuffer.forEachSince(
-					catalogVersion,
-					vck -> {
-						if (conflictKeys.contains(vck.conflictKey())) {
-							throw new ConflictingCatalogMutationException(
-								this.catalogName,
-								vck.conflictKey(),
-								vck.version()
-							);
-						}
-					}
-				);
-				int index = 0;
-				for (ConflictKey conflictKey : conflictKeys) {
-					this.conflictRingBuffer.offer(new VersionedConflictKey(catalogVersion, index++, conflictKey));
-				}
+            if (this.conflictResolutionLock.tryLock(timeout, TimeUnit.MILLISECONDS)) {
+                final Catalog theLivingCatalog = getLivingCatalog();
+                final long livingCatalogVersion = theLivingCatalog.getVersion();
+                final Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates =
+                    initializeAggregatesIfNecessary(conflictKeys);
+
+                try {
+                    this.conflictRingBuffer.forEachSince(
+                        catalogVersion,
+                        vck -> examineConflictKey(
+                            vck.conflictKey(),
+                            conflictKeys,
+                            theLivingCatalog,
+                            aggregates,
+                            vck.version(),
+                            livingCatalogVersion
+                        )
+                    );
+                } catch (OutsideScopeException e) {
+                    // this means that the conflict ring buffer has already cleared the catalog version
+                    // and was able to check only partial set of conflict keys
+                    identifyConflictsInOldCommittedTransactions(
+                        catalogVersion,
+                        conflictKeys,
+                        theLivingCatalog,
+                        aggregates,
+                        e.getEffectiveStart()
+                    );
+                } finally {
+                    int index = 0;
+                    for (ConflictKey conflictKey : conflictKeys) {
+                        if (conflictKey instanceof CommutativeConflictKey<?> cck && cck.isConstrainedToRange()) {
+                            Assert.isPremiseValid(
+                                aggregates != null,
+                                "Aggregates map must be initialized when commutative conflict keys are present!"
+                            );
+                            //noinspection unchecked
+                            final CommutativeConflictKey<Object> ccko = (CommutativeConflictKey<Object>) cck;
+                            // if the commutative conflict key is present in this transaction, we need to
+                            //noinspection unchecked
+                            final CommutativeConflictResolver<Object> resolver = ofNullable((CommutativeConflictResolver<Object>) aggregates.get(cck))
+                                .orElseGet(() -> createCommutativeResolver(ccko, theLivingCatalog));
+                            // 1. add the aggregate from previous transactions
+                            final Object accumulatedValue = ccko.aggregate(resolver.accumulatedValue(), ccko.deltaValue());
+                            // 2. check whether the result is within the allowed range
+                            ccko.assertInAllowedRange(this.catalogName, catalogVersion, accumulatedValue);
+                        }
+                        this.conflictRingBuffer.offer(new VersionedConflictKey(catalogVersion, index++, conflictKey));
+                    }
+                }
 			} else {
 				throw new TransactionTimedOutException(
 					"Conflict resolution lock timed out! Waited for " + timeout + " ms of maximum waiting time " + this.transactionAcceptanceTimeout + " ms."
@@ -668,18 +701,34 @@ public class TransactionManager implements Closeable {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			throw new GenericEvitaInternalError("Conflict resolution lock interrupted!", e);
-		} catch (OutsideScopeException e) {
-			// this means that the conflict ring buffer has already cleared the catalog version
-			// and was able to check only partial set of conflict keys
-			identifyConflictsInOldCommittedTransactions(catalogVersion, conflictKeys, e.getEffectiveStart());
 		} finally {
-			if (this.conflictResolutionLock.isHeldByCurrentThread()) {
-				this.conflictResolutionLock.unlock();
-			}
+            if (this.conflictResolutionLock.isHeldByCurrentThread()) {
+                this.conflictResolutionLock.unlock();
+            }
 		}
 	}
 
-	/**
+    /**
+     * Initializes and returns a mutable map of commutative conflict keys to their resolvers
+     * if at least one {@link ConflictKey} in the given set is an instance of
+     * {@link CommutativeConflictKey} and is constrained to a range. Otherwise, returns null.
+     *
+     * @param conflictKeys the set of conflict keys to evaluate for initialization
+     * @return a lazily initialized map if required, otherwise null
+     */
+    @Nullable
+    private static Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> initializeAggregatesIfNecessary(
+        @Nonnull Set<ConflictKey> conflictKeys
+    ) {
+        for (ConflictKey conflictKey : conflictKeys) {
+            if (conflictKey instanceof CommutativeConflictKey<?> cck && cck.isConstrainedToRange()) {
+                return new LazyHashMap<>(32);
+            }
+        }
+        return null;
+    }
+
+    /**
 	 * Identifies conflicts in old committed transactions within a catalog over a specified range of versions.
 	 * This method iterates through all committed live mutations from the given catalog version up to a specified version,
 	 * and checks if any of the conflict keys provided are present in the mutations. If a conflict is detected,
@@ -692,9 +741,12 @@ public class TransactionManager implements Closeable {
 	private void identifyConflictsInOldCommittedTransactions(
 		long catalogVersion,
 		@Nonnull Set<ConflictKey> conflictKeys,
+        @Nonnull Catalog theLivingCatalog,
+        @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
 		@Nonnull CatalogVersionIndex until
 	) {
 		final ConflictGenerationContext context = new ConflictGenerationContext();
+        long livingCatalogVersion = theLivingCatalog.getVersion();
 		long processedCatalogVersion = catalogVersion;
 		final Iterator<CatalogBoundMutation> mutationIterator = getLivingCatalog()
 			.getCommittedLiveMutationStream(catalogVersion, until.catalogVersion())
@@ -720,18 +772,96 @@ public class TransactionManager implements Closeable {
 				.iterator();
 			while (conflictKeyIterator.hasNext()) {
 				final ConflictKey conflictKey = conflictKeyIterator.next();
-				if (conflictKeys.contains(conflictKey)) {
-					throw new ConflictingCatalogMutationException(
-						this.catalogName,
-						conflictKey,
-						processedCatalogVersion
-					);
-				}
-			}
+                examineConflictKey(
+                    conflictKey, conflictKeys, theLivingCatalog, aggregates,
+                    processedCatalogVersion, livingCatalogVersion
+                );
+            }
 		}
 	}
 
-	/**
+    /**
+     * Examines the specified conflict key and determines if conflicts exist based on the provided parameters.
+     * Handles commutative conflict keys and processes them against the current catalog state.
+     *
+     * @param conflictKey The conflict key to be examined.
+     * @param conflictKeys A set of conflict keys to check against for conflicts.
+     * @param theLivingCatalog The current state of the catalog.
+     * @param aggregates A map of commutative conflict keys and their corresponding aggregated values.
+     *                   Can be null if it makes no sense to accumulate commutative keys.
+     * @param processedCatalogVersion The version of the catalog being processed.
+     * @param livingCatalogVersion The current version of the living catalog.
+     * @throws ConflictingCatalogMutationException if the conflict key is already present in the current transaction.
+     */
+    private <T> void examineConflictKey(
+        @Nonnull ConflictKey conflictKey,
+        @Nonnull Set<ConflictKey> conflictKeys,
+        @Nonnull Catalog theLivingCatalog,
+        @Nullable Map<CommutativeConflictKey<?>, CommutativeConflictResolver<?>> aggregates,
+        long processedCatalogVersion,
+        long livingCatalogVersion
+    ) {
+        // accumulate commutative conflict keys later than current living catalog version
+        if (conflictKey instanceof CommutativeConflictKey<?> cck) {
+            if (aggregates != null && processedCatalogVersion > livingCatalogVersion) {
+                aggregates.compute(
+                    cck,
+                    (key, existingAggregate) -> {
+                        if (existingAggregate == null) {
+                            return createCommutativeResolver(cck, theLivingCatalog);
+                        } else {
+                            //noinspection unchecked
+                            ((CommutativeConflictResolver<T>)existingAggregate).accumulate((T) cck.deltaValue());
+                            return existingAggregate;
+                        }
+                    }
+                );
+            }
+        } else if (conflictKeys.contains(conflictKey)) {
+            // check whether any of the conflict keys is present in the current transaction
+            throw new ConflictingCatalogMutationException(
+                this.catalogName,
+                conflictKey,
+                processedCatalogVersion
+            );
+        }
+    }
+
+    /**
+     * Creates a commutative conflict resolver for the given conflict key and catalog.
+     * This method determines the specific type of the commutative conflict key and
+     * creates an appropriate conflict resolver to handle the commutative resolution logic.
+     *
+     * @param conflictKey the commutative conflict key to resolve, must not be null
+     * @param theLivingCatalog the catalog instance used in resolution, must not be null
+     * @return a commutative conflict resolver appropriate for the provided key and catalog
+     * @throws GenericEvitaInternalError if the conflict key type is not supported
+     */
+    @Nonnull
+    private static <T> CommutativeConflictResolver<T> createCommutativeResolver(
+        @Nonnull CommutativeConflictKey<T> conflictKey,
+        @Nonnull Catalog theLivingCatalog
+    ) {
+        if (conflictKey instanceof AttributeDeltaConflictKey attributeDeltaConflictKey) {
+            //noinspection unchecked
+            return (CommutativeConflictResolver<T>) new AttributeDeltaResolver(
+                theLivingCatalog,
+                attributeDeltaConflictKey
+            );
+        } else if (conflictKey instanceof ReferenceAttributeDeltaConflictKey attributeDeltaConflictKey) {
+            //noinspection unchecked
+            return (CommutativeConflictResolver<T>) new ReferenceAttributeDeltaResolver(
+                theLivingCatalog,
+                attributeDeltaConflictKey
+            );
+        } else {
+            throw new GenericEvitaInternalError(
+                "Unsupported commutative conflict key type: " + conflictKey.getClass().getName() + "!"
+            );
+        }
+    }
+
+    /**
 	 * Releases all conflict keys up to the specified catalog version (including).
 	 *
 	 * @param catalogVersion the catalog version up to which all conflict keys should be released.

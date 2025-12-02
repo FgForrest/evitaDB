@@ -852,7 +852,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 *                          The mutation includes details such as the reference key and any required
 	 *                          updates or additions to the reference schema.
 	 */
-	public void addMutation(@Nonnull ReferenceMutation<?> referenceMutation) {
+    @Nonnull
+    @Override
+	public ExistingReferencesBuilder mutateReference(@Nonnull ReferenceMutation<?> referenceMutation) {
 		if (referenceMutation instanceof InsertReferenceMutation irs) {
 			// we need to resolve the referenced entity type and cardinality from schema
 			if (irs.getReferencedEntityType() == null || irs.getReferenceCardinality() == null) {
@@ -878,6 +880,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				k -> new ArrayList<>(8)
 			).add(referenceMutation);
 		this.memoizedReferences = null;
+        return this;
 	}
 
 	@Nonnull
@@ -1467,15 +1470,13 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final String referenceName = referenceKey.referenceName();
 		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 		referenceBundle.initializeBundleIfNecessary(
-			theBundle -> {
-				initReferenceBundle(
-					referenceName,
-					theBundle,
-					this.removedReferences == null ?
-						ref -> true :
-						ref -> !this.removedReferences.contains(new FullyComparableReferenceKey(ref.getReferenceKey()))
-				);
-			}
+			theBundle -> initReferenceBundle(
+                referenceName,
+                theBundle,
+                this.removedReferences == null ?
+                    ref -> true :
+                    ref -> !this.removedReferences.contains(new FullyComparableReferenceKey(ref.getReferenceKey()))
+            )
 		);
 
 		// register a new reference

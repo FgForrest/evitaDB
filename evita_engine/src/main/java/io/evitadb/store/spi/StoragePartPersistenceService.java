@@ -47,7 +47,6 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Creates a transactional service for StoragePartPersistenceService.
 	 * This method creates a transactional service using the provided transactionId.
 	 *
-	 * @param catalogVersion The version of the catalog the value is read from
 	 * @param transactionId The UUID representing the transaction.
 	 * @return The created StoragePartPersistenceService as a transactional service.
 	 */
@@ -129,10 +128,9 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Counts the number of storage parts of the specified container type.
 	 *
 	 * @param catalogVersion the version of the catalog the value is read from
-	 * @param <T>           the type of the storage part container
 	 * @return the number of storage parts of the specified container type
 	 */
-	<T extends StoragePart> int countStorageParts(long catalogVersion);
+	int countStorageParts(long catalogVersion);
 
 	/**
 	 * Counts the number of storage parts of the specified container type.

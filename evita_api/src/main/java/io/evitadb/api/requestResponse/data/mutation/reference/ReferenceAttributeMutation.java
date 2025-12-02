@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContex
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -118,17 +120,32 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 		@Nonnull ConflictGenerationContext context,
 		@Nonnull Set<ConflictPolicy> conflictPolicies
 	) {
-		return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
-			Stream.of(
-				new ReferenceAttributeConflictKey(
-					context.getEntityType(),
-					context.getEntityPrimaryKey(),
-					this.referenceKey.referenceName(),
-					this.referenceKey.primaryKey(),
-					this.attributeKey.attributeName()
-				)
-			) :
-			Stream.empty();
+        if (this.attributeMutation instanceof ApplyDeltaAttributeMutation<?> adam) {
+            return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) ?
+                Stream.of(
+                    new ReferenceAttributeDeltaConflictKey(
+                        context.getEntityType(),
+                        context.getEntityPrimaryKey(),
+                        this.referenceKey,
+                        this.attributeKey,
+                        adam.getDelta(),
+                        adam.getRequiredRangeAfterApplication()
+                    )
+                ) :
+                Stream.empty();
+        } else {
+            return conflictPolicies.contains(ConflictPolicy.REFERENCE_ATTRIBUTE) && context.getEntityPrimaryKey() != null ?
+                Stream.of(
+                    new ReferenceAttributeConflictKey(
+                        context.getEntityType(),
+                        context.getEntityPrimaryKey(),
+                        this.referenceKey.referenceName(),
+                        this.referenceKey.primaryKey(),
+                        this.attributeKey.attributeName()
+                    )
+                ) :
+                Stream.empty();
+        }
 	}
 
 	@Override
