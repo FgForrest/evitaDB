@@ -784,10 +784,11 @@ public class TransactionManager implements Closeable {
      * Examines the specified conflict key and determines if conflicts exist based on the provided parameters.
      * Handles commutative conflict keys and processes them against the current catalog state.
      *
-     * @param conflictKey The conflict key to be examined. Cannot be null.
-     * @param conflictKeys A set of conflict keys to check against for conflicts. Cannot be null.
-     * @param theLivingCatalog The current state of the catalog. Cannot be null.
-     * @param aggregates A map of commutative conflict keys and their corresponding aggregated values. Cannot be null.
+     * @param conflictKey The conflict key to be examined.
+     * @param conflictKeys A set of conflict keys to check against for conflicts.
+     * @param theLivingCatalog The current state of the catalog.
+     * @param aggregates A map of commutative conflict keys and their corresponding aggregated values.
+     *                   Can be null if it makes no sense to accumulate commutative keys.
      * @param processedCatalogVersion The version of the catalog being processed.
      * @param livingCatalogVersion The current version of the living catalog.
      * @throws ConflictingCatalogMutationException if the conflict key is already present in the current transaction.

@@ -355,9 +355,9 @@ class InitialAssociatedDataBuilder implements AssociatedDataBuilder {
         final Optional<AssociatedDataValue> existingValue = getAssociatedDataValue(associatedDataKey);
         final AssociatedDataValue associatedDataValue = mutation.mutateLocal(this.entitySchema, existingValue.orElse(null));
         if (associatedDataValue.dropped()) {
-           	this.associatedDataValues.remove(associatedDataKey);
+			this.associatedDataValues.remove(associatedDataKey);
         } else {
-            this.associatedDataValues.put(associatedDataKey, associatedDataValue);
+			this.associatedDataValues.put(associatedDataKey, associatedDataValue);
         }
         return this;
 	}

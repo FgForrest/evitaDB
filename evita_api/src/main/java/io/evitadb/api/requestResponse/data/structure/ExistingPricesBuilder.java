@@ -160,6 +160,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	 * @param mutation mutation to set price inner record handling
 	 */
     @Nonnull
+    @Override
 	public ExistingPricesBuilder mutateInnerPriceHandling(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
 		assertPricesAllowed(this.entitySchema);
 		final PriceInnerRecordHandling updatedValue = mutation.mutateLocal(

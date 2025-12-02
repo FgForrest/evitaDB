@@ -41,14 +41,14 @@ The following conflict resolution policies are available:
     * Hierarchy placement
 2. Deny changes to the same entity (default strategy).
 3. Deny changes to the same catalog.
-   Allow conflicting changes (last writer wins). This policy will never raise a conflict exception.
+4. Allow conflicting changes (last writer wins). This policy will never raise a conflict exception.
 
 The default conflict policy is set for the entire database engine in its configuration. The strategy is resolved for each mutation from the most specific to the least specific level. For an attribute mutation, for example, the resolution order is as follows:
 
 1. Single entity attribute-level conflict policy
 2. Entity type-level conflict policy
-3. catalog-level conflict policy
-   The last writer wins.
+3. Catalog-level conflict policy
+4. The last writer wins.
 
 The first applicable policy found in this order is applied to resolve the conflict.
 
