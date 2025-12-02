@@ -25,6 +25,7 @@ package io.evitadb.core.task;
 
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.RollbackException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -96,11 +97,26 @@ public class SessionKiller implements Runnable, Closeable {
 
 						// session is orphan - it may contain only part of the changes the client wanted
 						// play it safe and throw out potentially inconsistent updates
+						boolean locallySetRollback = false;
 						if (session.isTransactionOpen()) {
 							session.setRollbackOnly();
+							locallySetRollback = true;
 						}
 
-						this.evita.terminateSession(session);
+						try {
+							this.evita.terminateSession(session);
+						} catch (RollbackException ex) {
+							// ignore rollback exceptions during session termination
+							// this is expected and may happen
+							if (locallySetRollback) {
+								log.warn(
+									"Session {} in catalog '{}' was killed due to inactivity before it could commit its changes. " +
+										"All uncommitted changes were rolled back.",
+									session.getId(), catalogName
+								);
+							}
+						}
+
 						counter.incrementAndGet();
 
 						log.info(
