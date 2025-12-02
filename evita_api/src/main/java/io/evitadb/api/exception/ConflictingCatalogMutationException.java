@@ -68,7 +68,7 @@ public class ConflictingCatalogMutationException extends TransactionException {
 		long catalogVersion
 	) {
 		super(
-			"Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: `" + conflictKey + "` " +
+			"Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: " + conflictKey + " " +
 				"between your transaction and transactions that committed before you. " +
 				"Conflicting change occurred exactly at catalog version: " + catalogVersion + ". "
 		);
@@ -76,5 +76,27 @@ public class ConflictingCatalogMutationException extends TransactionException {
 		this.conflictKey = conflictKey;
 		this.catalogVersion = catalogVersion;
 	}
+
+    /**
+     * Creates a new exception describing a mutation conflict for the given catalog and conflict key.
+     *
+     * @param catalogName name of the catalog where the conflict occurred
+     * @param conflictKey key identifying the conflicting mutation scope
+     */
+    protected ConflictingCatalogMutationException(
+        @Nonnull String catalogName,
+        @Nonnull ConflictKey conflictKey,
+        long catalogVersion,
+        @Nonnull String additionalMessage
+    ) {
+        super(
+            "Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: `" + conflictKey + "` " +
+                "between your transaction and transactions that committed before you. " +
+                "Conflicting change occurred exactly at catalog version: " + catalogVersion + ". " + additionalMessage
+        );
+        this.catalogName = catalogName;
+        this.conflictKey = conflictKey;
+        this.catalogVersion = catalogVersion;
+    }
 
 }
