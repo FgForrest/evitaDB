@@ -27,6 +27,7 @@ package io.evitadb.core.buffer;
 import io.evitadb.core.metric.event.system.RingBufferStatisticsEvent;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -178,6 +179,10 @@ public abstract class RingBuffer<DATA, BOUNDARY extends Comparable<BOUNDARY> & S
 		this.catalogName = catalogName;
 		this.effectiveStart = effectiveStart;
 		this.effectiveEnd = effectiveEnd;
+		Assert.isPremiseValid(
+			bufferSize > 0,
+			"Ring buffer size must be positive number!"
+		);
 		//noinspection unchecked
 		this.workspace = (DATA[]) Array.newInstance(type, bufferSize);
 		this.boundaryExtractor = boundaryExtractor;

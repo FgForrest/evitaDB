@@ -90,7 +90,7 @@ public class ConflictingCatalogMutationException extends TransactionException {
         @Nonnull String additionalMessage
     ) {
         super(
-            "Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: `" + conflictKey + "` " +
+            "Conflicting mutations detected in catalog `" + catalogName + "` for conflict key: " + conflictKey + " " +
                 "between your transaction and transactions that committed before you. " +
                 "Conflicting change occurred exactly at catalog version: " + catalogVersion + ". " + additionalMessage
         );
