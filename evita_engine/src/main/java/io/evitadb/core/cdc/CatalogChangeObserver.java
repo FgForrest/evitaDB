@@ -202,7 +202,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		);
 
 		// when the shared publisher internal catalog version differs from the current one,
-		// this may happen due to to race condition between this method and set current catalog call
+		// this may happen due to a race condition between this method and set current catalog call
 		if (this.currentCatalog.get().getVersion() != theCatalog.getVersion()) {
 			// notify the shared publisher about the current catalog state
 			changeCatalogCapturePublisher

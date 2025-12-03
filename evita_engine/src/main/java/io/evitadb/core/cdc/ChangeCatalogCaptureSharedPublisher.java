@@ -220,14 +220,21 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 */
 	public void processMutation(@Nonnull CatalogBoundMutation mutation) {
 		if (this.lastCaptures == null && mutation instanceof TransactionMutation tm) {
-			// Initialize the ring buffer with the current catalog version
-			this.lastCaptures = new ChangeCaptureRingBuffer<>(
-				getCatalog().getName(),
-				tm.getVersion(), 0,
-				tm.getVersion() + 1,
-				this.bufferSize,
-				ChangeCatalogCapture.class
-			);
+			this.lock.lock();
+			try {
+				if (this.lastCaptures == null) {
+					// Initialize the ring buffer with the current catalog version
+					this.lastCaptures = new ChangeCaptureRingBuffer<>(
+						getCatalog().getName(),
+						tm.getVersion(), 0,
+						tm.getVersion() + 1,
+						this.bufferSize,
+						ChangeCatalogCapture.class
+					);
+				}
+			} finally {
+				this.lock.unlock();
+			}
 		}
 		if (this.lastCaptures != null) {
 			// we don't actively check for non-closed condition here to speed up the process
