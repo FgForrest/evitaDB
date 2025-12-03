@@ -134,10 +134,6 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * The index within the version of the last delivered event.
 	 */
 	private int lastIndex;
-	/* TODO JNO - REMOVE */
-	private final WalPointerWithContent specification;
-	private int sentCaptures;
-	private final StringBuilder debug = new StringBuilder();
 
 	/**
 	 * Creates a new subscription for catalog change events.
@@ -159,7 +155,6 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		@Nonnull Consumer<T> onNextConsumer,
 		@Nonnull Consumer<UUID> onCancellation
 	) {
-		this.specification = specification;
 		this.subscriptionId = subscriptionId;
 		this.subscriber = subscriber;
 		this.queue = new ArrayBlockingQueue<>(bufferSize);
@@ -285,11 +280,6 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 		}
 	}
 
-	/* TODO JNO - remove */
-	public void debug(String message) {
-		this.debug.append(message + "\n");
-	}
-
 	/**
 	 * Retrieves the version used for the last pull of the data from the shared publisher.
 	 *
@@ -349,7 +339,6 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 
 					// Deliver the event to the subscriber
 					final T finalCapture = capture.as(this.content);
-					this.sentCaptures++;
 					this.onNextConsumer.accept(finalCapture);
 					this.subscriber.onNext(finalCapture);
 				} catch (Throwable onNextException) {
