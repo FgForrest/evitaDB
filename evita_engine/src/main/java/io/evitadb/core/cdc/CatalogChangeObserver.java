@@ -250,35 +250,40 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 */
 	@Override
 	public void emitObservabilityEvents() {
-		int subscriberCount = 0;
-		int laggingSubscriberCount = 0;
-		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
-			subscriberCount += sharedPublisher.getSubscribersCount();
-			laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
-			sharedPublisher.emitObservabilityEvents();
+		final Catalog catalog = this.currentCatalog.get();
+		if (catalog != null) {
+			final String catalogName = catalog.getName();
+
+			int subscriberCount = 0;
+			int laggingSubscriberCount = 0;
+			for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+				subscriberCount += sharedPublisher.getSubscribersCount();
+				laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
+				sharedPublisher.emitObservabilityEvents();
+			}
+
+			new ChangeCatalogCaptureStatisticsEvent(
+				catalogName,
+				this.uniquePublishers.size(),
+				subscriberCount,
+				laggingSubscriberCount,
+				this.sentEvents.get()
+			).commit();
+
+			this.sentEventsByArea
+				.forEach(
+					(key, value) -> new ChangeCatalogCaptureStatisticsPerAreaEvent(
+						catalogName, key, value.get()
+					).commit()
+				);
+
+			this.sentEventsByEntityType
+				.forEach(
+					(key, value) -> new ChangeCatalogCaptureStatisticsPerEntityTypeEvent(
+						catalogName, key, value.get()
+					).commit()
+				);
 		}
-		final String catalogName = this.currentCatalog.get().getName();
-		new ChangeCatalogCaptureStatisticsEvent(
-			catalogName,
-			this.uniquePublishers.size(),
-			subscriberCount,
-			laggingSubscriberCount,
-			this.sentEvents.get()
-		).commit();
-
-		this.sentEventsByArea
-			.forEach(
-				(key, value) -> new ChangeCatalogCaptureStatisticsPerAreaEvent(
-					catalogName, key, value.get()
-				).commit()
-			);
-
-		this.sentEventsByEntityType
-			.forEach(
-				(key, value) -> new ChangeCatalogCaptureStatisticsPerEntityTypeEvent(
-					catalogName, key, value.get()
-				).commit()
-			);
 	}
 
 	/**

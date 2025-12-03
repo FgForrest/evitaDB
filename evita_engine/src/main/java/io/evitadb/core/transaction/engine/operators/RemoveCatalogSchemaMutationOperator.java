@@ -93,7 +93,7 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 		return new ProgressingFuture<>(
 			1,
 			theFuture -> {
-				evita.closeAllActiveSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
+				evita.closeAllSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
 
 				theFuture.updateProgress(1);
 

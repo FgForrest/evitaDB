@@ -73,7 +73,7 @@ public class EngineStatisticsPublisher implements Flow.Subscriber<ChangeSystemCa
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		final EngineMutation mutation = item.body();
+		final EngineMutation<?> mutation = item.body();
 		if (mutation instanceof CreateCatalogSchemaMutation ccsm) {
 			this.emitEvitaStatistics.run();
 			this.emitCatalogStatistics.accept(ccsm.getCatalogName());

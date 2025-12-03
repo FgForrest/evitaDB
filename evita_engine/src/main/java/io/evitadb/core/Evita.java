@@ -1001,21 +1001,6 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Closes all active sessions associated with the specified catalog and suspends further operations.
-	 *
-	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
-	 * @param suspendOperation the operation to be executed during the suspension of the catalog
-	 */
-	@Nonnull
-	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
-		@Nonnull String catalogName,
-		@Nonnull SuspendOperation suspendOperation
-	) {
-		return ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
-	}
-
-	/**
 	 * Discards the suspension state of the session registry associated with the given catalog name, if present.
 	 * The method resumes operations for the session registry if it exists for the provided catalog name.
 	 *
@@ -1120,18 +1105,18 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Closes all active sessions associated with the specified catalog name
-	 * and suspends them using the provided suspend operation.
+	 * Closes all active sessions associated with the specified catalog and suspends further operations.
 	 *
-	 * @param catalogName the name of the catalog whose active sessions are to be closed and suspended
-	 * @param suspendOperation the operation to be performed to suspend the sessions
+	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
+	 * @param suspendOperation the operation to be executed during the suspension of the catalog
 	 */
-	public void closeAllActiveSessionsAndSuspend(
+	@Nonnull
+	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
 		@Nonnull String catalogName,
 		@Nonnull SuspendOperation suspendOperation
 	) {
-		ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
+		return ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
 	}
 
 	/**
@@ -1348,7 +1333,16 @@ public final class Evita implements EvitaContract {
 					          .ifPresentOrElse(
 						          catalogContract -> {
 							          if (catalogContract instanceof Catalog monitoredCatalog) {
-								          monitoredCatalog.emitObservabilityEvents();
+										  try {
+											  monitoredCatalog.emitObservabilityEvents();
+										  } catch (Throwable t) {
+											  log.error(
+												  "Failed to emit statistics for catalog {}! Removing periodic event to prevent further errors.",
+												  catalogName,
+												  t
+											  );
+											  FlightRecorder.removePeriodicEvent(this);
+										  }
 							          } else {
 								          FlightRecorder.removePeriodicEvent(this);
 							          }
