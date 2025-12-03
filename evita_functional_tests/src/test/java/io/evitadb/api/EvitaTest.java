@@ -139,12 +139,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 @DisplayName("Evita Read/Write Integration Tests")
 class EvitaTest implements EvitaTestSupport {
-	public static final String ATTRIBUTE_NAME = "name";
-	public static final String ATTRIBUTE_URL = "url";
-	public static final String DIR_EVITA_TEST = "evitaTest";
-	public static final String DIR_EVITA_TEST_EXPORT = "evitaTest_export";
-	public static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
-	public static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
+	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_URL = "url";
+	private static final String DIR_EVITA_TEST = "evitaTest";
+	private static final String DIR_EVITA_TEST_EXPORT = "evitaTest_export";
+	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
+	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
