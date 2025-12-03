@@ -223,8 +223,6 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 			// Initialize the ring buffer with the current catalog version
 			this.lastCaptures = new ChangeCaptureRingBuffer<>(
 				getCatalog().getName(),
-				// we need to use the current catalog version plus one, because the current catalog version mutations will not
-				// be in memory, but only in the WAL, this version will enforce reading them from WAL
 				tm.getVersion(), 0,
 				tm.getVersion() + 1,
 				this.bufferSize,

@@ -119,8 +119,8 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	 * @param ex The exception that was thrown.
 	 */
 	protected void handleException(@Nonnull T task, @Nonnull Throwable ex) {
-		if (ex instanceof ConflictingCatalogMutationException) {
-			// conflicting mutation exceptions are expected in some stages and we should not log them as errors
+		if (!(ex instanceof ConflictingCatalogMutationException)) {
+			// conflicting mutation exceptions are expected in some stages, and we should not log them as errors
 			log.error("Error while processing {} task for catalog `{}`!", getName(), task.catalogName(), ex);
 		}
 		task.commitProgress().completeExceptionally(ex);
