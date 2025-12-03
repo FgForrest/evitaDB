@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Slf4j
 public class GraphQLTester extends JsonExternalApiTester<Request> {
 
 	public GraphQLTester(@Nonnull String baseUrl) {
@@ -125,7 +126,19 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		session.inbound().subscribe(new WebSocketSubscriber(receivedEventsHolder));
 		writer.accept(outbound);
 
-		await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
+		try {
+			await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
+		} catch (RuntimeException ex) {
+			log.error(
+				"WebSocket test failed for catalog {} - only {} events received within timeout: {}",
+				catalogName,
+				receivedEventsHolder.size(),
+				receivedEventsHolder,
+				ex
+			);
+			throw ex;
+		}
+
 		validator.accept(receivedEventsHolder);
 
 		outbound.close();

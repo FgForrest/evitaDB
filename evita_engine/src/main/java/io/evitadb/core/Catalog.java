@@ -127,6 +127,7 @@ import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.store.spi.exception.PersistenceServiceClosed;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.ArrayUtils;
@@ -1741,7 +1742,13 @@ public final class Catalog
 	 */
 	public void forgetVolatileData() {
 		if (!this.persistenceService.isClosed()) {
-			this.persistenceService.forgetVolatileData();
+			try {
+				this.persistenceService.forgetVolatileData();
+			} catch (PersistenceServiceClosed ignored) {
+				// this might be ok in race conditions when evita is getting shut down
+				// but in such case we don't need to forget volatile data anymore
+				log.warn("Persistence service was closed during forgetting volatile data.");
+			}
 		}
 	}
 
