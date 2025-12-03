@@ -39,6 +39,7 @@ import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityT
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -74,6 +75,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @see ChangeCatalogCapturePublisher
  * @see ChangeCatalogCaptureSharedPublisher
  */
+@Slf4j
 public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	/**
 	 * Options for change data capture.
@@ -170,21 +172,45 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
-		return new ChangeCatalogCapturePublisher(
+		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
 			// create or reuse the shared publisher
 			criteriaBundle -> this.uniquePublishers.computeIfAbsent(
 				criteriaBundle,
-				cb -> new ChangeCatalogCaptureSharedPublisher(
-					theCatalog, this.cdcExecutor,
-					this.cdcOptions.recentEventsCacheLimit(),
-					this.cdcOptions.subscriberBufferSize(),
-					cb,
-					this::updateStatistics,
-					this.uniquePublishers::remove
-				)
+				cb -> {
+					log.info(
+						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
+						theCatalog.getName(), cb
+					);
+					return new ChangeCatalogCaptureSharedPublisher(
+						this.currentCatalog.get(),
+						this.cdcExecutor,
+						this.cdcOptions.recentEventsCacheLimit(),
+						this.cdcOptions.subscriberBufferSize(),
+						cb,
+						this::updateStatistics,
+						publisher -> {
+							log.info(
+								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
+								theCatalog.getName(), cb
+							);
+							this.uniquePublishers.remove(publisher);
+						}
+					);
+				}
 			),
 			request
 		);
+
+		// when the shared publisher internal catalog version differs from the current one,
+		// this may happen due to to race condition between this method and set current catalog call
+		if (this.currentCatalog.get().getVersion() != theCatalog.getVersion()) {
+			// notify the shared publisher about the current catalog state
+			changeCatalogCapturePublisher
+				.getSharedPublisher()
+				.notifyCatalogPresentInLiveView(this.currentCatalog.get());
+		}
+
+		return changeCatalogCapturePublisher;
 	}
 
 	/**
