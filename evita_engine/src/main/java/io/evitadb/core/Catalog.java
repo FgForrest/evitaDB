@@ -1736,7 +1736,9 @@ public final class Catalog
 	 * @see CatalogPersistenceService#forgetVolatileData()
 	 */
 	public void forgetVolatileData() {
-		this.persistenceService.forgetVolatileData();
+		if (!this.persistenceService.isClosed()) {
+			this.persistenceService.forgetVolatileData();
+		}
 	}
 
 	@Override
