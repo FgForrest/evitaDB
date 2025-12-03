@@ -29,7 +29,11 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.configuration.*;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ThreadPoolOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
@@ -37,8 +41,13 @@ import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.cdc.Operation;
-import io.evitadb.api.requestResponse.data.*;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -107,7 +116,15 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -118,7 +135,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.api.query.QueryConstraints.dataInLocales;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -1400,7 +1419,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 							.orElseThrow()
 							.openForWrite()
 							.setAttribute(ATTRIBUTE_CODE, "some-changed-code")
-							.upsertVia(session);
+							.upsertVia(concurrentSession);
 					});
 				} catch (InterruptedException e) {
 					fail("Test thread was interrupted!", e);

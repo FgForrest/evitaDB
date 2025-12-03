@@ -210,7 +210,7 @@ public final class SessionRegistry {
 											plainSession.setRollbackOnly();
 										}
 										final UUID sessionId = plainSession.getId();
-										log.info("There is still active session {} - terminating.", sessionId);
+										log.info("There is still an active session {} - terminating.", sessionId);
 										suspensionInformation.addForcefullyClosedSession(sessionId);
 										futures.add(
 											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)

@@ -579,17 +579,21 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Emits statistics of the ThreadPool associated with the scheduler.
 	 */
 	public void emitScheduledForkJoinPoolStatistics() {
-		final long currentlyCompleted = this.executorService.getCompletedTaskCount();
-		new ScheduledExecutorStatisticsEvent(
-			currentlyCompleted - this.schedulerCompletedTasks,
-			this.executorService.getActiveCount(),
-			this.executorService.getQueue().size(),
-			this.executorService.getQueue().remainingCapacity(),
-			this.executorService.getPoolSize(),
-			this.executorService.getCorePoolSize(),
-			this.executorService.getMaximumPoolSize()
-		).commit();
-		this.schedulerCompletedTasks = currentlyCompleted;
+		try {
+			final long currentlyCompleted = this.executorService.getCompletedTaskCount();
+			new ScheduledExecutorStatisticsEvent(
+				currentlyCompleted - this.schedulerCompletedTasks,
+				this.executorService.getActiveCount(),
+				this.executorService.getQueue().size(),
+				this.executorService.getQueue().remainingCapacity(),
+				this.executorService.getPoolSize(),
+				this.executorService.getCorePoolSize(),
+				this.executorService.getMaximumPoolSize()
+			).commit();
+			this.schedulerCompletedTasks = currentlyCompleted;
+		} catch (Throwable t) {
+			log.error("Emitting observability events failed!", t);
+		}
 	}
 
 	/**

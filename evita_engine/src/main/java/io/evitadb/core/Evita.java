@@ -116,6 +116,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -223,7 +224,7 @@ public final class Evita implements EvitaContract {
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
-	@Getter private boolean active;
+	@Getter private final AtomicBoolean active = new AtomicBoolean(false);
 	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
@@ -418,7 +419,7 @@ public final class Evita implements EvitaContract {
 			}
 		);
 
-		this.active = true;
+		this.active.set(true);
 		this.readOnly = this.configuration.server().readOnly();
 
 		// register the system observer that will capture changes in the system and emit observability events
@@ -434,6 +435,11 @@ public final class Evita implements EvitaContract {
 		if (scheduleCatalogLoading) {
 			scheduleInitialCatalogLoading();
 		}
+	}
+
+	@Override
+	public boolean isActive() {
+		return this.active.get();
 	}
 
 	/**
@@ -915,8 +921,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Override
 	public void close() {
-		if (this.active) {
-			this.active = false;
+		if (this.active.compareAndSet(true, false)) {
 			closeInternal();
 		}
 	}
@@ -1171,7 +1176,7 @@ public final class Evita implements EvitaContract {
 	 * Verifies this instance is still active.
 	 */
 	void assertActive() {
-		if (!this.active) {
+		if (!this.active.get()) {
 			throw new InstanceTerminatedException("instance");
 		}
 	}
@@ -1308,11 +1313,15 @@ public final class Evita implements EvitaContract {
 	 */
 	private void emitEvitaStatistics() {
 		if (this.engineState.get() != null) {
-			// emit the event
-			new EvitaStatisticsEvent(
-				this.configuration,
-				this.management().getSystemStatus()
-			).commit();
+			try {
+				// emit the event
+				new EvitaStatisticsEvent(
+					this.configuration,
+					this.management().getSystemStatus()
+				).commit();
+			} catch (Throwable t) {
+				log.error("Emitting observability events failed!", t);
+			}
 		}
 	}
 
@@ -1328,30 +1337,33 @@ public final class Evita implements EvitaContract {
 			new Runnable() {
 				@Override
 				public void run() {
-					Evita.this.getEngineState()
-					          .getCatalog(catalogName)
-					          .ifPresentOrElse(
-						          catalogContract -> {
-							          if (catalogContract instanceof Catalog monitoredCatalog) {
-										  try {
-											  monitoredCatalog.emitObservabilityEvents();
-										  } catch (Throwable t) {
-											  log.error(
-												  "Failed to emit statistics for catalog {}! Removing periodic event to prevent further errors.",
-												  catalogName,
-												  t
-											  );
-											  FlightRecorder.removePeriodicEvent(this);
-										  }
-							          } else {
-								          FlightRecorder.removePeriodicEvent(this);
-							          }
-						          },
-						          () -> {
-									  log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
-							          FlightRecorder.removePeriodicEvent(this);
-						          }
-					          );
+					try {
+						if (Evita.this.isActive()) {
+							final ExpandedEngineState theEngineState = Evita.this.getEngineState();
+							// in very rare race conditions the engine state may be null here
+							// (if evita is closed already)
+							// noinspection ConstantValue
+							if (theEngineState != null) {
+								theEngineState
+									.getCatalog(catalogName)
+									.ifPresentOrElse(
+										catalogContract -> {
+											if (catalogContract instanceof Catalog monitoredCatalog) {
+												monitoredCatalog.emitObservabilityEvents();
+											} else {
+												FlightRecorder.removePeriodicEvent(this);
+											}
+										},
+										() -> {
+											log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
+											FlightRecorder.removePeriodicEvent(this);
+										}
+									);
+							}
+						}
+					} catch (Throwable t) {
+						log.error("Emitting observability events failed!", t);
+					}
 				}
 			}
 		);

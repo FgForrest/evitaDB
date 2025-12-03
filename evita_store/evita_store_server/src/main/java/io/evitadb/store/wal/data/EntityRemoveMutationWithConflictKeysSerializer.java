@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
 
 /**
@@ -34,21 +35,20 @@ import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConfli
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class EntityRemoveMutationWithConflictKeysSerializer extends Serializer<EntityRemoveMutationWithConflictKeys> {
+public class EntityRemoveMutationWithConflictKeysSerializer extends Serializer<EntityRemoveMutation> {
 
 	@Override
-	public void write(Kryo kryo, Output output, EntityRemoveMutationWithConflictKeys mutation) {
-		// conflict keys are ignored, because they are needed only for mutation acceptance (conflict resolution) phase
-		kryo.writeObject(output, mutation.getDelegate());
+	public void write(Kryo kryo, Output output, EntityRemoveMutation mutation) {
+		if (mutation instanceof EntityRemoveMutationWithConflictKeys ermwck) {
+			// conflict keys are ignored, because they are needed only for mutation acceptance (conflict resolution) phase
+			kryo.writeObject(output, ermwck.getDelegate());
+		} else {
+			kryo.writeObject(output, mutation);
+		}
 	}
 
 	@Override
-	public EntityRemoveMutationWithConflictKeys read(
-		Kryo kryo, Input input,
-		Class<? extends EntityRemoveMutationWithConflictKeys> type
-	) {
-		throw new UnsupportedOperationException(
-			"EntityRemoveMutationWithConflictKeys is not intended to be deserialized from WAL!"
-		);
+	public EntityRemoveMutation read(Kryo kryo, Input input, Class<? extends EntityRemoveMutation> type) {
+		return kryo.readObject(input, EntityRemoveMutation.class);
 	}
 }

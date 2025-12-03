@@ -1725,8 +1725,12 @@ public final class Catalog
 	 * If we didn't postpone this initialization, events would become lost.
 	 */
 	public void emitObservabilityEvents() {
-		this.persistenceService.emitObservabilityEvents();
-		this.transactionManager.emitObservabilityEvents();
+		try {
+			this.persistenceService.emitObservabilityEvents();
+			this.transactionManager.emitObservabilityEvents();
+		} catch (Throwable t) {
+			log.error("Emitting observability events failed!", t);
+		}
 	}
 
 	/**

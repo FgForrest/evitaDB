@@ -191,7 +191,11 @@ public class SystemChangeObserver
 	 * Collects and emits statistics related to change data capture (CDC) operations.
 	 */
 	void emitChangeCaptureStatistics() {
-		this.sharedPublisher.emitChangeCaptureStatistics(this.sentEvents.get());
+		try {
+			this.sharedPublisher.emitChangeCaptureStatistics(this.sentEvents.get());
+		} catch (Throwable t) {
+			log.error("Emitting observability events failed!", t);
+		}
 	}
 
 	/**
