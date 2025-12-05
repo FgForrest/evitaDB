@@ -45,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Objects;
@@ -135,7 +136,9 @@ public class TraverseReferencePredecessorAttributeComparator
 				return false;
 			};
 		} else {
-			this.pickerPredicate = referenceContract -> true;
+			this.pickerPredicate = referenceContract ->
+				this.referenceKey == null ||
+					this.referenceKey.referenceKey().equals(referenceContract.getReferenceKey());
 		}
 	}
 
@@ -157,17 +160,13 @@ public class TraverseReferencePredecessorAttributeComparator
 	@Nonnull
 	@Override
 	protected Optional<ReferenceContract> pickReference(@Nonnull EntityContract entity) {
-		return // pick first if none is set
-			Optional.of(entity.getReferences(this.referenceName))
-			        .filter(it -> !it.isEmpty())
-			        .map(it -> {
-				        for (ReferenceContract reference : it) {
-					        if (this.pickerPredicate.test(reference)) {
-						        return reference;
-					        }
-				        }
-				        return null;
-			        });
+		final Collection<ReferenceContract> references = entity.getReferences(this.referenceName);
+		for (ReferenceContract reference : references) {
+			if (this.pickerPredicate.test(reference)) {
+				return Optional.of(reference);
+			}
+		}
+		return Optional.empty();
 	}
 
 	@Override
