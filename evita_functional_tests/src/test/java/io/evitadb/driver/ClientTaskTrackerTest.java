@@ -30,6 +30,7 @@ import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.time.OffsetDateTime;
@@ -65,16 +66,15 @@ class ClientTaskTrackerTest implements TestConstants {
 		);
 		assertEquals(TaskSimplifiedState.QUEUED, task.getStatus().simplifiedState());
 
-		Mockito.doAnswer(
-			invocation -> List.of(
+		Mockito.when(this.evitaClientMock.getTaskStatuses(ArgumentMatchers.any()))
+			.thenReturn(List.of(
 				new TaskStatus<>(
 					"whatever", "whatever", task.getStatus().taskId(), TEST_CATALOG,
 					OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), OffsetDateTime.now(), 0,
 					null, true, null, null,
 					EnumSet.noneOf(TaskTrait.class)
 				)
-			)
-		).when(this.evitaClientMock).getTaskStatuses(Mockito.any());
+			));
 
 		assertTrue(task.getFutureResult().get(10, TimeUnit.SECONDS));
 	}
@@ -83,7 +83,7 @@ class ClientTaskTrackerTest implements TestConstants {
 	void shouldCancelTask() {
 		Mockito.doAnswer(
 			invocation -> List.of()
-		).when(this.evitaClientMock).getTaskStatuses(Mockito.any());
+		).when(this.evitaClientMock).getTaskStatuses(ArgumentMatchers.any());
 
 		final ClientTask<Void, Boolean> task = this.tested.createTask(
 			new TaskStatus<>(
