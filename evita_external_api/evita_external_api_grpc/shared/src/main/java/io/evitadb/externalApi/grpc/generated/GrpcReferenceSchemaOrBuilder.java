@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -424,7 +424,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getNameVariantList();
   /**
    * <pre>
@@ -449,7 +449,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariant = 13;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getNameVariantOrBuilderList();
   /**
    * <pre>
@@ -468,7 +468,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getEntityTypeNameVariantList();
   /**
    * <pre>
@@ -493,7 +493,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant entityTypeNameVariant = 14;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getEntityTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -512,7 +512,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
       getGroupTypeNameVariantList();
   /**
    * <pre>
@@ -537,7 +537,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant groupTypeNameVariant = 15;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
       getGroupTypeNameVariantOrBuilderList();
   /**
    * <pre>
@@ -907,7 +907,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType> 
       getScopedIndexTypesList();
   /**
    * <pre>
@@ -935,7 +935,7 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 28;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder> 
       getScopedIndexTypesOrBuilderList();
   /**
    * <pre>

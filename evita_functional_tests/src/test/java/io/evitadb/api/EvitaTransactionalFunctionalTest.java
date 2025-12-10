@@ -1004,15 +1004,20 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					)
 				);
 
-				final MaterializedVersionBlock firstCatalogVersionBlock = catalog.getCatalogVersionAt(null);
+				final MaterializedVersionBlock firstCatalogVersionBlock = catalog.getFirstCatalogVersionAfter(null);
 				assertEquals(0, firstCatalogVersionBlock.startVersion());
 				assertEquals(0, firstCatalogVersionBlock.endVersion());
 				assertNotNull(firstCatalogVersionBlock.introducedAt());
 
-				final MaterializedVersionBlock lastCatalogVersionBlock = catalog.getCatalogVersionAt(OffsetDateTime.now());
+				final MaterializedVersionBlock lastCatalogVersionBlock = catalog.getFirstCatalogVersionAfter(OffsetDateTime.now());
 				assertEquals(59, lastCatalogVersionBlock.startVersion());
 				assertEquals(59, lastCatalogVersionBlock.endVersion());
 				assertNotNull(lastCatalogVersionBlock.introducedAt());
+
+				final MaterializedVersionBlock nextToLastCatalogVersionBlock = catalog.getLastCatalogVersionBefore(OffsetDateTime.now());
+				assertEquals(55, nextToLastCatalogVersionBlock.startVersion());
+				assertEquals(59, nextToLastCatalogVersionBlock.endVersion());
+				assertNotNull(nextToLastCatalogVersionBlock.introducedAt());
 			}
 		}
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionOverviewOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionOverviewOrBuilder> 
       getTransactionOverviewsOrBuilderList() {
     return transactionOverviews_;
   }
@@ -442,7 +442,7 @@ private static final long serialVersionUID = 0L;
             transactionOverviewsBuilder_ = null;
             transactionOverviews_ = other.transactionOverviews_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            transactionOverviewsBuilder_ =
+            transactionOverviewsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getTransactionOverviewsFieldBuilder() : null;
           } else {
@@ -761,7 +761,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionOverviewOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTransactionOverviewOrBuilder> 
          getTransactionOverviewsOrBuilderList() {
       if (transactionOverviewsBuilder_ != null) {
         return transactionOverviewsBuilder_.getMessageOrBuilderList();
@@ -799,12 +799,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview transactionOverviews = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview.Builder> 
          getTransactionOverviewsBuilderList() {
       return getTransactionOverviewsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview, io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionOverviewOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview, io.evitadb.externalApi.grpc.generated.GrpcTransactionOverview.Builder, io.evitadb.externalApi.grpc.generated.GrpcTransactionOverviewOrBuilder> 
         getTransactionOverviewsFieldBuilder() {
       if (transactionOverviewsBuilder_ == null) {
         transactionOverviewsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

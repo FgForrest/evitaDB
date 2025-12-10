@@ -1366,9 +1366,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
 		assertActive();
-		return this.catalog.getCatalogVersionAt(moment);
+		return this.catalog.getFirstCatalogVersionAfter(moment);
+	}
+
+	@Nonnull
+	@Override
+	public MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
+		assertActive();
+		return this.catalog.getLastCatalogVersionBefore(moment);
 	}
 
 	@Nonnull

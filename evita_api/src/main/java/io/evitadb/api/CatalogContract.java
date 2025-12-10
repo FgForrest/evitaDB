@@ -263,15 +263,27 @@ public interface CatalogContract {
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
-	 * specified method returns first version known to the catalog mutation history.
+	 * specified method returns the first version known to the catalog mutation history.
 	 *
 	 * @param moment the moment in time for which the catalog version should be returned
-	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * @return the catalog version that was valid at the specified moment, or the first version known to the catalog
 	 * mutation history if no moment was specified
-	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Returns information about the last version that was valid before the specified moment in time. If the moment is
+	 * not specified method returns the first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the last catalog version should be returned
+	 * @return the catalog version that was valid at the specified moment, or the first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
+	 */
+	@Nonnull
+	MaterializedVersionBlock getLastCatalogVersionBefore(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.

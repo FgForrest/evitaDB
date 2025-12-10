@@ -653,7 +653,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		executeWithClientContext(
 			session -> {
-				final MaterializedVersionBlock catalogVersionAt = session.getCatalogVersionAt(
+				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(
 					request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
 				);
 				responseObserver.onNext(
@@ -694,13 +694,13 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				if (request.hasTimeFrame()) {
 					final DateTimeRange requestedTimeFrame = toDateTimeRange(request.getTimeFrame());
 					firstRequestedCatalogVersion = requestedTimeFrame.getPreciseFrom() != null ?
-						session.getCatalogVersionAt(requestedTimeFrame.getPreciseFrom()).startVersion() : null;
+						session.getFirstCatalogVersionAfter(requestedTimeFrame.getPreciseFrom()).startVersion() : null;
 					lastRequestedCatalogVersion = requestedTimeFrame.getPreciseTo() != null ?
 						(firstRequestedCatalogVersion == null ?
-							session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).startVersion() :
+							session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion() :
 							Math.max(
 								firstRequestedCatalogVersion + 1,
-								session.getCatalogVersionAt(requestedTimeFrame.getPreciseTo()).startVersion()
+								session.getLastCatalogVersionBefore(requestedTimeFrame.getPreciseTo()).startVersion()
 							)
 						) :
 						null;

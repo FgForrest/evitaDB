@@ -1178,8 +1178,16 @@ public final class Catalog
 
 	@Nonnull
 	@Override
-	public MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
-		return this.persistenceService.getCatalogVersionAt(moment);
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		return this.persistenceService.getFirstCatalogVersionAfter(moment);
+	}
+
+	@Nonnull
+	@Override
+	public MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
+		return this.persistenceService.getLastCatalogVersionBefore(moment);
 	}
 
 	@Nonnull

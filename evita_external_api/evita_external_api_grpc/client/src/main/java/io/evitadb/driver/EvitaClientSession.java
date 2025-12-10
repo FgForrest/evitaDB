@@ -1689,11 +1689,39 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
 		assertActive();
 		final GrpcCatalogVersionAtResponse grpcResponse = executeWithBlockingEvitaSessionService(
 			session -> {
-				final GrpcCatalogVersionAtRequest.Builder builder = GrpcCatalogVersionAtRequest.newBuilder();
+				final GrpcCatalogVersionAtRequest.Builder builder = GrpcCatalogVersionAtRequest
+					.newBuilder()
+					.setTimeFlow(GrpcTimeFlow.AFTER);
+				if (moment != null) {
+					builder.setTheMoment(toGrpcOffsetDateTime(moment));
+				}
+				return session.getCatalogVersionAt(
+					builder.build()
+				);
+			}
+		);
+		return new MaterializedVersionBlock(
+			grpcResponse.getStartVersion(),
+			grpcResponse.getEndVersion(),
+			toOffsetDateTime(grpcResponse.getIntroducedAt())
+		);
+	}
+
+	@Nonnull
+	@Override
+	public MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
+		assertActive();
+		final GrpcCatalogVersionAtResponse grpcResponse = executeWithBlockingEvitaSessionService(
+			session -> {
+				final GrpcCatalogVersionAtRequest.Builder builder = GrpcCatalogVersionAtRequest
+					.newBuilder()
+					.setTimeFlow(GrpcTimeFlow.BEFORE);
 				if (moment != null) {
 					builder.setTheMoment(toGrpcOffsetDateTime(moment));
 				}

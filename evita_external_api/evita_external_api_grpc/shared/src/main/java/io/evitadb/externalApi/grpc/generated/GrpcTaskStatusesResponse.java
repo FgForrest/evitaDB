@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -119,7 +119,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
       getTaskStatusOrBuilderList() {
     return taskStatus_;
   }
@@ -538,7 +538,7 @@ private static final long serialVersionUID = 0L;
             taskStatusBuilder_ = null;
             taskStatus_ = other.taskStatus_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            taskStatusBuilder_ =
+            taskStatusBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getTaskStatusFieldBuilder() : null;
           } else {
@@ -963,7 +963,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
          getTaskStatusOrBuilderList() {
       if (taskStatusBuilder_ != null) {
         return taskStatusBuilder_.getMessageOrBuilderList();
@@ -1001,12 +1001,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcTaskStatus taskStatus = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder> 
          getTaskStatusBuilderList() {
       return getTaskStatusFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
         getTaskStatusFieldBuilder() {
       if (taskStatusBuilder_ == null) {
         taskStatusBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

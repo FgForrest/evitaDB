@@ -713,6 +713,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param storageOptions the storage options configuration, including the directory where the catalog files are stored (must not be null)
 	 * @param lookedUpValue  the value to search for within the catalog bootstrap records, must be a type that extends {@code Comparable} (must not be null)
 	 * @param comparator     a function that compares a catalog bootstrap record with the looked-up value to assist in locating the desired record (must not be null)
+	 * @param delta          an integer value indicating the offset to apply when retrieving the located record (e.g., 0for the located record, -1 for the previous record)
 	 * @return an array containing two {@code CatalogBootstrap} objects: the first is the record prior to or equal to the located record, and the second is the located record itself
 	 * @throws TemporalDataNotAvailableException if the catalog bootstrap file does not exist
 	 * @throws UnexpectedIOException             if an error occurs while accessing or reading the catalog bootstrap file
@@ -722,7 +723,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull T lookedUpValue,
-		@Nonnull ToIntBiFunction<CatalogBootstrap, T> comparator
+		@Nonnull ToIntBiFunction<CatalogBootstrap, T> comparator,
+		int delta
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
 		final Path catalogStoragePath = storageOptions.storageDirectory().resolve(catalogName);
@@ -746,13 +748,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				comparator
 			);
 			final int startIndex = localizedIndex < 0 ? -1 * (localizedIndex) - 1 : localizedIndex;
+			final int alteredStartIndex = startIndex + delta;
 			final CatalogBootstrap locatedBootstrap = deserializeCatalogBootstrapRecord(
-				CatalogBootstrap.getPositionForRecord(Math.min(recordCount - 1, startIndex)),
+				CatalogBootstrap.getPositionForRecord(Math.min(recordCount - 1, alteredStartIndex)),
 				readHandle
 			);
-			final CatalogBootstrap previousBootstrap = startIndex > 0 ?
+			final CatalogBootstrap previousBootstrap = alteredStartIndex > 0 ?
 				deserializeCatalogBootstrapRecord(
-					CatalogBootstrap.getPositionForRecord(startIndex - 1),
+					CatalogBootstrap.getPositionForRecord(alteredStartIndex - 1),
 					readHandle
 				) : null;
 			return new CatalogBootstrap[]{
@@ -2238,49 +2241,17 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public MaterializedVersionBlock getCatalogVersionAt(
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(
 		@Nullable OffsetDateTime moment
 	) throws TemporalDataNotAvailableException {
-		final CatalogBootstrap[] catalogBootstraps;
-		if (moment == null) {
-			final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
-			final Path catalogStoragePath = this.bootstrapStorageOptions.storageDirectory().resolve(this.catalogName);
-			final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
-			final File bootstrapFile = bootstrapFilePath.toFile();
-			if (bootstrapFile.exists()) {
-				final int recordCount = CatalogBootstrap.getRecordCount(
-					bootstrapFile.length()
-				);
-				if (recordCount >= 1) {
-					catalogBootstraps = new CatalogBootstrap[]{
-						null,
-						deserializeCatalogBootstrapRecord(this.storageOptions, bootstrapFilePath, 0)
-					};
-				} else {
-					throw new TemporalDataNotAvailableException();
-				}
-			} else {
-				throw new TemporalDataNotAvailableException();
-			}
-		} else {
-			catalogBootstraps = localizeCatalogBootstrapPair(
-				this.catalogName,
-				this.bootstrapStorageOptions,
-				moment,
-				(catalogBootstrap, timestamp) -> catalogBootstrap.timestamp().compareTo(timestamp)
-			);
-		}
-		final long endVersion = Math.min(catalogBootstraps[1].catalogVersion(), getLastCatalogVersion());
-		return new MaterializedVersionBlock(
-			Math.min(
-				endVersion,
-				catalogBootstraps[0] == null ?
-					resolveFirstCatalogVersionOfCatalogBootstrap(catalogBootstraps[1]) :
-					catalogBootstraps[0].catalogVersion() + 1
-			),
-			endVersion,
-			catalogBootstraps[1].timestamp()
-		);
+		return getCatalogVersionAt(moment, 0);
+	}
+
+	@Override
+	public MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
+		return getCatalogVersionAt(moment, -1);
 	}
 
 	@Nonnull
@@ -3402,7 +3373,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogName,
 				this.bootstrapStorageOptions,
 				catalogVersion,
-				(catalogBootstrap, version) -> Long.compare(catalogBootstrap.catalogVersion(), version)
+				(catalogBootstrap, version) -> Long.compare(catalogBootstrap.catalogVersion(), version),
+				0
 			);
 			blocks.add(
 				new MaterializedVersionBlock(
@@ -3511,6 +3483,64 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final String catalogFileName = getCatalogDataStoreFileName(this.catalogName, bootstrap.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 		return readCatalogHeader(this.storageOptions, catalogFilePath, bootstrap, this.recordTypeRegistry);
+	}
+
+	/**
+	 * Retrieves the materialized version block of the catalog at a given moment in time.
+	 *
+	 * @param moment The specific point in time to retrieve the catalog version information for.
+	 *               If null, the method will consider the latest available moment and version.
+	 * @param delta  The delta to apply to the resolved catalog version.
+	 * @return A {@link MaterializedVersionBlock} representing the range of catalog versions and the corresponding timestamp
+	 *         at the specified or resolved moment.
+	 * @throws TemporalDataNotAvailableException If unable to locate temporal data for the specified moment.
+	 */
+	@Nonnull
+	private MaterializedVersionBlock getCatalogVersionAt(
+		@Nullable OffsetDateTime moment,
+		int delta
+	) throws TemporalDataNotAvailableException {
+		final CatalogBootstrap[] catalogBootstraps;
+		if (moment == null) {
+			final String bootstrapFileName = getCatalogBootstrapFileName(this.catalogName);
+			final Path catalogStoragePath = this.bootstrapStorageOptions.storageDirectory().resolve(this.catalogName);
+			final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+			final File bootstrapFile = bootstrapFilePath.toFile();
+			if (bootstrapFile.exists()) {
+				final int recordCount = CatalogBootstrap.getRecordCount(
+					bootstrapFile.length()
+				);
+				if (recordCount >= 1) {
+					catalogBootstraps = new CatalogBootstrap[]{
+						null,
+						deserializeCatalogBootstrapRecord(this.storageOptions, bootstrapFilePath, 0)
+					};
+				} else {
+					throw new TemporalDataNotAvailableException();
+				}
+			} else {
+				throw new TemporalDataNotAvailableException();
+			}
+		} else {
+			catalogBootstraps = localizeCatalogBootstrapPair(
+				this.catalogName,
+				this.bootstrapStorageOptions,
+				moment,
+				(catalogBootstrap, timestamp) -> catalogBootstrap.timestamp().compareTo(timestamp),
+				delta
+			);
+		}
+		final long endVersion = Math.min(catalogBootstraps[1].catalogVersion(), getLastCatalogVersion());
+		return new MaterializedVersionBlock(
+			Math.min(
+				endVersion,
+				catalogBootstraps[0] == null ?
+					resolveFirstCatalogVersionOfCatalogBootstrap(catalogBootstraps[1]) :
+					catalogBootstraps[0].catalogVersion() + 1
+			),
+			endVersion,
+			catalogBootstraps[1].timestamp()
+		);
 	}
 
 	/**

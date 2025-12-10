@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -200,7 +200,8 @@ public final class GrpcEnums {
       "ndexType\022\035\n\031REFERENCE_INDEX_TYPE_NONE\020\000\022" +
       "&\n\"REFERENCE_INDEX_TYPE_FOR_FILTERING\020\001\022" +
       "7\n3REFERENCE_INDEX_TYPE_FOR_FILTERING_AN" +
-      "D_PARTITIONING\020\002B\014P\001\252\002\007EvitaDBb\006proto3"
+      "D_PARTITIONING\020\002*%\n\014GrpcTimeFlow\022\t\n\005AFTE" +
+      "R\020\000\022\n\n\006BEFORE\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

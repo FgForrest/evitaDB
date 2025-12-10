@@ -201,7 +201,15 @@ public final class UnusableCatalog implements CatalogContract {
 
 	@Nonnull
 	@Override
-	public MaterializedVersionBlock getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
+	}
+
+	@Nonnull
+	@Override
+	public MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
 		throw this.cause.apply(this.catalogName, this.catalogStoragePath);
 	}
 

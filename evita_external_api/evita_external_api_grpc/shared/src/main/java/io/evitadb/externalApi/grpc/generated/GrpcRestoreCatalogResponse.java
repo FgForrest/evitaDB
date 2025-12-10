@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -683,7 +683,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcTaskStatus task = 3;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcTaskStatus, io.evitadb.externalApi.grpc.generated.GrpcTaskStatus.Builder, io.evitadb.externalApi.grpc.generated.GrpcTaskStatusOrBuilder> 
         getTaskFieldBuilder() {
       if (taskBuilder_ == null) {
         taskBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

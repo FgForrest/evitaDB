@@ -1735,12 +1735,12 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final MaterializedVersionBlock catalogVersionAt = session.getCatalogVersionAt(OffsetDateTime.now());
+				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(OffsetDateTime.now());
 				assertEquals(lastCatalogVersion, catalogVersionAt.startVersion());
 				assertEquals(lastCatalogVersion, catalogVersionAt.endVersion());
 				assertNotNull(catalogVersionAt.introducedAt());
 
-				final MaterializedVersionBlock firstCatalogVersionAt = session.getCatalogVersionAt(null);
+				final MaterializedVersionBlock firstCatalogVersionAt = session.getFirstCatalogVersionAfter(null);
 				assertEquals(0, firstCatalogVersionAt.startVersion());
 				assertEquals(0, firstCatalogVersionAt.endVersion());
 				assertNotNull(firstCatalogVersionAt.introducedAt());
