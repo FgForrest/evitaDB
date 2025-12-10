@@ -103,7 +103,7 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 
 	@Override
 	public void prepareContext(@Nonnull MutationPredicateContext context) {
-		context.setVersion(this.version, this.mutationCount);
+		context.setVersion(this.version, this.mutationCount, this.commitTimestamp);
 	}
 
 	@Nonnull
@@ -113,7 +113,7 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.setVersion(this.version, this.mutationCount);
+		context.setVersion(this.version, this.mutationCount, this.commitTimestamp);
 		if (predicate.test(this)) {
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == ChangeCaptureContent.BODY ? this : null)

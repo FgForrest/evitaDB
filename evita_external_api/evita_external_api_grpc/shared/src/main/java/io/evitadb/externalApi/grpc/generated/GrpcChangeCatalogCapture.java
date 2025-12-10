@@ -449,6 +449,44 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation.getDefaultInstance();
   }
 
+  public static final int TIMESTAMP_FIELD_NUMBER = 99;
+  private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp_;
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+   * @return Whether the timestamp field is set.
+   */
+  @java.lang.Override
+  public boolean hasTimestamp() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+   * @return The timestamp.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTimestamp() {
+    return timestamp_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : timestamp_;
+  }
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getTimestampOrBuilder() {
+    return timestamp_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : timestamp_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -492,6 +530,9 @@ private static final long serialVersionUID = 0L;
     }
     if (bodyCase_ == 10) {
       output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_);
+    }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(99, getTimestamp());
     }
     getUnknownFields().writeTo(output);
   }
@@ -542,6 +583,10 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcInfrastructureMutation) body_);
     }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(99, getTimestamp());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -579,6 +624,11 @@ private static final long serialVersionUID = 0L;
           .equals(other.getEntityPrimaryKey())) return false;
     }
     if (operation_ != other.operation_) return false;
+    if (hasTimestamp() != other.hasTimestamp()) return false;
+    if (hasTimestamp()) {
+      if (!getTimestamp()
+          .equals(other.getTimestamp())) return false;
+    }
     if (!getBodyCase().equals(other.getBodyCase())) return false;
     switch (bodyCase_) {
       case 7:
@@ -631,6 +681,10 @@ private static final long serialVersionUID = 0L;
     }
     hash = (37 * hash) + OPERATION_FIELD_NUMBER;
     hash = (53 * hash) + operation_;
+    if (hasTimestamp()) {
+      hash = (37 * hash) + TIMESTAMP_FIELD_NUMBER;
+      hash = (53 * hash) + getTimestamp().hashCode();
+    }
     switch (bodyCase_) {
       case 7:
         hash = (37 * hash) + SCHEMAMUTATION_FIELD_NUMBER;
@@ -789,6 +843,7 @@ private static final long serialVersionUID = 0L;
         getIndexFieldBuilder();
         getEntityTypeFieldBuilder();
         getEntityPrimaryKeyFieldBuilder();
+        getTimestampFieldBuilder();
       }
     }
     @java.lang.Override
@@ -828,6 +883,11 @@ private static final long serialVersionUID = 0L;
       }
       if (infrastructureMutationBuilder_ != null) {
         infrastructureMutationBuilder_.clear();
+      }
+      timestamp_ = null;
+      if (timestampBuilder_ != null) {
+        timestampBuilder_.dispose();
+        timestampBuilder_ = null;
       }
       bodyCase_ = 0;
       body_ = null;
@@ -895,6 +955,12 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000020) != 0)) {
         result.operation_ = operation_;
+      }
+      if (((from_bitField0_ & 0x00000400) != 0)) {
+        result.timestamp_ = timestampBuilder_ == null
+            ? timestamp_
+            : timestampBuilder_.build();
+        to_bitField0_ |= 0x00000010;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -981,6 +1047,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.operation_ != 0) {
         setOperationValue(other.getOperationValue());
+      }
+      if (other.hasTimestamp()) {
+        mergeTimestamp(other.getTimestamp());
       }
       switch (other.getBodyCase()) {
         case SCHEMAMUTATION: {
@@ -1095,6 +1164,13 @@ private static final long serialVersionUID = 0L;
               bodyCase_ = 10;
               break;
             } // case 82
+            case 794: {
+              input.readMessage(
+                  getTimestampFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000400;
+              break;
+            } // case 794
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2485,6 +2561,163 @@ private static final long serialVersionUID = 0L;
       bodyCase_ = 10;
       onChanged();
       return infrastructureMutationBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> timestampBuilder_;
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     * @return Whether the timestamp field is set.
+     */
+    public boolean hasTimestamp() {
+      return ((bitField0_ & 0x00000400) != 0);
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     * @return The timestamp.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTimestamp() {
+      if (timestampBuilder_ == null) {
+        return timestamp_ == null ? io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : timestamp_;
+      } else {
+        return timestampBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    public Builder setTimestamp(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (timestampBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        timestamp_ = value;
+      } else {
+        timestampBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    public Builder setTimestamp(
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder builderForValue) {
+      if (timestampBuilder_ == null) {
+        timestamp_ = builderForValue.build();
+      } else {
+        timestampBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    public Builder mergeTimestamp(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime value) {
+      if (timestampBuilder_ == null) {
+        if (((bitField0_ & 0x00000400) != 0) &&
+          timestamp_ != null &&
+          timestamp_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance()) {
+          getTimestampBuilder().mergeFrom(value);
+        } else {
+          timestamp_ = value;
+        }
+      } else {
+        timestampBuilder_.mergeFrom(value);
+      }
+      if (timestamp_ != null) {
+        bitField0_ |= 0x00000400;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    public Builder clearTimestamp() {
+      bitField0_ = (bitField0_ & ~0x00000400);
+      timestamp_ = null;
+      if (timestampBuilder_ != null) {
+        timestampBuilder_.dispose();
+        timestampBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder getTimestampBuilder() {
+      bitField0_ |= 0x00000400;
+      onChanged();
+      return getTimestampFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getTimestampOrBuilder() {
+      if (timestampBuilder_ != null) {
+        return timestampBuilder_.getMessageOrBuilder();
+      } else {
+        return timestamp_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.getDefaultInstance() : timestamp_;
+      }
+    }
+    /**
+     * <pre>
+     * Represents the timestamp of the commit.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 99;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder> 
+        getTimestampFieldBuilder() {
+      if (timestampBuilder_ == null) {
+        timestampBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder>(
+                getTimestamp(),
+                getParentForChildren(),
+                isClean());
+        timestamp_ = null;
+      }
+      return timestampBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

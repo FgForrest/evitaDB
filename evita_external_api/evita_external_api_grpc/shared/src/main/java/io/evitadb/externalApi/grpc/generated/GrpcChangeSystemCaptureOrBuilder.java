@@ -96,4 +96,31 @@ public interface GrpcChangeSystemCaptureOrBuilder extends
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcEngineMutation systemMutation = 4;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEngineMutationOrBuilder getSystemMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
+   * @return Whether the timestamp field is set.
+   */
+  boolean hasTimestamp();
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
+   * @return The timestamp.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime getTimestamp();
+  /**
+   * <pre>
+   * Represents the timestamp of the commit.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTime timestamp = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeOrBuilder getTimestampOrBuilder();
 }

@@ -29,6 +29,7 @@ import io.evitadb.exception.EvitaInternalError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 
 /**
  * CDC event that is sent to the subscriber if it matches to the request he made.
@@ -55,6 +56,13 @@ public sealed interface ChangeCapture extends Serializable permits ChangeSystemC
 	 * the CDC stream.
 	 */
 	int index();
+
+	/**
+	 * Timestamp when the change happened.
+	 * @return timestamp of the change
+	 */
+	@Nonnull
+	OffsetDateTime timestamp();
 
 	/**
 	 * The operation that was performed.

@@ -34,6 +34,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -429,6 +430,7 @@ class ChangeCaptureRingBufferTest {
         return new ChangeCatalogCapture(
             version,
             index,
+            OffsetDateTime.now(),
             CaptureArea.DATA,
             entityType,
             null,

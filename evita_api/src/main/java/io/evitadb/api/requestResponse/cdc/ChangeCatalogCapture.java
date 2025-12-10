@@ -31,6 +31,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 
 /**
@@ -38,6 +39,7 @@ import java.util.Objects;
  *
  * @param version    the version of the catalog where the operation was performed
  * @param index      the index of the event within the enclosed transaction, index 0 is the transaction lead event
+ * @param timestamp  the timestamp when the operation was performed
  * @param area       the area of the operation
  * @param entityType the {@link EntitySchema#getName()} of the entity or its schema that was affected by the operation
  *                   (if the operation is executed on catalog schema this field is null)
@@ -48,6 +50,7 @@ import java.util.Objects;
 public record ChangeCatalogCapture(
 	long version,
 	int index,
+	@Nonnull OffsetDateTime timestamp,
 	@Nonnull CaptureArea area,
 	@Nullable String entityType,
 	@Nullable Integer entityPrimaryKey,
@@ -72,7 +75,8 @@ public record ChangeCatalogCapture(
 		return new ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
-			CaptureArea.DATA,
+			context.getTimestamp(),
+			io.evitadb.api.requestResponse.cdc.CaptureArea.DATA,
 			context.getEntityType(),
 			context.getEntityPrimaryKey().isPresent() ?
 				context.getEntityPrimaryKey().getAsInt() : null,
@@ -98,7 +102,8 @@ public record ChangeCatalogCapture(
 		return new ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
-			CaptureArea.SCHEMA,
+			context.getTimestamp(),
+			io.evitadb.api.requestResponse.cdc.CaptureArea.SCHEMA,
 			context.getEntityType(),
 			null,
 			operation,
@@ -123,7 +128,8 @@ public record ChangeCatalogCapture(
 		return new ChangeCatalogCapture(
 			context.getVersion(),
 			context.getIndex(),
-			CaptureArea.INFRASTRUCTURE,
+			context.getTimestamp(),
+			io.evitadb.api.requestResponse.cdc.CaptureArea.INFRASTRUCTURE,
 			context.getEntityType(),
 			null,
 			operation,
@@ -146,6 +152,7 @@ public record ChangeCatalogCapture(
 					new ChangeCatalogCapture(
 						this.version,
 						this.index,
+						this.timestamp,
 						this.area,
 						this.entityType,
 						this.entityPrimaryKey,

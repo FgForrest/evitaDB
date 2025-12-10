@@ -102,7 +102,7 @@ public class TransactionMutationWithLocation extends TransactionMutation {
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.setVersion(this.version, this.mutationCount);
+		context.setVersion(this.version, this.mutationCount, this.commitTimestamp);
 		if (predicate.test(this)) {
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(
