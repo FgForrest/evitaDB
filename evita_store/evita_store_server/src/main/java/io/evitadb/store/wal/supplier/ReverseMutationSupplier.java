@@ -160,9 +160,10 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 			}
 		}
 		final long previousCatalogVersion = currentTxMutation.getVersion() - 1;
-		this.filePosition = this.transactionLocationsCache.computeIfAbsent(
+		this.filePosition = this.transactionLocationsCache.compute(
 			this.walFileIndex,
-			(index) -> new TransactionLocations()
+			(index, existing) ->
+				existing == null || existing.wasCut() ? new TransactionLocations() : existing
 		).findNearestLocation(previousCatalogVersion);
 
 		Assert.isPremiseValid(

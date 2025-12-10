@@ -171,6 +171,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 				Optional<TransactionMutationWithLocation> initialTransactionMutation;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
+						.filter(it -> !it.wasCut())
 						.map(it -> it.findNearestLocation(version))
 						.orElse(0L);
 

@@ -101,6 +101,17 @@ public class TransactionLocations {
 	}
 
 	/**
+	 * Checks if the transaction locations have been cut, i.e., if the internal storage
+	 * for transaction locations has been cleared.
+	 *
+	 * @return {@code true} if the transaction locations are cut (indicating they are null),
+	 *         otherwise {@code false}.
+	 */
+	public boolean wasCut() {
+		return this.locations == null;
+	}
+
+	/**
 	 * Registers a transaction mutation with the given start position in the file.
 	 *
 	 * @param startPosition       the total value before the transaction mutation
