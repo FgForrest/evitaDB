@@ -21,14 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core;
+package io.evitadb.core.catalog;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;

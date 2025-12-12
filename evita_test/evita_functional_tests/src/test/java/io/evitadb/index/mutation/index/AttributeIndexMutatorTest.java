@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation;
+package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -39,10 +39,6 @@ import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
-import io.evitadb.index.mutation.index.AttributeAndCompoundSchemaProvider;
-import io.evitadb.index.mutation.index.AttributeIndexMutator;
-import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
-import io.evitadb.index.mutation.index.EntitySchemaAttributeAndCompoundSchemaProvider;
 import io.evitadb.index.mutation.index.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.index.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;

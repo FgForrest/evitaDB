@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation;
+package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
@@ -32,7 +32,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.Att
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.ModifyAttributeSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

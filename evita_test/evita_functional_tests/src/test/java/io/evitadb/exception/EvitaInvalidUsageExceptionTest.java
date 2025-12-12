@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.exception;
+package io.evitadb.exception;
 
-import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +37,7 @@ class EvitaInvalidUsageExceptionTest {
 	@Test
 	void shouldProduceCorrectErrorCode() {
 		final EvitaInvalidUsageException someError = new EvitaInvalidUsageException("Whatever");
-		assertEquals("82229f8a968d3d382e4e3252f4f01652:c44f193800fc6962d8987aa7cd6ed71d:40", someError.getErrorCode());
+		assertEquals("fdc283bf43fed9ce991971c972e242d1:c44f193800fc6962d8987aa7cd6ed71d:39", someError.getErrorCode());
 	}
 
 }

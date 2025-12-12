@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.dataType.serializer;
+package io.evitadb.store.entity.serializer;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;

@@ -21,9 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Test;
 

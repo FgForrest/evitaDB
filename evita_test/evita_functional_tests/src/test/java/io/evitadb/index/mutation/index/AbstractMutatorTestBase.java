@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation;
+package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
@@ -43,7 +43,6 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;

@@ -21,14 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort;
+package io.evitadb.core.query.sort.attribute.sorter;
 
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.SharedBufferPool;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
-import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
 import io.evitadb.core.query.sort.utils.SortUtilsTest;

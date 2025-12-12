@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core;
+package io.evitadb.core.engine;
 
 import io.evitadb.api.CatalogContract;
-import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;

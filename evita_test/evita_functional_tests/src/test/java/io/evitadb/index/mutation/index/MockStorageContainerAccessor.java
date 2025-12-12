@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation;
+package io.evitadb.index.mutation.index;
 
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;

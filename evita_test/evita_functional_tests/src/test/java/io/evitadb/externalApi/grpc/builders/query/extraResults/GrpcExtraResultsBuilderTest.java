@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.builders.query;
+package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.StatisticsType;
@@ -44,7 +44,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
-import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
 import io.evitadb.utils.ArrayUtils;

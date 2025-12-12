@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.server;
+package io.evitadb.server.yaml;
 
 import com.fasterxml.jackson.databind.DeserializationContext;
-import io.evitadb.server.yaml.SpecialConfigInputFormatsHandler;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 

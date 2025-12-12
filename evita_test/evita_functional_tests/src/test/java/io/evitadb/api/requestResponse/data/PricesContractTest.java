@@ -21,18 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data.structure;
+package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceForSaleContextWithCachedResult;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
+import io.evitadb.api.requestResponse.data.structure.AbstractBuilderTest;
+import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;

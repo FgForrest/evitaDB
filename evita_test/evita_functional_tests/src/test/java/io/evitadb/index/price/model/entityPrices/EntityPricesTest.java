@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.price;
+package io.evitadb.index.price.model.entityPrices;
 
-import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;

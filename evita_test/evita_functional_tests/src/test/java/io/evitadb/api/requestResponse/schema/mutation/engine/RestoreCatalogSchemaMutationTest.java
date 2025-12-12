@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema.mutation.catalog;
+package io.evitadb.api.requestResponse.schema.mutation.engine;
 
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
-import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

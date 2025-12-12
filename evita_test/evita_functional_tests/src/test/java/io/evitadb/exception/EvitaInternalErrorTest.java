@@ -21,10 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.exception;
+package io.evitadb.exception;
 
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

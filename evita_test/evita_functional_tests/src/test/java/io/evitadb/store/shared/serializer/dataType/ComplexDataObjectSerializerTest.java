@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.dataType.serializer;
+package io.evitadb.store.shared.serializer.dataType;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.ByteBufferInput;
@@ -30,7 +30,6 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.store.shared.kryo.KryoFactory;
-import io.evitadb.store.shared.serializer.dataType.ComplexDataObjectSerializer;
 import io.evitadb.store.shared.serializer.trie.TrieSerializer;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Data;

@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.builder;
+package io.evitadb.externalApi.rest.api.openApi;
 
-import io.evitadb.externalApi.rest.api.openApi.OpenApiReferenceValidator;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ObjectSchema;

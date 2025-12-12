@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult.translator.facet.producer;
+package io.evitadb.core.query.extraResult.translator.facet;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -31,7 +31,6 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
-import io.evitadb.core.query.extraResult.translator.facet.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.mutation;
+package io.evitadb.index.mutation.index;
 
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;

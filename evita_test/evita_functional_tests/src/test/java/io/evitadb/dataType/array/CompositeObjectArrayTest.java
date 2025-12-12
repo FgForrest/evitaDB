@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.array;
+package io.evitadb.dataType.array;
 
 
-import io.evitadb.dataType.array.CompositeObjectArray;
 import org.junit.jupiter.api.Test;
 
 import java.util.Iterator;

@@ -21,10 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi.model;
+package io.evitadb.spi.store.engine.model;
 
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.model.FileLocation;
 import org.junit.jupiter.api.DisplayName;

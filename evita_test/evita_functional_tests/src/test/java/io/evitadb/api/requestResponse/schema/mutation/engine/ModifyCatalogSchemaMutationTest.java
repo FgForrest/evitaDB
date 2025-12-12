@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema.mutation.catalog;
+package io.evitadb.api.requestResponse.schema.mutation.engine;
 
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 

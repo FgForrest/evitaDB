@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.executor;
+package io.evitadb.core.session.task;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -32,7 +32,6 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
-import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

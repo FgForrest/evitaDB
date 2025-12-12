@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.entity.model.entity;
+package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;

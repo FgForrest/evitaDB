@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.filter.translator.attribute;
+package io.evitadb.core.query.filter.translator.attribute.alternative;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
@@ -37,7 +37,11 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.filter.translator.TestQueryExecutionContext;
-import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeEndsWithTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeStartsWithTranslator;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;

@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi;
+package io.evitadb.api.requestResponse.progress;
 
-import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

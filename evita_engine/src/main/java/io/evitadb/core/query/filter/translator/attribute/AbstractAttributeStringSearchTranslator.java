@@ -62,7 +62,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeContent;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslator {
+public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslator {
 	/**
 	 * The description of the filter.
 	 */
@@ -104,7 +104,7 @@ class AbstractAttributeStringSearchTranslator extends AbstractAttributeTranslato
 	 * @return a predicate applied to a stream of optional attribute values.
 	 */
 	@Nonnull
-	static Predicate<Stream<Optional<AttributeValue>>> transformPredicate(@Nonnull Predicate<String> predicate) {
+	public static Predicate<Stream<Optional<AttributeValue>>> transformPredicate(@Nonnull Predicate<String> predicate) {
 		return attrStream -> attrStream.anyMatch(
 			attr -> {
 				if (attr.isEmpty()) {

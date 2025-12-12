@@ -21,12 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema.mutation.catalog;
+package io.evitadb.api.requestResponse.schema.mutation.engine;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

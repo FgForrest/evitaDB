@@ -21,11 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.schema.mutation.catalog;
+package io.evitadb.api.requestResponse.schema.mutation.engine;
 
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
-import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

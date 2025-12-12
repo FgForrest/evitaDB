@@ -21,10 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api;
+package io.evitadb.core;
 
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.CatalogStatistics.EntityCollectionStatistics;
+import io.evitadb.api.CommitProgress;
 import io.evitadb.api.CommitProgress.CommitVersions;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
@@ -59,7 +64,6 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMut
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
-import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;

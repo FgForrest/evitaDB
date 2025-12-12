@@ -21,11 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.expression;
+package io.evitadb.dataType.expression;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.expression.evaluate.MultiVariableEvaluationContext;
 import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.expression.ExpressionNode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;

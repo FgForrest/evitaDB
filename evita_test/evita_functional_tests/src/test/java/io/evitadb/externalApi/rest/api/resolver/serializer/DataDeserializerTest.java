@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.resolver;
+package io.evitadb.externalApi.rest.api.resolver.serializer;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.BooleanNode;
@@ -37,7 +37,6 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataDeserializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.swagger.v3.oas.models.Components;

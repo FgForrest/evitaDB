@@ -21,14 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.builder;
+package io.evitadb.externalApi.rest.api.model;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
-import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import org.junit.jupiter.api.BeforeEach;

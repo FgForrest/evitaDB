@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.algebra;
+package io.evitadb.core.query.algebra.base;
 
-import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
