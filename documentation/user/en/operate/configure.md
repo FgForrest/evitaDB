@@ -45,6 +45,7 @@ server:                                           # [see Server configuration](#
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: "./data"
   exportDirectory: "./export"
+  workDirectory: "/tmp"
   lockTimeoutSeconds: 60
   waitOnCloseSeconds: 60
   outputBufferSize: 4MB
@@ -533,6 +534,14 @@ This section contains configuration options for the storage layer of the databas
         <p>It defines the folder where evitaDB stores its exported files. The path can be specified relative to the working
         directory of the application in absolute form (recommended). Files are automatically removed according to limits
         defined in `exportFileHistoryExpirationSeconds` and `exportDirectorySizeLimitBytes`.</p>
+    </dd>
+    <dt>workDirectory</dt>
+    <dd>
+        <p>**Default:** Java temp directory (system property `java.io.tmpdir`)</p>
+        <p>It defines the folder where evitaDB creates temporary infrastructural files with short lifespan - at most
+        the lifespan of a single evitaDB instance. The path can be specified relative to the working directory of
+        the application in absolute form (recommended). By default, the Java temp directory is used, but it can be
+        redirected if the temp directory is too small or inappropriate for temporary working files.</p>
     </dd>
     <dt>lockTimeoutSeconds</dt>
     <dd>

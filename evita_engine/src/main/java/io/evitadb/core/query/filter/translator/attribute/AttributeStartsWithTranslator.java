@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ public class AttributeStartsWithTranslator extends AbstractAttributeStringSearch
 	 * @return a BiPredicate that returns true if the first string is not null and starts with the second string.
 	 */
 	@Nonnull
-	static BiPredicate<String, String> createPredicate() {
+	public static BiPredicate<String, String> createPredicate() {
 		return (theValue, textToSearch) -> theValue != null && theValue.startsWith(textToSearch);
 	}
 

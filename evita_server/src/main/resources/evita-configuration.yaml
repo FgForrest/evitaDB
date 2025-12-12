@@ -33,6 +33,7 @@ server:
 storage:
   storageDirectory: ${storage.storageDirectory:null}
   exportDirectory: ${storage.exportDirectory:null}
+  workDirectory: ${storage.workDirectory:null}
   lockTimeoutSeconds: ${storage.lockTimeoutSeconds:60}
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
   outputBufferSize: ${storage.outputBufferSize:4MB}

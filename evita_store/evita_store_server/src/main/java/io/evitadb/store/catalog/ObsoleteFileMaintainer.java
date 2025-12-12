@@ -23,13 +23,14 @@
 
 package io.evitadb.store.catalog;
 
-import io.evitadb.core.CatalogConsumersListener;
+import io.evitadb.core.catalog.CatalogConsumersListener;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
-import io.evitadb.store.spi.CatalogPersistenceService.EntityTypePrimaryKeyAndFileIndex;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
@@ -51,10 +52,10 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName;
-import static io.evitadb.store.spi.CatalogPersistenceService.getIndexFromCatalogFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getIndexFromCatalogFileName;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -321,7 +322,7 @@ public class ObsoleteFileMaintainer implements CatalogConsumersListener, Closeab
 	 */
 	public record DataFilesBulkInfo(
 		@Nonnull CatalogBootstrap bootstrapRecord,
-		@Nonnull CatalogHeader catalogHeader
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader
 	) {
 
 	}

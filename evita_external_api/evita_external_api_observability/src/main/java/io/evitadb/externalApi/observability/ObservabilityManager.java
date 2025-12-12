@@ -302,7 +302,8 @@ public class ObservabilityManager {
 		} else {
 			final ServerTask<RecordingSettings, FileForFetch> jfrRecorderTask = new JfrRecorderTask(
 				allowedEvents, maxSizeInBytes, maxAgeInSeconds,
-				this.evita.management().exportFileService()
+				this.evita.management().exportService(),
+				this.evita.management().fileManagementService()
 			);
 			this.evita.getServiceExecutor().submit(jfrRecorderTask);
 			return jfrRecorderTask;

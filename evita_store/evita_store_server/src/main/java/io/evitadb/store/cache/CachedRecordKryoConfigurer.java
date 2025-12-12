@@ -36,7 +36,7 @@ import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredOutRecordsS
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer;
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesSerializer;
 import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import lombok.RequiredArgsConstructor;
 
 import java.util.function.Consumer;

@@ -27,7 +27,7 @@ package io.evitadb.index.mutation.index.dataAccess;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;

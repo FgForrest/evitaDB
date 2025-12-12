@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 package io.evitadb.core.sequence;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.EntityCollection;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.spi.store.catalog.shared.model.PriceInternalIdContainer;
 
 /**
  * This enum represents various type of sequences used in {@link Catalog} and {@link EntityCollection}.

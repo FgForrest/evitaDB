@@ -57,7 +57,7 @@ import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecordInnerRecordSpecific;
-import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
+import io.evitadb.spi.store.catalog.shared.model.PriceInternalIdContainer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -126,7 +126,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 								-1,
 								innerRecordPrice.priceId(),
 								entityPrimaryKey,
-								innerRecordPrice.innerRecordId(),
+								Objects.requireNonNull(innerRecordPrice.innerRecordId()),
 								NumberUtils.convertExternalNumberToInt(innerRecordPrice.priceWithTax(), indexedPricePlaces),
 								NumberUtils.convertExternalNumberToInt(innerRecordPrice.priceWithoutTax(), indexedPricePlaces)
 							)
@@ -156,7 +156,7 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 						priceWithInternalIds.getInternalPriceId() : -1,
 					priceContract.priceId(),
 					entityPrimaryKey,
-					priceContract.innerRecordId(),
+					Objects.requireNonNull(priceContract.innerRecordId()),
 					NumberUtils.convertExternalNumberToInt(priceContract.priceWithTax(), indexedPricePlaces),
 					NumberUtils.convertExternalNumberToInt(priceContract.priceWithoutTax(), indexedPricePlaces)
 				);

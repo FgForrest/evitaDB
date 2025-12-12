@@ -26,14 +26,14 @@ package io.evitadb.store.offsetIndex.io;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.transaction.IsolatedWalFileClosedEvent;
 import io.evitadb.core.metric.event.transaction.IsolatedWalFileOpenedEvent;
+import io.evitadb.exception.EvitaIOException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -294,7 +294,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 * @param sync      True if synchronization should be performed, false otherwise.
 	 * @param <T>       The type of the result returned by the logic function.
 	 * @return The result of the execution of the logic function.
-	 * @throws StorageException If the execution is interrupted or times out.
+	 * @throws EvitaIOException If the execution is interrupted or times out.
 	 */
 	private <T> T execute(
 		@Nonnull String operation,
@@ -357,7 +357,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 *
 	 * @param operation                 The name of the operation.
 	 * @param offHeapMemoryOutputStream The off-heap memory output stream containing the data to be offloaded.
-	 * @throws StorageException If there is an error offloading the data to the disk.
+	 * @throws EvitaIOException If there is an error offloading the data to the disk.
 	 */
 	private void offloadMemoryToDisk(
 		@Nonnull String operation,
@@ -375,7 +375,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 				fileChannel.truncate(this.lastConsistentWrittenPosition);
 			}
 		} catch (IOException e) {
-			throw new StorageException("Failed to offload data to the disk when executing " + operation + "!", e);
+			throw new UnexpectedIOException(
+				"Failed to offload data to the disk when executing " + operation + "!",
+				"Failed to offload data to the disk.",
+				e
+			);
 		}
 
 		// switch output streams

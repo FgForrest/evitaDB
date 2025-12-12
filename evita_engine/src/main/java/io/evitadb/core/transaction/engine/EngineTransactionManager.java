@@ -36,15 +36,15 @@ import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.*;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.core.ExpandedEngineState;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.SystemObservableExecutorService;
 import io.evitadb.core.transaction.engine.operators.*;
 import io.evitadb.function.Functions;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
@@ -350,7 +350,7 @@ public class EngineTransactionManager implements Closeable {
 	private void truncateWalFile(@Nonnull ExpandedEngineState engineState) {
 		// if log contains unexpected content, truncate it
 		ofNullable(engineState.walFileReference())
-			.ifPresent(this.enginePersistenceService::truncateWalFile);
+			.ifPresent(this.enginePersistenceService::truncateWriteAheadLog);
 	}
 
 	/**
@@ -465,19 +465,19 @@ public class EngineTransactionManager implements Closeable {
 
 			// first store the mutation into the persistence service
 			final EngineMutation<?> engineMutation = engineStateUpdater.getEngineMutation();
-			final TransactionMutationWithWalFileReference txMutationWithWalFileReference = this.enginePersistenceService.appendWal(
+			final TransactionMutationWithWalReference txMutationWithWalReference = this.enginePersistenceService.appendWal(
 				nextStateVersion,
 				engineStateUpdater.getTransactionId(),
 				engineMutation
 			);
 			// notify system observer about the mutation
-			this.changeObserver.processMutation(txMutationWithWalFileReference.transactionMutation());
+			this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
 			this.changeObserver.processMutation(engineMutation);
 
 			// create new engine state with the incremented version, and store it in the persistence service
 			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
 			final EngineState theEngineState = nextEngineState.engineState(
-				txMutationWithWalFileReference.walFileReference(),
+				txMutationWithWalReference.walReference(),
 				nextStateVersion
 			);
 			this.enginePersistenceService.storeEngineState(theEngineState);

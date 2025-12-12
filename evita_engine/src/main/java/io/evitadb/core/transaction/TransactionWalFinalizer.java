@@ -28,9 +28,9 @@ import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.store.spi.IsolatedWalPersistenceService;
+import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;

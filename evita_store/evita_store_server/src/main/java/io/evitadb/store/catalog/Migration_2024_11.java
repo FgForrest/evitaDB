@@ -25,10 +25,11 @@ package io.evitadb.store.catalog;
 
 
 import io.evitadb.exception.ObsoleteStorageProtocolException;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.PersistenceService;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
@@ -63,7 +64,7 @@ public interface Migration_2024_11 {
 	 */
 	@Deprecated(since = "2024.1", forRemoval = true)
 	static void upgradeFromStorageProtocolVersion_1_to_2(
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull Runnable postUpgradeAction
 	) {

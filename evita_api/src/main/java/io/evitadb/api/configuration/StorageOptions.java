@@ -23,7 +23,7 @@
 
 package io.evitadb.api.configuration;
 
-import lombok.Builder;
+import io.evitadb.utils.UUIDUtil;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -42,6 +42,9 @@ import static java.util.Optional.ofNullable;
  *                                           recommended setting your own directory with dedicated disk space.
  * @param exportDirectory                    Directory on local disk where Evita files are exported - for example, backups,
  *                                           JFR recordings, query recordings etc.
+ * @param workDirectory                      Directory on local disk where Evita creates temporary infrastructural files with short
+ *                                           lifespan - at most the lifespan of a single evitaDB instance. By default, Java temp
+ *                                           directory is used, but can be redirected if temp is too small.
  * @param lockTimeoutSeconds                 This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
  *                                           Locks are used to get handle to open file. Set of open handles is limited to
  *                                           {@link #maxOpenedReadHandles} for read operations and single write handle for write
@@ -81,10 +84,10 @@ import static java.util.Optional.ofNullable;
  *                                           will be automatically removed.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Builder
 public record StorageOptions(
 	@Nonnull Path storageDirectory,
 	@Nonnull Path exportDirectory,
+	@Nonnull Path workDirectory,
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
 	int outputBufferSize,
@@ -102,6 +105,7 @@ public record StorageOptions(
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152; // 2MB
 	public static final Path DEFAULT_DATA_DIRECTORY = Paths.get("").resolve("data");
 	public static final Path DEFAULT_EXPORT_DIRECTORY = Paths.get("").resolve("export");
+	public static final Path DEFAULT_WORK_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir")).resolve("evita");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors() * 20;
@@ -122,6 +126,7 @@ public record StorageOptions(
 		return new StorageOptions(
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/export"),
+			Path.of(System.getProperty("java.io.tmpdir"), "evita/work"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
 			false,
@@ -155,6 +160,7 @@ public record StorageOptions(
 		this(
 			DEFAULT_DATA_DIRECTORY,
 			DEFAULT_EXPORT_DIRECTORY,
+			randomize(DEFAULT_WORK_DIRECTORY),
 			DEFAULT_LOCK_TIMEOUT_SECONDS,
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
@@ -170,9 +176,22 @@ public record StorageOptions(
 		);
 	}
 
+	/**
+	 * Appends a randomly generated UUID to the specified directory path.
+	 * This is useful for creating unique subdirectories or file paths within the given directory.
+	 *
+	 * @param directory the base directory to which a random UUID will be appended. Must not be null.
+	 * @return a new {@link Path} object representing the specified directory with a random UUID appended.
+	 */
+	@Nonnull
+	private static Path randomize(@Nonnull Path directory) {
+		return directory.resolve(UUIDUtil.randomUUID().toString());
+	}
+
 	public StorageOptions(
 		@Nullable Path storageDirectory,
 		@Nullable Path exportDirectory,
+		@Nullable Path workDirectory,
 		long lockTimeoutSeconds,
 		long waitOnCloseSeconds,
 		int outputBufferSize,
@@ -188,6 +207,7 @@ public record StorageOptions(
 	) {
 		this.storageDirectory = ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
 		this.exportDirectory = ofNullable(exportDirectory).orElse(DEFAULT_EXPORT_DIRECTORY);
+		this.workDirectory = ofNullable(workDirectory).orElseGet(() -> randomize(DEFAULT_WORK_DIRECTORY));
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.outputBufferSize = outputBufferSize;
@@ -219,6 +239,7 @@ public record StorageOptions(
 	public static class Builder {
 		private Path storageDirectory = DEFAULT_DATA_DIRECTORY;
 		private Path exportDirectory = DEFAULT_EXPORT_DIRECTORY;
+		private Path workDirectory = randomize(DEFAULT_WORK_DIRECTORY);
 		private long lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT_SECONDS;
 		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
@@ -238,6 +259,7 @@ public record StorageOptions(
 		Builder(@Nonnull StorageOptions storageOptions) {
 			this.storageDirectory = storageOptions.storageDirectory;
 			this.exportDirectory = storageOptions.exportDirectory;
+			this.workDirectory = storageOptions.workDirectory;
 			this.lockTimeoutSeconds = storageOptions.lockTimeoutSeconds;
 			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
 			this.outputBufferSize = storageOptions.outputBufferSize;
@@ -263,6 +285,13 @@ public record StorageOptions(
 		public Builder exportDirectory(@Nonnull Path exportDirectory) {
 			//noinspection ConstantValue
 			this.exportDirectory = exportDirectory == null ? DEFAULT_EXPORT_DIRECTORY : exportDirectory;
+			return this;
+		}
+
+		@Nonnull
+		public Builder workDirectory(@Nonnull Path workDirectory) {
+			//noinspection ConstantValue
+			this.workDirectory = workDirectory == null ? randomize(DEFAULT_WORK_DIRECTORY) : workDirectory;
 			return this;
 		}
 
@@ -343,6 +372,7 @@ public record StorageOptions(
 			return new StorageOptions(
 				this.storageDirectory,
 				this.exportDirectory,
+				this.workDirectory,
 				this.lockTimeoutSeconds,
 				this.waitOnCloseSeconds,
 				this.outputBufferSize,

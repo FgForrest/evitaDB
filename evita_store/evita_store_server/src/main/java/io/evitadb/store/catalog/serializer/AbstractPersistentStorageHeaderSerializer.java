@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.spi.model.PersistentStorageHeader;
+import io.evitadb.store.model.header.PersistentStorageHeader;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;

@@ -48,10 +48,9 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ServerModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.core.Catalog;
 import io.evitadb.core.Evita;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -75,8 +74,8 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.store.spi.IsolatedWalPersistenceService;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -893,7 +892,7 @@ public class TransactionManager implements Closeable {
 	public long appendWalAndDiscard(
 		@Nonnull OffsetDateTime commitTimestamp,
 		@Nonnull TransactionMutation transactionMutation,
-		@Nonnull OffHeapWithFileBackupReference walReference
+		@Nonnull LogRecordReference walReference
 	) {
 		try {
 			// calculate the rest of the timeout

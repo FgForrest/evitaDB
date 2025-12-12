@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.store.offsetIndex.exception;
 
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -34,7 +34,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class PoolExhaustedException extends StorageException {
+public class PoolExhaustedException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -3132735681170812077L;
 
 	public PoolExhaustedException(int maxOpenedReadHandles, @Nonnull String sourceDescriptor) {

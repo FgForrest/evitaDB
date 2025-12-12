@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.cdcApi.resolver.endpoint;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.core.session.EvitaSession;
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.dto.ChangeCatalogCaptureRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.cdcApi.resolver.serializer.ChangeCatalogCaptureSerializer;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
@@ -39,7 +40,7 @@ import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
- * REST API for {@link io.evitadb.core.EvitaSession#registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} using WebSockets.
+ * REST API for {@link EvitaSession#registerChangeCatalogCapture(ChangeCatalogCaptureRequest)} using WebSockets.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

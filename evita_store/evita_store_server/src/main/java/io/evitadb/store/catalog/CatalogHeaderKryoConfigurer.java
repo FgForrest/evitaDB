@@ -27,23 +27,23 @@ import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.AttributesSetKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_11;
 import io.evitadb.store.catalog.serializer.EntityCollectionHeaderSerializer_2024_5;
-import io.evitadb.store.dataType.serializer.EnumNameSerializer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart.AttributesSetKey;
 import io.evitadb.store.entity.serializer.AttributesSetKeySerializer;
+import io.evitadb.store.entity.serializer.EnumNameSerializer;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_2025_5;
 import io.evitadb.store.index.serializer.PriceIndexKeySerializer;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -73,8 +73,8 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(CatalogSchema.class, new SerialVersionBasedSerializer<>(new CatalogSchemaSerializer(), CatalogSchema.class), index++);
 		kryo.register(CatalogState.class, new EnumNameSerializer<>(), index++);
 		kryo.register(
-			EntityCollectionHeader.class,
-			new SerialVersionBasedSerializer<>(new EntityCollectionHeaderSerializer(), EntityCollectionHeader.class)
+			EntityCollectionFileHeader.class,
+			new SerialVersionBasedSerializer<>(new EntityCollectionHeaderSerializer(), EntityCollectionFileHeader.class)
 				.addBackwardCompatibleSerializer(6342590529867272012L, new EntityCollectionHeaderSerializer_2024_11())
 				.addBackwardCompatibleSerializer(1079906797886901404L, new EntityCollectionHeaderSerializer_2024_5()),
 			index++

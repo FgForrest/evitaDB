@@ -29,13 +29,12 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.exception.CorruptedKeyValueRecordException;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.PoolExhaustedException;
@@ -47,7 +46,7 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -230,7 +229,7 @@ public class OffsetIndex {
 	private long lastSyncedPosition;
 
 	/**
-	 * Reads particular storage part from the target file path. This method will take `fileLocation` as leading pointer
+	 * Reads particular storage part from the target file path. This method will take `location` as leading pointer
 	 * to the offset index mapping and iterates over all records in this file looking for the last occurrence of
 	 * the particular storage part and returns it.
 	 *
@@ -2444,10 +2443,10 @@ public class OffsetIndex {
 						this.readFilesLock.unlock();
 					}
 				}
-				throw new StorageException("New handle to the file couldn't have been created within timeout!");
+				throw new UnexpectedIOException("New handle to the file couldn't have been created within timeout!");
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
-				throw new StorageException("New handle to the file couldn't have been created due to interrupt!");
+				throw new UnexpectedIOException("New handle to the file couldn't have been created due to interrupt!");
 			}
 
 		}

@@ -24,8 +24,8 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
-import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
-import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
