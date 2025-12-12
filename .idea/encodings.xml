@@ -13,6 +13,8 @@
     <file url="file://$PROJECT_DIR$/evita_engine/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_export/evita_export_fs/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_export/evita_export_fs/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_export/evita_export_s3/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_export/evita_export_s3/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_core/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_core/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_graphql/src/main/java" charset="UTF-8" />

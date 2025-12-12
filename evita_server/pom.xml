@@ -63,6 +63,11 @@
         </dependency>
         <dependency>
             <groupId>${project.parent.groupId}</groupId>
+            <artifactId>evita_export_s3</artifactId>
+            <version>${project.parent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>evita_traffic_engine</artifactId>
             <version>${project.parent.version}</version>
         </dependency>

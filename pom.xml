@@ -148,6 +148,7 @@
 		<okhttp.version>5.2.0</okhttp.version>
 		<opentelemetry.version>1.54.1</opentelemetry.version>
 		<opentelemetry.semconv.version>1.37.0</opentelemetry.semconv.version>
+		<minio.version>8.6.0</minio.version>
 	</properties>
 
 	<modules>
@@ -158,6 +159,7 @@
 		<module>evita_db</module>
 		<module>evita_store</module>
 		<module>evita_export/evita_export_fs</module>
+		<module>evita_export/evita_export_s3</module>
 		<module>evita_external_api</module>
 		<module>evita_server</module>
 		<module>evita_test/evita_test_support</module>

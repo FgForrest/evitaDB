@@ -214,6 +214,7 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
   - **evita_traffic_engine**: traffic engine recorder for storing traffic data
 - **evita_export**: export services
   - **evita_export_fs**: export service implementation for local file system
+  - **evita_export_s3**: export service implementation for S3-compatible storage
 - **evita_external_api**: web API implementations
   - **evita_external_api_core**: shared logic for all web APIs, Armeria HTTP server integration, and common utilities
   - **evita_external_api_graphql**: GraphQL API implementation
@@ -255,6 +256,7 @@ flowchart TD
 
     subgraph export["Export"]
         export_fs[evita_export_fs]
+        export_s3[evita_export_s3]
     end
 
     subgraph external["External APIs"]
@@ -307,6 +309,8 @@ flowchart TD
     %% Export dependencies
     export_fs --> engine
     export_fs --> api
+    export_s3 --> engine
+    export_s3 --> api
 
     %% External API dependencies
     api_core --> api
@@ -348,6 +352,7 @@ flowchart TD
     server --> store_entity
     server --> store_server
     server --> export_fs
+    server --> export_s3
     server --> traffic
     server --> api_core
     server --> api_graphql
@@ -388,6 +393,7 @@ In order code to be accepted it will fulfill following criteria:
 - [gRPC Java](https://github.com/grpc/grpc-java) by Eric Anderson, Carl Mastrangelo, ZHANG Dapeng, Kun Zhang and others
 - [GraphQL Java](https://github.com/graphql-java/graphql-java) by Andreas Marek, Brad Baker and others
 - [Byte Buddy](https://github.com/raphw/byte-buddy) by Rafael Winterhalter and others
+- [MinIO Java](https://github.com/minio/minio-java) by Anand Babu Periasamy and others
 
 <p>And many others. We are grateful for their work.</p>
     </td>
