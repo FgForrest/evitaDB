@@ -29,8 +29,8 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.dataType.Scope;
-import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Comparator;

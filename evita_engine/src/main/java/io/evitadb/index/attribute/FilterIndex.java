@@ -45,9 +45,9 @@ import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedExcepti
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -68,7 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.StringUtils.unknownToString;

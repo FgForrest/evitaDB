@@ -24,7 +24,7 @@
 package io.evitadb.store.catalog.model;
 
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.Setter;

@@ -23,7 +23,7 @@
 
 package io.evitadb.index.reference;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -37,7 +37,7 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple atomic reference and makes it transactional. This means, that the reference can be updated

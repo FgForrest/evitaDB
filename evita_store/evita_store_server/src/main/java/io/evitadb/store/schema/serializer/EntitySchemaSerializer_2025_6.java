@@ -37,7 +37,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.dataType.Scope;
-import io.evitadb.store.dataType.serializer.HeterogeneousMapSerializer;
+import io.evitadb.store.shared.serializer.dataType.HeterogeneousMapSerializer;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 

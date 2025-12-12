@@ -27,24 +27,25 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientCallableTask;
 import io.evitadb.core.executor.Interruptible;
-import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.catalog.task.BackupTask.BackupSettings;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -73,10 +74,10 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.STORAGE_PROTOCOL_VERSION;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.serializeBootstrapRecord;
-import static io.evitadb.store.spi.CatalogPersistenceService.STORAGE_PROTOCOL_VERSION;
-import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -88,7 +89,7 @@ import static java.util.Optional.ofNullable;
 public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch> {
 	private final String catalogName;
 	private final CatalogBootstrap bootstrapRecord;
-	private final AtomicReference<ExportFileService> exportFileService;
+	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final AtomicReference<LongConsumer> onComplete;
 
@@ -98,7 +99,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		@Nullable Long catalogVersion,
 		boolean includingWAL,
 		@Nonnull CatalogBootstrap bootstrapRecord,
-		@Nonnull ExportFileService exportFileService,
+		@Nonnull ExportService exportService,
 		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
@@ -121,7 +122,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		);
 		this.catalogName = catalogName;
 		this.bootstrapRecord = bootstrapRecord;
-		this.exportFileService = new AtomicReference<>(exportFileService);
+		this.exportFileService = new AtomicReference<>(exportService);
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
 		this.onComplete = new AtomicReference<>(onComplete);
 		if (onStart != null) {
@@ -137,9 +138,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	@Nonnull
 	private FileForFetch doBackup() {
 		final DefaultCatalogPersistenceService defaultCatalogPersistenceService = this.catalogPersistenceService.get();
-		final ExportFileService exportFileService = this.exportFileService.get();
+		final ExportService exportService = this.exportFileService.get();
 		Assert.isPremiseValid(
-			defaultCatalogPersistenceService != null && exportFileService != null,
+			defaultCatalogPersistenceService != null && exportService != null,
 			"Backup has already been executed or the task has been interrupted! Resources are cleared!"
 		);
 		try {
@@ -156,7 +157,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
 			}
 
-			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
+			final ExportFileHandle exportFileHandle = exportService.storeFile(
 				"backup_" + this.catalogName + "_" +
 					(thePastMoment == null && theHistoricalCatalogVersion == null ?
 						"actual_" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) :
@@ -180,8 +181,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						zipOutputStream.closeEntry();
 
 						// first store all the active contents of the entity collection data files
-						final CatalogHeader catalogHeader = catalogOffsetIndexPersistenceService.getCatalogHeader(catalogVersion);
-						final Map<String, EntityCollectionHeader> entityHeaders = CollectionUtils.createHashMap(
+						final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader =
+							catalogOffsetIndexPersistenceService.getCatalogHeader(catalogVersion);
+						final Map<String, EntityCollectionFileHeader> entityHeaders = CollectionUtils.createHashMap(
 							catalogHeader.getEntityTypeFileIndexes().size()
 						);
 
@@ -238,7 +240,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			} catch (RuntimeException exception) {
 				// remove the files
 				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.ifPresent(it -> exportFileService.deleteFile(it.fileId()));
+					.ifPresent(it -> exportService.deleteFile(it.fileId()));
 
 				throw exception;
 			}
@@ -280,8 +282,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService,
 		@Nonnull ZipOutputStream zipOutputStream,
 		@Nonnull ServicesAndStatistics servicesAndStatistics,
-		@Nonnull CatalogHeader catalogHeader,
-		@Nonnull Map<String, EntityCollectionHeader> entityHeaders
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		@Nonnull Map<String, EntityCollectionFileHeader> entityHeaders
 	) throws IOException {
 		final OffsetIndexDescriptor catalogDataFileDescriptor = catalogPersistenceService
 			.copySnapshotTo(
@@ -290,7 +292,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				recordsCopied -> doUpdateProgress(processedRecords + recordsCopied, servicesAndStatistics.totalRecords()),
 				Stream.concat(
 						Stream.of(
-							new CatalogHeader(
+							new CatalogHeader<>(
 								STORAGE_PROTOCOL_VERSION,
 								catalogHeader.version(),
 								catalogHeader.walFileReference(),
@@ -336,7 +338,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		@Nonnull CollectionFileReference entityTypeFileIndex,
 		@Nonnull ZipOutputStream zipOutputStream,
 		@Nonnull ServicesAndStatistics servicesAndStatistics,
-		@Nonnull Map<String, EntityCollectionHeader> entityHeaders
+		@Nonnull Map<String, EntityCollectionFileHeader> entityHeaders
 	) throws IOException {
 		final String entityDataFileName = CatalogPersistenceService.getEntityCollectionDataStoreFileName(
 			entityTypeFileIndex.entityType(),
@@ -346,7 +348,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entityDataFileName));
 		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = servicesAndStatistics.getServiceByEntityTypePrimaryKey(entityTypeFileIndex.entityTypePrimaryKey());
 		final int finalBackedUpRecords = backedUpRecords;
-		final EntityCollectionHeader newEntityCollectionHeader = entityCollectionPersistenceService
+		final EntityCollectionFileHeader newEntityCollectionHeader = entityCollectionPersistenceService
 			.copySnapshotTo(
 				catalogVersion,
 				new CollectionFileReference(
@@ -449,7 +451,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		boolean theIncludingWAL,
 		@Nonnull DefaultCatalogPersistenceService defaultCatalogPersistenceService,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogPersistenceService,
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull Closeables closeables
 	) throws IOException {
 		int totalRecords = 0;
@@ -458,10 +460,10 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		totalRecords += catalogServiceRecordCount;
 
 		for (CollectionFileReference entityTypeFileIndex : catalogHeader.getEntityTypeFileIndexes()) {
-			final EntityCollectionHeader entityCollectionHeader = catalogPersistenceService.getStoragePart(
+			final EntityCollectionFileHeader entityCollectionHeader = catalogPersistenceService.getStoragePart(
 				catalogVersion,
 				entityTypeFileIndex.entityTypePrimaryKey(),
-				EntityCollectionHeader.class
+				EntityCollectionFileHeader.class
 			);
 			Assert.isPremiseValid(
 				entityCollectionHeader != null,

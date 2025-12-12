@@ -30,13 +30,16 @@ import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexBuilder;
@@ -46,12 +49,10 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.service.SharedClassesConfigurer;
-import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.LogFileRecordReference;
+import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
+import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -74,14 +75,14 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndexStoragePartPersistenceService
-	implements CatalogStoragePartPersistenceService {
+	implements CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> {
 
 	/**
 	 * The current catalog header represents the header information of a catalog, which contains all the necessary
 	 * information to fully restore the catalog state and indexes from persistent storage. The variable is initialized
 	 * lazily.
 	 */
-	private CatalogHeader currentCatalogHeader;
+	private CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader;
 
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
@@ -115,7 +116,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver
 	) {
-		final AtomicReference<CatalogHeader> catalogHeaderRef = new AtomicReference<>();
+		final AtomicReference<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
 			catalogName, catalogFilePath, storageOptions,
 			catalogBootstrap, recordRegistry, observableOutputKeeper,
@@ -154,7 +155,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService previous
 	) {
-		final CatalogHeader catalogHeader = previous.getCatalogHeader(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = previous.getCatalogHeader(catalogVersion);
 		final OffsetIndex previousOffsetIndex = previous.offsetIndex;
 		final OffsetIndexDescriptor offsetIndexDescriptor = new OffsetIndexDescriptor(
 			previousOffsetIndex.getVersion(),
@@ -202,7 +203,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * @return The loaded offset index.
 	 */
 	@Nonnull
-	public static CatalogHeader readCatalogHeader(
+	public static CatalogHeader<LogFileRecordReference, CollectionFileReference> readCatalogHeader(
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path catalogFilePath,
 		@Nonnull CatalogBootstrap catalogBootstrap,
@@ -231,8 +232,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 						.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
 						.andThen(SharedIndexStoragePartConfigurer.INSTANCE)
 				);
+				//noinspection unchecked
 				return ofNullable(
-					StorageRecord.read(
+					(CatalogHeader<LogFileRecordReference, CollectionFileReference>) StorageRecord.read(
 						theInput, catalogHeaderLocation,
 						(input, recordLength, control) -> kryo.readObject(input, CatalogHeader.class)
 					).payload()
@@ -263,7 +265,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Path catalogFilePath,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
-		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer,
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderConsumer,
 		@Nonnull OffsetIndexBuilder indexBuilder,
 		@Nonnull ObservableInput<?> theInput,
 		@Nonnull FileLocation fileLocation
@@ -282,8 +284,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
 				.andThen(SharedIndexStoragePartConfigurer.INSTANCE)
 		);
-		final CatalogHeader theCatalogHeader = Objects.requireNonNull(
-			StorageRecord.read(
+		//noinspection unchecked
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> theCatalogHeader = Objects.requireNonNull(
+			(CatalogHeader<LogFileRecordReference, CollectionFileReference>) StorageRecord.read(
 				theInput, catalogHeaderLocation,
 				(input, recordLength, control) -> kryo.readObject(input, CatalogHeader.class)
 			).payload()
@@ -325,7 +328,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
-		@Nonnull Consumer<CatalogHeader> catalogHeaderConsumer
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderConsumer
 	) {
 		final FileLocation fileLocation = catalogBootstrap.fileLocation();
 		if (fileLocation == null) {
@@ -353,7 +356,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				nonFlushedBlockObserver,
 				historyKeptObserver
 			);
-			final CatalogHeader newHeader = new CatalogHeader(UUID.randomUUID(), catalogName);
+			final CatalogHeader<LogFileRecordReference, CollectionFileReference> newHeader = new CatalogHeader<>(UUID.randomUUID(), catalogName);
 			newOffsetIndex.put(0L, newHeader);
 			catalogHeaderConsumer.accept(newHeader);
 			return newOffsetIndex;
@@ -392,7 +395,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 
 	private CatalogOffsetIndexStoragePartPersistenceService(
 		long catalogVersion,
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
@@ -415,10 +418,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 
 	@Nonnull
 	@Override
-	public CatalogHeader getCatalogHeader(long catalogVersion) {
+	public CatalogHeader<LogFileRecordReference, CollectionFileReference> getCatalogHeader(long catalogVersion) {
 		if (this.currentCatalogHeader == null) {
+			//noinspection unchecked
 			this.currentCatalogHeader = Objects.requireNonNull(
-				this.offsetIndex.get(catalogVersion, 1L, CatalogHeader.class)
+				(CatalogHeader<LogFileRecordReference, CollectionFileReference>) this.offsetIndex.get(
+					catalogVersion, 1L, CatalogHeader.class
+				)
 			);
 		}
 		return this.currentCatalogHeader;
@@ -436,7 +442,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull CatalogState catalogState,
 		int lastEntityCollectionPrimaryKey
 	) {
-		final CatalogHeader newCatalogHeader = new CatalogHeader(
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> newCatalogHeader = new CatalogHeader<LogFileRecordReference, CollectionFileReference>(
 			storageProtocolVersion,
 			catalogVersion,
 			walFileLocation,

@@ -25,11 +25,12 @@ package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
-import io.evitadb.store.exception.InvalidStoragePathException;
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -48,7 +49,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static io.evitadb.utils.Assert.isTrue;
 
 /**
  * Write handle protects access to the {@link ObservableOutput} by {@link ReentrantLock} allowing only single
@@ -117,7 +117,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * @param filePath The path to the target file.
 	 * @return The target file object.
 	 * @throws InvalidStoragePathException if the storage path parent doesn't represent a directory.
-	 * @throws StorageException            if there is an error creating the file or if it cannot be accessed.
+	 * @throws io.evitadb.exception.EvitaIOException if there is an error creating the file or if it cannot be accessed.
 	 */
 	@Nonnull
 	static File getTargetFile(@Nonnull Path filePath) {
@@ -129,7 +129,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 				//noinspection ResultOfMethodCallIgnored
 				directory.mkdirs();
 			}
-			isTrue(
+			Assert.isTrue(
 				directory.isDirectory(),
 				() -> new InvalidStoragePathException("Storage path doesn't represent a directory: " + directory)
 			);
@@ -140,11 +140,15 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 				try {
 					fileCreated = targetFileRef.createNewFile();
 				} catch (IOException e) {
-					throw new StorageException("Cannot create file " + targetFileRef + "!", e);
+					throw new UnexpectedIOException(
+						"Cannot create file " + targetFileRef + "!",
+						"Cannot create the file.",
+						e
+					);
 				}
 				isPremiseValid(
 					fileCreated,
-					() -> new StorageException("File `" + filePath + "` doesn't exist and was not created!")
+					() -> new UnexpectedIOException("File `" + filePath + "` doesn't exist and was not created!")
 				);
 			}
 			return targetFileRef;
@@ -161,7 +165,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * @param theFilePath    The path to the target file to which data will be written.
 	 * @param storageOptions The storage options that define buffer size, checksum computation, and compression settings.
 	 * @return An {@code ObservableOutput} instance wrapping a {@code FileOutputStream} for the specified file.
-	 * @throws StorageException If the target file cannot be opened or accessed.
+	 * @throws UnexpectedIOException If the target file cannot be opened or accessed.
 	 */
 	@Nonnull
 	static ObservableOutput<FileOutputStream> createObservableOutput(@Nonnull Path theFilePath, @Nonnull StorageOptions storageOptions) {
@@ -182,7 +186,11 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			}
 			return output;
 		} catch (FileNotFoundException ex) {
-			throw new StorageException("Target file " + theFilePath + " cannot be opened!", ex);
+			throw new UnexpectedIOException(
+				"Target file " + theFilePath + " cannot be opened!",
+				"Target file cannot be opened.",
+				ex
+			);
 		}
 	}
 
@@ -236,7 +244,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		this.lockTimeoutSeconds = observableOutputKeeper.getLockTimeoutSeconds();
 		this.storageOptions = storageOptions;
 		this.targetFile = targetFile;
-		Assert.isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
+		isPremiseValid(getTargetFile(targetFile) != null, "Target file should be created or exception thrown!");
 		this.observableOutputKeeper = observableOutputKeeper;
 	}
 
@@ -255,10 +263,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 					this.handleLock.unlock();
 				}
 			}
-			throw new StorageException(operation + " within timeout!");
+			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!");
 		}
 	}
 
@@ -281,10 +289,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 					this.handleLock.unlock();
 				}
 			}
-			throw new StorageException(operation + " within timeout!");
+			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!");
 		}
 	}
 
@@ -307,10 +315,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 					this.handleLock.unlock();
 				}
 			}
-			throw new StorageException(operation + " within timeout!");
+			throw new UnexpectedIOException(operation + " within timeout!");
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException(operation + " due to interrupt!");
+			throw new GenericEvitaInternalError(operation + " due to interrupt!");
 		}
 	}
 
@@ -335,7 +343,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			this.observableOutputKeeper.close(this.targetFile);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new StorageException("Failed to close file due to interrupt!");
+			throw new GenericEvitaInternalError("Failed to close file due to interrupt!");
 		} finally {
 			this.handleLock.unlock();
 		}

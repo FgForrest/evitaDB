@@ -26,8 +26,8 @@ package io.evitadb.store.wal;
 
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.catalog.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 

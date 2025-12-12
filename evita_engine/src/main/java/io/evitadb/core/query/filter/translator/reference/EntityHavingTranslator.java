@@ -32,7 +32,7 @@ import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.AbstractFormula;

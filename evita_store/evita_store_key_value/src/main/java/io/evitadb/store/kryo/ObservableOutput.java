@@ -25,9 +25,9 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.exception.StorageException;
-import io.evitadb.store.model.FileLocation;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.IOUtils;
@@ -152,7 +152,7 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	public ObservableOutput(@Nonnull T outputStream, int flushSize, int bufferSize, long currentFileSize) {
 		super(outputStream, bufferSize);
 		if (bufferSize < flushSize) {
-			throw new StorageException("Buffer size cannot be lower than flush limit with some reserve space!");
+			throw new UnexpectedIOException("Buffer size cannot be lower than flush limit with some reserve space!");
 		}
 		this.total = currentFileSize;
 		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches

@@ -27,13 +27,13 @@ import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.task.TaskStatus.TaskTrait;
 import io.evitadb.core.executor.ClientCallableTask;
 import io.evitadb.core.executor.Interruptible;
-import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.task.FullBackupTask.BackupSettings;
-import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -54,8 +54,8 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.BOOT_FILE_SUFFIX;
-import static io.evitadb.store.spi.CatalogPersistenceService.WAL_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.BOOT_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -66,14 +66,14 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFetch> {
 	private final String catalogName;
-	private final AtomicReference<ExportFileService> exportFileService;
+	private final AtomicReference<ExportService> exportFileService;
 	private final AtomicReference<LongConsumer> onComplete;
 	private final AtomicReference<DefaultCatalogPersistenceService> catalogPersistenceService;
 	private final long lastCatalogVersion;
 
 	public FullBackupTask(
 		@Nonnull String catalogName,
-		@Nonnull ExportFileService exportFileService, @Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
+		@Nonnull ExportService exportService, @Nonnull DefaultCatalogPersistenceService catalogPersistenceService,
 		@Nullable LongConsumer onStart,
 		@Nullable LongConsumer onComplete
 	) {
@@ -87,7 +87,7 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 		);
 		this.catalogName = catalogName;
 		this.catalogPersistenceService = new AtomicReference<>(catalogPersistenceService);
-		this.exportFileService = new AtomicReference<>(exportFileService);
+		this.exportFileService = new AtomicReference<>(exportService);
 		this.onComplete = new AtomicReference<>(onComplete);
 		this.lastCatalogVersion = catalogPersistenceService.getLastCatalogVersion();
 		if (onStart != null) {
@@ -111,18 +111,13 @@ public class FullBackupTask extends ClientCallableTask<BackupSettings, FileForFe
 	 */
 	@Nonnull
 	private FileForFetch doBackup() {
-		final ExportFileService exportFileService = this.exportFileService.get();
+		final ExportService exportFileService = this.exportFileService.get();
 		Assert.isPremiseValid(
 			exportFileService != null,
 			"Backup has already been executed or the task has been interrupted! Resources are cleared!"
 		);
 		try {
 			log.info("Starting full backup of catalog `{}`.", this.catalogName);
-
-			final Path backupFolder = exportFileService.getExportDirectory();
-			if (!backupFolder.toFile().exists()) {
-				Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
-			}
 
 			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
 				"full_backup_" + this.catalogName + "_" +

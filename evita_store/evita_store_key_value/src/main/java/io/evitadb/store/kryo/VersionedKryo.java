@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import com.esotericsoftware.kryo.ReferenceResolver;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexKryoPool;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 /**
  * This class overrides basic {@link Kryo} implementation and adds information about the version
  * of the {@link FileOffsetIndexKryoPool} that was used for creating those instances.
@@ -43,12 +46,16 @@ public class VersionedKryo extends Kryo {
 		this.version = version;
 	}
 
-	public VersionedKryo(long version, ReferenceResolver referenceResolver) {
+	public VersionedKryo(long version, @Nonnull ReferenceResolver referenceResolver) {
 		super(referenceResolver);
 		this.version = version;
 	}
 
-	public VersionedKryo(long version, ClassResolver classResolver, ReferenceResolver referenceResolver) {
+	public VersionedKryo(
+		long version,
+		@Nonnull ClassResolver classResolver,
+		@Nullable ReferenceResolver referenceResolver
+	) {
 		super(classResolver, referenceResolver);
 		this.version = version;
 	}

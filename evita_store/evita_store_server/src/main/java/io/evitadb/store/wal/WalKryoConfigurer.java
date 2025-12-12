@@ -89,8 +89,8 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.transaction.stage.mutation.EntityRemoveMutationWithConflictKeys;
 import io.evitadb.dataType.Scope;
-import io.evitadb.store.dataType.serializer.EnumNameSerializer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
+import io.evitadb.store.entity.serializer.EnumNameSerializer;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.wal.data.EntityRemoveMutationSerializer;
 import io.evitadb.store.wal.data.EntityRemoveMutationWithConflictKeysSerializer;
 import io.evitadb.store.wal.data.EntityUpsertMutationSerializer;

@@ -23,8 +23,8 @@
 
 package io.evitadb.store.offsetIndex.model;
 
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;

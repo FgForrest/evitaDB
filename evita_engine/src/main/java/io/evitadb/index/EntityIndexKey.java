@@ -26,7 +26,7 @@ package io.evitadb.index;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexKeyAccessor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexKeyAccessor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 

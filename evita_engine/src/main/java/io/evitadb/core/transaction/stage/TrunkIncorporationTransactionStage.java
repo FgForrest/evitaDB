@@ -26,7 +26,7 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.metric.event.transaction.NewCatalogVersionPropagatedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionIncorporatedToTrunkEvent;
 import io.evitadb.core.metric.event.transaction.TransactionProcessedEvent;

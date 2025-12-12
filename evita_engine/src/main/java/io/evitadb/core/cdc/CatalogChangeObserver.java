@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;

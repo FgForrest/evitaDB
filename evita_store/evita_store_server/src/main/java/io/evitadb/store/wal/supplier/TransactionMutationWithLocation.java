@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
-import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.shared.model.FileLocation;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

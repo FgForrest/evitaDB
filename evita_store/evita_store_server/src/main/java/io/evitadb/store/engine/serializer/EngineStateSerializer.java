@@ -27,10 +27,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.model.EngineState;
-import io.evitadb.store.spi.model.reference.LogFileRecordReference;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 
 import java.time.OffsetDateTime;
@@ -57,7 +57,7 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		kryo.writeObject(output, engineState.introducedAt());
 
 		// Write WAL file reference if it exists
-		final LogFileRecordReference walFileReference = engineState.walFileReference();
+		final LogFileRecordReference walFileReference = (LogFileRecordReference) engineState.walReference();
 		if (walFileReference == null) {
 			// Indicate that there's no WAL file reference
 			output.writeBoolean(false);
@@ -139,7 +139,7 @@ public class EngineStateSerializer extends Serializer<EngineState> {
 		}
 
 		// Create and return a new EngineState with the read values
-		return new EngineState(
+		return new EngineState<>(
 			storageProtocolVersion,
 			version,
 			introducedAt,

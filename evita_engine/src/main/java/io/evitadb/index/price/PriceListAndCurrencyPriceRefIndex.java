@@ -26,8 +26,8 @@ package io.evitadb.index.price;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.CatalogRelatedDataStructure;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -52,8 +52,8 @@ import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
@@ -67,7 +67,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
 
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 
 /**
  * Index contains information used for filtering by price that is related to specific price list and currency combination.

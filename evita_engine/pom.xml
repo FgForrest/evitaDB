@@ -51,16 +51,6 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_common</artifactId>
-			<version>${project.parent.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_entity</artifactId>
-			<version>${project.parent.version}</version>
-		</dependency>
-		<dependency>
 			<groupId>org.roaringbitmap</groupId>
 			<artifactId>RoaringBitmap</artifactId>
 			<version>${roaringbitmap.version}</version>
@@ -88,6 +78,10 @@
 		<dependency>
 			<groupId>net.openhft</groupId>
 			<artifactId>zero-allocation-hashing</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.esotericsoftware</groupId>
+			<artifactId>kryo</artifactId>
 		</dependency>
 	</dependencies>
 	<build>

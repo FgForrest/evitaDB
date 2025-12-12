@@ -23,7 +23,7 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
@@ -45,7 +45,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple set and makes it transactional. This means, that the map contents can be updated

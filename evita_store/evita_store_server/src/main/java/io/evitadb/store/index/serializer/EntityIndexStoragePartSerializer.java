@@ -36,12 +36,12 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;

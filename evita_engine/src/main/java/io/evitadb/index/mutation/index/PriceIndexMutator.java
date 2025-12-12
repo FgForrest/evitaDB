@@ -34,7 +34,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.index.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.index.dataAccess.ExistingPriceSupplier;
-import io.evitadb.store.entity.model.entity.price.PriceWithInternalIds;
+import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 

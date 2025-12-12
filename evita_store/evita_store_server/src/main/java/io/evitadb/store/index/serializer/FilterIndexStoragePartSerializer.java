@@ -30,9 +30,9 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 

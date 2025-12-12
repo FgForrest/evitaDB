@@ -157,11 +157,12 @@
 		<module>evita_engine</module>
 		<module>evita_db</module>
 		<module>evita_store</module>
+		<module>evita_export/evita_export_fs</module>
 		<module>evita_external_api</module>
 		<module>evita_server</module>
-		<module>evita_test_support</module>
-		<module>evita_functional_tests</module>
-		<module>evita_performance_tests</module>
+		<module>evita_test/evita_test_support</module>
+		<module>evita_test/evita_functional_tests</module>
+		<module>evita_test/evita_performance_tests</module>
 		<module>jacoco</module>
 	</modules>
 

@@ -38,8 +38,8 @@ import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
 import io.evitadb.core.Evita;
-import io.evitadb.core.EvitaManagement;
-import io.evitadb.core.file.ExportFileService;
+import io.evitadb.core.management.EvitaManagement;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
@@ -55,7 +55,7 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
-import io.evitadb.store.spi.CatalogPersistenceServiceFactory.FileIdCarrier;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.ClassifierUtils.Keyword;
@@ -406,7 +406,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						}
 
 						fileId = UUIDUtil.randomUUID();
-						backupFilePath = this.management.exportFileService().createTempFile(fileId + ".zip");
+						backupFilePath = this.management.fileManagementService().createTempFile(fileId + ".zip");
 						restorationTask = this.management.createRestorationTask(
 							catalogNameToRestore,
 							fileId,
@@ -416,7 +416,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 						);
 						this.management.registerWaitingTask(restorationTask);
 					} else {
-						backupFilePath = this.management.exportFileService().getTempFile(fileId + ".zip");
+						backupFilePath = this.management.fileManagementService().getTempFile(fileId + ".zip");
 						restorationTask = this.management.getWaitingTask(createRestoreTaskFindPredicate(fileId))
 							.orElseThrow(() -> new UnexpectedIOException("Task not found for file: " + backupFilePath, "Task not found for file id!"));
 					}
@@ -463,7 +463,7 @@ public class EvitaManagementService extends EvitaManagementServiceGrpc.EvitaMana
 	}
 
 	/**
-	 * Restores catalog from a file that is already stored on the server and managed by {@link ExportFileService}.
+	 * Restores catalog from a file that is already stored on the server and managed by {@link FileManagementService}.
 	 *
 	 * @param request          containing name of the catalog to be restored and the file id
 	 * @param responseObserver observer on which errors might be thrown and result returned

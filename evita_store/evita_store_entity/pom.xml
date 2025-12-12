@@ -38,7 +38,12 @@
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_common</artifactId>
+			<artifactId>evita_store_key_value</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_engine</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>

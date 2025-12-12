@@ -23,9 +23,9 @@
 
 package io.evitadb.store.index.service;
 
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.StoragePartRegistry;
-import io.evitadb.store.spi.model.storageParts.index.*;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
+import io.evitadb.store.shared.service.StoragePartRegistry;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;

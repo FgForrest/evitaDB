@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,15 +26,15 @@ package io.evitadb.core.query.algebra.prefetch;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nullable;
 
 /**
  * Implementations of this interface signalize that the entities needs to be prefetched with particular {@link StoragePart}
  * loaded in order they can operate correctly. The storage parts loading is triggered by placing respective
- * {@link EntityContentRequire} in {@link QueryPlanningContext#fetchEntities(String, int[], EntityFetchRequire)} fetch method}.
+ * {@link EntityContentRequire} in {@link QueryExecutionContext#fetchEntities(String, int[], EntityFetchRequire)} fetch method}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

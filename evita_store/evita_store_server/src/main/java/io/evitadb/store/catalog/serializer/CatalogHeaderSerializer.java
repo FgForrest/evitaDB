@@ -28,11 +28,11 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.CatalogState;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.LogFileRecordReference;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
@@ -56,7 +56,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		output.writeVarInt(catalogHeader.lastEntityCollectionPrimaryKey(), true);
 		output.writeDouble(catalogHeader.activeRecordShare());
 
-		final LogFileRecordReference walFileReference = catalogHeader.walFileReference();
+		final LogFileRecordReference walFileReference = (LogFileRecordReference) catalogHeader.walFileReference();
 		if (walFileReference != null) {
 			output.writeBoolean(true);
 			output.writeVarInt(walFileReference.fileIndex(), true);

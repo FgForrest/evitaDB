@@ -24,9 +24,9 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -41,9 +41,9 @@ import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexKey;
-import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;

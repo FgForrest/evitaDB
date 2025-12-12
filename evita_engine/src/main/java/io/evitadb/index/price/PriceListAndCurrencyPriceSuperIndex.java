@@ -25,7 +25,7 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.core.Catalog;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.PriceAlreadyAssignedToEntityException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -47,8 +47,8 @@ import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -61,7 +61,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -117,7 +117,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	/**
 	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
 	 */
-	private int[] memoizedIndexedPriceIds;
+	@Nullable private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceSuperIndex(@Nonnull PriceIndexKey priceIndexKey) {
 		this.dirty = new TransactionalBoolean();
@@ -451,7 +451,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		);
 	}
 
-	@Nonnull
+	@Nullable
 	private EntityPrices removeEntityPrice(@Nonnull PriceRecordContract priceRecord) {
 		return this.entityPrices.computeIfPresent(
 			priceRecord.entityPrimaryKey(),

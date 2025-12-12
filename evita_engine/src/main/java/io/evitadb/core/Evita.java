@@ -64,8 +64,11 @@ import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.CatalogInactiveException;
 import io.evitadb.core.exception.CatalogTransitioningException;
@@ -74,19 +77,26 @@ import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
 import io.evitadb.core.executor.ObservableThreadExecutor;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
 import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
 import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.task.SessionKiller;
+import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.core.session.EvitaSession;
+import io.evitadb.core.session.SessionRegistry;
+import io.evitadb.core.session.SuspendOperation;
+import io.evitadb.core.session.SuspensionInformation;
+import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.store.spi.EnginePersistenceService;
-import io.evitadb.store.spi.EnginePersistenceServiceFactory;
-import io.evitadb.store.spi.model.EngineState;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
+import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -336,14 +346,15 @@ public final class Evita implements EvitaContract {
 			EnginePersistenceServiceFactory.class
 		);
 
-		final EnginePersistenceService enginePersistenceService = svcLoader
+		//noinspection unchecked
+		final EnginePersistenceService<LogRecordReference> enginePersistenceService = svcLoader
 			.findFirst()
 			.map(it -> it.create(configuration.storage(), configuration.transaction(), this.serviceExecutor))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		this.management = new EvitaManagement(this);
 
-		final EngineState engineState = enginePersistenceService.getEngineState();
+		final EngineState<LogRecordReference> engineState = enginePersistenceService.getEngineState();
 		final HashMap<String, CatalogContract> catalogs = CollectionUtils.createHashMap(
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
 		);
@@ -1029,7 +1040,8 @@ public final class Evita implements EvitaContract {
 			this.cacheSupervisor,
 			this,
 			this.reflectionLookup,
-			this.management.exportFileService(),
+			this.management.exportService(),
+			this.management.fileManagementService(),
 			this::replaceCatalogReference,
 			this.tracingContext
 		);
@@ -1050,7 +1062,8 @@ public final class Evita implements EvitaContract {
 			this.cacheSupervisor,
 			this,
 			this.reflectionLookup,
-			this.management.exportFileService(),
+			this.management.exportService(),
+			this.management.fileManagementService(),
 			this::replaceCatalogReference,
 			(cn, catalog) -> {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
@@ -1175,7 +1188,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Verifies this instance is still active.
 	 */
-	void assertActive() {
+	public void assertActive() {
 		if (!this.active.get()) {
 			throw new InstanceTerminatedException("instance");
 		}
@@ -1184,7 +1197,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Verifies this instance is still active and not in read-only mode.
 	 */
-	void assertActiveAndWritable() {
+	public void assertActiveAndWritable() {
 		assertActive();
 		if (this.readOnly) {
 			throw ReadOnlyException.engineReadOnly();

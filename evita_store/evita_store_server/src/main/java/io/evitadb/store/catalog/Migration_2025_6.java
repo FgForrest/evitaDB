@@ -28,7 +28,7 @@ import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -41,22 +41,23 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.RangePoint;
 import io.evitadb.index.range.TransactionalRangePoint;
-import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
+import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
-import io.evitadb.store.spi.HeaderInfoSupplier;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.storageParts.index.AttributeCardinalityIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePartDeprecated;
-import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
-import io.evitadb.store.spi.model.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -114,10 +115,10 @@ public interface Migration_2025_6 {
 	 * @param postUpgradeAction A consumer that executes a custom action after the catalog has been upgraded, accepting the updated catalog header.
 	 */
 	static void upgradeFromStorageProtocolVersion_3_to_4(
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
-		@Nonnull Function<EntityCollectionHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
-		@Nonnull Consumer<CatalogHeader> postUpgradeAction
+		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction
 	) {
 		// upgrade storage protocol version 3 to 4
 		ConsoleWriter.writeLine(
@@ -130,14 +131,14 @@ public interface Migration_2025_6 {
 		final HashMap<String, CollectionFileReference> newCollectionFileIndex = CollectionUtils.createHashMap(entityTypeFileIndexes.size());
 		// fetch all entity collection headers
 		for (CollectionFileReference entityTypeFileIndex : entityTypeFileIndexes) {
-			final EntityCollectionHeader entityCollectionHeader = Objects.requireNonNull(
+			final EntityCollectionFileHeader entityCollectionHeader = Objects.requireNonNull(
 				storagePartPersistenceService.getStoragePart(
-					catalogVersion, entityTypeFileIndex.entityTypePrimaryKey(), EntityCollectionHeader.class
+					catalogVersion, entityTypeFileIndex.entityTypePrimaryKey(), EntityCollectionFileHeader.class
 				)
 			);
 			final DefaultEntityCollectionPersistenceService collectionPersistenceService = Objects.requireNonNull(
 				entityCollectionPersistenceServiceFactory.apply(
-					new EntityCollectionHeader(
+					new EntityCollectionFileHeader(
 						entityCollectionHeader.version(),
 						entityCollectionHeader.fileLocation(),
 						migrateStrings(entityCollectionHeader.compressedKeys()),
@@ -254,7 +255,7 @@ public interface Migration_2025_6 {
 				catalogVersion,
 				new NoChangeHeaderInfoSupplier(entityCollectionHeader)
 			);
-			final EntityCollectionHeader newCollectionHeader = collectionPersistenceService.getEntityCollectionHeader();
+			final EntityCollectionFileHeader newCollectionHeader = collectionPersistenceService.getEntityCollectionHeader();
 			storagePartPersistenceService.putStoragePart(
 				catalogVersion,
 				newCollectionHeader
@@ -275,7 +276,7 @@ public interface Migration_2025_6 {
 		}
 		// there is nothing to migrate in the storage, just run the post upgrade action
 		postUpgradeAction.accept(
-			new CatalogHeader(
+			new CatalogHeader<>(
 				4,
 				catalogVersion,
 				catalogHeader.walFileReference(),
@@ -501,7 +502,7 @@ public interface Migration_2025_6 {
 	 *                                      the catalog.
 	 */
 	private static void migrateReferencedTypeCardinalityIndex(
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		int indexPrimaryKey,
 		@Nonnull Map<String, Set<Long>> referencedEntityIdToReducedEntityIndexPrimaryKey,
 		@Nonnull String referenceName,
@@ -569,15 +570,15 @@ public interface Migration_2025_6 {
 
 	/**
 	 * An implementation of the {@link HeaderInfoSupplier} interface that provides access to header information
-	 * without modifying the header data. This class utilizes the {@link EntityCollectionHeader} to retrieve various
+	 * without modifying the header data. This class utilizes the {@link EntityCollectionFileHeader} to retrieve various
 	 * header details related to an {@link EntityCollection}.
 	 *
 	 * This class is immutable and ensures that the header information is retrieved exactly as it exists
-	 * in the associated {@link EntityCollectionHeader}.
+	 * in the associated {@link EntityCollectionFileHeader}.
 	 */
 	@RequiredArgsConstructor
 	class NoChangeHeaderInfoSupplier implements HeaderInfoSupplier {
-		private final EntityCollectionHeader entityCollectionHeader;
+		private final EntityCollectionFileHeader entityCollectionHeader;
 
 		@Override
 		public int getLastAssignedPrimaryKey() {
