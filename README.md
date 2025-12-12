@@ -203,27 +203,166 @@ In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/
 ## How this repository is organized
 
 - **documentation**: research documents, documentation, specifications
-- **evita_api**: set of all supported data types in evitaDB, conversions to & from other types, common data structures, basic exception hierarchy
-- **evita_db**: Maven POM allowing to link all necessary libraries for embedded evitaDB usage scenario
-- **evita_engine**: implementation of the database engine
-- **evita_external_api**: web API implementation
-  - **evita_external_api_core**: shared logic for all web APIs, Undertow web server integration, annotation framework for APIs
-  - **evita_external_api_graphql**: implementation of GraphQL API
-  - **evita_external_api_grpc**: implementation of gRPC API
-    - **client**: Java driver for client/server usage scenario  
-    - **client_all_in_one**: Java driver for client/server usage scenario that includes repackaged all necessary dependencies so that it will not conflict with other dependencies in your project (unfortunately it's quite big due to gRPC and Armeria dependencies)  
-    - **server**: gRPC server  
-    - **shared**: shared classes between client & server (generated gRPC stubs)
-  - **evita_external_api_rest**: implementation of REST API
-  - **evita_external_api_lab**: GUI client and its API
-- **evita_functional_tests**: test suite verifying functional correctness of standard and edge cases of the API on a
-  small amount of data, this library also contains unit tests for evita_db
-- **evita_performance_tests**: test suite executing most common operations on real world data that generates performance
-  statistics of each implementation
-- **evita_query**: query language, query parser, utilities for query handling
-- **evita_store**: binary serialization using Kryo library, persistent key/value datastore implementation
-- **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
+- **evita_common**: shared functions, exceptions, data types, and common utilities
+- **evita_query**: query language (EvitaQL), query parser, and utilities for query handling
+- **evita_api**: public API of evitaDB including data type conversions and basic structures
+- **evita_engine**: implementation of the database engine core
+- **evita_store**: storage layer implementation
+  - **evita_store_key_value**: key-value store implementation with binary serialization using Kryo library
+  - **evita_store_entity**: entity storage format and Kryo serialization (shared between server and Java client)
+  - **evita_store_server**: server data structures persistence implementation
+  - **evita_traffic_engine**: traffic engine recorder for storing traffic data
+- **evita_export**: export services
+  - **evita_export_fs**: export service implementation for local file system
+- **evita_external_api**: web API implementations
+  - **evita_external_api_core**: shared logic for all web APIs, Armeria HTTP server integration, and common utilities
+  - **evita_external_api_graphql**: GraphQL API implementation
+  - **evita_external_api_grpc**: gRPC API implementation
+    - **shared**: shared classes between gRPC server and Java client (generated gRPC stubs)
+    - **server**: gRPC server implementation
+    - **client**: Java driver for client/server usage scenario
+    - **client_observability**: Java driver observability capabilities (OpenTelemetry integration)
+    - **client_all_in_one**: Java driver with all dependencies shaded to avoid conflicts (larger JAR due to gRPC and Armeria dependencies)
+  - **evita_external_api_rest**: REST API implementation with OpenAPI/Swagger support
+  - **evita_external_api_system**: System API for server management and monitoring
+  - **evita_external_api_lab**: evitaLab GUI client server support
+  - **evita_external_api_observability**: Observability API with Prometheus metrics and OpenTelemetry tracing
+- **evita_db**: Maven POM bundle for embedded evitaDB usage scenario
+- **evita_server**: standalone server with all APIs bundled
+- **evita_test**: test modules
+  - **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
+  - **evita_functional_tests**: test suite verifying functional correctness of standard and edge cases of the API
+  - **evita_performance_tests**: JMH-based performance tests generating statistics for common operations
 - **jacoco**: Maven POM that allows to aggregate test coverage for entire project
+
+### Module dependency graph
+
+```mermaid
+flowchart TD
+    subgraph core["Core Modules"]
+        common[evita_common]
+        query[evita_query]
+        api[evita_api]
+        engine[evita_engine]
+    end
+
+    subgraph store["Storage Layer"]
+        store_kv[evita_store_key_value]
+        store_entity[evita_store_entity]
+        store_server[evita_store_server]
+        traffic[evita_traffic_engine]
+    end
+
+    subgraph export["Export"]
+        export_fs[evita_export_fs]
+    end
+
+    subgraph external["External APIs"]
+        api_core[evita_external_api_core]
+        api_graphql[evita_external_api_graphql]
+        api_rest[evita_external_api_rest]
+        api_system[evita_external_api_system]
+        api_observability[evita_external_api_observability]
+        api_lab[evita_external_api_lab]
+        subgraph grpc["gRPC"]
+            grpc_shared[grpc_shared]
+            grpc_server[grpc_server]
+            grpc_client[java_driver]
+            grpc_client_obs[java_driver_observability]
+            grpc_client_aio[java_driver_all_in_one]
+        end
+    end
+
+    subgraph bundles["Bundles"]
+        db[evita_db]
+        server[evita_server]
+    end
+
+    subgraph testing["Testing"]
+        test_support[evita_test_support]
+        func_tests[evita_functional_tests]
+        perf_tests[evita_performance_tests]
+    end
+
+    %% Core dependencies
+    query --> common
+    api --> common
+    api --> query
+    engine --> common
+    engine --> query
+    engine --> api
+
+    %% Storage dependencies
+    store_kv --> common
+    store_kv --> engine
+    store_entity --> store_kv
+    store_entity --> engine
+    store_server --> store_entity
+    store_server --> store_kv
+    store_server --> engine
+    traffic --> engine
+    traffic --> store_kv
+    traffic --> store_server
+
+    %% Export dependencies
+    export_fs --> engine
+    export_fs --> api
+
+    %% External API dependencies
+    api_core --> api
+    api_core --> engine
+    grpc_shared --> api
+    grpc_shared --> query
+    grpc_server --> api_core
+    grpc_server --> grpc_shared
+    grpc_client --> api
+    grpc_client --> grpc_shared
+    grpc_client_obs --> api
+    grpc_client_obs -.-> grpc_client
+    grpc_client_aio --> grpc_client
+    api_graphql --> api_core
+    api_graphql --> store_server
+    api_rest --> api_core
+    api_rest --> store_server
+    api_system --> api_core
+    api_system --> store_server
+    api_observability --> api_core
+    api_observability --> store_server
+    api_observability --> traffic
+    api_observability --> grpc_server
+    api_observability --> api_graphql
+    api_observability --> api_rest
+    api_lab --> api_core
+    api_lab --> api_graphql
+    api_lab --> api_rest
+    api_lab --> api_system
+    api_lab --> grpc_server
+    api_lab --> api_observability
+
+    %% Bundle dependencies
+    db --> engine
+    db --> store_server
+    db --> store_entity
+    server --> engine
+    server --> store_kv
+    server --> store_entity
+    server --> store_server
+    server --> export_fs
+    server --> traffic
+    server --> api_core
+    server --> api_graphql
+    server --> api_rest
+    server --> grpc_server
+    server --> api_system
+    server --> api_lab
+    server --> api_observability
+
+    %% Test dependencies
+    test_support --> server
+    test_support --> grpc_client
+    func_tests -.-> test_support
+    perf_tests --> test_support
+```
 
 # Quality requirements for the code
 

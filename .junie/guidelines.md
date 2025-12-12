@@ -20,6 +20,7 @@ It is intended to ensure consistency, readability, and maintainability across th
 - add line comments to complex logic
 - avoid unnecessary memory allocations in performance-critical code
 - avoid unnecessary object boxing in performance-critical code
+- avoid streams and write allocation optimized loops in performance-critical code
 - avoid using exceptions for control flow
 - prefer performance to readability in performance-critical code
 
@@ -41,8 +42,12 @@ It is intended to ensure consistency, readability, and maintainability across th
 ### Testing
 
 - **JUnit 5**: Use JUnit 5 for unit tests
-- all test files are located in the `evita_functional_tests/src/test/java` directory
+- all test files are located in the `evita_test/evita_functional_tests/src/test/java` directory
 - automatically generate test cases for all public methods
 - name tests using the format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
 - use @DisplayName for entire class
 - use @DisplayName for test methods to provide a clear description of the test, do not repeat the content in class @DisplayName
+
+### Project organization
+
+Project structure and organization is described in `How this repository is organized` of the `README.md` file located in the root directory of the repository.
