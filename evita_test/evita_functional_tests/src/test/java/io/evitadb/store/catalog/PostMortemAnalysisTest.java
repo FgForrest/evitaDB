@@ -39,6 +39,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.store.kryo.ObservableInput;
@@ -241,9 +242,12 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 				new EvitaConfiguration(
 					"postMortemAnalysisTest",
 					ServerOptions.builder().readOnly(true).closeSessionsAfterSecondsOfInactivity(Integer.MAX_VALUE).build(),
-					StorageOptions.builder().storageDirectory(basePath).exportDirectory(exportPath).compress(true).build(),
+					StorageOptions.builder().storageDirectory(basePath).compress(true).build(),
 					TransactionOptions.builder().build(),
-					CacheOptions.builder().build()
+					CacheOptions.builder().build(),
+					FileSystemExportOptions.builder()
+						.directory(exportPath)
+						.build()
 				)
 			)
 		) {
@@ -322,7 +326,6 @@ public class PostMortemAnalysisTest implements EvitaTestSupport {
 	void shouldVerifyCrc32() throws FileNotFoundException {
 		final StorageOptions storageOptions = StorageOptions.builder()
 			.storageDirectory(Path.of("/www/oss/evitaDB-temporary/data"))
-			.exportDirectory(Path.of("/www/oss/evitaDB-temporary/export"))
 			.fileSizeCompactionThresholdBytes(1_073_741_824L)
 			.minimalActiveRecordShare(0.7d)
 			.compress(true)

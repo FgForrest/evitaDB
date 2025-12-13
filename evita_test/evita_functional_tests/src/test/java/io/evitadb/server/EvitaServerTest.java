@@ -30,9 +30,11 @@ import com.linecorp.armeria.client.grpc.GrpcClients;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.TlsKeyPair;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.certificate.LoadedCertificates;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.certificate.ServerCertificateManager.CertificateType;
@@ -919,6 +921,16 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			assertEquals(TlsMode.FORCE_TLS, observabilityConfig.getTlsMode());
 			assertFalse(observabilityConfig.isKeepAlive());
 
+			// verify deprecated export settings were migrated correctly
+			final Evita evita = evitaServer.getEvita();
+			final ExportOptions exportOptions = evita.getConfiguration().export();
+			assertEquals(536870912L, exportOptions.getSizeLimitBytes());
+			assertEquals(86400L, exportOptions.getHistoryExpirationSeconds());
+			assertTrue(
+				((FileSystemExportOptions) exportOptions)
+					.getDirectory().toString().contains("deprecated-export")
+			);
+
 		} catch (Exception ex) {
 			fail(ex);
 		} finally {
@@ -1012,6 +1024,8 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 			Stream.of(
 					Stream.of(
 						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+						property("export.fileSystem.enabled", "true"),
+						property("export.fileSystem.directory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST + "_export").toString()),
 						property("cache.enabled", "false"),
 						property("server.directExecutor", "false"),
 						property("api.requestTimeoutInMillis", "10K")

@@ -26,6 +26,7 @@ package io.evitadb.core.exception;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.spi.export.ExportServiceFactory;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
@@ -34,13 +35,26 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class ExportServiceImplementationNotFoundException extends EvitaInternalError {
-	@Serial private static final long serialVersionUID = 8257268769102387735L;
+	@Serial private static final long serialVersionUID = -7687226196958501956L;
 
 	public ExportServiceImplementationNotFoundException() {
 		super(
 			"Export service implementation is not found on classpath! " +
 			"Please, make sure you have `evita_export_fs` JAR (or the other implementation of " +
 				"`io.evitadb.spi.export.ExportServiceFactory`) on the classpath."
+		);
+	}
+
+	/**
+	 * Creates exception indicating that the requested export service implementation was not found.
+	 *
+	 * @param implementationCode the implementation code that was requested but not found
+	 */
+	public ExportServiceImplementationNotFoundException(@Nonnull String implementationCode) {
+		super(
+			"Export service implementation `" + implementationCode + "` is not found on classpath! " +
+			"Please, make sure you have the appropriate JAR (e.g. `evita_export_fs` for `fileSystem` " +
+			"or `evita_export_s3` for `s3`) on the classpath."
 		);
 	}
 

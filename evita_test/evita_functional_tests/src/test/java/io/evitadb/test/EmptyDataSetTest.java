@@ -41,14 +41,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 public class EmptyDataSetTest implements EvitaTestSupport {
 	private static final String DIR_EMPTY_DATA_SET_TEST = "emptyDataSetTest";
-	private static final String DIR_EMPTY_DATA_SET_TEST_EXPORT = "emptyDataSetTest_export";
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
 		// clean test directory to start from scratch
 		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST_EXPORT);
 		// initialize the evitaDB server
 		this.evita = new Evita(
 			EvitaConfiguration.builder()
@@ -63,7 +61,6 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST))
-						.exportDirectory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST_EXPORT))
 						.build()
 				)
 				.cache(
@@ -82,7 +79,6 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 	void tearDown() {
 		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST_EXPORT);
 	}
 
 	@Test

@@ -229,7 +229,6 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(1_000_000)
 					.minimalActiveRecordShare(0.8)

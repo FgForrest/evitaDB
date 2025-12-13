@@ -28,6 +28,10 @@ module evita.export.s3 {
 
 	exports io.evitadb.export.s3;
 
+	opens io.evitadb.export.s3 to com.fasterxml.jackson.databind;
+	exports io.evitadb.export.s3.configuration;
+	opens io.evitadb.export.s3.configuration to com.fasterxml.jackson.databind;
+
 	provides io.evitadb.spi.export.ExportServiceFactory with io.evitadb.export.s3.ExportS3ServiceFactory;
 
 	requires static lombok;
@@ -37,6 +41,6 @@ module evita.export.s3 {
 	requires evita.common;
 	requires jsr305;
 	requires org.slf4j;
-	requires io.minio;
+	requires minio;
 
 }

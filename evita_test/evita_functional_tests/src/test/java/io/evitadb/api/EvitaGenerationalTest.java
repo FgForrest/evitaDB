@@ -361,7 +361,6 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT))
 					.build()
 			)
 			.build();

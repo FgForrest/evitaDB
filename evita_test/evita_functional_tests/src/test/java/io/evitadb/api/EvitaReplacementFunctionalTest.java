@@ -204,7 +204,6 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_REPLACEMENT_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_REPLACEMENT_TEST_EXPORT))
 					.maxOpenedReadHandles(100)
 					.build()
 			)

@@ -41,6 +41,7 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.store.traffic.InputStreamTrafficRecordReader;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -485,7 +486,11 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT))
 					.build()
 			)
 			.build();

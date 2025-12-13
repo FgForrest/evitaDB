@@ -66,6 +66,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
@@ -4158,7 +4159,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST_EXPORT))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();

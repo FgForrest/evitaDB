@@ -59,20 +59,17 @@ import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 @Tag(LONG_RUNNING_TEST)
 class SessionKillerTest implements EvitaTestSupport {
 	public static final String SUB_DIRECTORY = "SessionKillerTest";
-	public static final String SUB_DIRECTORY_EXPORT = "SessionKillerTest_export";
 	private Evita evita;
 	private SessionKiller sessionKiller;
 
 	@BeforeEach
 	void setUp() throws IOException, NoSuchFieldException, IllegalAccessException {
 		cleanTestSubDirectory(SUB_DIRECTORY);
-		cleanTestSubDirectory(SUB_DIRECTORY_EXPORT);
 		this.evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(SUB_DIRECTORY))
-						.exportDirectory(getTestDirectory().resolve(SUB_DIRECTORY_EXPORT))
 						.build()
 				)
 				.server(
@@ -91,7 +88,6 @@ class SessionKillerTest implements EvitaTestSupport {
 	void tearDown() throws IOException {
 		this.evita.close();
 		cleanTestSubDirectory(SUB_DIRECTORY);
-		cleanTestSubDirectory(SUB_DIRECTORY_EXPORT);
 	}
 
 	@Test

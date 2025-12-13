@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -136,7 +137,11 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST_EXPORT))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();

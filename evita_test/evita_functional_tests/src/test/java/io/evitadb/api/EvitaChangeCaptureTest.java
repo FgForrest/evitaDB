@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -66,8 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EvitaChangeCaptureTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
-	public static final String DIR_EVITA_TEST = "evitaCdcTest";
-	public static final String DIR_EVITA_TEST_EXPORT = "evitaCdcTest_export";
+	public static final String DIR_EVITA_CDC_TEST = "evitaCdcTest";
+	public static final String DIR_EVITA_CDC_TEST_EXPORT = "evitaCdcTest_export";
 	public static final String PRICE_LIST_BASIC = "basic";
 	public static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	public static final Currency CURRENCY_USD = Currency.getInstance("USD");
@@ -100,8 +101,8 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST_EXPORT);
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -111,8 +112,8 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_CDC_TEST_EXPORT);
 	}
 
 	@Test
@@ -572,9 +573,13 @@ class EvitaChangeCaptureTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_CDC_TEST))
 					.timeTravelEnabled(false)
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_CDC_TEST_EXPORT))
 					.build()
 			)
 			.build();

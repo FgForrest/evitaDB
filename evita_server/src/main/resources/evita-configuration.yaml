@@ -32,7 +32,6 @@ server:
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}
-  exportDirectory: ${storage.exportDirectory:null}
   workDirectory: ${storage.workDirectory:null}
   lockTimeoutSeconds: ${storage.lockTimeoutSeconds:60}
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
@@ -44,8 +43,22 @@ storage:
   minimalActiveRecordShare: ${storage.minimalActiveRecordShare:0.5}
   fileSizeCompactionThresholdBytes: ${storage.fileSizeCompactionThresholdBytes:100M}
   timeTravelEnabled: ${storage.timeTravelEnabled:false}
-  exportDirectorySizeLimitBytes: ${storage.exportDirectorySizeLimitBytes:1G}
-  exportFileHistoryExpirationSeconds: ${storage.exportFileHistoryExpirationSeconds:7d}
+
+export:
+  fileSystem:
+    enabled: ${export.fileSystem.enabled:null}
+    sizeLimitBytes: ${export.fileSystem.sizeLimitBytes:1G}
+    historyExpirationSeconds: ${export.fileSystem.historyExpirationSeconds:7d}
+    directory: ${export.fileSystem.directory:null}
+  s3:
+    enabled: ${export.s3.enabled:null}
+    sizeLimitBytes: ${export.s3.sizeLimitBytes:1G}
+    historyExpirationSeconds: ${export.s3.historyExpirationSeconds:7d}
+    endpoint: ${export.s3.endpoint:null}
+    bucket: ${export.s3.bucket:null}
+    accessKey: ${export.s3.accessKey:null}
+    secretKey: ${export.s3.secretKey:null}
+    region: ${export.s3.region:null}
 
 transaction:
   transactionWorkDirectory: ${transaction.workDirectory:null}

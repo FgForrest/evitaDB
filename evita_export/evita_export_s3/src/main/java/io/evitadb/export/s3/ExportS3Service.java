@@ -23,10 +23,11 @@
 
 package io.evitadb.export.s3;
 
-import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import lombok.extern.slf4j.Slf4j;
@@ -54,9 +55,9 @@ import java.util.UUID;
 public class ExportS3Service implements ExportService {
 
 	/**
-	 * Storage configuration options.
+	 * S3-specific export configuration options containing all settings.
 	 */
-	private final StorageOptions storageOptions;
+	private final S3ExportOptions s3Options;
 
 	/**
 	 * Scheduler for background tasks.
@@ -66,11 +67,16 @@ public class ExportS3Service implements ExportService {
 	/**
 	 * Creates a new instance of {@link ExportS3Service}.
 	 *
-	 * @param storageOptions the storage configuration options
-	 * @param scheduler the scheduler for background tasks
+	 * @param exportOptions the export configuration options
+	 * @param scheduler     the scheduler for background tasks
 	 */
-	public ExportS3Service(@Nonnull StorageOptions storageOptions, @Nonnull Scheduler scheduler) {
-		this.storageOptions = storageOptions;
+	public ExportS3Service(@Nonnull ExportOptions exportOptions, @Nonnull Scheduler scheduler) {
+		if (!(exportOptions instanceof S3ExportOptions)) {
+			throw new IllegalArgumentException(
+				"ExportS3Service requires S3ExportOptions but got: " + exportOptions.getClass().getSimpleName()
+			);
+		}
+		this.s3Options = (S3ExportOptions) exportOptions;
 		this.scheduler = scheduler;
 	}
 

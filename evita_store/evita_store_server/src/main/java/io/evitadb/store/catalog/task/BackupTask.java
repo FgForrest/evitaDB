@@ -152,11 +152,6 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 			log.info("Starting backup of catalog `{}` at version {}.", this.catalogName, catalogVersion);
 
-			final Path backupFolder = defaultCatalogPersistenceService.getStorageOptions().exportDirectory();
-			if (!backupFolder.toFile().exists()) {
-				Assert.isPremiseValid(backupFolder.toFile().mkdirs(), "Failed to create backup folder `" + backupFolder + "`!");
-			}
-
 			final ExportFileHandle exportFileHandle = exportService.storeFile(
 				"backup_" + this.catalogName + "_" +
 					(thePastMoment == null && theHistoricalCatalogVersion == null ?

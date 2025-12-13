@@ -182,7 +182,7 @@ public interface EvitaTestSupport extends TestConstants {
 	default Path getRootDirectory() {
 		final Path workingDirPath = Path.of(System.getProperty("user.dir"));
 		if (workingDirPath.toString().contains(File.separator + "evita_")) {
-			return workingDirPath.resolve("..");
+			return workingDirPath.resolve("../..");
 		} else {
 			return workingDirPath.resolve("");
 		}

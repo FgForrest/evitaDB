@@ -97,7 +97,6 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN, new Locale("cs", "CZ")
 	};
 	private static final String TEST_FOLDER = "offsetIndexTest";
-	private static final String TEST_FOLDER_EXPORT = "offsetIndexTest_export";
 	private final Path targetFile = Files.createTempFile("fileOffsetIndex", "kryo");
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 
@@ -289,14 +288,12 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	void setUp() throws IOException {
 		this.targetFile.toFile().delete();
 		cleanTestSubDirectory(TEST_FOLDER);
-		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
 	@AfterEach
 	void tearDown() throws IOException {
 		this.targetFile.toFile().delete();
 		cleanTestSubDirectory(TEST_FOLDER);
-		cleanTestSubDirectory(TEST_FOLDER_EXPORT);
 	}
 
 	@DisplayName("Offset index can be stored empty.")
@@ -920,7 +917,6 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	private StorageOptions buildOptionsWithLimitedBuffer(Crc32Check crc32Check, Compression compression) {
 		return StorageOptions.builder()
 			.storageDirectory(getTestDirectory().resolve(TEST_FOLDER))
-			.exportDirectory(getTestDirectory().resolve(TEST_FOLDER_EXPORT))
 			.waitOnCloseSeconds(5)
 			.lockTimeoutSeconds(5)
 			.outputBufferSize(4096)

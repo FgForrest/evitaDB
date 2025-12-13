@@ -28,6 +28,10 @@ module evita.export.fs {
 
 	exports io.evitadb.export.file;
 
+	opens io.evitadb.export.file to com.fasterxml.jackson.databind;
+	exports io.evitadb.export.file.configuration;
+	opens io.evitadb.export.file.configuration to com.fasterxml.jackson.databind;
+
 	provides io.evitadb.spi.export.ExportServiceFactory with io.evitadb.export.file.ExportFileServiceFactory;
 
 	requires static lombok;

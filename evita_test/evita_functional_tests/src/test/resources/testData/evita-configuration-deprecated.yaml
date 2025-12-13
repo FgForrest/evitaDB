@@ -1,3 +1,8 @@
+storage:
+  exportDirectory: "${java.io.tmpdir}/evita/deprecated-export"
+  exportDirectorySizeLimitBytes: 536870912
+  exportFileHistoryExpirationSeconds: 86400
+
 api:
   keepAlive: false
   endpoints:

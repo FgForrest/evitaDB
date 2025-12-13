@@ -69,6 +69,7 @@ import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.function.TriFunction;
@@ -328,6 +329,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final EvitaConfiguration.Builder builder = EvitaConfiguration.builder()
 			.name(originalConfiguration.name())
 			.storage(originalConfiguration.storage())
+			.export(originalConfiguration.export())
 			.server(originalConfiguration.server())
 			.cache(originalConfiguration.cache())
 			.transaction(originalConfiguration.transaction());
@@ -1517,6 +1519,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                         .build()
                 )
                 .storage(originalConfiguration.storage())
+	            .export(originalConfiguration.export())
                 .server(originalConfiguration.server())
                 .cache(originalConfiguration.cache())
                 .build()
@@ -1584,6 +1587,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                         .build()
                 )
                 .storage(originalConfiguration.storage())
+	            .export(originalConfiguration.export())
                 .server(originalConfiguration.server())
                 .cache(originalConfiguration.cache())
                 .build()
@@ -1679,6 +1683,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                         .build()
                 )
                 .storage(originalConfiguration.storage())
+	            .export(originalConfiguration.export())
                 .server(originalConfiguration.server())
                 .cache(originalConfiguration.cache())
                 .build()
@@ -1777,6 +1782,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                         .build()
                 )
                 .storage(originalConfiguration.storage())
+	            .export(originalConfiguration.export())
                 .server(originalConfiguration.server())
                 .cache(originalConfiguration.cache())
                 .build()
@@ -1879,6 +1885,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                         .build()
                 )
                 .storage(originalConfiguration.storage())
+	            .export(originalConfiguration.export())
                 .server(originalConfiguration.server())
                 .cache(originalConfiguration.cache())
                 .build()
@@ -1987,6 +1994,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.build()
 				)
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.server(originalConfiguration.server())
 				.cache(originalConfiguration.cache())
 				.build()
@@ -2071,6 +2079,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.build()
 				)
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.server(originalConfiguration.server())
 				.cache(originalConfiguration.cache())
 				.build()
@@ -2155,6 +2164,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						.build()
 				)
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.server(originalConfiguration.server())
 				.cache(originalConfiguration.cache())
 				.build()
@@ -2472,6 +2482,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			EvitaConfiguration.builder()
 				.name(originalConfiguration.name())
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.transaction(
 					TransactionOptions.builder()
 						.flushFrequencyInMillis(60_000)
@@ -2594,6 +2605,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			EvitaConfiguration.builder()
 				.name(originalConfiguration.name())
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.transaction(
 					TransactionOptions.builder()
 						.build()
@@ -2629,6 +2641,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			EvitaConfiguration.builder()
 				.name(originalConfiguration.name())
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.transaction(
 					TransactionOptions.builder()
 						.build()
@@ -2654,7 +2667,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
                     lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
 			);
 
-			final Path backupFilePath = lastBackupProcess.get().get().path(evita.getConfiguration().storage().exportDirectory());
+			final Path backupFilePath = lastBackupProcess.get().get().path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -2725,6 +2738,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			EvitaConfiguration.builder()
 				.name(originalConfiguration.name())
 				.storage(originalConfiguration.storage())
+				.export(originalConfiguration.export())
 				.transaction(
 					TransactionOptions.builder()
 						.build()
@@ -2749,7 +2763,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				evita, productSchema, theEvita -> lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
 			);
 
-			final Path backupFilePath = lastBackupProcess.get().get().path(evita.getConfiguration().storage().exportDirectory());
+			final Path backupFilePath = lastBackupProcess.get().get().path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
@@ -2816,7 +2830,6 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					.storage(
 						StorageOptions.builder()
 							.storageDirectory(testDirectory)
-							.exportDirectory(testDirectoryExport)
 							.minimalActiveRecordShare(0.9)
 							.fileSizeCompactionThresholdBytes(16_384)
 							.timeTravelEnabled(true)
@@ -3026,7 +3039,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 									log.info("Bootstrap record: " + record);
 									// create backup from each point in time
 									final Path backupPath = restartedEvita.management().backupCatalog(TEST_CATALOG, null, record.catalogVersion(), false)
-										.get(2, TimeUnit.MINUTES).path(evita.getConfiguration().storage().exportDirectory());
+										.get(2, TimeUnit.MINUTES).path(((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 									// restore it to unique new catalog
 									final String restoredCatalogName = TEST_CATALOG + "_restored_" + record.catalogVersion();
 									try (final InputStream inputStream = Files.newInputStream(backupPath)) {
@@ -3078,11 +3091,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					.storage(
 						StorageOptions.builder()
 							.storageDirectory(testDirectory)
-							.exportDirectory(testDirectoryExport)
 							.minimalActiveRecordShare(0.9)
 							.fileSizeCompactionThresholdBytes(250_000)
 							.timeTravelEnabled(true)
 							.compress(true)
+							.build()
+					)
+					.export(
+						FileSystemExportOptions.builder()
+							.directory(testDirectoryExport)
 							.build()
 					)
 					.transaction(

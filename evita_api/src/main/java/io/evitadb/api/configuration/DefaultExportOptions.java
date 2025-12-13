@@ -21,51 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.export.s3;
-
-import io.evitadb.api.configuration.ExportOptions;
-import io.evitadb.core.executor.Scheduler;
-import io.evitadb.export.s3.configuration.S3ExportOptions;
-import io.evitadb.spi.export.ExportService;
-import io.evitadb.spi.export.ExportServiceFactory;
+package io.evitadb.api.configuration;
 
 import javax.annotation.Nonnull;
 
 /**
- * This factory is implementation that instantiates S3-based export service, which stores exported files
- * into S3-compatible storage (such as Amazon S3 or MinIO).
+ * Default implementation of {@link ExportOptions} that is used when no specific export implementation is configured.
+ * System will automatically selects implementation with highest priority from available ones and default configuration.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public class ExportS3ServiceFactory implements ExportServiceFactory {
+public class DefaultExportOptions extends ExportOptions {
+	public static final ExportOptions INSTANCE = new DefaultExportOptions();
 
 	@Nonnull
 	@Override
 	public String getImplementationCode() {
-		return S3ExportOptions.IMPLEMENTATION_CODE;
-	}
-
-	@Nonnull
-	@Override
-	public Class<S3ExportOptions> getConfigurationClass() {
-		return S3ExportOptions.class;
-	}
-
-	@Override
-	public int getPriority() {
-		return 50;
-	}
-
-	@Nonnull
-	@Override
-	public ExportOptions createDefaultOptions() {
-		return new S3ExportOptions();
-	}
-
-	@Nonnull
-	@Override
-	public ExportService create(@Nonnull ExportOptions exportOptions, @Nonnull Scheduler scheduler) {
-		return new ExportS3Service(exportOptions, scheduler);
+		return "default";
 	}
 
 }
