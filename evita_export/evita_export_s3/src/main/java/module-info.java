@@ -41,6 +41,7 @@ module evita.export.s3 {
 	requires evita.common;
 	requires jsr305;
 	requires org.slf4j;
+	requires okhttp3;
 	requires minio;
 
 }

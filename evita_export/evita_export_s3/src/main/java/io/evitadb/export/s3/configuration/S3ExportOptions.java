@@ -24,6 +24,7 @@
 package io.evitadb.export.s3.configuration;
 
 import io.evitadb.api.configuration.ExportOptions;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.ToString;
@@ -132,6 +133,62 @@ public class S3ExportOptions extends ExportOptions {
 	@Override
 	public String getImplementationCode() {
 		return IMPLEMENTATION_CODE;
+	}
+
+	/**
+	 * Returns the S3-compatible endpoint URL.
+	 *
+	 * @return the endpoint URL
+	 * @throws EvitaInvalidUsageException if endpoint is null
+	 */
+	@Nonnull
+	public String getEndpointOrThrowException() {
+		if (this.endpoint == null) {
+			throw new EvitaInvalidUsageException("S3 endpoint is not configured.");
+		}
+		return this.endpoint;
+	}
+
+	/**
+	 * Returns the name of the S3 bucket.
+	 *
+	 * @return the bucket name
+	 * @throws EvitaInvalidUsageException if bucket is null
+	 */
+	@Nonnull
+	public String getBucketOrThrowException() {
+		if (this.bucket == null) {
+			throw new EvitaInvalidUsageException("S3 bucket is not configured.");
+		}
+		return this.bucket;
+	}
+
+	/**
+	 * Returns the access key for S3 authentication.
+	 *
+	 * @return the access key
+	 * @throws EvitaInvalidUsageException if accessKey is null
+	 */
+	@Nonnull
+	public String getAccessKeyOrThrowException() {
+		if (this.accessKey == null) {
+			throw new EvitaInvalidUsageException("S3 access key is not configured.");
+		}
+		return this.accessKey;
+	}
+
+	/**
+	 * Returns the secret key for S3 authentication.
+	 *
+	 * @return the secret key
+	 * @throws EvitaInvalidUsageException if secretKey is null
+	 */
+	@Nonnull
+	public String getSecretKeyOrThrowException() {
+		if (this.secretKey == null) {
+			throw new EvitaInvalidUsageException("S3 secret key is not configured.");
+		}
+		return this.secretKey;
 	}
 
 	@Override

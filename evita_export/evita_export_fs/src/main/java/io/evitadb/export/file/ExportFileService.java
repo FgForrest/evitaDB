@@ -100,6 +100,10 @@ public class ExportFileService implements ExportService {
 	 * Task that periodically purges old files from the storage.
 	 */
 	private final DelayedAsyncTask purgeTask;
+	/**
+	 * Provider for current time, allowing injection of controllable time for testing.
+	 */
+	private final Supplier<OffsetDateTime> timeProvider;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -132,9 +136,31 @@ public class ExportFileService implements ExportService {
 		}
 	}
 
+	/**
+	 * Creates a new ExportFileService with default time provider using system clock.
+	 *
+	 * @param exportOptions export options configuration
+	 * @param scheduler scheduler for background tasks
+	 */
 	public ExportFileService(
 		@Nonnull ExportOptions exportOptions,
 		@Nonnull Scheduler scheduler
+	) {
+		this(exportOptions, scheduler, OffsetDateTime::now);
+	}
+
+	/**
+	 * Creates a new ExportFileService with custom time provider.
+	 * This constructor allows injection of a controllable time source for testing.
+	 *
+	 * @param exportOptions export options configuration
+	 * @param scheduler scheduler for background tasks
+	 * @param timeProvider supplier for current time
+	 */
+	public ExportFileService(
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull Supplier<OffsetDateTime> timeProvider
 	) {
 		if (!(exportOptions instanceof FileSystemExportOptions)) {
 			throw new IllegalArgumentException(
@@ -142,6 +168,7 @@ public class ExportFileService implements ExportService {
 			);
 		}
 		this.fsOptions = (FileSystemExportOptions) exportOptions;
+		this.timeProvider = timeProvider;
 		// init files for fetch
 		if (this.fsOptions.getDirectory().toFile().exists()) {
 			try (final Stream<Path> fileStream = Files.list(this.fsOptions.getDirectory())) {
@@ -263,7 +290,7 @@ public class ExportFileService implements ExportService {
 								description,
 								contentType,
 								Files.size(finalFilePath),
-								OffsetDateTime.now(),
+								this.timeProvider.get(),
 								origin == null ? null : Arrays.stream(origin.split(","))
 									.map(String::trim)
 									.toArray(String[]::new)
@@ -405,8 +432,17 @@ public class ExportFileService implements ExportService {
 		return 0L;
 	}
 
-	@Override
-	public void writeFileMetadata(
+	/**
+	 * Writes or updates the sidecar metadata for the provided file descriptor.
+	 *
+	 * Implementations may persist human-readable or machine-usable metadata (e.g. JSON) next to the
+	 * binary content. Existing metadata can be overwritten based on {@code options}.
+	 *
+	 * @param fileForFetch	 descriptor of the file whose metadata should be persisted
+	 * @param options	 optional {@link java.nio.file.StandardOpenOption} flags controlling write mode
+	 * @throws EvitaIOException if the metadata cannot be written
+	 */
+	private void writeFileMetadata(
 		@Nonnull FileForFetch fileForFetch,
 		@Nonnull OpenOption... options
 	) throws EvitaIOException {
