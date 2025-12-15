@@ -25,9 +25,11 @@ package io.evitadb.export.s3;
 
 import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import com.google.common.collect.Lists;
+import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.model.ExportFileHandle;
@@ -46,6 +48,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -121,7 +124,22 @@ class ExportS3ServiceTest {
 			.build();
 
 		// Create service instance - this will also create the bucket
-		this.exportService = new ExportS3Service(this.exportOptions, Mockito.mock(Scheduler.class));
+		this.exportService = createExportService();
+	}
+
+	@Nonnull
+	private ExportS3Service createExportService() {
+		return new ExportS3Service(
+			this.exportOptions,
+			Mockito.mock(Scheduler.class),
+			new FileManagementService(
+				StorageOptions.builder(StorageOptions.temporary())
+					.workDirectory(
+						Path.of(System.getProperty("java.io.tmpdir"), "evita/work", UUID.randomUUID().toString())
+					)
+					.build()
+			)
+		);
 	}
 
 	@AfterEach
@@ -421,8 +439,7 @@ class ExportS3ServiceTest {
 		this.exportService.close();
 
 		// Create a new service instance
-		final ExportS3Service newService = new ExportS3Service(
-			this.exportOptions, Mockito.mock(Scheduler.class));
+		final ExportS3Service newService = createExportService();
 
 		try {
 			final PaginatedList<FileForFetch> files = newService.listFilesToFetch(1, 10, Set.of());

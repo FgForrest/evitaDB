@@ -25,6 +25,7 @@ package io.evitadb.export.s3;
 
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
@@ -64,8 +65,12 @@ public class ExportS3ServiceFactory implements ExportServiceFactory {
 
 	@Nonnull
 	@Override
-	public ExportService create(@Nonnull ExportOptions exportOptions, @Nonnull Scheduler scheduler) {
-		return new ExportS3Service(exportOptions, scheduler);
+	public ExportService create(
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull FileManagementService fileManagementService
+	) {
+		return new ExportS3Service(exportOptions, scheduler, fileManagementService);
 	}
 
 }

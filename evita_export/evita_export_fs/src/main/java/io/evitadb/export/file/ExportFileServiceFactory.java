@@ -25,6 +25,7 @@ package io.evitadb.export.file;
 
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
@@ -64,7 +65,11 @@ public class ExportFileServiceFactory implements ExportServiceFactory {
 
 	@Nonnull
 	@Override
-	public ExportService create(@Nonnull ExportOptions exportOptions, @Nonnull Scheduler scheduler) {
+	public ExportService create(
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull FileManagementService fileManagementService
+	) {
 		return new ExportFileService(exportOptions, scheduler);
 	}
 

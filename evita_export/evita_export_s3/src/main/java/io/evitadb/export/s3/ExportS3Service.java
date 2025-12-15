@@ -28,11 +28,13 @@ import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.export.s3.configuration.S3ExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
@@ -44,10 +46,15 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -106,6 +113,11 @@ public class ExportS3Service implements ExportService {
 	private static final String META_ORIGIN = "origin";
 
 	/**
+	 * Part size for S3 multipart upload (10MB).
+	 */
+	private static final long PART_SIZE = 10_485_760L;
+
+	/**
 	 * S3-specific export configuration options containing all settings.
 	 */
 	private final S3ExportOptions s3Options;
@@ -119,6 +131,11 @@ public class ExportS3Service implements ExportService {
 	 * Cached list of files to fetch, sorted by creation date (newest first).
 	 */
 	private final CopyOnWriteArrayList<FileForFetch> files;
+
+	/**
+	 * System file management service.
+	 */
+	private final FileManagementService fileManagementService;
 
 	/**
 	 * Task that periodically purges old files from the storage.
@@ -206,14 +223,20 @@ public class ExportS3Service implements ExportService {
 	 *
 	 * @param exportOptions the export configuration options
 	 * @param scheduler     the scheduler for background tasks
+	 * @param fileManagementService file management service
 	 */
-	public ExportS3Service(@Nonnull ExportOptions exportOptions, @Nonnull Scheduler scheduler) {
+	public ExportS3Service(
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull FileManagementService fileManagementService
+		) {
 		if (!(exportOptions instanceof S3ExportOptions)) {
 			throw new IllegalArgumentException(
 				"ExportS3Service requires S3ExportOptions but got: " + exportOptions.getClass().getSimpleName()
 			);
 		}
 		this.s3Options = (S3ExportOptions) exportOptions;
+		this.fileManagementService = fileManagementService;
 
 		// Initialize MinIO client
 		final MinioClient.Builder clientBuilder = MinioClient.builder()
@@ -332,6 +355,7 @@ public class ExportS3Service implements ExportService {
 
 		// Create output stream that buffers data and uploads to S3 when closed
 		final S3UploadOutputStream uploadOutputStream = new S3UploadOutputStream(
+			this.fileManagementService.createTempFile(fileId.toString()),
 			this.minioClient,
 			this.s3Options.getBucketOrThrowException(),
 			this.s3Options.getRegion(),
@@ -343,13 +367,16 @@ public class ExportS3Service implements ExportService {
 			description,
 			created,
 			originTags,
-			this.files,
 			fileForFetchFuture
 		);
 
 		return new ExportFileHandleS3(
 			fileId,
-			fileForFetchFuture,
+			fileForFetchFuture
+				.thenApply(fileForFetch -> {
+					this.files.add(0, fileForFetch);
+					return fileForFetch;
+				}),
 			objectKey,
 			uploadOutputStream
 		);
@@ -653,8 +680,9 @@ public class ExportS3Service implements ExportService {
 	 *
 	 * TODO JNO - we must implement multipart upload for large files to avoid high memory usage!
 	 */
-	private static final class S3UploadOutputStream extends ByteArrayOutputStream {
-
+	private static final class S3UploadOutputStream extends OutputStream {
+		private final OutputStream delegate;
+		private final Path path;
 		private final MinioClient minioClient;
 		private final String bucket;
 		private final String region;
@@ -666,11 +694,11 @@ public class ExportS3Service implements ExportService {
 		private final String description;
 		private final OffsetDateTime created;
 		private final String[] originTags;
-		private final CopyOnWriteArrayList<FileForFetch> filesCache;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
 		private boolean closed;
 
 		S3UploadOutputStream(
+			@Nonnull Path tempFilePath,
 			@Nonnull MinioClient minioClient,
 			@Nonnull String bucket,
 			@Nullable String region,
@@ -682,9 +710,25 @@ public class ExportS3Service implements ExportService {
 			@Nullable String description,
 			@Nonnull OffsetDateTime created,
 			@Nullable String[] originTags,
-			@Nonnull CopyOnWriteArrayList<FileForFetch> filesCache,
 			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture
 		) {
+			try {
+				final File theFile = tempFilePath.toFile();
+				if (!theFile.exists()) {
+					Assert.isPremiseValid(
+						theFile.createNewFile(),
+						"Failed to create temporary file for S3 upload."
+					);
+				}
+				this.delegate = new BufferedOutputStream(new FileOutputStream(theFile));
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to create temporary file for S3 upload: " + e.getMessage(),
+					"Failed to create temporary file for S3 upload.",
+					e
+				);
+			}
+			this.path = tempFilePath;
 			this.minioClient = minioClient;
 			this.bucket = bucket;
 			this.region = region;
@@ -696,9 +740,37 @@ public class ExportS3Service implements ExportService {
 			this.description = description;
 			this.created = created;
 			this.originTags = originTags;
-			this.filesCache = filesCache;
 			this.fileForFetchFuture = fileForFetchFuture;
 			this.closed = false;
+		}
+
+		@Override
+		public void write(@Nonnull byte[] b) throws IOException {
+			this.delegate.write(b);
+		}
+
+		@Override
+		public void write(@Nonnull byte[] b, int off, int len) throws IOException {
+			this.delegate.write(b, off, len);
+		}
+
+		@Override
+		public void flush() throws IOException {
+			this.delegate.flush();
+		}
+
+		@Override
+		public void write(int b) throws IOException {
+			this.delegate.write(b);
+		}
+
+		/**
+		 * Returns the size of the file represented by the output stream.
+		 *
+		 * @return The size of the file in bytes.
+		 */
+		public long size() {
+			return this.path.toFile().length();
 		}
 
 		@Override
@@ -709,14 +781,15 @@ public class ExportS3Service implements ExportService {
 			this.closed = true;
 
 			try {
-				final byte[] data = toByteArray();
-				final long dataSize = data.length;
+				this.delegate.close();
 
 				// Upload to S3
+				final File tmpFile = this.path.toFile();
+				final long tmpFileSize = tmpFile.length();
 				final PutObjectArgs.Builder putObjectArgsBuilder = PutObjectArgs.builder()
 					.bucket(this.bucket)
 					.object(this.objectKey)
-					.stream(new ByteArrayInputStream(data), dataSize, -1)
+					.stream(new BufferedInputStream(new FileInputStream(tmpFile)), tmpFileSize, PART_SIZE)
 					.contentType(this.contentType)
 					.userMetadata(this.userMetadata);
 				if (isRegionValid(this.region)) {
@@ -732,13 +805,11 @@ public class ExportS3Service implements ExportService {
 					this.fileName,
 					this.description,
 					this.contentType,
-					dataSize,
+					tmpFileSize,
 					this.created,
 					this.originTags
 				);
 
-				// Add to cache at the beginning (newest first)
-				this.filesCache.add(0, fileForFetch);
 				this.fileForFetchFuture.complete(fileForFetch);
 
 			} catch (Exception e) {
@@ -750,6 +821,9 @@ public class ExportS3Service implements ExportService {
 				);
 				this.fileForFetchFuture.completeExceptionally(exception);
 				throw exception;
+			} finally {
+				// Delete temporary file
+				IOUtils.closeQuietly(() -> FileUtils.deleteFileIfExists(this.path));
 			}
 		}
 	}

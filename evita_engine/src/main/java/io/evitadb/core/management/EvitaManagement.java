@@ -137,7 +137,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			.sorted(Comparator.comparingInt(ExportServiceFactory::getPriority).reversed())
 			.filter(exportSelector)
 			.findFirst()
-			.map(factory -> factory.create(exportOptionsProvider.apply(factory), this.scheduler))
+			.map(factory -> factory.create(exportOptionsProvider.apply(factory), this.scheduler, this.fileManagementService))
 			.orElseThrow(() -> new ExportServiceImplementationNotFoundException(implementationCode));
 
 		this.started = OffsetDateTime.now();

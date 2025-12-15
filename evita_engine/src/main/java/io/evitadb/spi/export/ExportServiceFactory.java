@@ -25,6 +25,7 @@ package io.evitadb.spi.export;
 
 import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 
 import javax.annotation.Nonnull;
 import java.util.ServiceLoader;
@@ -90,7 +91,8 @@ public interface ExportServiceFactory {
 	@Nonnull
 	ExportService create(
 		@Nonnull ExportOptions exportOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull FileManagementService fileManagementService
 	);
 
 }
