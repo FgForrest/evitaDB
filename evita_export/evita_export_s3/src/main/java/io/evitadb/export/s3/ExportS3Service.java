@@ -41,6 +41,7 @@ import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.minio.*;
 import io.minio.BucketExistsArgs.Builder;
+import io.minio.http.HttpUtils;
 import io.minio.messages.Item;
 import lombok.extern.slf4j.Slf4j;
 
@@ -126,21 +127,22 @@ public class ExportS3Service implements ExportService {
 	 * MinIO async client for S3 operations.
 	 */
 	private final MinioAsyncClient minioClient;
-
-	/**
-	 * Cached list of files to fetch, sorted by creation date (newest first).
-	 */
-	private final CopyOnWriteArrayList<FileForFetch> files;
-
 	/**
 	 * System file management service.
 	 */
 	private final FileManagementService fileManagementService;
-
+	/**
+	 * Task that periodically refreshes the file cache.
+	 */
+	private final DelayedAsyncTask refreshTask;
 	/**
 	 * Task that periodically purges old files from the storage.
 	 */
 	private final DelayedAsyncTask purgeTask;
+	/**
+	 * Cached list of files to fetch, sorted by creation date (newest first).
+	 */
+	private volatile CopyOnWriteArrayList<FileForFetch> files;
 
 	/**
 	 * Gets a value from the metadata map using case-insensitive key lookup.
@@ -244,6 +246,14 @@ public class ExportS3Service implements ExportService {
 			.credentials(
 				this.s3Options.getAccessKeyOrThrowException(),
 				this.s3Options.getSecretKeyOrThrowException()
+			)
+			.httpClient(
+				HttpUtils.newDefaultHttpClient(
+					this.s3Options.getRequestTimeoutInMillis(),
+					this.s3Options.getRequestTimeoutInMillis(),
+					this.s3Options.getRequestTimeoutInMillis()
+				),
+				true
 			);
 
 		if (isRegionValid(this.s3Options.getRegion())) {
@@ -256,8 +266,7 @@ public class ExportS3Service implements ExportService {
 		ensureBucketExists();
 
 		// Load existing files from S3
-		/* TODO JNO - we need to load files asynchronously */
-		this.files = loadExistingFiles();
+		this.files = new CopyOnWriteArrayList<>();
 
 		// Schedule automatic purging task
 		this.purgeTask = new DelayedAsyncTask(
@@ -268,6 +277,16 @@ public class ExportS3Service implements ExportService {
 			5, TimeUnit.MINUTES
 		);
 		this.purgeTask.schedule();
+
+		// Schedule automatic refresh task
+		this.refreshTask = new DelayedAsyncTask(
+			null,
+			"S3 export file service refresh task",
+			scheduler,
+			this::loadExistingFiles,
+			5, TimeUnit.MINUTES
+		);
+		this.purgeTask.scheduleImmediately();
 	}
 
 	@Nonnull
@@ -436,7 +455,10 @@ public class ExportS3Service implements ExportService {
 				).get(timeout, TimeUnit.MILLISECONDS);
 			} catch (Exception e) {
 				// Ignore remote deletion errors and keep the local cache updated as the file is gone already
-				log.warn("Failed to delete S3 object {}, ignoring and keeping cache consistent: {}", objectKey, e.getMessage());
+				log.warn(
+					"Failed to delete S3 object {}, ignoring and keeping cache consistent: {}", objectKey,
+					e.getMessage()
+				);
 			}
 		}
 	}
@@ -502,22 +524,32 @@ public class ExportS3Service implements ExportService {
 	@Override
 	public void close() throws IOException {
 		// Stop purging task
-		IOUtils.closeQuietly(this.purgeTask::close);
+		IOUtils.closeQuietly(
+			this.purgeTask::close,
+			this.refreshTask::close
+		);
 		// Run final purge
 		purgeFiles();
 		// MinIO client doesn't require explicit closing
 	}
 
+	/**
+	 * Retrieves the list of files available for fetching.
+	 * The returned list is backed by a thread-safe {@link CopyOnWriteArrayList}
+	 * to ensure safe iteration and modification in concurrent environments.
+	 *
+	 * @return a non-null {@link CopyOnWriteArrayList} of {@link FileForFetch} instances,
+	 * representing the files available for fetching.
+	 */
 	@Nonnull
 	private CopyOnWriteArrayList<FileForFetch> getFiles() {
-		/* TODO JNO - check there are no new files on the server side */
 		return this.files;
 	}
 
 	/**
 	 * Ensures the configured S3 bucket exists, creating it if necessary.
 	 */
- private void ensureBucketExists() {
+	private void ensureBucketExists() {
 		final String bucket = this.s3Options.getBucketOrThrowException();
 		final String region = this.s3Options.getRegion();
 		final boolean regionSet = isRegionValid(region);
@@ -555,10 +587,9 @@ public class ExportS3Service implements ExportService {
 	/**
 	 * Loads existing files from S3 bucket by listing objects and reading their metadata.
 	 *
-	 * @return list of files sorted by creation date (newest first)
+	 * @return a scheduling hint; implementations commonly return `0`
 	 */
-	@Nonnull
-	private CopyOnWriteArrayList<FileForFetch> loadExistingFiles() {
+	private long loadExistingFiles() {
 		final String bucket = this.s3Options.getBucketOrThrowException();
 		final String region = this.s3Options.getRegion();
 		final boolean regionSet = isRegionValid(region);
@@ -571,6 +602,7 @@ public class ExportS3Service implements ExportService {
 			if (regionSet) {
 				listObjectsBuilder.region(region);
 			}
+
 			final Iterable<Result<Item>> objects = this.minioClient.listObjects(
 				listObjectsBuilder.build()
 			);
@@ -593,12 +625,13 @@ public class ExportS3Service implements ExportService {
 
 			// Sort by creation date (newest first)
 			result.sort(Comparator.comparing(FileForFetch::created).reversed());
-			return new CopyOnWriteArrayList<>(result);
+			this.files = new CopyOnWriteArrayList<>(result);
 
 		} catch (Exception e) {
 			log.error("Failed to load existing files from S3", e);
-			return new CopyOnWriteArrayList<>();
 		}
+
+		return 0L;
 	}
 
 	/**
