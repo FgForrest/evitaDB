@@ -17,9 +17,9 @@ services:
       timeout: 5s
       retries: 5
 
-  evitadb:
-    image: index.docker.io/evitadb/evitadb:canary
-    container_name: evitadb
+  evitadb-local:
+    image: docker.io/library/evitadb:local
+    container_name: evitadb-local
     depends_on:
       minio:
         condition: service_healthy
@@ -30,6 +30,8 @@ services:
       - ./logback.xml:/evita/logback.xml
       - ./logs:/evita/logs
     environment:
+      EVITA_JAVA_OPTS:
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8001
       EVITA_ARGS: >-
         server.trafficRecording.enabled=true
         server.trafficRecording.trafficFlushIntervalInMilliseconds=0

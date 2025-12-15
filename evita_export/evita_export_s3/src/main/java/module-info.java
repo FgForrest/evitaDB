@@ -43,5 +43,6 @@ module evita.export.s3 {
 	requires org.slf4j;
 	requires okhttp3;
 	requires minio;
+	requires com.fasterxml.jackson.core;
 
 }

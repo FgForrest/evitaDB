@@ -42,13 +42,17 @@ import io.evitadb.utils.UUIDUtil;
 import io.minio.*;
 import io.minio.BucketExistsArgs.Builder;
 import io.minio.http.HttpUtils;
+import io.minio.messages.Event;
+import io.minio.messages.EventType;
 import io.minio.messages.Item;
+import io.minio.messages.NotificationRecords;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -62,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -117,6 +122,16 @@ public class ExportS3Service implements ExportService {
 	 * Part size for S3 multipart upload (10MB).
 	 */
 	private static final long PART_SIZE = 10_485_760L;
+	/**
+	 *
+	 * Delay in seconds between automatic refreshes of the file cache from S3.
+	 */
+	private static final int REFRESH_DELAY_SECONDS = 600;
+
+	/**
+	 * Prefix for user metadata keys in S3 objects.
+	 */
+	private static final String USER_METADATA_PREFIX = "x-amz-meta-";
 
 	/**
 	 * S3-specific export configuration options containing all settings.
@@ -140,33 +155,18 @@ public class ExportS3Service implements ExportService {
 	 */
 	private final DelayedAsyncTask purgeTask;
 	/**
+	 * Iterator for bucket notifications to allow explicit close on shutdown.
+	 */
+	@Nullable
+	private volatile CloseableIterator<Result<NotificationRecords>> notificationIterator;
+	/**
+	 * Future that completes when the initial loading of files is done.
+	 */
+	private final CompletableFuture<Boolean> initializationFuture = new CompletableFuture<>();
+	/**
 	 * Cached list of files to fetch, sorted by creation date (newest first).
 	 */
 	private volatile CopyOnWriteArrayList<FileForFetch> files;
-
-	/**
-	 * Gets a value from the metadata map using case-insensitive key lookup.
-	 * S3-compatible storages may normalize metadata keys differently.
-	 *
-	 * @param metadata the metadata map
-	 * @param key      the key to look up (case-insensitive)
-	 * @return the value or null if not found
-	 */
-	@Nullable
-	private static String getMetadataValue(@Nonnull Map<String, String> metadata, @Nonnull String key) {
-		// Try exact match first
-		final String value = metadata.get(key);
-		if (value != null) {
-			return value;
-		}
-		// Try case-insensitive match
-		for (Map.Entry<String, String> entry : metadata.entrySet()) {
-			if (entry.getKey().equalsIgnoreCase(key)) {
-				return entry.getValue();
-			}
-		}
-		return null;
-	}
 
 	/**
 	 * Parses user metadata into a {@link FileForFetch} instance.
@@ -178,12 +178,12 @@ public class ExportS3Service implements ExportService {
 	@Nullable
 	private static FileForFetch parseFileForFetch(@Nonnull Map<String, String> userMetadata, long size) {
 		try {
-			final String fileIdStr = getMetadataValue(userMetadata, META_FILE_ID);
-			final String name = getMetadataValue(userMetadata, META_NAME);
-			final String description = getMetadataValue(userMetadata, META_DESCRIPTION);
-			final String contentType = getMetadataValue(userMetadata, META_CONTENT_TYPE);
-			final String createdStr = getMetadataValue(userMetadata, META_CREATED);
-			final String originStr = getMetadataValue(userMetadata, META_ORIGIN);
+			final String fileIdStr = userMetadata.get(META_FILE_ID);
+			final String name = userMetadata.get(META_NAME);
+			final String description = userMetadata.get(META_DESCRIPTION);
+			final String contentType = userMetadata.get(META_CONTENT_TYPE);
+			final String createdStr = userMetadata.get(META_CREATED);
+			final String originStr = userMetadata.get(META_ORIGIN);
 
 			if (fileIdStr == null || name == null || createdStr == null) {
 				return null;
@@ -218,6 +218,18 @@ public class ExportS3Service implements ExportService {
 	 */
 	private static boolean isRegionValid(@Nullable String region) {
 		return region != null && !region.isBlank();
+	}
+
+	/**
+	 * Closes the given {@link Closeable} object if it is not null.
+	 *
+	 * @param object the {@link Closeable} object to be closed; may be null
+	 * @throws IOException if an I/O error occurs during the closing of the object
+	 */
+	private static void closeIfNotNull(@Nullable Closeable object) throws IOException {
+		if (object != null) {
+			object.close();
+		}
 	}
 
 	/**
@@ -265,7 +277,7 @@ public class ExportS3Service implements ExportService {
 		// Ensure bucket exists
 		ensureBucketExists();
 
-		// Load existing files from S3
+		// Load existing files from S3 once
 		this.files = new CopyOnWriteArrayList<>();
 
 		// Schedule automatic purging task
@@ -283,10 +295,19 @@ public class ExportS3Service implements ExportService {
 			null,
 			"S3 export file service refresh task",
 			scheduler,
-			this::loadExistingFiles,
-			5, TimeUnit.MINUTES
+			this::loadOrRefreshFiles,
+			REFRESH_DELAY_SECONDS, TimeUnit.SECONDS
 		);
-		this.purgeTask.scheduleImmediately();
+		this.refreshTask.scheduleImmediately();
+	}
+
+	/**
+	 * Waits for the initialization process of the service to complete.
+	 * This method blocks the calling thread until the initializationFuture,
+	 * representing the asynchronous initialization task, is completed.
+	 */
+	public void awaitInitialization() {
+		this.initializationFuture.join();
 	}
 
 	@Nonnull
@@ -526,11 +547,15 @@ public class ExportS3Service implements ExportService {
 		// Stop purging task
 		IOUtils.closeQuietly(
 			this.purgeTask::close,
-			this.refreshTask::close
+			this.refreshTask::close,
+			() -> {
+				closeIfNotNull(this.notificationIterator);
+			}
 		);
 		// Run final purge
 		purgeFiles();
-		// MinIO client doesn't require explicit closing
+		// Close MinIO client
+		IOUtils.closeQuietly(this.minioClient::close);
 	}
 
 	/**
@@ -585,11 +610,29 @@ public class ExportS3Service implements ExportService {
 	}
 
 	/**
-	 * Loads existing files from S3 bucket by listing objects and reading their metadata.
+	 * Loads existing files from the S3 bucket or starts a process to refresh files depending on the state of the notification iterator.
+	 * If the notification iterator is uninitialized, this method initializes it after loading existing files.
+	 * Otherwise, it updates the notification iterator by refreshing files.
 	 *
 	 * @return a scheduling hint; implementations commonly return `0`
 	 */
-	private long loadExistingFiles() {
+	private long loadOrRefreshFiles() {
+		if (!this.initializationFuture.isDone()) {
+			loadExistingFiles();
+		}
+		this.notificationIterator = refreshFiles();
+		return this.notificationIterator == null ?
+		    // standard delay - we will fetch all the files again
+			0L :
+			// notification listener is active - we may refresh much faster (each 15 seconds)
+			REFRESH_DELAY_SECONDS - 15
+		;
+	}
+
+	/**
+	 * Loads existing files from S3 bucket by listing objects and reading their metadata.
+	 */
+	private void loadExistingFiles() {
 		final String bucket = this.s3Options.getBucketOrThrowException();
 		final String region = this.s3Options.getRegion();
 		final boolean regionSet = isRegionValid(region);
@@ -626,12 +669,153 @@ public class ExportS3Service implements ExportService {
 			// Sort by creation date (newest first)
 			result.sort(Comparator.comparing(FileForFetch::created).reversed());
 			this.files = new CopyOnWriteArrayList<>(result);
+			this.initializationFuture.complete(true);
 
 		} catch (Exception e) {
 			log.error("Failed to load existing files from S3", e);
+			this.initializationFuture.completeExceptionally(e);
 		}
+	}
 
-		return 0L;
+	/**
+	 * Starts background listener that consumes S3 bucket notifications and updates local cache.
+	 * The listener auto-reconnects on failures after ~1 minute.
+	 */
+	@Nullable
+	private CloseableIterator<Result<NotificationRecords>> refreshFiles() {
+		try {
+			final CloseableIterator<Result<NotificationRecords>> iterator = getNotificationIterator();
+			while (iterator.hasNext()) {
+				final Result<NotificationRecords> res = iterator.next();
+				final NotificationRecords records = res.get();
+				if (records == null || records.events() == null) {
+					continue;
+				}
+				for (final Event event : records.events()) {
+					final EventType eventName = event.eventType();
+					final String objectKey = event.objectName();
+					if (eventName != null) {
+						if (eventName == EventType.OBJECT_REMOVED_ANY) {
+							onObjectRemoved(objectKey);
+						} else if (eventName == EventType.OBJECT_CREATED_ANY) {
+							onObjectCreatedOrUpdated(objectKey);
+						}
+					}
+				}
+			}
+			return iterator;
+		} catch (Exception ex) {
+			// backend probably doesn't support listening to notifications
+			IOUtils.closeQuietly(() -> closeIfNotNull(this.notificationIterator));
+			return null;
+		}
+	}
+
+	/**
+	 * Retrieves an iterator for listening to S3 bucket notifications.
+	 * This method returns an existing iterator if it is already initialized.
+	 * If no iterator exists, a new one is created for listening to notification events
+	 * such as object creation or removal within the bucket.
+	 *
+	 * The iterator utilizes the MinIO client to connect to the S3 bucket and
+	 * listen to notification events in real-time. It supports specific
+	 * configuration such as bucket name and region, which are retrieved
+	 * from the associated S3 options.
+	 *
+	 * @return a non-null {@link CloseableIterator} of {@link Result} containing
+	 * {@link NotificationRecords}. Each result corresponds to an S3 bucket
+	 * notification.
+	 * @throws Exception if an error occurs while initializing the iterator
+	 *                   or setting up the connection to the bucket.
+	 */
+	@Nonnull
+	private CloseableIterator<Result<NotificationRecords>> getNotificationIterator() throws Exception {
+		final CloseableIterator<Result<NotificationRecords>> existingIterator = this.notificationIterator;
+		if (existingIterator == null) {
+			final String bucket = this.s3Options.getBucketOrThrowException();
+			final String region = this.s3Options.getRegion();
+			final boolean regionSet = isRegionValid(region);
+
+			final ListenBucketNotificationArgs.Builder args = ListenBucketNotificationArgs.builder()
+				.bucket(bucket)
+				.events(
+					new String[]{
+						EventType.OBJECT_CREATED_ANY.toString(),
+						EventType.OBJECT_REMOVED_ANY.toString()
+					}
+				);
+			if (regionSet) {
+				args.region(region);
+			}
+			final CloseableIterator<Result<NotificationRecords>> newIterator =
+				this.minioClient.listenBucketNotification(args.build());
+			this.notificationIterator = newIterator;
+			return newIterator;
+		} else {
+			return existingIterator;
+		}
+	}
+
+	/**
+	 * Handles object removal notification by removing corresponding entry from cache.
+	 */
+	private void onObjectRemoved(@Nonnull String objectKey) {
+		try {
+			final int dot = objectKey.lastIndexOf('.');
+			final String uuidStr = dot > 0 ? objectKey.substring(0, dot) : objectKey;
+			final UUID fileId = UUID.fromString(uuidStr);
+			final CopyOnWriteArrayList<FileForFetch> current = this.files;
+			// Linear scan is acceptable due to relatively small cache size
+			for (int i = 0; i < current.size(); i++) {
+				final FileForFetch f = current.get(i);
+				if (f.fileId().equals(fileId)) {
+					current.remove(i);
+					break;
+				}
+			}
+		} catch (Exception e) {
+			log.debug("Failed to remove cache entry for object key {}", objectKey, e);
+		}
+	}
+
+	/**
+	 * Handles the creation or update of an object in the S3 bucket. This method retrieves
+	 * the object's metadata and updates a local cache to reflect the current state of the object.
+	 * If metadata is invalid or an error occurs during processing, no updates are made to the cache.
+	 *
+	 * @param objectKey the key of the object within the S3 bucket; must not be null
+	 */
+	private void onObjectCreatedOrUpdated(@Nonnull String objectKey) {
+		try {
+			final String bucket = this.s3Options.getBucketOrThrowException();
+			final String region = this.s3Options.getRegion();
+			final long timeout = this.s3Options.getRequestTimeoutInMillis();
+
+			final StatObjectArgs.Builder statObjectArgsBuilder = StatObjectArgs.builder()
+				.bucket(bucket)
+				.object(objectKey);
+			if (isRegionValid(region)) {
+				statObjectArgsBuilder.region(region);
+			}
+			final StatObjectResponse stat = this.minioClient.statObject(statObjectArgsBuilder.build())
+				.get(timeout, TimeUnit.MILLISECONDS);
+			final Map<String, String> userMetadata = normalizeMetadataNames(stat.userMetadata());
+			final FileForFetch file = parseFileForFetch(userMetadata, stat.size());
+			if (file == null) {
+				return;
+			}
+			// Upsert at the beginning, remove existing if present
+			final CopyOnWriteArrayList<FileForFetch> current = this.files;
+			for (int i = 0; i < current.size(); i++) {
+				if (current.get(i).fileId().equals(file.fileId())) {
+					current.remove(i);
+					break;
+				}
+			}
+			current.add(0, file);
+		} catch (Exception e) {
+			log.debug("Failed to refresh cache entry for object key {}", objectKey, e);
+		}
 	}
 
 	/**
@@ -653,7 +837,7 @@ public class ExportS3Service implements ExportService {
 			final long timeout = this.s3Options.getRequestTimeoutInMillis();
 			final Map<String, String> userMetadata;
 			if (item.userMetadata() != null && !item.userMetadata().isEmpty()) {
-				userMetadata = item.userMetadata();
+				userMetadata = normalizeMetadataNames(item.userMetadata());
 			} else {
 				final StatObjectArgs.Builder statObjectArgsBuilder = StatObjectArgs.builder()
 					.bucket(bucket)
@@ -664,13 +848,47 @@ public class ExportS3Service implements ExportService {
 				final StatObjectResponse statObjectResponse = this.minioClient.statObject(
 					statObjectArgsBuilder.build()
 				).get(timeout, TimeUnit.MILLISECONDS);
-				userMetadata = statObjectResponse.userMetadata();
+				userMetadata = normalizeMetadataNames(statObjectResponse.userMetadata());
 			}
 			return userMetadata;
 		} catch (Exception e) {
 			log.error("Failed to get user metadata for S3 object: {}", item.objectName(), e);
 			return Map.of();
 		}
+	}
+
+	/**
+	 * Normalizes the keys of the user metadata map. This method converts keys that
+	 * start with a defined prefix to lowercase and removes the prefix. If no keys
+	 * match the prefix, the input map remains unchanged.
+	 *
+	 * @param userMetadata a map containing user-defined metadata where the keys are
+	 *                     strings and the values represent metadata values; must not
+	 *                     be null.
+	 * @return a normalized map of metadata with processed keys, or null if no keys
+	 *         required normalization.
+	 */
+	@Nonnull
+	private static Map<String, String> normalizeMetadataNames(@Nonnull Map<String, String> userMetadata) {
+		Map<String, String> normalizedMetadata = null;
+		for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
+			final String key = entry.getKey();
+			final String lowerCaseKey = key.toLowerCase(Locale.US);
+			if (lowerCaseKey.startsWith(USER_METADATA_PREFIX) || !key.equals(lowerCaseKey)) {
+				if (normalizedMetadata == null) {
+					normalizedMetadata = CollectionUtils.createHashMap(userMetadata.size());
+					// copy previous entries
+					for (Map.Entry<String, String> e : userMetadata.entrySet()) {
+						if (e.getKey().equals(key)) {
+							break;
+						}
+						normalizedMetadata.put(e.getKey().toLowerCase(Locale.US), e.getValue());
+					}
+				}
+				normalizedMetadata.put(lowerCaseKey.substring(USER_METADATA_PREFIX.length()), entry.getValue());
+			}
+		}
+		return normalizedMetadata != null ? normalizedMetadata : userMetadata;
 	}
 
 	/**

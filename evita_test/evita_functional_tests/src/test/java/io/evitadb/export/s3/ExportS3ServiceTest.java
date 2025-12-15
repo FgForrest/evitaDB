@@ -28,6 +28,7 @@ import com.google.common.collect.Lists;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.PaginatedList;
@@ -39,7 +40,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.Mockito;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import javax.annotation.Nonnull;
@@ -131,7 +131,7 @@ class ExportS3ServiceTest {
 	private ExportS3Service createExportService() {
 		return new ExportS3Service(
 			this.exportOptions,
-			Mockito.mock(Scheduler.class),
+			new Scheduler(new ImmediateScheduledThreadPoolExecutor()),
 			new FileManagementService(
 				StorageOptions.builder(StorageOptions.temporary())
 					.workDirectory(
@@ -461,6 +461,7 @@ class ExportS3ServiceTest {
 
 		// Create a new service instance
 		final ExportS3Service newService = createExportService();
+		newService.awaitInitialization();
 
 		try {
 			final PaginatedList<FileForFetch> files = newService.listFilesToFetch(1, 10, Set.of());

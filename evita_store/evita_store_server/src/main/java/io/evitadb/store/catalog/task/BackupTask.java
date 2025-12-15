@@ -225,13 +225,15 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 				log.info("Backup of catalog `{}` at version {} completed.", this.catalogName, catalogVersion);
 
-				return ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
-					.orElseThrow(
-						() -> new GenericEvitaInternalError(
-							"File for fetch should be generated in close method and" +
-								" should be already available by now."
-						)
+				try {
+					return exportFileHandle.fileForFetchFuture().get();
+				} catch (Exception e) {
+					throw new GenericEvitaInternalError(
+						"Unexpected error when retrieving the backup file for catalog `" + this.catalogName + "`: " + e.getMessage(),
+						"Failed to retrieve the backup file for catalog `" + this.catalogName + "` after successful creation!",
+						e
 					);
+				}
 			} catch (RuntimeException exception) {
 				// remove the files
 				ofNullable(exportFileHandle.fileForFetchFuture().getNow(null))
