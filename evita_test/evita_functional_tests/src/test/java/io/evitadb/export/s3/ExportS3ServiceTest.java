@@ -239,6 +239,27 @@ class ExportS3ServiceTest {
 	}
 
 	@Test
+	@DisplayName("Should not fail when deleting file already removed by third party")
+	void shouldNotFailWhenDeletingAlreadyDeletedObject() throws IOException {
+		final FileForFetch storedFile = writeFile("thirdParty.txt", null);
+
+		// Compute S3 object key the same way as service does: <fileId><extension>
+		final String name = storedFile.name();
+		final int dotIdx = name.lastIndexOf('.');
+		final String ext = dotIdx >= 0 ? name.substring(dotIdx) : "";
+		final String objectKey = storedFile.fileId().toString() + ext;
+
+		// Simulate third-party deletion directly on S3
+		this.s3Client.deleteObject(b -> b.bucket(BUCKET_NAME).key(objectKey));
+
+		// Our service deletion must not throw even if the object is already gone
+		assertDoesNotThrow(() -> this.exportService.deleteFile(storedFile.fileId()));
+
+		// The file must be removed from the local cache as well
+		assertTrue(this.exportService.getFile(storedFile.fileId()).isEmpty());
+	}
+
+	@Test
 	@DisplayName("Should fetch file content from S3 bucket")
 	void shouldFetchFile() throws IOException {
 		final FileForFetch storedFile = writeFile("testFile.txt", "A,B");

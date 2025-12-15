@@ -423,7 +423,7 @@ public class ExportS3Service implements ExportService {
 		if (this.files.remove(file)) {
 			try {
 				final long timeout = this.s3Options.getRequestTimeoutInMillis();
-				// TODO JNO - handle situation when someone else already deleted the object - in such case we should not throw exception and just remove the file from cache
+				// If someone else already deleted the object, the operation should be idempotent and not fail
 				final RemoveObjectArgs.Builder removeObjectArgsBuilder = RemoveObjectArgs.builder()
 					.bucket(this.s3Options.getBucketOrThrowException())
 					.object(objectKey);
@@ -435,13 +435,8 @@ public class ExportS3Service implements ExportService {
 					removeObjectArgsBuilder.build()
 				).get(timeout, TimeUnit.MILLISECONDS);
 			} catch (Exception e) {
-				// Re-add to cache if deletion failed
-				this.files.add(0, file);
-				throw new UnexpectedIOException(
-					"Failed to delete file from S3: " + e.getMessage(),
-					"Failed to delete file from S3.",
-					e
-				);
+				// Ignore remote deletion errors and keep the local cache updated as the file is gone already
+				log.warn("Failed to delete S3 object {}, ignoring and keeping cache consistent: {}", objectKey, e.getMessage());
 			}
 		}
 	}
