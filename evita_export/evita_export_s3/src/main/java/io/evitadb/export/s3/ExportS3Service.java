@@ -123,9 +123,9 @@ public class ExportS3Service implements ExportService {
 	private final S3ExportOptions s3Options;
 
 	/**
-	 * MinIO client for S3 operations.
+	 * MinIO async client for S3 operations.
 	 */
-	private final MinioClient minioClient;
+	private final MinioAsyncClient minioClient;
 
 	/**
 	 * Cached list of files to fetch, sorted by creation date (newest first).
@@ -221,15 +221,15 @@ public class ExportS3Service implements ExportService {
 	/**
 	 * Creates a new instance of {@link ExportS3Service}.
 	 *
-	 * @param exportOptions the export configuration options
-	 * @param scheduler     the scheduler for background tasks
+	 * @param exportOptions         the export configuration options
+	 * @param scheduler             the scheduler for background tasks
 	 * @param fileManagementService file management service
 	 */
 	public ExportS3Service(
 		@Nonnull ExportOptions exportOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull FileManagementService fileManagementService
-		) {
+	) {
 		if (!(exportOptions instanceof S3ExportOptions)) {
 			throw new IllegalArgumentException(
 				"ExportS3Service requires S3ExportOptions but got: " + exportOptions.getClass().getSimpleName()
@@ -238,8 +238,8 @@ public class ExportS3Service implements ExportService {
 		this.s3Options = (S3ExportOptions) exportOptions;
 		this.fileManagementService = fileManagementService;
 
-		// Initialize MinIO client
-		final MinioClient.Builder clientBuilder = MinioClient.builder()
+		// Initialize MinIO async client
+		final MinioAsyncClient.Builder clientBuilder = MinioAsyncClient.builder()
 			.endpoint(this.s3Options.getEndpointOrThrowException())
 			.credentials(
 				this.s3Options.getAccessKeyOrThrowException(),
@@ -367,7 +367,8 @@ public class ExportS3Service implements ExportService {
 			description,
 			created,
 			originTags,
-			fileForFetchFuture
+			fileForFetchFuture,
+			this.s3Options.getRequestTimeoutInMillis()
 		);
 
 		return new ExportFileHandleS3(
@@ -391,6 +392,7 @@ public class ExportS3Service implements ExportService {
 		final String objectKey = fileId + FileUtils.getFileExtension(file.name()).map(it -> "." + it).orElse("");
 
 		try {
+			final long timeout = this.s3Options.getRequestTimeoutInMillis();
 			final GetObjectArgs.Builder getObjectBuilder = GetObjectArgs.builder()
 				.bucket(this.s3Options.getBucketOrThrowException())
 				.object(objectKey);
@@ -400,7 +402,7 @@ public class ExportS3Service implements ExportService {
 			}
 			return this.minioClient.getObject(
 				getObjectBuilder.build()
-			);
+			).get(timeout, TimeUnit.MILLISECONDS);
 		} catch (Exception e) {
 			throw new UnexpectedIOException(
 				"Failed to fetch file from S3: " + e.getMessage(),
@@ -420,6 +422,7 @@ public class ExportS3Service implements ExportService {
 		// Remove from cache first
 		if (this.files.remove(file)) {
 			try {
+				final long timeout = this.s3Options.getRequestTimeoutInMillis();
 				// TODO JNO - handle situation when someone else already deleted the object - in such case we should not throw exception and just remove the file from cache
 				final RemoveObjectArgs.Builder removeObjectArgsBuilder = RemoveObjectArgs.builder()
 					.bucket(this.s3Options.getBucketOrThrowException())
@@ -430,7 +433,7 @@ public class ExportS3Service implements ExportService {
 				}
 				this.minioClient.removeObject(
 					removeObjectArgsBuilder.build()
-				);
+				).get(timeout, TimeUnit.MILLISECONDS);
 			} catch (Exception e) {
 				// Re-add to cache if deletion failed
 				this.files.add(0, file);
@@ -519,18 +522,19 @@ public class ExportS3Service implements ExportService {
 	/**
 	 * Ensures the configured S3 bucket exists, creating it if necessary.
 	 */
-	private void ensureBucketExists() {
+ private void ensureBucketExists() {
 		final String bucket = this.s3Options.getBucketOrThrowException();
 		final String region = this.s3Options.getRegion();
 		final boolean regionSet = isRegionValid(region);
 		try {
+			final long timeout = this.s3Options.getRequestTimeoutInMillis();
 			final Builder bucketExistsBuilder = BucketExistsArgs.builder().bucket(bucket);
 			if (regionSet) {
 				bucketExistsBuilder.region(region);
 			}
 			final boolean bucketExists = this.minioClient.bucketExists(
 				bucketExistsBuilder.build()
-			);
+			).get(timeout, TimeUnit.MILLISECONDS);
 
 			if (!bucketExists) {
 				final MakeBucketArgs.Builder makeBucketBuilder = MakeBucketArgs.builder().bucket(bucket);
@@ -539,7 +543,7 @@ public class ExportS3Service implements ExportService {
 				}
 				this.minioClient.makeBucket(
 					makeBucketBuilder.build()
-				);
+				).get(timeout, TimeUnit.MILLISECONDS);
 				log.info("Created S3 bucket: {}", bucket);
 			}
 		} catch (Exception e) {
@@ -618,6 +622,7 @@ public class ExportS3Service implements ExportService {
 	) {
 		try {
 			final String region = this.s3Options.getRegion();
+			final long timeout = this.s3Options.getRequestTimeoutInMillis();
 			final Map<String, String> userMetadata;
 			if (item.userMetadata() != null && !item.userMetadata().isEmpty()) {
 				userMetadata = item.userMetadata();
@@ -630,7 +635,7 @@ public class ExportS3Service implements ExportService {
 				}
 				final StatObjectResponse statObjectResponse = this.minioClient.statObject(
 					statObjectArgsBuilder.build()
-				);
+				).get(timeout, TimeUnit.MILLISECONDS);
 				userMetadata = statObjectResponse.userMetadata();
 			}
 			return userMetadata;
@@ -674,16 +679,19 @@ public class ExportS3Service implements ExportService {
 	}
 
 	/**
-	 * Output stream that buffers data in memory and uploads to S3 when closed.
-	 * This approach is simpler and more reliable than using PipedInputStream/PipedOutputStream
-	 * for small to medium-sized files.
+	 * An implementation of OutputStream that writes data to a temporary file and uploads it to an S3-compatible storage
+	 * upon stream closure. This class is designed to facilitate stream-based file uploads while managing metadata and
+	 * ensuring temporary file cleanup.
 	 *
-	 * TODO JNO - we must implement multipart upload for large files to avoid high memory usage!
+	 * This output stream writes data to a local temporary file and uploads the file to a S3 bucket on close. The class
+	 * also supports metadata handling for the uploaded object and returns a `FileForFetch` object upon successful upload.
+	 *
+	 * Thread Safety: This class is not thread-safe, and instances should not be shared between threads.
 	 */
 	private static final class S3UploadOutputStream extends OutputStream {
 		private final OutputStream delegate;
 		private final Path path;
-		private final MinioClient minioClient;
+		private final MinioAsyncClient minioClient;
 		private final String bucket;
 		private final String region;
 		private final String objectKey;
@@ -695,11 +703,12 @@ public class ExportS3Service implements ExportService {
 		private final OffsetDateTime created;
 		private final String[] originTags;
 		private final CompletableFuture<FileForFetch> fileForFetchFuture;
+		private final long requestTimeoutInMillis;
 		private boolean closed;
 
 		S3UploadOutputStream(
 			@Nonnull Path tempFilePath,
-			@Nonnull MinioClient minioClient,
+			@Nonnull MinioAsyncClient minioClient,
 			@Nonnull String bucket,
 			@Nullable String region,
 			@Nonnull String objectKey,
@@ -710,7 +719,8 @@ public class ExportS3Service implements ExportService {
 			@Nullable String description,
 			@Nonnull OffsetDateTime created,
 			@Nullable String[] originTags,
-			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture
+			@Nonnull CompletableFuture<FileForFetch> fileForFetchFuture,
+			long requestTimeoutInMillis
 		) {
 			try {
 				final File theFile = tempFilePath.toFile();
@@ -741,7 +751,13 @@ public class ExportS3Service implements ExportService {
 			this.created = created;
 			this.originTags = originTags;
 			this.fileForFetchFuture = fileForFetchFuture;
+			this.requestTimeoutInMillis = requestTimeoutInMillis;
 			this.closed = false;
+		}
+
+		@Override
+		public void write(int b) throws IOException {
+			this.delegate.write(b);
 		}
 
 		@Override
@@ -760,8 +776,75 @@ public class ExportS3Service implements ExportService {
 		}
 
 		@Override
-		public void write(int b) throws IOException {
-			this.delegate.write(b);
+		public void close() {
+			if (this.closed) {
+				return;
+			}
+			this.closed = true;
+
+			try {
+				// Ensure all buffered content is written to temporary file
+				this.delegate.close();
+
+				// Prepare upload resources
+				final File tmpFile = this.path.toFile();
+				final long tmpFileSize = tmpFile.length();
+				final BufferedInputStream bis = new BufferedInputStream(new FileInputStream(tmpFile));
+				final PutObjectArgs.Builder putObjectArgsBuilder = PutObjectArgs.builder()
+					.bucket(this.bucket)
+					.object(this.objectKey)
+					.stream(bis, tmpFileSize, PART_SIZE)
+					.contentType(this.contentType)
+					.userMetadata(this.userMetadata);
+				if (isRegionValid(this.region)) {
+					putObjectArgsBuilder.region(this.region);
+				}
+
+				// Start async upload, complete the future and clean resources on completion
+				this.minioClient
+					.putObject(putObjectArgsBuilder.build())
+					.orTimeout(this.requestTimeoutInMillis, TimeUnit.MILLISECONDS)
+					.whenComplete((ignored, throwable) -> {
+						try {
+							if (throwable == null) {
+								final FileForFetch fileForFetch = new FileForFetch(
+									this.fileId,
+									this.fileName,
+									this.description,
+									this.contentType,
+									tmpFileSize,
+									this.created,
+									this.originTags
+								);
+								this.fileForFetchFuture.complete(fileForFetch);
+							} else {
+								log.error("Failed to upload file to S3: {}", this.objectKey, throwable);
+								final UnexpectedIOException exception = new UnexpectedIOException(
+									"Failed to upload file to S3: " + throwable.getMessage(),
+									"Failed to upload file to S3.",
+									throwable
+								);
+								this.fileForFetchFuture.completeExceptionally(exception);
+							}
+						} finally {
+							// Close the upload stream and delete temporary file
+							IOUtils.closeQuietly(
+								bis::close,
+								() -> FileUtils.deleteFileIfExists(this.path)
+							);
+						}
+					});
+			} catch (Exception e) {
+				log.error("Failed to initiate upload to S3: {}", this.objectKey, e);
+				final UnexpectedIOException exception = new UnexpectedIOException(
+					"Failed to upload file to S3: " + e.getMessage(),
+					"Failed to upload file to S3.",
+					e
+				);
+				this.fileForFetchFuture.completeExceptionally(exception);
+				// Best-effort cleanup when async upload hasn't started
+				IOUtils.closeQuietly(() -> FileUtils.deleteFileIfExists(this.path));
+			}
 		}
 
 		/**
@@ -771,60 +854,6 @@ public class ExportS3Service implements ExportService {
 		 */
 		public long size() {
 			return this.path.toFile().length();
-		}
-
-		@Override
-		public void close() {
-			if (this.closed) {
-				return;
-			}
-			this.closed = true;
-
-			try {
-				this.delegate.close();
-
-				// Upload to S3
-				final File tmpFile = this.path.toFile();
-				final long tmpFileSize = tmpFile.length();
-				final PutObjectArgs.Builder putObjectArgsBuilder = PutObjectArgs.builder()
-					.bucket(this.bucket)
-					.object(this.objectKey)
-					.stream(new BufferedInputStream(new FileInputStream(tmpFile)), tmpFileSize, PART_SIZE)
-					.contentType(this.contentType)
-					.userMetadata(this.userMetadata);
-				if (isRegionValid(this.region)) {
-					putObjectArgsBuilder.region(this.region);
-				}
-				this.minioClient.putObject(
-					putObjectArgsBuilder.build()
-				);
-
-				// Create FileForFetch after successful upload
-				final FileForFetch fileForFetch = new FileForFetch(
-					this.fileId,
-					this.fileName,
-					this.description,
-					this.contentType,
-					tmpFileSize,
-					this.created,
-					this.originTags
-				);
-
-				this.fileForFetchFuture.complete(fileForFetch);
-
-			} catch (Exception e) {
-				log.error("Failed to upload file to S3: {}", this.objectKey, e);
-				final UnexpectedIOException exception = new UnexpectedIOException(
-					"Failed to upload file to S3: " + e.getMessage(),
-					"Failed to upload file to S3.",
-					e
-				);
-				this.fileForFetchFuture.completeExceptionally(exception);
-				throw exception;
-			} finally {
-				// Delete temporary file
-				IOUtils.closeQuietly(() -> FileUtils.deleteFileIfExists(this.path));
-			}
 		}
 	}
 

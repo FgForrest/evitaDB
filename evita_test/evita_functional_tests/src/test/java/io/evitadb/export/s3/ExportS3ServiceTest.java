@@ -499,6 +499,7 @@ class ExportS3ServiceTest {
 			os.close(); // Second close - should not throw or duplicate upload
 		}
 
+		handle.fileForFetchFuture().join();
 		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 	}

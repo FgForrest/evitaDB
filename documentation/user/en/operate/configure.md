@@ -71,6 +71,7 @@ export:                                           # [see Export configuration](#
     accessKey: null
     secretKey: null
     region: null
+    requestTimeoutInMillis: 30s
 
 transaction:                                      # [see Transaction configuration](#transaction-configuration)
   transactionWorkDirectory: /tmp/evitaDB/transaction
@@ -714,6 +715,14 @@ Configuration for S3-compatible storage export backend. Requires the `evita_expo
         <p>**Default:** `null`</p>
         <p>The AWS region for the S3 bucket (e.g., `us-east-1`). Optional - some S3-compatible services
         may not require a region.</p>
+    </dd>
+    <dt>requestTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `30s`</p>
+        <p>Specifies the timeout applied to all external S3 operations performed by the export service.
+        The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
+        bucket creation, object upload, download, deletion and metadata reads. Increase this value if
+        your S3 provider or network exhibits higher latencies.</p>
     </dd>
 </dl>
 

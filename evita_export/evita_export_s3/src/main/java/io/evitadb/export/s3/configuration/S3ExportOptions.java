@@ -88,6 +88,20 @@ public class S3ExportOptions extends ExportOptions {
 	private final String region;
 
 	/**
+	 * Timeout in milliseconds for external S3 operations performed by the export service.
+	 * The timeout is applied to all asynchronous MinIO client calls that wait for completion.
+	 *
+	 * Default value is {@value #DEFAULT_REQUEST_TIMEOUT_IN_MILLIS}.
+	 */
+	@Getter
+	private final long requestTimeoutInMillis;
+
+	/**
+	 * Default timeout for S3 requests in milliseconds.
+	 */
+	public static final long DEFAULT_REQUEST_TIMEOUT_IN_MILLIS = 30_000L;
+
+	/**
 	 * Default constructor with default values.
 	 */
 	public S3ExportOptions() {
@@ -97,6 +111,7 @@ public class S3ExportOptions extends ExportOptions {
 		this.accessKey = null;
 		this.secretKey = null;
 		this.region = null;
+		this.requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT_IN_MILLIS;
 	}
 
 	/**
@@ -119,7 +134,8 @@ public class S3ExportOptions extends ExportOptions {
 		@Nullable String bucket,
 		@Nullable String accessKey,
 		@Nullable String secretKey,
-		@Nullable String region
+		@Nullable String region,
+		long requestTimeoutInMillis
 	) {
 		super(enabled, sizeLimitBytes, historyExpirationSeconds);
 		this.endpoint = endpoint;
@@ -127,6 +143,7 @@ public class S3ExportOptions extends ExportOptions {
 		this.accessKey = accessKey;
 		this.secretKey = secretKey;
 		this.region = region;
+		this.requestTimeoutInMillis = requestTimeoutInMillis;
 	}
 
 	@Nonnull
@@ -210,6 +227,10 @@ public class S3ExportOptions extends ExportOptions {
 				this.secretKey != null && !this.secretKey.isBlank(),
 				"S3 secret key must be specified when S3 export is enabled."
 			);
+			Assert.isTrue(
+				this.requestTimeoutInMillis > 0,
+				"S3 request timeout must be a positive number of milliseconds."
+			);
 		}
 	}
 
@@ -244,6 +265,7 @@ public class S3ExportOptions extends ExportOptions {
 		@Nullable private String accessKey = null;
 		@Nullable private String secretKey = null;
 		@Nullable private String region = null;
+		private long requestTimeoutInMillis = DEFAULT_REQUEST_TIMEOUT_IN_MILLIS;
 
 		Builder() {
 		}
@@ -257,6 +279,7 @@ public class S3ExportOptions extends ExportOptions {
 			this.accessKey = options.getAccessKey();
 			this.secretKey = options.getSecretKey();
 			this.region = options.getRegion();
+			this.requestTimeoutInMillis = options.getRequestTimeoutInMillis();
 		}
 
 		@Nonnull
@@ -307,6 +330,16 @@ public class S3ExportOptions extends ExportOptions {
 			return this;
 		}
 
+		/**
+		 * Configures the timeout in milliseconds for external S3 requests performed by the export service.
+		 * The timeout is applied to all asynchronous MinIO client calls that wait for completion.
+		 */
+		@Nonnull
+		public Builder requestTimeoutInMillis(long requestTimeoutInMillis) {
+			this.requestTimeoutInMillis = requestTimeoutInMillis;
+			return this;
+		}
+
 		@Nonnull
 		public S3ExportOptions build() {
 			return new S3ExportOptions(
@@ -317,7 +350,8 @@ public class S3ExportOptions extends ExportOptions {
 				this.bucket,
 				this.accessKey,
 				this.secretKey,
-				this.region
+				this.region,
+				this.requestTimeoutInMillis
 			);
 		}
 	}
