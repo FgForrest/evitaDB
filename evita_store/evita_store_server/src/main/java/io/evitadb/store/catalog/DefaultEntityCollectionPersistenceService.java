@@ -48,12 +48,12 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContract
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.CatalogConsumersListener;
-import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.CatalogConsumersListener;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
@@ -81,23 +81,29 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
+import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
+import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.EntityAttributesSetKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
-import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
-import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart;
-import io.evitadb.store.entity.model.entity.AttributesStoragePart.EntityAttributesSetKey;
-import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.entity.model.entity.PricesStoragePart;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
-import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.EntityStoragePart;
-import io.evitadb.store.model.PersistentStorageDescriptor;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
@@ -106,15 +112,9 @@ import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
-import io.evitadb.store.service.SharedClassesConfigurer;
-import io.evitadb.store.spi.EntityCollectionPersistenceService;
-import io.evitadb.store.spi.HeaderInfoSupplier;
-import io.evitadb.store.spi.StoragePartPersistenceService;
-import io.evitadb.store.spi.chunk.ServerChunkTransformerAccessor;
-import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.storageParts.index.*;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
+import io.evitadb.store.shared.kryo.VersionedKryoFactory;
+import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -139,8 +139,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
-import static io.evitadb.store.spi.model.storageParts.index.PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
+import static io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.empty;
@@ -154,7 +154,11 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultEntityCollectionPersistenceService implements EntityCollectionPersistenceService, CatalogConsumersListener {
+public class DefaultEntityCollectionPersistenceService
+	implements
+	EntityCollectionPersistenceService<PersistentStorageDescriptor, EntityCollectionFileHeader>,
+	CatalogConsumersListener
+{
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -207,7 +211,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * each {@link #flush(long, HeaderInfoSupplier)}  call.
 	 */
 	@Nonnull @Getter
-	private EntityCollectionHeader entityCollectionHeader;
+	private EntityCollectionFileHeader entityCollectionHeader;
 	/**
 	 * Contains information about the time the non-flushed block was reported.
 	 */
@@ -325,7 +329,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static FacetIndex fetchFacetIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final FacetIndex facetIndex;
 		final Set<String> facetIndexes = entityIndexCnt.getFacetIndexes();
@@ -354,7 +358,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static HierarchyIndex fetchHierarchyIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull EntityIndexStoragePart entityIndexCnt
 	) {
 		final HierarchyIndex hierarchyIndex;
@@ -382,7 +386,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static void fetchSortIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndexes,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
@@ -413,7 +417,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static void fetchChainIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndexes,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
@@ -442,7 +446,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static void fetchAttributeCardinalityIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull Map<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
 		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
 	) {
@@ -466,7 +470,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static ReferenceTypeCardinalityIndex fetchReferenceTypeCardinalityIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull String referenceName
 	) {
 		final long primaryKey = ReferenceTypeCardinalityIndexStoragePart.computeUniquePartId(entityIndexId, referenceName, persistenceService.getReadOnlyKeyCompressor());
@@ -484,7 +488,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	private static void fetchFilterIndex(
 		long catalogVersion,
 		int entityIndexId,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
 		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey,
 		@SuppressWarnings("rawtypes")
@@ -520,7 +524,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull String entityType,
-		@Nonnull StoragePartPersistenceService persistenceService,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndexes,
 		@Nonnull AttributeIndexStorageKey attributeIndexStorageKey
 	) {
@@ -556,7 +560,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
-		@Nonnull StoragePartPersistenceService persistenceService
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService
 	) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceSuperIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
@@ -587,7 +591,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		int entityIndexId,
 		@Nonnull Scope scope,
 		@Nonnull Set<PriceIndexKey> priceIndexes,
-		@Nonnull StoragePartPersistenceService persistenceService
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> persistenceService
 	) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceRefIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
@@ -753,7 +757,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		long catalogVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull EntityCollectionHeader entityTypeHeader,
+		@Nonnull EntityCollectionFileHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
@@ -1005,7 +1009,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		if (versionDiffers) {
 			// build the enriched entity from scratch
 			return new EntityWithFetchCount(
-				EntityFactory.createEntityFrom(
+				io.evitadb.store.entity.EntityFactory.createEntityFrom(
 					entityDecorator.getDelegate().getSchema(),
 					bodyPart,
 					attributesStorageContainers,
@@ -1279,7 +1283,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Nonnull
-	public EntityCollectionHeader compact(@Nonnull String catalogName, long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
+	public EntityCollectionFileHeader compact(@Nonnull String catalogName, long catalogVersion, @Nonnull HeaderInfoSupplier headerInfoSupplier) {
 		final DataFileCompactEvent event = new DataFileCompactEvent(
 			catalogName,
 			FileType.ENTITY_COLLECTION,
@@ -1298,7 +1302,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				e
 			);
 		}
-		final EntityCollectionHeader newCollectionHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
+		final EntityCollectionFileHeader newCollectionHeader = createEntityCollectionHeader(catalogVersion, catalogStoragePath, offsetIndexDescriptor, headerInfoSupplier, newReference);
 		// emit event
 		event.finish().commit();
 		log.info(
@@ -1329,14 +1333,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * @param catalogVersion new catalog version
 	 */
 	@Nonnull
-	public EntityCollectionHeader copySnapshotTo(
+	public EntityCollectionFileHeader copySnapshotTo(
 		long catalogVersion,
 		@Nonnull CollectionFileReference fileReference,
 		@Nonnull OutputStream outputStream,
 		@Nullable IntConsumer progressConsumer
 	) {
 		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream, progressConsumer);
-		final EntityCollectionHeader currentHeader = getEntityCollectionHeader();
+		final EntityCollectionFileHeader currentHeader = getEntityCollectionHeader();
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		return createEntityCollectionHeader(
 			catalogVersion,
@@ -1392,19 +1396,19 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Method creates a function that allows to create new {@link EntityCollectionHeader} instance from
+	 * Method creates a function that allows to create new {@link EntityCollectionFileHeader} instance from
 	 * {@link PersistentStorageDescriptor} DTO. The catalog entity header contains additional information from this
 	 * entity collection instance we need to keep and propagate to next immutable catalog entity header object.
 	 */
 	@Nonnull
-	private EntityCollectionHeader createEntityCollectionHeader(
+	private EntityCollectionFileHeader createEntityCollectionHeader(
 		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull PersistentStorageDescriptor newDescriptor,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
 		@Nonnull CollectionFileReference collectionFileReference
 	) {
-		return new EntityCollectionHeader(
+		return new EntityCollectionFileHeader(
 			collectionFileReference.entityType(),
 			collectionFileReference.entityTypePrimaryKey(),
 			collectionFileReference.fileIndex(),
@@ -1612,7 +1616,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 	@RequiredArgsConstructor
 	private static class CopyingHeaderInfoSupplier implements HeaderInfoSupplier {
-		private final EntityCollectionHeader currentHeader;
+		private final EntityCollectionFileHeader currentHeader;
 
 		@Override
 		public int getLastAssignedPrimaryKey() {

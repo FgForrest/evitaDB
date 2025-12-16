@@ -31,12 +31,12 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.dto.*;
-import io.evitadb.store.dataType.serializer.EnumNameSerializer;
-import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
-import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
-import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.CatalogSchemaStoragePartSerializer;
 import io.evitadb.store.entity.serializer.EntitySchemaStoragePartSerializer;
+import io.evitadb.store.entity.serializer.EnumNameSerializer;
+import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.schema.serializer.*;
 import io.evitadb.utils.Assert;
 

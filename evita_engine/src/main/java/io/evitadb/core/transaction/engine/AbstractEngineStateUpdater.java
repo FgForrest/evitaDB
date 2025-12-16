@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.engine;
 
 
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.core.engine.ExpandedEngineState;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -35,7 +36,7 @@ import java.util.UUID;
  * Convenience base class for {@link EngineStateUpdater} implementations that only need to carry
  * the transaction and mutation metadata. Subclasses are expected to implement the
  * {@link java.util.function.UnaryOperator#apply(Object)} method to compute the next
- * {@link io.evitadb.core.ExpandedEngineState}.
+ * {@link ExpandedEngineState}.
  *
  * The stored metadata is consumed by
  * {@link io.evitadb.core.transaction.engine.EngineTransactionManager} in the post-mutation phase to

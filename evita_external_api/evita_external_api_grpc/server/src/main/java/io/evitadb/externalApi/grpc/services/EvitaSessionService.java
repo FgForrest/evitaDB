@@ -66,8 +66,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.core.Evita;
-import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.core.executor.ObservableExecutorServiceWithHardDeadline;
+import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -653,7 +653,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		executeWithClientContext(
 			session -> {
-				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(
+				final MaterializedVersionBlock catalogVersionAt = session.getLastCatalogVersionBefore(
 					request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
 				);
 				responseObserver.onNext(

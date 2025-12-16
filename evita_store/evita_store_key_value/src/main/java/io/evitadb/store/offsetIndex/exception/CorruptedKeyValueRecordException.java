@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 package io.evitadb.store.offsetIndex.exception;
 
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.EvitaIOException;
 import lombok.Getter;
 
 import java.io.Serial;
@@ -35,7 +35,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class CorruptedKeyValueRecordException extends StorageException {
+public class CorruptedKeyValueRecordException extends EvitaIOException {
 	@Serial private static final long serialVersionUID = -1397355818882319526L;
 	@Getter private final Class<? extends Serializable> recordType;
 	@Getter private final long primaryKey;

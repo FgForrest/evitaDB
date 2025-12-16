@@ -34,28 +34,28 @@ module evita.store.server {
 	exports io.evitadb.store.query;
 	exports io.evitadb.store.schema;
 	exports io.evitadb.store.catalog.service;
-	exports io.evitadb.store.traffic;
-	exports io.evitadb.store.traffic.event;
+	exports io.evitadb.store.shared.kryo;
+	exports io.evitadb.store.wal;
 
-	provides io.evitadb.store.spi.EnginePersistenceServiceFactory with io.evitadb.store.engine.DefaultEnginePersistenceServiceFactory;
-	provides io.evitadb.store.spi.CatalogPersistenceServiceFactory with io.evitadb.store.catalog.DefaultCatalogPersistenceServiceFactory;
-	provides io.evitadb.store.service.StoragePartRegistry with io.evitadb.store.index.service.IndexStoragePartRegistry;
-	provides io.evitadb.store.spi.TrafficRecorder with io.evitadb.store.traffic.OffHeapTrafficRecorder;
+	provides io.evitadb.spi.store.engine.EnginePersistenceServiceFactory with io.evitadb.store.engine.DefaultEnginePersistenceServiceFactory;
+	provides io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory with io.evitadb.store.catalog.DefaultCatalogPersistenceServiceFactory;
+	provides io.evitadb.store.shared.service.StoragePartRegistry with io.evitadb.store.index.service.IndexStoragePartRegistry;
 
 	requires static lombok;
 	requires static jsr305;
-	requires org.slf4j;
-	requires com.esotericsoftware.kryo;
-	requires roaringbitmap;
 
 	requires evita.api;
-	requires evita.engine;
 	requires evita.common;
+	requires evita.engine;
 	requires evita.query;
-	requires evita.store.core;
-	requires evita.store.entity;
 	requires evita.store.key.value;
+	requires evita.store.entity;
 	requires com.carrotsearch.hppc;
+	requires com.esotericsoftware.kryo;
+	requires com.fasterxml.jackson.databind;
 	requires jdk.jfr;
+	requires org.slf4j;
+	requires roaringbitmap;
+	requires org.apache.commons.lang3;
 
 }

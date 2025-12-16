@@ -27,7 +27,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -106,7 +106,11 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 				new ReadOnlyHandleOpenedEvent(this.catalogName, this.fileType, this.logicalName).commit();
 			}
 		} catch (FileNotFoundException ex) {
-			throw new StorageException("Target file " + targetFile + " cannot be opened!", ex);
+			throw new UnexpectedIOException(
+				"Target file " + targetFile + " cannot be opened!",
+				"Target file cannot be opened.",
+				ex
+			);
 		}
 	}
 

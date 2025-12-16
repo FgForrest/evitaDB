@@ -30,14 +30,15 @@ import com.carrotsearch.hppc.LongObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.StoragePartPersistenceService;
-import io.evitadb.store.spi.model.storageParts.StoragePartKey;
+import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePartKey;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -82,9 +83,9 @@ public class DataStoreChanges {
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
-	@Nonnull private StoragePartPersistenceService persistenceService;
+	@Nonnull private StoragePartPersistenceService<StorageDescriptor> persistenceService;
 
-	public DataStoreChanges(@Nonnull StoragePartPersistenceService persistenceService) {
+	public DataStoreChanges(@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService) {
 		this.persistenceService = persistenceService;
 	}
 
@@ -93,7 +94,7 @@ public class DataStoreChanges {
 	 *
 	 * @param persistenceService the persistence service to be used for storing data
 	 */
-	public void setPersistenceService(@Nonnull StoragePartPersistenceService persistenceService) {
+	public void setPersistenceService(@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService) {
 		this.persistenceService = persistenceService;
 	}
 

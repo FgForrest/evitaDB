@@ -24,7 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 

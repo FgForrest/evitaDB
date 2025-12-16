@@ -40,8 +40,8 @@ Java classes are automatically generated from these `.proto` files on Maven buil
 are generated into shared module into package `io.evitadb.externalApi.grpc.generated`
 
 To make the API alive, there is a set of services in server module at `io.evitadb.externalApi.grpc.services` which
-copy the `io.evitadb.core.Evita` and `io.evitadb.core.EvitaSession` objects of the core evitaDB API. These services
-are trimmed only to the most basic needed functionality without most of the helper methods found in `io.evitadb.core.EvitaSession`
+copy the `io.evitadb.core.Evita` and `io.evitadb.core.data.session.EvitaSession` objects of the core evitaDB API. These services
+are trimmed only to the most basic needed functionality without most of the helper methods found in `io.evitadb.core.data.session.EvitaSession`
 or `io.evitadb.core.Evita`.
 
 ## Data types support

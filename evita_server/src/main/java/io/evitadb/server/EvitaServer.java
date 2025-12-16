@@ -35,6 +35,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
 import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -44,6 +45,7 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.server.yaml.EvitaConstructor;
+import io.evitadb.server.yaml.ExportOptionsDeserializer;
 import io.evitadb.server.yaml.SpecialConfigInputFormatsHandler;
 import io.evitadb.server.yaml.UnknownPropertyProblemHandler;
 import io.evitadb.utils.Assert;
@@ -76,6 +78,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -375,7 +378,65 @@ public class EvitaServer {
 		final Map<String, Object> values = yaml.load(reader);
 		// backward compatibility with the old configuration format
 		replaceDeprecatedSettings("", values);
+		migrateExportSettings(values);
 		return values;
+	}
+
+	/**
+	 * Migrates deprecated export settings from storage section to export section.
+	 * TOBEDONE #538 - remove in the future (together with deprecated builder methods in StorageOptions)
+	 *
+	 * @param values the root configuration map
+	 */
+	@SuppressWarnings("unchecked")
+	private static void migrateExportSettings(@Nonnull Map<String, Object> values) {
+		final Object storageObj = values.get("storage");
+		if (!(storageObj instanceof Map)) {
+			return;
+		}
+
+		final Map<String, Object> storage = (Map<String, Object>) storageObj;
+		final Map<String, Object> exportConfig = new HashMap<>();
+		final Map<String, Object> fileSystemConfig = new HashMap<>();
+
+		// migrate exportDirectory -> export.fileSystem.directory
+		if (storage.containsKey("exportDirectory")) {
+			fileSystemConfig.put("directory", storage.remove("exportDirectory"));
+		}
+
+		// migrate exportDirectorySizeLimitBytes -> export.fileSystem.sizeLimitBytes
+		if (storage.containsKey("exportDirectorySizeLimitBytes")) {
+			fileSystemConfig.put("sizeLimitBytes", storage.remove("exportDirectorySizeLimitBytes"));
+		}
+
+		// migrate exportFileHistoryExpirationSeconds -> export.fileSystem.historyExpirationSeconds
+		if (storage.containsKey("exportFileHistoryExpirationSeconds")) {
+			fileSystemConfig.put("historyExpirationSeconds", storage.remove("exportFileHistoryExpirationSeconds"));
+		}
+
+		// only add to root if there were deprecated settings to migrate
+		if (!fileSystemConfig.isEmpty()) {
+			exportConfig.put("fileSystem", fileSystemConfig);
+		}
+
+		if (!exportConfig.isEmpty()) {
+			// merge with existing export config if present
+			final Object existingExport = values.get("export");
+			if (existingExport instanceof Map) {
+				final Map<String, Object> existingExportMap = (Map<String, Object>) existingExport;
+				for (Entry<String, Object> entry : exportConfig.entrySet()) {
+					if (entry.getValue() instanceof Map && existingExportMap.get(entry.getKey()) instanceof Map) {
+						// merge nested maps
+						((Map<String, Object>) existingExportMap.get(entry.getKey()))
+							.putAll((Map<String, Object>) entry.getValue());
+					} else if (!existingExportMap.containsKey(entry.getKey())) {
+						existingExportMap.put(entry.getKey(), entry.getValue());
+					}
+				}
+			} else {
+				values.put("export", exportConfig);
+			}
+		}
 	}
 
 	/**
@@ -531,7 +592,8 @@ public class EvitaServer {
 			evitaServerConfig.server(),
 			evitaServerConfig.storage(),
 			evitaServerConfig.transaction(),
-			evitaServerConfig.cache()
+			evitaServerConfig.cache(),
+			evitaServerConfig.export()
 		);
 
 		if (this.evitaConfiguration.server().quiet()) {
@@ -574,6 +636,7 @@ public class EvitaServer {
 			this.evitaConfiguration.storage(),
 			this.evitaConfiguration.transaction(),
 			this.evitaConfiguration.cache(),
+			this.evitaConfiguration.export(),
 			apiOptions
 		);
 	}
@@ -662,6 +725,7 @@ public class EvitaServer {
 		}
 
 		yamlMapper.registerModule(createAbstractApiConfigModule(unknownPropertyProblemHandler));
+		yamlMapper.registerModule(createExportOptionsModule(unknownPropertyProblemHandler));
 		yamlMapper.registerModule(new ParameterNamesModule());
 		yamlMapper.addHandler(new SpecialConfigInputFormatsHandler());
 
@@ -727,6 +791,20 @@ public class EvitaServer {
 			);
 		}
 		module.addDeserializer(AbstractApiOptions.class, deserializer);
+		return module;
+	}
+
+	/**
+	 * Method creates Jackson module for deserializing {@link ExportOptions} with dynamic
+	 * discovery of export implementation configuration classes via {@link java.util.ServiceLoader}.
+	 */
+	@Nonnull
+	private SimpleModule createExportOptionsModule(@Nullable UnknownPropertyProblemHandler unknownPropertyProblemHandler) {
+		final SimpleModule module = new SimpleModule();
+		module.addDeserializer(
+			ExportOptions.class,
+			new ExportOptionsDeserializer(unknownPropertyProblemHandler)
+		);
 		return module;
 	}
 

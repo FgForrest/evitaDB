@@ -28,7 +28,6 @@ import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.OffsetIndex.VolatileValueInformation;
 import io.evitadb.store.offsetIndex.OffsetIndex.VolatileValues;
@@ -38,6 +37,7 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
@@ -434,7 +434,7 @@ public class OffsetIndexSerializationService {
 	}
 
 	/**
-	 * Deserializes {@link OffsetIndex} from the fragment identified by `fileLocation`.
+	 * Deserializes {@link OffsetIndex} from the fragment identified by `location`.
 	 */
 	public static void deserialize(
 		@Nonnull ObservableInput<?> input,

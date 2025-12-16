@@ -23,14 +23,15 @@
 
 package io.evitadb.core.buffer;
 
-import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,11 +41,11 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
-import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * TransactionalDataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
- * storage that takes {@link io.evitadb.core.Transaction} into an account. Even if transactional memory is not available
+ * storage that takes {@link Transaction} into an account. Even if transactional memory is not available
  * this buffer traps updates of certain objects in {@link DataStoreMemoryBuffer} to avoid persistence of large
  * indexes with each update (which would drastically slow initial bulk database setup).
  *
@@ -65,11 +66,11 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
-	@Nonnull private final StoragePartPersistenceService persistenceService;
+	@Nonnull private final StoragePartPersistenceService<StorageDescriptor> persistenceService;
 
 	public TransactionalDataStoreMemoryBuffer(
 		@Nonnull TransactionalLayerCreator<DataStoreChanges> transactionalMemoryDataSource,
-		@Nonnull StoragePartPersistenceService persistenceService
+		@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService
 	) {
 		this.transactionalMemoryDataSource = transactionalMemoryDataSource;
 		this.persistenceService = persistenceService;

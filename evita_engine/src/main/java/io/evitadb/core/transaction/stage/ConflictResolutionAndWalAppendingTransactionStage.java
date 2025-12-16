@@ -35,8 +35,8 @@ import io.evitadb.core.metric.event.transaction.TransactionResolution;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import io.evitadb.store.spi.exception.CatalogWriteAheadLastTransactionMismatchException;
+import io.evitadb.spi.store.catalog.exception.CatalogWriteAheadLastTransactionMismatchException;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
@@ -287,7 +287,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		long walSizeInBytes,
 		int catalogSchemaVersionDelta,
 		@Nonnull Set<ConflictKey> conflictKeys,
-		@Nonnull OffHeapWithFileBackupReference walReference,
+		@Nonnull LogRecordReference walReference,
 		@Nonnull CommitProgressRecord commitProgress,
 		@Nonnull TransactionQueuedEvent transactionQueuedEvent
 	) implements TransactionTask {
@@ -300,7 +300,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			long walSizeInBytes,
 			int catalogSchemaVersionDelta,
 			@Nonnull Set<ConflictKey> conflictKeys,
-			@Nonnull OffHeapWithFileBackupReference walReference,
+			@Nonnull LogRecordReference walReference,
 			@Nonnull CommitProgressRecord commitProgress
 		) {
 			this(

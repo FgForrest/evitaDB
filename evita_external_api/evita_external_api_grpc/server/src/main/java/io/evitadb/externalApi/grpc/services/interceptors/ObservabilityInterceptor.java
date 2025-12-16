@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc.services.interceptors;
 
-import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.InitiatorType;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.ResponseState;

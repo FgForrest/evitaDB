@@ -48,14 +48,13 @@ import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.api.task.ServerTask;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.CatalogConsumersListener;
-import io.evitadb.core.EntityCollection;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.CatalogConsumersListener;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.core.file.ExportFileService;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -72,53 +71,56 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.BiIntConsumer;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
+import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
 import io.evitadb.store.catalog.ObsoleteFileMaintainer.DataFilesBulkInfo;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.catalog.task.BackupTask;
 import io.evitadb.store.catalog.task.FullBackupTask;
-import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
+import io.evitadb.store.exception.BootstrapFileNotFound;
+import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.exception.InvalidFileNameException;
-import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.exception.StoredProtocolVersionNotSupportedException;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
-import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.model.PersistentStorageDescriptor;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.model.header.CollectionFileReference;
+import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
 import io.evitadb.store.offsetIndex.OffsetIndex.NonFlushedBlock;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.BootstrapWriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
-import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.service.SharedClassesConfigurer;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
-import io.evitadb.store.spi.EntityCollectionPersistenceService;
-import io.evitadb.store.spi.HeaderInfoSupplier;
-import io.evitadb.store.spi.IsolatedWalPersistenceService;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import io.evitadb.store.spi.PersistenceService;
-import io.evitadb.store.spi.exception.BootstrapFileNotFound;
-import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
-import io.evitadb.store.spi.model.CatalogHeader;
-import io.evitadb.store.spi.model.EntityCollectionHeader;
-import io.evitadb.store.spi.model.reference.CollectionFileReference;
-import io.evitadb.store.spi.model.reference.LogFileRecordReference;
-import io.evitadb.store.spi.model.reference.TransactionMutationWithWalFileReference;
-import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
-import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
+import io.evitadb.store.shared.kryo.VersionedKryoFactory;
+import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.store.wal.AbstractMutationLog.WalPurgeCallback;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
@@ -168,11 +170,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogDataStoreFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileName;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService.readCatalogHeader;
-import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogBootstrapFileName;
-import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileName;
-import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileName;
-import static io.evitadb.store.spi.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -184,7 +186,11 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultCatalogPersistenceService implements CatalogPersistenceService, CatalogConsumersListener {
+public class DefaultCatalogPersistenceService
+	implements
+	CatalogPersistenceService<LogFileRecordReference, CollectionFileReference, EntityCollectionFileHeader>,
+	CatalogConsumersListener
+{
 
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -224,7 +230,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * The export file service instance that is used for backing-up data from the catalog.
 	 */
-	private final ExportFileService exportFileService;
+	private final ExportService exportService;
 	/**
 	 * The name of the catalog that maps to {@link EntitySchema#getName()}.
 	 */
@@ -835,7 +841,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final StorageRecord<CatalogBootstrap> storageRecord = readHandle.execute(
 			input -> {
 				Assert.isPremiseValid(
-					!input.isCompressionEnabled(),
+					input.isCompressionDisabled(),
 					"Bootstrap record must not be compressed!"
 				);
 				return StorageRecord.read(
@@ -881,7 +887,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull IntFunction<String> walFileNameProvider,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
@@ -985,7 +991,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions bootstrapStorageOptions,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService
 	) {
 		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
 		final Path catalogStoragePath = bootstrapStorageOptions.storageDirectory().resolve(catalogName);
@@ -1008,7 +1014,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				// upgrade the bootstrap file and all catalog files
 				Migration_2025_1.upgradeCatalogFiles(
 					catalogName, bootstrapStorageOptions, storageOptions, catalogStoragePath, bootstrapFilePath,
-					exportFileService
+					exportService
 				);
 				// return the last old bootstrap which is now in new format
 				return oldBootstrap;
@@ -1058,13 +1064,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService
 	) {
 		this.storageOptions = storageOptions;
 		this.bootstrapStorageOptions = modifyStorageOptionsForBootstrapFile(this.storageOptions);
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
-		this.exportFileService = exportFileService;
+		this.exportService = exportService;
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -1139,13 +1145,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService
 	) {
 		this.storageOptions = storageOptions;
 		this.bootstrapStorageOptions = modifyStorageOptionsForBootstrapFile(this.storageOptions);
 		this.transactionOptions = transactionOptions;
 		this.scheduler = scheduler;
-		this.exportFileService = exportFileService;
+		this.exportService = exportService;
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
 			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -1167,7 +1173,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
 		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.bootstrapStorageOptions, this.storageOptions, exportFileService
+			verifiedCatalogName, this.bootstrapStorageOptions, this.storageOptions, exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageOptions, this.catalogStoragePath)
@@ -1250,7 +1256,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.bootstrapStorageOptions = modifyStorageOptionsForBootstrapFile(this.storageOptions);
 		this.transactionOptions = formerService.transactionOptions;
 		this.scheduler = formerService.scheduler;
-		this.exportFileService = formerService.exportFileService;
+		this.exportService = formerService.exportService;
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(
 			catalogName,
 			this.transactionOptions.transactionMemoryBufferLimitSizeBytes(),
@@ -1272,7 +1278,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
 		// TOBEDONE #538 - original contents: getLastCatalogBootstrap(verifiedCatalogName, this.bootstrapStorageOptions);
 		this.bootstrapUsed = getLastCatalogBootstrapWithAutomaticUpgrade(
-			verifiedCatalogName, this.bootstrapStorageOptions, this.storageOptions, this.exportFileService
+			verifiedCatalogName, this.bootstrapStorageOptions, this.storageOptions, this.exportService
 		);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageOptions, this.catalogStoragePath)
@@ -1334,7 +1340,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public void emitObservabilityEvents() {
 		// emit statistics event
-		final CatalogHeader catalogHeader = getCatalogHeader(this.bootstrapUsed.catalogVersion());
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(this.bootstrapUsed.catalogVersion());
 		new CatalogStatisticsEvent(
 			this.catalogName,
 			catalogHeader.getEntityTypeFileIndexes().size(),
@@ -1391,7 +1397,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public CatalogHeader getCatalogHeader(long catalogVersion) {
+	public CatalogHeader<LogFileRecordReference, CollectionFileReference> getCatalogHeader(long catalogVersion) {
 		return getStoragePartPersistenceService(catalogVersion).getCatalogHeader(catalogVersion);
 	}
 
@@ -1427,7 +1433,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public Optional<CatalogIndex> readCatalogIndex(@Nonnull Catalog catalog, @Nonnull Scope scope) {
 		final long catalogVersion = catalog.getVersion();
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
 		final CatalogIndexStoragePart catalogIndexStoragePart = storagePartPersistenceService.getStoragePart(
 			catalogVersion,
@@ -1491,7 +1497,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
 		@Nullable TransactionMutation lastProcessedTransaction,
-		@Nonnull List<EntityCollectionHeader> entityHeaders,
+		@Nonnull List<EntityCollectionFileHeader> entityHeaders,
 		@Nonnull DataStoreMemoryBuffer dataStoreMemoryBuffer
 	) {
 		// first we need to execute transition to alive state
@@ -1501,10 +1507,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogVersion = 1L;
 		}
 		// first store all entity collection headers if they differ
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
-			catalogVersion);
-		final CatalogHeader currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
-		for (EntityCollectionHeader entityHeader : entityHeaders) {
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
+			getStoragePartPersistenceService(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		for (EntityCollectionFileHeader entityHeader : entityHeaders) {
 			final FileLocation currentLocation = entityHeader.fileLocation();
 			final Optional<FileLocation> previousLocation = currentCatalogHeader
 				.getEntityTypeFileIndexIfExists(entityHeader.entityType())
@@ -1576,15 +1582,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String entityType,
 		int entityTypePrimaryKey
 	) {
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
-		final EntityCollectionHeader entityCollectionHeader = ofNullable(
+		final EntityCollectionFileHeader entityCollectionHeader = ofNullable(
 			storagePartPersistenceService.getStoragePart(
-				catalogVersion, entityTypePrimaryKey, EntityCollectionHeader.class
+				catalogVersion, entityTypePrimaryKey, EntityCollectionFileHeader.class
 			)
 		)
 			.orElseGet(
-				() -> new EntityCollectionHeader(
+				() -> new EntityCollectionFileHeader(
 					entityType,
 					entityTypePrimaryKey,
 					findFirstAvailableFileIndex(entityType, entityTypePrimaryKey)
@@ -1606,7 +1612,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	public Optional<EntityCollectionPersistenceService> flush(
 		long catalogVersion,
 		@Nonnull HeaderInfoSupplier headerInfoSupplier,
-		@Nonnull EntityCollectionHeader entityCollectionHeader,
+		@Nonnull EntityCollectionFileHeader entityCollectionHeader,
 		@Nonnull DataStoreMemoryBuffer dataStoreBuffer
 	) {
 		final CollectionFileReference collectionFileReference =
@@ -1638,7 +1644,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					entityCollectionPersistenceService.getSizeOnDiskInBytes()
 				);
 
-				final EntityCollectionHeader compactedHeader = entityCollectionPersistenceService.compact(
+				final EntityCollectionFileHeader compactedHeader = entityCollectionPersistenceService.compact(
 					this.catalogName, catalogVersion, headerInfoSupplier
 				);
 				final DefaultEntityCollectionPersistenceService newPersistenceService = this.entityCollectionPersistenceServices.computeIfAbsent(
@@ -1688,26 +1694,26 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public EntityCollectionHeader getEntityCollectionHeader(
+	public EntityCollectionFileHeader getEntityCollectionHeader(
 		long catalogVersion,
 		int entityTypePrimaryKey
 	) {
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
 		return Objects.requireNonNull(
 			storagePartPersistenceService.getStoragePart(
 				catalogVersion,
 				entityTypePrimaryKey,
-				EntityCollectionHeader.class
+				EntityCollectionFileHeader.class
 			)
 		);
 	}
 
 	@Override
 	public void goLive(long catalogVersion) {
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
-		final CatalogHeader currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
 		Assert.isPremiseValid(
 			currentCatalogHeader.catalogState() == CatalogState.WARMING_UP,
 			() -> "Catalog `" + this.catalogName + "` is not in WARMING_UP state, cannot go live!"
@@ -1739,19 +1745,27 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull EntityCollectionHeader[] entityCollectionHeaders
 	) {
 		// first store all entity collection headers if they differ
-		final CatalogStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
-			catalogVersion);
-		final CatalogHeader currentCatalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
+			getStoragePartPersistenceService(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = storagePartPersistenceService
+			.getCatalogHeader(catalogVersion);
 		boolean hasChanges = false;
 		for (EntityCollectionHeader entityHeader : entityCollectionHeaders) {
-			final FileLocation currentLocation = entityHeader.fileLocation();
-			final Optional<FileLocation> previousLocation = currentCatalogHeader
-				.getEntityTypeFileIndexIfExists(entityHeader.entityType())
-				.map(CollectionFileReference::fileLocation);
-			// if the location is different, store the header
-			if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
-				storagePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
-				hasChanges = true;
+			if (entityHeader instanceof EntityCollectionFileHeader entityFileHeader) {
+				final FileLocation currentLocation = entityFileHeader.fileLocation();
+				final Optional<FileLocation> previousLocation = currentCatalogHeader
+					.getEntityTypeFileIndexIfExists(entityFileHeader.entityType())
+					.map(CollectionFileReference::fileLocation);
+				// if the location is different, store the header
+				if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
+					storagePartPersistenceService.putStoragePart(catalogVersion, entityFileHeader);
+					hasChanges = true;
+				}
+			} else {
+				throw new GenericEvitaInternalError(
+					"Unsupported entity collection header type: " + entityHeader.getClass() + "!",
+					"Unsupported entity collection header type!"
+				);
 			}
 		}
 
@@ -1762,6 +1776,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.catalogStoragePath,
 				currentCatalogHeader.walFileReference(),
 				Arrays.stream(entityCollectionHeaders)
+					// this is safe - we checked it above
+					.map(EntityCollectionFileHeader.class::cast)
 					.map(
 						it -> new CollectionFileReference(
 							it.entityType(),
@@ -1814,35 +1830,44 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	public long appendWalAndDiscard(
 		long catalogVersion,
 		@Nonnull TransactionMutation transactionMutation,
-		@Nonnull OffHeapWithFileBackupReference walReference
+		@Nonnull LogRecordReference walReference
 	) {
-		this.walWriteLock.lock();
-		try {
-			try (walReference) {
-				if (this.catalogWal == null) {
-					final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
-					this.catalogWal = getCatalogWriteAheadLog(
-						this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
-						this.catalogStoragePath, catalogHeader, this.walKryoPool,
-						this.storageOptions, this.transactionOptions, this.scheduler,
-						this::trimBootstrapFile,
-						this.obsoleteFileMaintainer::createWalPurgeCallback
+		if (walReference instanceof OffHeapWithFileBackupReference offHeapReference) {
+			this.walWriteLock.lock();
+			try {
+				try (offHeapReference) {
+					if (this.catalogWal == null) {
+						final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(
+							catalogVersion);
+						this.catalogWal = getCatalogWriteAheadLog(
+							this.bootstrapUsed.catalogVersion(), this.catalogName, this.walFileNameProvider,
+							this.catalogStoragePath, catalogHeader, this.walKryoPool,
+							this.storageOptions, this.transactionOptions, this.scheduler,
+							this::trimBootstrapFile,
+							this.obsoleteFileMaintainer::createWalPurgeCallback
+						);
+					}
+					Assert.isPremiseValid(
+						offHeapReference.getBuffer().isPresent() || offHeapReference.getFilePath().isPresent(),
+						"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
 					);
-				}
-				Assert.isPremiseValid(
-					walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
-					"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
-				);
-				Assert.isPremiseValid(
-					this.catalogWal != null,
-					"Catalog WAL is unexpectedly not present!"
-				);
+					Assert.isPremiseValid(
+						this.catalogWal != null,
+						"Catalog WAL is unexpectedly not present!"
+					);
 
-				return Objects.requireNonNull(this.catalogWal.append(transactionMutation, walReference).fileLocation())
-					.recordLength();
+					return Objects.requireNonNull(
+							this.catalogWal.append(transactionMutation, offHeapReference).fileLocation())
+						.recordLength();
+				}
+			} finally {
+				this.walWriteLock.unlock();
 			}
-		} finally {
-			this.walWriteLock.unlock();
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unsupported WAL reference type: " + walReference.getClass() + "!",
+				"Unsupported WAL reference type!"
+			);
 		}
 	}
 
@@ -1861,7 +1886,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public CatalogPersistenceService replaceWith(
+	public CatalogPersistenceService<LogFileRecordReference, CollectionFileReference, EntityCollectionFileHeader> replaceWith(
 		long catalogVersion,
 		@Nonnull String catalogNameToBeReplaced,
 		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
@@ -1879,7 +1904,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		// store the catalog that replaces the original header
 		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = getStoragePartPersistenceService(
 			catalogVersion);
-		final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(catalogVersion);
 		final long newCatalogVersion = catalogHeader.catalogState() == CatalogState.WARMING_UP ?
 			0L : catalogHeader.version() + 1;
 
@@ -1993,13 +2018,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	@Nonnull
-	public EntityCollectionPersistenceService replaceCollectionWith(
+	public DefaultEntityCollectionPersistenceService replaceCollectionWith(
 		long catalogVersion,
 		@Nonnull String entityType,
 		int entityTypePrimaryKey,
 		@Nonnull String newEntityType
 	) {
-		final CatalogHeader catalogHeader = getCatalogHeader(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = getCatalogHeader(catalogVersion);
 		final CollectionFileReference replacedEntityTypeFileReference = catalogHeader.getEntityTypeFileIndexIfExists(
 				entityType)
 			.orElseThrow(
@@ -2027,7 +2052,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 
 		final File newFile = newFilePath.toFile();
-		final EntityCollectionHeader newEntityCollectionHeader;
+		final EntityCollectionFileHeader newEntityCollectionHeader;
 		try {
 			// now copy living snapshot of the entity collection to a new file
 			Assert.isPremiseValid(
@@ -2073,7 +2098,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public void deleteEntityCollection(
 		long catalogVersion,
-		@Nonnull EntityCollectionHeader entityCollectionHeader
+		@Nonnull EntityCollectionFileHeader entityCollectionHeader
 	) {
 		final CollectionFileReference collectionFileReference = new CollectionFileReference(
 			entityCollectionHeader.entityType(),
@@ -2299,7 +2324,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				// otherwise we can remove all the files that are not referenced in the current catalog header
 				this.bootstrapUsed;
 
-			final CatalogHeader catalogHeader = fetchCatalogHeader(catalogBootstrap);
+			final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = fetchCatalogHeader(catalogBootstrap);
 			final Pattern catalogDataFilePattern = CatalogPersistenceService.getCatalogDataStoreFileNamePattern(
 				this.catalogName);
 			final File[] filesToDelete = Objects.requireNonNull(
@@ -2376,7 +2401,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		return new BackupTask(
 			this.catalogName, pastMoment, catalogVersion, includingWAL,
-			bootstrapRecord, this.exportFileService, this,
+			bootstrapRecord, this.exportService, this,
 			onStart, onComplete
 		);
 	}
@@ -2389,7 +2414,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		return new FullBackupTask(
 			this.catalogName,
-			this.exportFileService,
+			this.exportService,
 			this,
 			onStart, onComplete
 		);
@@ -2659,7 +2684,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nonnull
 	public DefaultEntityCollectionPersistenceService createEntityCollectionPersistenceService(
-		@Nonnull EntityCollectionHeader entityCollectionHeader
+		@Nonnull EntityCollectionFileHeader entityCollectionHeader
 	) {
 		return new DefaultEntityCollectionPersistenceService(
 			this.bootstrapUsed.catalogVersion(),
@@ -2911,12 +2936,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogContract catalogInstance,
 		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull CatalogStoragePartPersistenceService storagePartPersistenceService,
+		@Nonnull CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> storagePartPersistenceService,
 		@Nonnull OnDifferentCatalogName onDifferentCatalogName,
 		@Nonnull CatalogBootstrap bootstrapUsed
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
-		final CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
 		final boolean catalogNameIsSame = catalogHeader.catalogName().equals(this.catalogName);
 		if (onDifferentCatalogName.equals(OnDifferentCatalogName.THROW_EXCEPTION)) {
 			Assert.isTrue(
@@ -2988,10 +3013,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	private void verifyCatalogNameMatches(
 		long catalogVersion,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull CatalogStoragePartPersistenceService storagePartPersistenceService
+		@Nonnull CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> storagePartPersistenceService
 	) {
 		// verify that the catalog schema is the same as the one in the catalog directory
-		final CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
 		final boolean catalogNameIsSame = catalogHeader.catalogName().equals(this.catalogName);
 		Assert.isTrue(
 			catalogNameIsSame,
@@ -3083,14 +3108,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		long catalogVersion
 	) throws ObsoleteStorageProtocolException {
 		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
-		CatalogHeader catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
 		if (catalogHeader.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION) {
 			return storagePartPersistenceService;
 		} else {
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
 			do {
 				final int catalogStorageProtocolVersion = catalogHeader.storageProtocolVersion();
-				final CatalogHeader currentCatalogHeader = catalogHeader;
+				final CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader = catalogHeader;
 				if (catalogStorageProtocolVersion == 1) {
 					Migration_2024_11.upgradeFromStorageProtocolVersion_1_to_2(
 						catalogHeader,
@@ -3139,7 +3164,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @param storageProtocolVersion        The new storage protocol version to be set in the catalog header.
 	 */
 	private void updateStorageProtocolInCatalogHeader(
-		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
 		int storageProtocolVersion
 	) {
@@ -3479,7 +3504,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * @return the catalog header
 	 */
 	@Nonnull
-	private CatalogHeader fetchCatalogHeader(@Nonnull CatalogBootstrap bootstrap) {
+	private CatalogHeader<LogFileRecordReference, CollectionFileReference> fetchCatalogHeader(@Nonnull CatalogBootstrap bootstrap) {
 		final String catalogFileName = getCatalogDataStoreFileName(this.catalogName, bootstrap.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 		return readCatalogHeader(this.storageOptions, catalogFilePath, bootstrap, this.recordTypeRegistry);

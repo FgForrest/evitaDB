@@ -23,7 +23,7 @@
 
 package io.evitadb.core.sequence;
 
-import io.evitadb.core.EntityCollection;
+import io.evitadb.core.collection.EntityCollection;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

@@ -23,7 +23,7 @@
 
 package io.evitadb.store.offsetIndex.exception;
 
-import io.evitadb.store.exception.StorageException;
+import io.evitadb.exception.EvitaIOException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -35,7 +35,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class CorruptedRecordException extends StorageException {
+public class CorruptedRecordException extends EvitaIOException {
 	@Serial private static final long serialVersionUID = -8235314570778971426L;
 	/**
 	 * Expected value (i.e. either checksum value or size in bytes).

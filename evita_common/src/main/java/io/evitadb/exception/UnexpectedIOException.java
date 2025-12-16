@@ -31,7 +31,7 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UnexpectedIOException extends EvitaInternalError {
+public class UnexpectedIOException extends EvitaIOException {
 	@Serial private static final long serialVersionUID = 6174951598824773806L;
 
 	public UnexpectedIOException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {

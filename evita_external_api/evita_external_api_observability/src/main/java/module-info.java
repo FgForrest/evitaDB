@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,12 +21,14 @@
  *   limitations under the License.
  */
 
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
+
 /**
  * Module contains Observability API for evitaDB.
  */
 module evita.external.api.observability {
 
-	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
+	uses CatalogPersistenceServiceFactory;
 	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 	uses io.evitadb.api.observability.trace.TracingContext;
 	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;
@@ -80,6 +82,7 @@ module evita.external.api.observability {
 	requires io.netty.transport;
 	requires com.fasterxml.jackson.datatype.jsr310;
 	requires com.fasterxml.jackson.datatype.jdk8;
+	requires evita.store.traffic;
 
 	exports io.evitadb.externalApi.observability.configuration;
 	exports io.evitadb.externalApi.observability.trace;

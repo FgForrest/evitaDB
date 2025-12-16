@@ -1,27 +1,28 @@
 # Junie Guidelines
 
-This document outlines the coding guidelines and best practices for the Junie project. 
-It is intended to ensure consistency, readability, and maintainability across the codebase.
+This document outlines the coding guidelines and best practices for the Junie project. It is intended to ensure consistency, readability, and maintainability across the codebase.
 
 ### Code Style
 
-- **Indentation**: Use tabs for indentation
-- **Line Length**: Limit lines to 100 characters
-- **Java modules**: Use Java modules to organize code
+- Indentation: Use tabs for indentation
+- Line Length: Limit lines to 100 characters
+- Java modules: Use Java modules to organize code
+- In JavaDoc use Markdown syntax for formatting - never use HTML tags
+- Prefer immutable classes / records for data structures
+- Automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types
+- Use `final` for local variables
+- Use `this` for instance variables
+- Never use `var` - always use explicit types
+- Automatically add JavaDoc to all generated classes and methods
+- Add line comments to complex logic
 
-- in JavaDoc use MarkDown syntax for formatting - never use HTML tags
-- prefer immutable classes / records for data structures
-- prefer performance to readability in performance-critical code
-- automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types
-- use `final` for local variables
-- use `this` for instance variables
-- never use `var` - always use explicit types
-- automatically add JavaDoc to all generated classes and methods
-- add line comments to complex logic
-- avoid unnecessary memory allocations in performance-critical code
-- avoid unnecessary object boxing in performance-critical code
-- avoid using exceptions for control flow
-- prefer performance to readability in performance-critical code
+### Performance-Critical Code
+
+- Prefer performance to readability in performance-critical code
+- Avoid unnecessary memory allocations
+- Avoid unnecessary object boxing
+- Avoid streams and write allocation-optimized loops instead in performance-critical code
+- Avoid using exceptions for control flow
 
 ### Key external libraries
 
@@ -33,16 +34,37 @@ It is intended to ensure consistency, readability, and maintainability across th
 - gRPC Java: for gRPC functionality
 - GraphQL Java: for GraphQL functionality
 - Byte Buddy: for runtime code generation
+- MinIO Java: for S3-compatible storage operations
 
 ### Building
 
-- **Build Tool**: Use Maven for building the project
+- Build Tool: Use Maven for building the project
+- Java Version: OpenJDK 17 (requires Maven toolchains configuration)
 
 ### Testing
 
-- **JUnit 5**: Use JUnit 5 for unit tests
-- all test files are located in the `evita_functional_tests/src/test/java` directory
-- automatically generate test cases for all public methods
-- name tests using the format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
-- use @DisplayName for entire class
-- use @DisplayName for test methods to provide a clear description of the test, do not repeat the content in class @DisplayName
+- JUnit 5: Use JUnit 5 for unit tests
+- All test files are located in the `evita_test/evita_functional_tests/src/test/java` directory
+- Automatically generate test cases for all public methods
+- Name tests using the format `shouldDoSomethingWhenCondition` or `shouldThrowExceptionWhenCondition`
+- Use @DisplayName for entire class
+- Use @DisplayName for test methods to provide a clear description of the test; do not repeat the content in class @DisplayName
+
+### Project organization
+
+Project structure and organization is described in "How this repository is organized" of the `README.md` file located in the root directory of the repository.
+
+Additional high-level module overview for reference:
+- Core modules: common utilities, query language and parser, public API, and engine core
+- Storage layer: key-value store, entity storage and serialization, server persistence, and traffic recording
+- Export: local file system export and S3-compatible export
+- External APIs: shared web API logic, GraphQL, gRPC, REST, system management, GUI client support, observability (Prometheus metrics and OpenTelemetry tracing)
+- Bundles: embedded usage bundle and standalone server bundle
+- Testing modules: integration test support, functional tests, and JMH-based performance tests
+
+### Code Quality Requirements
+
+- Line coverage with unit tests must be >= 70%
+- All classes and methods must have comprehensible JavaDoc
+- No TODO statements in committed code
+- No commented out code

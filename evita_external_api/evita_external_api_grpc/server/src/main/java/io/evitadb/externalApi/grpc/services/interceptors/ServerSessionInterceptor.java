@@ -27,7 +27,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.SessionNotFoundException;
 import io.evitadb.core.Evita;
-import io.evitadb.core.EvitaInternalSessionContract;
+import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;

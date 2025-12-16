@@ -26,9 +26,9 @@ package io.evitadb.core.transaction.conflict;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.mutation.conflict.ReferenceAttributeDeltaConflictKey;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.EntityCollection;
-import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

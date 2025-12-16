@@ -25,13 +25,12 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.stream.RandomAccessFileInputStream;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.BitUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
@@ -251,7 +250,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * @return a byte array containing the decompressed data
 	 */
 	public int decompress(byte[] compressedBytes, byte[] decompressedBytes) throws KryoException {
-		Assert.isPremiseValid(
+		isPremiseValid(
 			!this.compressed,
 			"Decompression buffer is already in use, can't decompress another data!"
 		);
@@ -299,7 +298,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 			return 0;
 		}
 		if (this.compressed) {
-			Assert.isPremiseValid(this.inflater != null, "Record is compressed and ObservableInput has inflate support disabled!");
+			isPremiseValid(this.inflater != null, "Record is compressed and ObservableInput has inflate support disabled!");
 			try {
 				int n;
 				while ((n = this.inflater.inflate(buffer, offset, count)) == 0) {
@@ -663,7 +662,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.expectedPayloadLength = this.expectedLength - (this.payloadPrefixLength + this.accumulatedLength + TAIL_MANDATORY_SPACE);
 		this.payloadReadLength = 0;
 		this.compressed = BitUtils.isBitSet(controlByte, StorageRecord.COMPRESSION_BIT);
-		Assert.isPremiseValid(
+		isPremiseValid(
 			!this.compressed || this.inflater != null,
 			() -> new CorruptedRecordException("Record is compressed and ObservableInput has compression support disabled!")
 		);
@@ -717,7 +716,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 				if (this.compressed) {
 					// if the inflater is still not finished - try to exhaust it, to get all the data and update CRC32C accordingly
 					if (!this.inflater.finished()) {
-						Assert.isPremiseValid(
+						isPremiseValid(
 							fill(this.buffer, this.position, this.expectedPayloadLength - Math.toIntExact(this.inflater.getBytesRead())) == -1,
 							() -> new CorruptedRecordException("Some meaningful data were extracted in the buffer, but they were not read!")
 						);
@@ -823,11 +822,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
-	 * Returns true if the compression is enabled.
-	 * @return true if the compression is enabled
+	 * Returns true if the compression is disabled.
+	 * @return true if the compression is disabled
 	 */
-	public boolean isCompressionEnabled() {
-		return this.inflater != null;
+	public boolean isCompressionDisabled() {
+		return this.inflater == null;
 	}
 
 	/**

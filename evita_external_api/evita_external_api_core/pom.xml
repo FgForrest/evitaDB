@@ -43,10 +43,6 @@
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_engine</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_common</artifactId>
-		</dependency>
 
 		<dependency>
 			<groupId>net.openhft</groupId>

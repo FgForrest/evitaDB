@@ -25,22 +25,22 @@ package io.evitadb.store.catalog;
 
 
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.core.file.ExportFileService;
-import io.evitadb.core.file.ExportFileService.ExportFileHandle;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.export.ExportService;
+import io.evitadb.spi.export.model.ExportFileHandle;
+import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
 import io.evitadb.store.offsetIndex.io.BootstrapWriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
-import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.PersistenceService;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ConsoleWriter;
@@ -101,7 +101,7 @@ public interface Migration_2025_1 {
 		final StorageRecord<CatalogBootstrap> storageRecord = readHandle.execute(
 			input -> {
 				Assert.isPremiseValid(
-					!input.isCompressionEnabled(),
+					input.isCompressionDisabled(),
 					"Bootstrap record must not be compressed!"
 				);
 				return StorageRecord.readOldFormat(
@@ -142,7 +142,7 @@ public interface Migration_2025_1 {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull Path bootstrapFilePath,
-		@Nonnull ExportFileService exportFileService
+		@Nonnull ExportService exportService
 	) {
 		ConsoleWriter.writeLine(
 			"Catalog `" + catalogName + "` uses deprecated storage record format of storage protocol version 2.",
@@ -154,7 +154,7 @@ public interface Migration_2025_1 {
 		);
 		// first create backup of all catalog files
 		try (
-			final ExportFileHandle exportFileHandle = exportFileService.storeFile(
+			final ExportFileHandle exportFileHandle = exportService.storeFile(
 				catalogStoragePath.toFile().getName() + "_" + OffsetDateTime.now()
 				                                                            .format(
 					                                                            DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "_upgrade.zip",
@@ -164,7 +164,7 @@ public interface Migration_2025_1 {
 			)
 		) {
 			ConsoleWriter.writeLine(
-				"Backing up catalog `" + catalogName + "` to `" + exportFileHandle.filePath() + "` before upgrade...",
+				"Backing up catalog `" + catalogName + "` to `" + exportFileHandle + "` before upgrade...",
 				ConsoleColor.DARK_BLUE
 			);
 			FileUtils.compressDirectory(catalogStoragePath, exportFileHandle.outputStream());

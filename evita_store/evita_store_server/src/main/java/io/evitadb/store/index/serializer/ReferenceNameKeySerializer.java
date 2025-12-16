@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.spi.model.storageParts.index.ReferenceNameKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 
 /**
  * Class handles Kryo (de)serialization of {@link ReferenceNameKey} instances.

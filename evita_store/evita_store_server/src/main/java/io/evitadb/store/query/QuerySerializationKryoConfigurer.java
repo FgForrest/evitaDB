@@ -124,7 +124,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactSerializer(), index++);
 		kryo.register(EntityPrimaryKeyNatural.class, new EntityPrimaryKeyNaturalSerializer(), index++);
 		kryo.register(OrderBy.class, new OrderBySerializer(), index++);
-		kryo.register(OrderGroupBy.class, new io.evitadb.store.query.serializer.OrderGroupBy.OrderGroupBySerializer(), index++);
+		kryo.register(OrderGroupBy.class, new OrderGroupBySerializer(), index++);
 		kryo.register(PriceNatural.class, new PriceNaturalSerializer(), index++);
 		kryo.register(PriceDiscount.class, new PriceDiscountSerializer(), index++);
 		kryo.register(Random.class, new RandomSerializer(), index++);

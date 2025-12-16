@@ -25,24 +25,24 @@ package io.evitadb.store.wal;
 
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.core.Catalog;
-import io.evitadb.core.EntityCollection;
-import io.evitadb.store.compressor.AggregatedKeyCompressor;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.AggregatedKeyCompressor;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.FileLocation;
-import io.evitadb.store.model.PersistentStorageDescriptor;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.model.header.PersistentStorageHeader;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.StoragePartPersistenceService;
-import io.evitadb.store.spi.model.PersistentStorageHeader;
+import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.utils.FileUtils;
 
 import javax.annotation.Nonnull;
@@ -73,8 +73,8 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class TransactionalStoragePartPersistenceService implements StoragePartPersistenceService {
-	private final StoragePartPersistenceService delegate;
+public class TransactionalStoragePartPersistenceService implements StoragePartPersistenceService<PersistentStorageDescriptor> {
+	private final StoragePartPersistenceService<PersistentStorageDescriptor> delegate;
 	private final Path targetFile;
 	private final OffsetIndex offsetIndex;
 	private final Set<RecordKey> removedStoragePartKeys = new HashSet<>(64);
@@ -83,7 +83,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		long catalogVersion,
 		@Nonnull UUID transactionId,
 		@Nonnull String name,
-		@Nonnull StoragePartPersistenceService delegate,
+		@Nonnull StoragePartPersistenceService<PersistentStorageDescriptor> delegate,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
@@ -123,7 +123,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Nonnull
 	@Override
-	public StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId) {
+	public StoragePartPersistenceService<PersistentStorageDescriptor> createTransactionalService(@Nonnull UUID transactionId) {
 		throw new UnsupportedOperationException("Transactional service cannot be created from transactional service!");
 	}
 

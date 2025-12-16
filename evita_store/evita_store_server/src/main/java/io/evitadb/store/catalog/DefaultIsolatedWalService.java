@@ -32,10 +32,10 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityMutation;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.spi.IsolatedWalPersistenceService;
-import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 

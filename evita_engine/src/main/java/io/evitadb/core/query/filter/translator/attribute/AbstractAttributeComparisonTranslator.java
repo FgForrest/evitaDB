@@ -69,7 +69,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeContent;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator {
+public class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator {
 	/**
 	 * The predicate used to compare the result of the filtering operation.
 	 */
@@ -194,7 +194,7 @@ class AbstractAttributeComparisonTranslator extends AbstractAttributeTranslator 
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	static Predicate<Stream<Optional<AttributeValue>>> getPredicate(
+	public static Predicate<Stream<Optional<AttributeValue>>> getPredicate(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale,
