@@ -34,6 +34,7 @@ evitaDB is a specialized NoSQL in-memory database with easy-to-use API for e-com
 - **gRPC Java**: For gRPC functionality
 - **GraphQL Java**: For GraphQL functionality
 - **Byte Buddy**: For runtime code generation
+- **MinIO Java**: For S3-compatible storage operations
 
 ## Building
 
@@ -69,6 +70,7 @@ mvn clean install
 
 ### Export
 - **evita_export_fs**: Export service implementation for local file system
+- **evita_export_s3**: Export service implementation for S3-compatible storage
 
 ### External APIs
 - **evita_external_api_core**: Shared logic for all web APIs, Armeria HTTP server integration

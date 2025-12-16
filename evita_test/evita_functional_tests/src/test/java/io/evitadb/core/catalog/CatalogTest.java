@@ -47,7 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class CatalogTest implements EvitaTestSupport {
 
 	public static final String DIR_CATALOG_TEST = "catalogTest";
-	public static final String DIR_CATALOG_TEST_EXPORT = "catalogTest_export";
 
 	@Test
 	void shouldDefineCatalogSchemaUpfront() throws IOException {
@@ -57,7 +56,6 @@ class CatalogTest implements EvitaTestSupport {
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST))
-						.exportDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST_EXPORT))
 						.build()
 				).build()
 		)) {

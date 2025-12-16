@@ -3538,7 +3538,7 @@ public class DefaultCatalogPersistenceService
 				if (recordCount >= 1) {
 					catalogBootstraps = new CatalogBootstrap[]{
 						null,
-						deserializeCatalogBootstrapRecord(this.storageOptions, bootstrapFilePath, 0)
+						deserializeCatalogBootstrapRecord(this.bootstrapStorageOptions, bootstrapFilePath, 0)
 					};
 				} else {
 					throw new TemporalDataNotAvailableException();

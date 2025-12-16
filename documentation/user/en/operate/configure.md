@@ -44,7 +44,6 @@ server:                                           # [see Server configuration](#
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: "./data"
-  exportDirectory: "./export"
   workDirectory: "/tmp"
   lockTimeoutSeconds: 60
   waitOnCloseSeconds: 60
@@ -56,8 +55,23 @@ storage:                                          # [see Storage configuration](
   minimalActiveRecordShare: 0.5
   fileSizeCompactionThresholdBytes: 100MB
   timeTravelEnabled: false
-  exportDirectorySizeLimitBytes: 1G
-  exportFileHistoryExpirationSeconds: 7d
+
+export:                                           # [see Export configuration](#export-configuration)
+  fileSystem:
+    enabled: null
+    sizeLimitBytes: 1G
+    historyExpirationSeconds: 7d
+    directory: "./export"
+  s3:
+    enabled: null
+    sizeLimitBytes: 1G
+    historyExpirationSeconds: 7d
+    endpoint: null
+    bucket: null
+    accessKey: null
+    secretKey: null
+    region: null
+    requestTimeoutInMillis: 30s
 
 transaction:                                      # [see Transaction configuration](#transaction-configuration)
   transactionWorkDirectory: /tmp/evitaDB/transaction
@@ -528,13 +542,6 @@ This section contains configuration options for the storage layer of the databas
         <p>It defines the folder where evitaDB stores its catalog data. The path can be specified relative to the working
         directory of the application in absolute form (recommended).</p>
     </dd>
-    <dt>exportDirectory</dt>
-    <dd>
-        <p>**Default:** `./export`</p>
-        <p>It defines the folder where evitaDB stores its exported files. The path can be specified relative to the working
-        directory of the application in absolute form (recommended). Files are automatically removed according to limits
-        defined in `exportFileHistoryExpirationSeconds` and `exportDirectorySizeLimitBytes`.</p>
-    </dd>
     <dt>workDirectory</dt>
     <dd>
         <p>**Default:** Java temp directory (system property `java.io.tmpdir`)</p>
@@ -614,22 +621,108 @@ This section contains configuration options for the storage layer of the databas
     <dt>timeTravelEnabled</dt>
     <dd>
         <p>**Default:** `false`</p>
-        <p>When set to true, the data files are not removed immediately after compacting, but are kept on disk as long 
-        as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point 
-        in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in 
+        <p>When set to true, the data files are not removed immediately after compacting, but are kept on disk as long
+        as there is history available in the WAL log. This allows a snapshot of the database to be taken at any point
+        in the history covered by the WAL log. From the snapshot, the database can be restored to the exact point in
         time with all the data available at that time.</p>
     </dd>
-    <dt>exportDirectorySizeLimitBytes</dt>
+</dl>
+
+## Export configuration
+
+This section contains configuration options for the export functionality. evitaDB supports exporting data to
+either the local file system or S3-compatible storage. Only one export backend can be active at a time - if
+multiple backends have `enabled: true`, an error will be thrown during startup.
+
+### File system export configuration
+
+Configuration for local file system export backend. This is the default backend when no explicit backend is enabled.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `null` (defaults to true if no other backend is enabled)</p>
+        <p>When set to `true`, enables the local file system export backend. If both `fileSystem.enabled` and
+        `s3.enabled` are `null`, the file system backend is used by default.</p>
+    </dd>
+    <dt>sizeLimitBytes</dt>
     <dd>
         <p>**Default:** `1G`</p>
-        <p>It specifies the maximum size of the export directory. If the size of the directory exceeds this limit, the 
-        oldest files are removed until the size of the directory is below the limit.</p>
+        <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
+        exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
     </dd>
-    <dt>exportFileHistoryExpirationSeconds</dt>
+    <dt>historyExpirationSeconds</dt>
     <dd>
         <p>**Default:** `7d`</p>
-        <p>It specifies the maximum age of the files in the export directory. If the age of the file exceeds this limit, 
-        the file is removed from the directory.</p>
+        <p>Specifies the maximum age of exported files for this backend. Files older than the defined age will
+        be removed automatically.</p>
+    </dd>
+    <dt>directory</dt>
+    <dd>
+        <p>**Default:** `./export`</p>
+        <p>It defines the folder where evitaDB stores its exported files. The path can be specified relative to the working
+        directory of the application or in absolute form (recommended). Files are automatically removed according to limits
+        defined in `historyExpirationSeconds` and `sizeLimitBytes`.</p>
+    </dd>
+</dl>
+
+### S3 export configuration
+
+Configuration for S3-compatible storage export backend. Requires the `evita_export_s3` module on the classpath.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `null` (disabled)</p>
+        <p>When set to `true`, enables the S3-compatible storage export backend. The `endpoint`, `bucket`,
+        `accessKey`, and `secretKey` fields are required when S3 is enabled.</p>
+    </dd>
+    <dt>sizeLimitBytes</dt>
+    <dd>
+        <p>**Default:** `1G`</p>
+        <p>Specifies the maximum total size of all exported files stored by this backend. If the total size
+        exceeds this limit, the oldest files are removed until the total size drops below the limit.</p>
+    </dd>
+    <dt>historyExpirationSeconds</dt>
+    <dd>
+        <p>**Default:** `7d`</p>
+        <p>Specifies the maximum age of exported files for this backend. Files older than the defined age will
+        be removed automatically.</p>
+    </dd>
+    <dt>endpoint</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>The S3-compatible storage endpoint URL (e.g., `https://s3.amazonaws.com` for AWS S3 or
+        `https://play.min.io` for MinIO). Required when S3 is enabled.</p>
+    </dd>
+    <dt>bucket</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>The name of the S3 bucket where exported files will be stored. Required when S3 is enabled.</p>
+    </dd>
+    <dt>accessKey</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>The access key for S3 authentication. Required when S3 is enabled.</p>
+    </dd>
+    <dt>secretKey</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>The secret key for S3 authentication. Required when S3 is enabled.</p>
+    </dd>
+    <dt>region</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>The AWS region for the S3 bucket (e.g., `us-east-1`). Optional - some S3-compatible services
+        may not require a region.</p>
+    </dd>
+    <dt>requestTimeoutInMillis</dt>
+    <dd>
+        <p>**Default:** `30s`</p>
+        <p>Specifies the timeout applied to all external S3 operations performed by the export service.
+        The timeout is used when waiting for completion of asynchronous MinIO client calls, such as
+        bucket creation, object upload, download, deletion and metadata reads. Increase this value if
+        your S3 provider or network exhibits higher latencies.</p>
     </dd>
 </dl>
 

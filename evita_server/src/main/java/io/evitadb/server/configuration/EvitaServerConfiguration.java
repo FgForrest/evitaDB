@@ -25,6 +25,7 @@ package io.evitadb.server.configuration;
 
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
@@ -36,12 +37,13 @@ import javax.annotation.Nonnull;
  * Encapsulating DTO record allowing to setup {@link EvitaConfiguration} and {@link ApiOptions} within one root object.
  * This class is used by Jackson to deserialize settings from configuration YAML file.
  *
- * @param name         refers to {@link EvitaConfiguration#name()}
- * @param server       refers to {@link EvitaConfiguration#server()}
- * @param storage      refers to {@link EvitaConfiguration#storage()}
+ * @param name        refers to {@link EvitaConfiguration#name()}
+ * @param server      refers to {@link EvitaConfiguration#server()}
+ * @param storage     refers to {@link EvitaConfiguration#storage()}
  * @param transaction refers to {@link EvitaConfiguration#transaction()}
- * @param cache        refers to {@link EvitaConfiguration#cache()}
- * @param api          contains configuration for API endpoints, refers to {@link ApiOptions}
+ * @param cache       refers to {@link EvitaConfiguration#cache()}
+ * @param export      refers to {@link EvitaConfiguration#export()}
+ * @param api         contains configuration for API endpoints, refers to {@link ApiOptions}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaServerConfiguration(
@@ -50,6 +52,7 @@ public record EvitaServerConfiguration(
 	@Nonnull StorageOptions storage,
 	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
+	@Nonnull ExportOptions export,
 	@Nonnull ApiOptions api
 ) {
 

@@ -23,8 +23,10 @@
 
 package io.evitadb.export.file;
 
-import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
 
@@ -32,7 +34,7 @@ import javax.annotation.Nonnull;
 
 /**
  * This factory is implementation that instantiates local file system based export service, which stores exported files
- * into local file system to a location defined in {@link StorageOptions#exportDirectory()}.
+ * into local file system to a location defined in {@link FileSystemExportOptions#getDirectory()}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -40,8 +42,35 @@ public class ExportFileServiceFactory implements ExportServiceFactory {
 
 	@Nonnull
 	@Override
-	public ExportService create(@Nonnull StorageOptions storageOptions, @Nonnull Scheduler scheduler) {
-		return new ExportFileService(storageOptions, scheduler);
+	public String getImplementationCode() {
+		return FileSystemExportOptions.IMPLEMENTATION_CODE;
+	}
+
+	@Nonnull
+	@Override
+	public Class<FileSystemExportOptions> getConfigurationClass() {
+		return FileSystemExportOptions.class;
+	}
+
+	@Override
+	public int getPriority() {
+		return 100;
+	}
+
+	@Nonnull
+	@Override
+	public ExportOptions createDefaultOptions() {
+		return new FileSystemExportOptions();
+	}
+
+	@Nonnull
+	@Override
+	public ExportService create(
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull FileManagementService fileManagementService
+	) {
+		return new ExportFileService(exportOptions, scheduler);
 	}
 
 }

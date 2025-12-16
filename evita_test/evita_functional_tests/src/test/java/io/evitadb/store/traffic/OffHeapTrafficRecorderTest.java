@@ -78,7 +78,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
-	private final Path exportDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/export");
+	private final Path workDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/work");
 	private OffHeapTrafficRecorder trafficRecorder;
 	private AtomicLong duration = new AtomicLong(0);
 	private AtomicInteger counter = new AtomicInteger(0);
@@ -86,10 +86,10 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		this.trafficRecorder = new OffHeapTrafficRecorder(2_048);
-		this.exportDirectory.toFile().mkdirs();
+		this.workDirectory.toFile().mkdirs();
 		final StorageOptions storageOptions = StorageOptions.builder()
 			.outputBufferSize(2_048)
-			.exportDirectory(this.exportDirectory)
+			.workDirectory(this.workDirectory)
 			.build();
 		final Scheduler scheduler = new Scheduler(new ImmediateScheduledThreadPoolExecutor());
 		this.trafficRecorder.init(
@@ -110,7 +110,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		this.trafficRecorder.close();
-		FileUtils.deleteDirectory(this.exportDirectory);
+		FileUtils.deleteDirectory(this.workDirectory);
 	}
 
 	@Test

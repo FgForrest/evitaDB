@@ -23,7 +23,7 @@
 
 package io.evitadb.export.file;
 
-import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.core.executor.DelayedAsyncTask;
@@ -31,6 +31,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.exception.EvitaIOException;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.model.ExportFileHandle;
 import io.evitadb.utils.Assert;
@@ -88,9 +89,9 @@ public class ExportFileService implements ExportService {
 	 */
 	private final FolderLock folderLock;
 	/**
-	 * Storage options.
+	 * Filesystem-specific export options containing all settings.
 	 */
-	private final StorageOptions storageOptions;
+	private final FileSystemExportOptions fsOptions;
 	/**
 	 * Cached list of files to fetch.
 	 */
@@ -99,6 +100,10 @@ public class ExportFileService implements ExportService {
 	 * Task that periodically purges old files from the storage.
 	 */
 	private final DelayedAsyncTask purgeTask;
+	/**
+	 * Provider for current time, allowing injection of controllable time for testing.
+	 */
+	private final Supplier<OffsetDateTime> timeProvider;
 
 	/**
 	 * Parses metadata file and creates {@link FileForFetch} instance.
@@ -131,14 +136,42 @@ public class ExportFileService implements ExportService {
 		}
 	}
 
+	/**
+	 * Creates a new ExportFileService with default time provider using system clock.
+	 *
+	 * @param exportOptions export options configuration
+	 * @param scheduler scheduler for background tasks
+	 */
 	public ExportFileService(
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull ExportOptions exportOptions,
 		@Nonnull Scheduler scheduler
 	) {
-		this.storageOptions = storageOptions;
+		this(exportOptions, scheduler, OffsetDateTime::now);
+	}
+
+	/**
+	 * Creates a new ExportFileService with custom time provider.
+	 * This constructor allows injection of a controllable time source for testing.
+	 *
+	 * @param exportOptions export options configuration
+	 * @param scheduler scheduler for background tasks
+	 * @param timeProvider supplier for current time
+	 */
+	public ExportFileService(
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull Supplier<OffsetDateTime> timeProvider
+	) {
+		if (!(exportOptions instanceof FileSystemExportOptions)) {
+			throw new IllegalArgumentException(
+				"ExportFileService requires FileSystemExportOptions but got: " + exportOptions.getClass().getSimpleName()
+			);
+		}
+		this.fsOptions = (FileSystemExportOptions) exportOptions;
+		this.timeProvider = timeProvider;
 		// init files for fetch
-		if (this.storageOptions.exportDirectory().toFile().exists()) {
-			try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
+		if (this.fsOptions.getDirectory().toFile().exists()) {
+			try (final Stream<Path> fileStream = Files.list(this.fsOptions.getDirectory())) {
 				this.files = fileStream
 					.filter(it -> it.toFile().getName().endsWith(FileForFetch.METADATA_EXTENSION))
 					.map(ExportFileService::toFileForFetch)
@@ -154,16 +187,16 @@ public class ExportFileService implements ExportService {
 			}
 		} else {
 			Assert.isPremiseValid(
-				this.storageOptions.exportDirectory().toFile().mkdirs(),
+				this.fsOptions.getDirectory().toFile().mkdirs(),
 				() -> new UnexpectedIOException(
-					"Failed to create directory: " + this.storageOptions.exportDirectory(),
+					"Failed to create directory: " + this.fsOptions.getDirectory(),
 					"Failed to create directory."
 				)
 			);
 			this.files = new CopyOnWriteArrayList<>();
 		}
 		// init folder lock
-		this.folderLock = new FolderLock(this.storageOptions.exportDirectory());
+		this.folderLock = new FolderLock(this.fsOptions.getDirectory());
 		// schedule automatic purging task
 		this.purgeTask = new DelayedAsyncTask(
 			null,
@@ -182,7 +215,7 @@ public class ExportFileService implements ExportService {
 	 */
 	@Nonnull
 	public Path getExportDirectory() {
-		return this.storageOptions.exportDirectory();
+		return this.fsOptions.getDirectory();
 	}
 
 	@Nonnull
@@ -223,13 +256,13 @@ public class ExportFileService implements ExportService {
 	) {
 		final UUID fileId = UUIDUtil.randomUUID();
 		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path finalFilePath = this.storageOptions.exportDirectory().resolve(finalFileName);
+		final Path finalFilePath = this.fsOptions.getDirectory().resolve(finalFileName);
 		try {
-			if (!this.storageOptions.exportDirectory().toFile().exists()) {
+			if (!this.fsOptions.getDirectory().toFile().exists()) {
 				Assert.isPremiseValid(
-					this.storageOptions.exportDirectory().toFile().mkdirs(),
+					this.fsOptions.getDirectory().toFile().mkdirs(),
 					() -> new UnexpectedIOException(
-						"Failed to create directory: " + this.storageOptions.exportDirectory(),
+						"Failed to create directory: " + this.fsOptions.getDirectory(),
 						"Failed to create directory."
 					)
 				);
@@ -257,7 +290,7 @@ public class ExportFileService implements ExportService {
 								description,
 								contentType,
 								Files.size(finalFilePath),
-								OffsetDateTime.now(),
+								this.timeProvider.get(),
 								origin == null ? null : Arrays.stream(origin.split(","))
 									.map(String::trim)
 									.toArray(String[]::new)
@@ -289,7 +322,7 @@ public class ExportFileService implements ExportService {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
-			return Files.newInputStream(file.path(this.storageOptions.exportDirectory()), StandardOpenOption.READ);
+			return Files.newInputStream(file.path(this.fsOptions.getDirectory()), StandardOpenOption.READ);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
 				"Failed to open the designated file: " + e.getMessage(),
@@ -305,8 +338,8 @@ public class ExportFileService implements ExportService {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
 			if (this.files.remove(file)) {
-				Files.deleteIfExists(file.metadataPath(this.storageOptions.exportDirectory()));
-				Files.deleteIfExists(file.path(this.storageOptions.exportDirectory()));
+				Files.deleteIfExists(file.metadataPath(this.fsOptions.getDirectory()));
+				Files.deleteIfExists(file.path(this.fsOptions.getDirectory()));
 			}
 		} catch (IOException e) {
 			throw new UnexpectedIOException(
@@ -348,7 +381,7 @@ public class ExportFileService implements ExportService {
 		);
 
 		// then go through the directory files, that does not have metadata file and delete all that were created before the threshold
-		try (final Stream<Path> fileStream = Files.list(this.storageOptions.exportDirectory())) {
+		try (final Stream<Path> fileStream = Files.list(this.fsOptions.getDirectory())) {
 			fileStream
 				.map(Path::normalize)
 				.filter(it -> !getUuidFromPath(it).map(knownFiles::contains).orElse(false))
@@ -359,33 +392,33 @@ public class ExportFileService implements ExportService {
 					FileUtils.deleteFileIfExists(it);
 				});
 		} catch (IOException e) {
-			log.error("Failed to list files in the directory: {}", this.storageOptions.exportDirectory(), e);
+			log.error("Failed to list files in the directory: {}", this.fsOptions.getDirectory(), e);
 		}
 
 		try {
 			// then check the size of the directory and delete oldest files until the directory size is below the limit
-			final long directorySize = FileUtils.getDirectorySize(this.storageOptions.exportDirectory());
+			final long directorySize = FileUtils.getDirectorySize(this.fsOptions.getDirectory());
 			// delete the oldest files until the directory size is below the limit
-			if (directorySize > this.storageOptions.exportDirectorySizeLimitBytes()) {
+			if (directorySize > this.fsOptions.getSizeLimitBytes()) {
 				final List<FileForFetch> filesByCreationDate = this.files.stream()
 					.sorted(Comparator.comparing(FileForFetch::created))
 					.toList();
 				long savedSize = 0L;
 				for (FileForFetch it : filesByCreationDate) {
 					log.info("Purging the oldest file, because the export directory grew too big: {}", it);
-					final long metadataFileSize = it.metadataPath(this.storageOptions.exportDirectory())
+					final long metadataFileSize = it.metadataPath(this.fsOptions.getDirectory())
 						.toFile()
 						.length();
 					deleteFile(it.fileId());
 					savedSize += it.totalSizeInBytes() + metadataFileSize;
 					// finish removing files if the directory size is below the limit
-					if (directorySize - savedSize <= this.storageOptions.exportDirectorySizeLimitBytes()) {
+					if (directorySize - savedSize <= this.fsOptions.getSizeLimitBytes()) {
 						break;
 					}
 				}
 			}
 		} catch (UnexpectedIOException e) {
-			log.error("Failed to calculate size of the directory: {}", this.storageOptions.exportDirectory(), e);
+			log.error("Failed to calculate size of the directory: {}", this.fsOptions.getDirectory(), e);
 		}
 	}
 
@@ -393,20 +426,29 @@ public class ExportFileService implements ExportService {
 	public long purgeFiles() {
 		// first go through the file list in memory and delete files that are older than the threshold
 		final OffsetDateTime thresholdDate = OffsetDateTime.now().minusSeconds(
-			this.storageOptions.exportFileHistoryExpirationSeconds());
+			this.fsOptions.getHistoryExpirationSeconds());
 		purgeFiles(thresholdDate);
 
 		return 0L;
 	}
 
-	@Override
-	public void writeFileMetadata(
+	/**
+	 * Writes or updates the sidecar metadata for the provided file descriptor.
+	 *
+	 * Implementations may persist human-readable or machine-usable metadata (e.g. JSON) next to the
+	 * binary content. Existing metadata can be overwritten based on {@code options}.
+	 *
+	 * @param fileForFetch	 descriptor of the file whose metadata should be persisted
+	 * @param options	 optional {@link java.nio.file.StandardOpenOption} flags controlling write mode
+	 * @throws EvitaIOException if the metadata cannot be written
+	 */
+	private void writeFileMetadata(
 		@Nonnull FileForFetch fileForFetch,
 		@Nonnull OpenOption... options
 	) throws EvitaIOException {
 		try {
 			Files.write(
-				this.storageOptions.exportDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
+				this.fsOptions.getDirectory().resolve(fileForFetch.fileId() + FileForFetch.METADATA_EXTENSION),
 				fileForFetch.toLines(),
 				StandardCharsets.UTF_8,
 				options

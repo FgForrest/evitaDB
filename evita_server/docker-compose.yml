@@ -1,0 +1,58 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  evitadb-local:
+    image: docker.io/library/evitadb:local
+    container_name: evitadb-local
+    depends_on:
+      minio:
+        condition: service_healthy
+    network_mode: host
+    volumes:
+      - ../data:/evita/data
+      - ./evita-server-certificates:/evita/certificates
+      - ./logback.xml:/evita/logback.xml
+      - ./logs:/evita/logs
+    environment:
+      EVITA_JAVA_OPTS:
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8001
+      EVITA_ARGS: >-
+        server.trafficRecording.enabled=true
+        server.trafficRecording.trafficFlushIntervalInMilliseconds=0
+        server.trafficRecording.sourceQueryTracking=true
+        server.closeSessionsAfterSecondsOfInactivity=0
+        storage.compress=true
+        api.exposedOn=localhost
+        api.accessLog=true
+        cache.enabled=false
+        api.certificate.generateAndUseSelfSigned=true
+        api.endpoints.graphQL.tlsMode=RELAXED
+        api.endpoints.rest.tlsMode=RELAXED
+        api.endpoints.lab.tlsMode=RELAXED
+        api.endpoints.gRPC.tlsMode=RELAXED
+        api.endpoints.gRPC.exposeDocsService=true
+        api.endpoints.gRPC.mTLS.enabled=false
+        export.s3.enabled=true
+        export.s3.endpoint=http://localhost:9000
+        export.s3.bucket=evitadb-export
+        export.s3.accessKey=minioadmin
+        export.s3.secretKey=minioadmin
+
+volumes:
+  minio_data:

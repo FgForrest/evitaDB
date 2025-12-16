@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaDescriptionMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -255,7 +256,11 @@ class EvitaSchemaCallbackTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST))
-					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST_EXPORT))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_NOTIFICATION_TEST_EXPORT))
 					.build()
 			)
 			.build();

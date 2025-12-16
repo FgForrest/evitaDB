@@ -23,15 +23,17 @@
 
 package io.evitadb.spi.export;
 
-import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.core.management.FileManagementService;
 
 import javax.annotation.Nonnull;
+import java.util.ServiceLoader;
 
 /**
  * This interface and layer of abstraction was introduced because we want to have different implementations of an export
- * service - namely local file system and S3. Therefore, we used {@link java.util.ServiceLoader} pattern to dynamically
- * locate proper but implementation of this interface and link these modules in runtime.
+ * service - namely local file system and S3. Therefore, we used {@link ServiceLoader} pattern to dynamically
+ * locate proper implementation of this interface and link these modules in runtime.
  *
  * The export service itself also needs initial configuration from the main evitaDB class, and therefore we need this
  * factory to pass the configuration from the main module into the export module.
@@ -41,12 +43,56 @@ import javax.annotation.Nonnull;
 public interface ExportServiceFactory {
 
 	/**
+	 * Returns unique implementation code that identifies this export service type.
+	 * This code must match the implementation code returned by the corresponding
+	 * {@link ExportOptions#getImplementationCode()}.
+	 *
+	 * @return implementation code (e.g., "fileSystem" or "s3")
+	 */
+	@Nonnull
+	String getImplementationCode();
+
+	/**
+	 * Returns the configuration class for this export service type.
+	 * Used for dynamic YAML deserialization via Jackson.
+	 *
+	 * @return configuration class extending {@link ExportOptions}
+	 */
+	@Nonnull
+	Class<? extends ExportOptions> getConfigurationClass();
+
+	/**
+	 * Returns priority for default selection when no implementation is explicitly enabled.
+	 * Higher value means higher priority. FileSystem implementation should return higher
+	 * priority to be the default choice.
+	 *
+	 * @return priority value (higher = more preferred as default)
+	 */
+	default int getPriority() {
+		return 0;
+	}
+
+	/**
+	 * Creates default configuration instance with sensible defaults.
+	 * Used when no configuration is provided in YAML for this implementation.
+	 *
+	 * @return default configuration options
+	 */
+	@Nonnull
+	ExportOptions createDefaultOptions();
+
+	/**
 	 * Creates new instance of {@link ExportService}.
+	 *
+	 * @param exportOptions export configuration options
+	 * @param scheduler     scheduler for background tasks
+	 * @return configured export service instance
 	 */
 	@Nonnull
 	ExportService create(
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull Scheduler scheduler
+		@Nonnull ExportOptions exportOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull FileManagementService fileManagementService
 	);
 
 }

@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -517,7 +518,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST))
-						.exportDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT))
+						.build()
+				)
+				.export(
+					FileSystemExportOptions.builder()
+						.directory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT))
 						.build()
 				)
 				.build()

@@ -802,11 +802,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		return new StorageOptions(
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
-			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1,
-			false, false, true, 0.01, 1_000_000L, false,
-			Long.MAX_VALUE, Long.MAX_VALUE
+			false, false, true, 0.01, 1_000_000L, false
 		);
 	}
 

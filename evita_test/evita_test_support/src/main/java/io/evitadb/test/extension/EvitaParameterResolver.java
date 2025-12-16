@@ -37,6 +37,7 @@ import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
@@ -297,11 +298,15 @@ public class EvitaParameterResolver
 					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
 					              .storageDirectory(evitaDataPath)
-					              .exportDirectory(evitaExportPath)
 					              .workDirectory(evitaWorkPath)
 					              .maxOpenedReadHandles(1000)
 					              .syncWrites(false)
 					              .build()
+				)
+				.export(
+					FileSystemExportOptions.builder()
+					    .directory(evitaExportPath)
+					    .build()
 				)
 				.cache(
 					// disable cache for tests

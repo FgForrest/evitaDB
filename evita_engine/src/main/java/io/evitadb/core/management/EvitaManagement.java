@@ -27,6 +27,8 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogStatistics;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.DefaultExportOptions;
+import io.evitadb.api.configuration.ExportOptions;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
@@ -69,6 +71,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -109,14 +112,33 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		this.scheduler = evita.getServiceExecutor();
 		this.fileManagementService = new FileManagementService(evita.getConfiguration().storage());
 
+		final ExportOptions exportOptions = evita.getConfiguration().export();
+		final String implementationCode = exportOptions.getImplementationCode();
+
 		final ServiceLoader<ExportServiceFactory> svcLoader = ServiceLoader.load(
 			ExportServiceFactory.class
 		);
 
-		this.exportService = svcLoader
+		final Predicate<ExportServiceFactory> exportSelector;
+		final Function<ExportServiceFactory, ExportOptions> exportOptionsProvider;
+		if (DefaultExportOptions.INSTANCE.getImplementationCode().equals(implementationCode)) {
+			// select the factory with highest priority
+			exportSelector = factory -> true;
+			exportOptionsProvider = ExportServiceFactory::createDefaultOptions;
+		} else {
+			// select by implementation code
+			exportSelector = factory -> factory.getImplementationCode().equals(implementationCode);
+			exportOptionsProvider = factory -> exportOptions;
+		}
+
+		// Match factory by implementation code from the export options
+		this.exportService = svcLoader.stream()
+			.map(ServiceLoader.Provider::get)
+			.sorted(Comparator.comparingInt(ExportServiceFactory::getPriority).reversed())
+			.filter(exportSelector)
 			.findFirst()
-			.map(it -> it.create(evita.getConfiguration().storage(), this.scheduler))
-			.orElseThrow(ExportServiceImplementationNotFoundException::new);
+			.map(factory -> factory.create(exportOptionsProvider.apply(factory), this.scheduler, this.fileManagementService))
+			.orElseThrow(() -> new ExportServiceImplementationNotFoundException(implementationCode));
 
 		this.started = OffsetDateTime.now();
 		this.configurationSupplier = evita.getConfiguration()::toString;
@@ -377,7 +399,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			}
 		}
 
-		final EngineState engineState = this.evita.getEngineState().engineState();
+		final EngineState<?> engineState = this.evita.getEngineState().engineState();
 
 		return new SystemStatus(
 			VersionUtils.readVersion(),

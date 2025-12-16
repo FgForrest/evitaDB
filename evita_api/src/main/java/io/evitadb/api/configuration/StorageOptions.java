@@ -40,8 +40,6 @@ import static java.util.Optional.ofNullable;
  *                                           By default, temporary directory is used - but it is highly recommended setting your own
  *                                           directory if you don't want to lose the data.
  *                                           recommended setting your own directory with dedicated disk space.
- * @param exportDirectory                    Directory on local disk where Evita files are exported - for example, backups,
- *                                           JFR recordings, query recordings etc.
  * @param workDirectory                      Directory on local disk where Evita creates temporary infrastructural files with short
  *                                           lifespan - at most the lifespan of a single evitaDB instance. By default, Java temp
  *                                           directory is used, but can be redirected if temp is too small.
@@ -77,16 +75,10 @@ import static java.util.Optional.ofNullable;
  *                                           This allows a snapshot of the database to be taken at any point in
  *                                           the history covered by the WAL log. From the snapshot, the database can be
  *                                           restored to the exact point in time with all the data available at that time.
- * @param exportDirectorySizeLimitBytes      Maximum overall size of the export directory. When this threshold
- *                                           is exceeded the oldest files will automatically be removed until the
- *                                           size drops below the limit.
- * @param exportFileHistoryExpirationSeconds Maximal age of exported file in seconds. When age is exceeded the file
- *                                           will be automatically removed.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public record StorageOptions(
 	@Nonnull Path storageDirectory,
-	@Nonnull Path exportDirectory,
 	@Nonnull Path workDirectory,
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
@@ -97,14 +89,11 @@ public record StorageOptions(
 	boolean computeCRC32C,
 	double minimalActiveRecordShare,
 	long fileSizeCompactionThresholdBytes,
-	boolean timeTravelEnabled,
-	long exportDirectorySizeLimitBytes,
-	long exportFileHistoryExpirationSeconds
+	boolean timeTravelEnabled
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152; // 2MB
 	public static final Path DEFAULT_DATA_DIRECTORY = Paths.get("").resolve("data");
-	public static final Path DEFAULT_EXPORT_DIRECTORY = Paths.get("").resolve("export");
 	public static final Path DEFAULT_WORK_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir")).resolve("evita");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
@@ -115,8 +104,6 @@ public record StorageOptions(
 	public static final double DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE = 0.5;
 	public static final long DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD = 104_857_600L; // 100MB
 	public static final boolean DEFAULT_TIME_TRAVEL_ENABLED = false;
-	public static final long DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES = 1_073_741_824L; // 1GB
-	public static final long DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS = 604_800L; // 7 days
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -125,7 +112,6 @@ public record StorageOptions(
 	public static StorageOptions temporary() {
 		return new StorageOptions(
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
-			Path.of(System.getProperty("java.io.tmpdir"), "evita/export"),
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/work"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
@@ -134,9 +120,7 @@ public record StorageOptions(
 			true,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
-			DEFAULT_TIME_TRAVEL_ENABLED,
-			DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES,
-			DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS
+			DEFAULT_TIME_TRAVEL_ENABLED
 		);
 	}
 
@@ -159,7 +143,6 @@ public record StorageOptions(
 	public StorageOptions() {
 		this(
 			DEFAULT_DATA_DIRECTORY,
-			DEFAULT_EXPORT_DIRECTORY,
 			randomize(DEFAULT_WORK_DIRECTORY),
 			DEFAULT_LOCK_TIMEOUT_SECONDS,
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
@@ -170,9 +153,7 @@ public record StorageOptions(
 			DEFAULT_COMPUTE_CRC,
 			DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE,
 			DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD,
-			DEFAULT_TIME_TRAVEL_ENABLED,
-			DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES,
-			DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS
+			DEFAULT_TIME_TRAVEL_ENABLED
 		);
 	}
 
@@ -188,9 +169,24 @@ public record StorageOptions(
 		return directory.resolve(UUIDUtil.randomUUID().toString());
 	}
 
+	/**
+	 * Constructor with nullable parameters for optional fields.
+	 *
+	 * @param storageDirectory               the storage directory path
+	 * @param workDirectory                  the work directory path
+	 * @param lockTimeoutSeconds             timeout for lock acquisition
+	 * @param waitOnCloseSeconds             timeout for waiting on close
+	 * @param outputBufferSize               size of output buffer
+	 * @param maxOpenedReadHandles           maximum number of read handles
+	 * @param syncWrites                     whether to sync writes
+	 * @param compress                       whether to compress data
+	 * @param computeCRC32C                  whether to compute CRC32C checksums
+	 * @param minimalActiveRecordShare       minimal share of active records
+	 * @param fileSizeCompactionThresholdBytes file size threshold for compaction
+	 * @param timeTravelEnabled              whether time travel is enabled
+	 */
 	public StorageOptions(
 		@Nullable Path storageDirectory,
-		@Nullable Path exportDirectory,
 		@Nullable Path workDirectory,
 		long lockTimeoutSeconds,
 		long waitOnCloseSeconds,
@@ -201,12 +197,9 @@ public record StorageOptions(
 		boolean computeCRC32C,
 		double minimalActiveRecordShare,
 		long fileSizeCompactionThresholdBytes,
-		boolean timeTravelEnabled,
-		long exportDirectorySizeLimitBytes,
-		long exportFileHistoryExpirationSeconds
+		boolean timeTravelEnabled
 	) {
 		this.storageDirectory = ofNullable(storageDirectory).orElse(DEFAULT_DATA_DIRECTORY);
-		this.exportDirectory = ofNullable(exportDirectory).orElse(DEFAULT_EXPORT_DIRECTORY);
 		this.workDirectory = ofNullable(workDirectory).orElseGet(() -> randomize(DEFAULT_WORK_DIRECTORY));
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
@@ -218,8 +211,6 @@ public record StorageOptions(
 		this.minimalActiveRecordShare = minimalActiveRecordShare;
 		this.fileSizeCompactionThresholdBytes = fileSizeCompactionThresholdBytes;
 		this.timeTravelEnabled = timeTravelEnabled;
-		this.exportDirectorySizeLimitBytes = exportDirectorySizeLimitBytes;
-		this.exportFileHistoryExpirationSeconds = exportFileHistoryExpirationSeconds;
 	}
 
 	/**
@@ -236,9 +227,10 @@ public record StorageOptions(
 	 * Standard builder pattern implementation.
 	 */
 	@ToString
+	@lombok.extern.slf4j.Slf4j
 	public static class Builder {
+
 		private Path storageDirectory = DEFAULT_DATA_DIRECTORY;
-		private Path exportDirectory = DEFAULT_EXPORT_DIRECTORY;
 		private Path workDirectory = randomize(DEFAULT_WORK_DIRECTORY);
 		private long lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT_SECONDS;
 		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
@@ -250,15 +242,12 @@ public record StorageOptions(
 		private double minimalActiveRecordShare = DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE;
 		private long fileSizeCompactionThresholdBytes = DEFAULT_MINIMAL_FILE_SIZE_COMPACTION_THRESHOLD;
 		private boolean timeTravelEnabled = DEFAULT_TIME_TRAVEL_ENABLED;
-		private long exportDirectorySizeLimitBytes = DEFAULT_EXPORT_DIRECTORY_SIZE_LIMIT_BYTES;
-		private long exportFileHistoryExpirationSeconds = DEFAULT_EXPORT_FILE_HISTORY_EXPIRATION_SECONDS;
 
 		Builder() {
 		}
 
 		Builder(@Nonnull StorageOptions storageOptions) {
 			this.storageDirectory = storageOptions.storageDirectory;
-			this.exportDirectory = storageOptions.exportDirectory;
 			this.workDirectory = storageOptions.workDirectory;
 			this.lockTimeoutSeconds = storageOptions.lockTimeoutSeconds;
 			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
@@ -270,21 +259,12 @@ public record StorageOptions(
 			this.minimalActiveRecordShare = storageOptions.minimalActiveRecordShare;
 			this.fileSizeCompactionThresholdBytes = storageOptions.fileSizeCompactionThresholdBytes;
 			this.timeTravelEnabled = storageOptions.timeTravelEnabled;
-			this.exportDirectorySizeLimitBytes = storageOptions.exportDirectorySizeLimitBytes;
-			this.exportFileHistoryExpirationSeconds = storageOptions.exportFileHistoryExpirationSeconds;
 		}
 
 		@Nonnull
 		public Builder storageDirectory(@Nonnull Path storageDirectory) {
 			//noinspection ConstantValue
 			this.storageDirectory = storageDirectory == null ? DEFAULT_DATA_DIRECTORY : storageDirectory;
-			return this;
-		}
-
-		@Nonnull
-		public Builder exportDirectory(@Nonnull Path exportDirectory) {
-			//noinspection ConstantValue
-			this.exportDirectory = exportDirectory == null ? DEFAULT_EXPORT_DIRECTORY : exportDirectory;
 			return this;
 		}
 
@@ -356,22 +336,9 @@ public record StorageOptions(
 		}
 
 		@Nonnull
-		public Builder exportDirectorySizeLimitBytes(long exportDirectorySizeLimitBytes) {
-			this.exportDirectorySizeLimitBytes = exportDirectorySizeLimitBytes;
-			return this;
-		}
-
-		@Nonnull
-		public Builder exportFileHistoryExpirationSeconds(long exportFileHistoryExpirationSeconds) {
-			this.exportFileHistoryExpirationSeconds = exportFileHistoryExpirationSeconds;
-			return this;
-		}
-
-		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				this.storageDirectory,
-				this.exportDirectory,
 				this.workDirectory,
 				this.lockTimeoutSeconds,
 				this.waitOnCloseSeconds,
@@ -382,9 +349,7 @@ public record StorageOptions(
 				this.computeCRC32C,
 				this.minimalActiveRecordShare,
 				this.fileSizeCompactionThresholdBytes,
-				this.timeTravelEnabled,
-				this.exportDirectorySizeLimitBytes,
-				this.exportFileHistoryExpirationSeconds
+				this.timeTravelEnabled
 			);
 		}
 

@@ -26,7 +26,6 @@ package io.evitadb.spi.export;
 import io.evitadb.api.exception.FileForFetchNotFoundException;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.dataType.PaginatedList;
-import io.evitadb.exception.EvitaIOException;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.export.model.ExportFileHandle;
 
@@ -35,7 +34,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
 import java.io.InputStream;
-import java.nio.file.OpenOption;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
@@ -162,20 +160,5 @@ public interface ExportService extends Closeable {
 	 * @param thresholdDate	 files strictly older than this date can be removed
 	 */
 	void purgeFiles(@Nonnull OffsetDateTime thresholdDate);
-
-	/**
-	 * Writes or updates the sidecar metadata for the provided file descriptor.
-	 *
-	 * Implementations may persist human-readable or machine-usable metadata (e.g. JSON) next to the
-	 * binary content. Existing metadata can be overwritten based on {@code options}.
-	 *
-	 * @param fileForFetch	 descriptor of the file whose metadata should be persisted
-	 * @param options	 optional {@link java.nio.file.StandardOpenOption} flags controlling write mode
-	 * @throws EvitaIOException if the metadata cannot be written
-	 */
-	void writeFileMetadata(
-		@Nonnull FileForFetch fileForFetch,
-		@Nonnull OpenOption... options
-	) throws EvitaIOException;
 
 }

@@ -73,6 +73,7 @@ import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -4291,7 +4292,9 @@ class EvitaTest implements EvitaTestSupport {
 
 		final CompletableFuture<FileForFetch> backupPathFuture = this.evita.management().backupCatalog(
 			TEST_CATALOG, null, null, true);
-		final Path backupPath = backupPathFuture.join().path(this.evita.getConfiguration().storage().exportDirectory());
+		final Path backupPath = backupPathFuture.join().path(
+			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
+		);
 
 		assertTrue(backupPath.toFile().exists());
 
@@ -4378,7 +4381,9 @@ class EvitaTest implements EvitaTestSupport {
 		final EvitaManagement management = this.evita.management();
 		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(
 			TEST_CATALOG, null, null, true);
-		final Path backupPath = backupPathFuture.join().path(this.evita.getConfiguration().storage().exportDirectory());
+		final Path backupPath = backupPathFuture.join().path(
+			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
+		);
 
 		assertTrue(backupPath.toFile().exists());
 
@@ -4935,9 +4940,13 @@ class EvitaTest implements EvitaTestSupport {
 				StorageOptions
 					.builder()
 					.storageDirectory(getEvitaTestDirectory())
-					.exportDirectory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.timeTravelEnabled(false)
 					.maxOpenedReadHandles(100)
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();
@@ -5293,7 +5302,8 @@ class EvitaTest implements EvitaTestSupport {
 				),
 				formerConfiguration.storage(),
 				formerConfiguration.transaction(),
-				formerConfiguration.cache()
+				formerConfiguration.cache(),
+				formerConfiguration.export()
 			)
 		);
 		reinstantiatedEvita.waitUntilFullyInitialized();

@@ -653,7 +653,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		executeWithClientContext(
 			session -> {
-				final MaterializedVersionBlock catalogVersionAt = session.getFirstCatalogVersionAfter(
+				final MaterializedVersionBlock catalogVersionAt = session.getLastCatalogVersionBefore(
 					request.hasTheMoment() ? toOffsetDateTime(request.getTheMoment()) : null
 				);
 				responseObserver.onNext(
