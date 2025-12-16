@@ -30,7 +30,7 @@
 	<description>The implementation of evitaDB traffic engine recorder storing data on local file system.</description>
 	<parent>
 		<groupId>io.evitadb</groupId>
-		<artifactId>evita_root</artifactId>
+		<artifactId>evita_store</artifactId>
 		<version>2026.1-SNAPSHOT</version>
 	</parent>
 
