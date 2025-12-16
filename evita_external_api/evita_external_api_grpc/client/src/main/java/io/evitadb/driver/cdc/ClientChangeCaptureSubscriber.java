@@ -24,10 +24,12 @@
 package io.evitadb.driver.cdc;
 
 
+import com.linecorp.armeria.common.TimeoutException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher.ClientSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
@@ -181,13 +183,20 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onError(Throwable throwable) {
-		if (throwable.getCause() instanceof PublisherClosedByClientException) {
+		final Throwable rootCause = ExceptionUtils.getRootCause(throwable);
+		if (rootCause instanceof PublisherClosedByClientException) {
 			// this is expected, we closed the publisher manually
 			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
 			// in this case we don't call the on complete, nor on error methods on the delegate
 			log.debug("Client change capture publisher was closed manually by the client.", throwable);
 		} else if (!this.closed.get()) {
-			log.error("Error occurred in the client change capture publisher.", throwable);
+			if (rootCause instanceof TimeoutException) {
+				// we don't log timeout exceptions as errors because we expect that the CDC is regularly timed out
+				// and then re-established by the client
+				log.debug("CDC stream timed out and will be re-established.", throwable);
+			} else {
+				log.error("Error occurred in the client change capture publisher.", throwable);
+			}
 			// we notify the subscriber about the error
 			try {
 				this.delegate.onError(throwable);
