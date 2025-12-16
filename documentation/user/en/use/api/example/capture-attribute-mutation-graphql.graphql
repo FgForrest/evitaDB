@@ -1,0 +1,21 @@
+subscription {
+  onCatalogChangeUntyped(
+    catalogName: "evita",
+    criteria: [
+      {
+        area: DATA,
+        dataSite: {
+          entityType: "Product",
+          entityPrimaryKey: 745,
+          containerType: [ATTRIBUTE],
+          containerName: ["quantityOnStock"]
+        }
+      }
+    ]
+  ) {
+    version
+    index
+    operation
+    body
+  }
+}

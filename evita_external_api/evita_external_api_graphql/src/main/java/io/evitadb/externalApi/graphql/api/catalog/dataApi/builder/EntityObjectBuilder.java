@@ -66,6 +66,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
+import io.evitadb.externalApi.graphql.api.catalog.resolver.dataFetcher.MappingTypeResolver.RegistryKey;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
@@ -97,6 +98,8 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class EntityObjectBuilder {
+
+	public static final RegistryKey<String> ENTITY_DTO_TYPE_RESOLVER_REGISTRY_KEY = new RegistryKey<>();
 
 	private static final PriceBigDecimalDataFetcher PRICE_WITH_VAT_DATA_FETCHER = new PriceBigDecimalDataFetcher(
 		PriceDescriptor.PRICE_WITH_TAX.name());
@@ -145,9 +148,10 @@ public class EntityObjectBuilder {
 	public void buildCommonTypes() {
 		final GraphQLInterfaceType entityClassifier = EntityDescriptor.THIS_CLASSIFIER.to(this.interfaceBuilderTransformer).build();
 		this.buildingContext.registerType(entityClassifier);
-		this.buildingContext.registerTypeResolver(
+		this.buildingContext.addMappingTypeResolver(
 			entityClassifier,
-			new EntityDtoTypeResolver(this.buildingContext.getEntityTypeToEntityObject())
+			ENTITY_DTO_TYPE_RESOLVER_REGISTRY_KEY,
+			new EntityDtoTypeResolver(this.buildingContext.getEntitySchemas().size())
 		);
 		this.buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(buildGlobalEntity());
@@ -177,8 +181,7 @@ public class EntityObjectBuilder {
 		final GraphQLObjectType.Builder entityObjectBuilder = entityDescriptor
 			.to(this.objectBuilderTransformer)
 			.name(objectName)
-			.description(entitySchema.getDescription())
-			.withInterface(typeRef(EntityDescriptor.THIS_CLASSIFIER.name()));
+			.description(entitySchema.getDescription());
 
 		// build top level fields
 		entityObjectBuilder.field(EntityDescriptor.SCOPE.to(this.fieldBuilderTransformer));
@@ -709,7 +712,7 @@ public class EntityObjectBuilder {
 								.argument(PaginatedListFieldHeaderDescriptor.SIZE
 									.to(this.argumentBuilderTransformer))
 								.build(),
-							new ReferencePageDataFetcher(referenceSchema)
+							new ReferenceChunkDataFetcher(referenceSchema)
 						));
 
 						fields.add(new BuiltFieldDescriptor(
@@ -730,7 +733,7 @@ public class EntityObjectBuilder {
 								.argument(StripListFieldHeaderDescriptor.LIMIT
 									.to(this.argumentBuilderTransformer))
 								.build(),
-							new ReferenceStripDataFetcher(referenceSchema)
+							new ReferenceChunkDataFetcher(referenceSchema)
 						));
 					}
 				}

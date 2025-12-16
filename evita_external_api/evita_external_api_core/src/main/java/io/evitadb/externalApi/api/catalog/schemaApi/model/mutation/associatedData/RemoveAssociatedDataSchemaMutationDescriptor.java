@@ -23,9 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData;
 
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-
-import java.util.List;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation}.
@@ -36,13 +35,16 @@ import java.util.List;
  */
 public interface RemoveAssociatedDataSchemaMutationDescriptor extends AssociatedDataSchemaMutationDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveAssociatedDataSchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(RemoveAssociatedDataSchemaMutation.class)
 		.description("""
 			Mutation is responsible for removing an existing `AssociatedDataSchema` in the
 			`EntitySchema`.
 			Mutation can be used for altering also the existing `AssociatedDataSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME))
+		.staticProperty(NAME)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("RemoveAssociatedDataSchemaMutationInput")
 		.build();
 }

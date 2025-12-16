@@ -57,7 +57,8 @@ import java.util.Optional;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode(callSuper = true)
-public class ModifyReferenceSortableAttributeCompoundSchemaMutation extends AbstractModifyReferenceDataSchemaMutation
+public class ModifyReferenceSortableAttributeCompoundSchemaMutation
+	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -1439568976069672739L;
 	@Nonnull @Getter private final ReferenceSortableAttributeCompoundSchemaMutation sortableAttributeCompoundSchemaMutation;

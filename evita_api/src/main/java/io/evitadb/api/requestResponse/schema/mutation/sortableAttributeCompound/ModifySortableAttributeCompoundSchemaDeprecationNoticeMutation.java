@@ -57,15 +57,15 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation
+	extends AbstractSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final String deprecationNotice;
 
 	public ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(@Nonnull String name, @Nullable String deprecationNotice) {
-		this.name = name;
+		super(name);
 		this.deprecationNotice = deprecationNotice;
 	}
 

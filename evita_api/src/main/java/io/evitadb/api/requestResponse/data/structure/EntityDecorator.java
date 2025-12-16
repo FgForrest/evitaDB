@@ -173,45 +173,78 @@ public class EntityDecorator implements SealedEntity {
 	 *
 	 * @return count of filtered out references
 	 */
-	private static int sortAndFilterSubList(
+	protected static int sortAndFilterSubList(
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
-		@Nullable ReferenceComparator referenceComparator,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nullable BiPredicate<Integer, ReferenceDecorator> referenceFilter,
+		@Nullable ReferenceComparator referenceComparator,
 		int start,
 		int end
 	) {
-		int filteredOutReferences = 0;
-		if (referenceComparator != null) {
+		// when filter is not provided, make it always return true
+		final BiPredicate<Integer, ReferenceDecorator> theReferenceFilter = referenceFilter == null ?
+			(pk, ref) -> true : referenceFilter;
+		if (referenceComparator == null) {
+			// In‑place filtering when no comparator is provided
+			return filterOutReferences(
+				entityPrimaryKey, references, referencePredicate, theReferenceFilter, start, end
+			);
+		} else {
 			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
 				epkAware.setEntityPrimaryKey(entityPrimaryKey);
 			}
+			final int filteredOutCount = filterOutReferences(
+				entityPrimaryKey, references, referencePredicate,
+				theReferenceFilter,
+				start, end
+			);
+			final int sortEnd = end - filteredOutCount;
+			// now do the sorting in multiple passes if needed
 			int nonSortedReferenceCount;
 			do {
-				if (referenceFilter == null) {
-					Arrays.sort(references, start, end, referenceComparator);
-				} else {
-					final ReferenceDecorator[] filteredReferences = Arrays
-						.stream(references, start, end)
-						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
-						.toArray(ReferenceDecorator[]::new);
-					filteredOutReferences += (end - start) - filteredReferences.length;
-
-					Arrays.sort(filteredReferences, referenceComparator);
-
-					for (int i = start; i < end; i++) {
-						final int filteredIndex = i - start;
-						references[i] = filteredReferences.length > filteredIndex ?
-							filteredReferences[filteredIndex] :
-							null;
-					}
-				}
+				// Just sort the current window
+				Arrays.sort(references, start, sortEnd, referenceComparator);
 				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
-				start = start + (end - nonSortedReferenceCount);
+				start = start + (sortEnd - nonSortedReferenceCount);
 				referenceComparator = referenceComparator.getNextComparator();
 			} while (referenceComparator != null && nonSortedReferenceCount > 0);
+
+			return filteredOutCount;
 		}
-		return filteredOutReferences;
+	}
+
+	/**
+	 * Filters out elements from the references array based on the specified predicate.
+	 * This method modifies the provided references array in place to only include
+	 * elements that satisfy the given filtering condition. The method shifts elements
+	 * that meet the filter criteria to the beginning of the specified range and
+	 * returns the count of elements that were filtered out.
+	 *
+	 * @param entityPrimaryKey the primary key of the entity used in the filtering condition
+	 * @param references an array of ReferenceDecorator objects to be filtered
+	 * @param referencePredicate a predicate that matches all requested references
+	 * @param referenceFilter a BiPredicate that defines the filtering condition
+	 * @param start the starting index of the range within the references array to be processed
+	 * @param end the ending index (exclusive) of the range within the references array to be processed
+	 * @return the count of references filtered out from the specified range
+	 */
+	private static int filterOutReferences(
+		int entityPrimaryKey,
+		@Nonnull ReferenceDecorator[] references,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull BiPredicate<Integer, ReferenceDecorator> referenceFilter,
+		int start,
+		int end
+	) {
+		int writeIndex = start;
+		for (int i = start; i < end; i++) {
+			final ReferenceDecorator reference = references[i];
+			if (referencePredicate.test(reference) && referenceFilter.test(entityPrimaryKey, reference)) {
+				references[writeIndex++] = reference;
+			}
+		}
+		return end - writeIndex;
 	}
 
 	/**
@@ -373,7 +406,8 @@ public class EntityDecorator implements SealedEntity {
 	public EntityDecorator(
 		@Nonnull EntityDecorator entity,
 		@Nullable EntityClassifierWithParent parentEntity,
-		@Nonnull ReferenceFetcher referenceFetcher
+		@Nonnull ReferenceFetcher referenceFetcher,
+		@Nonnull EvitaRequest evitaRequest
 	) {
 		this(
 			entity.getDelegate(),
@@ -388,7 +422,8 @@ public class EntityDecorator implements SealedEntity {
 				entity.referencePredicate.createRicherCopyWith(referenceFetcher.getEnvelopingEntityRequest()),
 			entity.pricePredicate,
 			entity.alignedNow,
-			referenceFetcher
+			referenceFetcher,
+			evitaRequest
 		);
 	}
 
@@ -418,7 +453,8 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
 		@Nonnull PriceContractSerializablePredicate pricePredicate,
 		@Nonnull OffsetDateTime alignedNow,
-		@Nonnull ReferenceFetcher referenceFetcher
+		@Nonnull ReferenceFetcher referenceFetcher,
+		@Nullable EvitaRequest evitaRequest
 	) {
 		this.delegate = entity;
 		this.entitySchema = entitySchema;
@@ -431,69 +467,138 @@ public class EntityDecorator implements SealedEntity {
 		this.pricePredicate = pricePredicate;
 		this.alignedNow = alignedNow;
 
-		final Collection<ReferenceContract> originalReferences = entity.getReferences();
-		final ReferenceContract[] filteredReferences = originalReferences
-			.stream()
-			.filter(referencePredicate)
-			.sorted(Comparator.comparing(ReferenceContract::getReferenceName))
-			.toArray(ReferenceContract[]::new);
+		// we work with the source array directly - it will not be modified, only traversed
+		final ReferenceContract[] allReferences = entity.getReferences().toArray(ReferenceContract[]::new);
+		final ReferenceDecorator[] outputReferences = new ReferenceDecorator[allReferences.length];
+		final int filteredOutReferences = fillFilteredSortedAndFetchedReferences(
+			getPrimaryKeyOrThrowException(),
+			entitySchema,
+			referencePredicate,
+			referenceFetcher,
+			allReferences,
+			outputReferences,
+			evitaRequest
+		);
 
+		indexFilteredSortedAndFetchedReferences(
+			entity,
+			entitySchema,
+			referencePredicate.getReferenceSet().isEmpty() ?
+				// client requests all references
+				entitySchema.getReferences().keySet() :
+				// client requests references with specific names
+				referencePredicate.getReferenceSet().keySet(),
+			referenceFetcher,
+			outputReferences,
+			filteredOutReferences
+		);
+	}
+
+	/**
+	 * Fills the provided output references array with processed, filtered, sorted, and fetched references based
+	 * on the input references, applying the given schema, predicates, and fetcher logic.
+	 *
+	 * @param entityPrimaryKey   The primary key of the entity to which the references are related.
+	 * @param entitySchema       The schema of the entity specifying structure and rules applicable to its references.
+	 * @param referencePredicate A predicate used to filter and evaluate which references should be included or excluded.
+	 * @param referenceFetcher   The fetcher utility responsible for retrieving additional data for references or their related entities.
+	 * @param inputReferences      Collection of all references of the entity to be processed.
+	 * @param outputReferences   An array of reference decorators to be filled with processed references; outputs filtered and sorted references.
+	 * @return The count of references filtered out during the operation.
+	 */
+	protected int fillFilteredSortedAndFetchedReferences(
+		int entityPrimaryKey,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
+		@Nonnull ReferenceSetFetcher referenceFetcher,
+		@Nonnull ReferenceContract[] inputReferences,
+		@Nonnull ReferenceDecorator[] outputReferences,
+		@Nullable EvitaRequest evitaRequest
+	) {
 		int index = -1;
 		ReferenceSchemaContract referenceSchema = null;
 		Function<Integer, SealedEntity> entityFetcher = null;
 		Function<Integer, SealedEntity> entityGroupFetcher = null;
 		ReferenceComparator fetchedReferenceComparator = null;
+		BiPredicate<Integer, ReferenceDecorator> entityFilter = null;
 
-		final int entityPrimaryKey = Objects.requireNonNull(getPrimaryKey());
-		final ReferenceDecorator[] fetchedAndFilteredReferences = new ReferenceDecorator[filteredReferences.length];
 		int filteredOutReferences = 0;
-		for (int i = 0; i < fetchedAndFilteredReferences.length; i++) {
-			final ReferenceContract referenceContract = filteredReferences[i];
+		for (int i = 0; i < outputReferences.length; i++) {
+			final ReferenceContract referenceContract = inputReferences[i];
 			final String thisReferenceName = referenceContract.getReferenceName();
 			if (referenceSchema == null) {
 				index = i;
-				referenceSchema = entitySchema.getReference(thisReferenceName)
-				                              .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
+				referenceSchema = entitySchema
+					.getReference(thisReferenceName)
+				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
+				entityFilter = referenceFetcher.getEntityFilter(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 			} else if (!referenceSchema.getName().equals(thisReferenceName)) {
 				filteredOutReferences += sortAndFilterSubList(
 					entityPrimaryKey,
-					fetchedAndFilteredReferences, fetchedReferenceComparator,
+					outputReferences,
+					referencePredicate,
 					referenceFetcher.getEntityFilter(referenceSchema),
+					fetchedReferenceComparator,
 					index, i - filteredOutReferences
 				);
 				index = i - filteredOutReferences;
-				referenceSchema = entitySchema.getReference(thisReferenceName)
-				                              .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
+				referenceSchema = entitySchema
+					.getReference(thisReferenceName)
+				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
 				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
+				entityFilter = referenceFetcher.getEntityFilter(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 			}
 
-			fetchedAndFilteredReferences[i - filteredOutReferences] = ofNullable(
+			outputReferences[i - filteredOutReferences] = ofNullable(
 				fetchReference(
-					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
+					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher, referencePredicate
 				)
 			).orElseGet(() -> new ReferenceDecorator(
 				referenceContract,
 				referencePredicate.getAttributePredicate(thisReferenceName)
 			));
 		}
-		if (referenceSchema != null && fetchedReferenceComparator != null) {
+		if (referenceSchema != null) {
 			filteredOutReferences += sortAndFilterSubList(
 				entityPrimaryKey,
-				fetchedAndFilteredReferences, fetchedReferenceComparator,
-				referenceFetcher.getEntityFilter(referenceSchema),
-				index, fetchedAndFilteredReferences.length - filteredOutReferences
+				outputReferences,
+				referencePredicate,
+				entityFilter,
+				fetchedReferenceComparator,
+				index, outputReferences.length - filteredOutReferences
 			);
 		}
+		return filteredOutReferences;
+	}
 
+	/**
+	 * Indexes, filters, sorts, and fetches references for the provided entity based on the schema and
+	 * requested reference names. Populates internal data structures to organize references and manage duplicates.
+	 *
+	 * @param entity The entity whose references are being processed.
+	 * @param entitySchema The schema of the entity, used to determine reference schemas.
+	 * @param requestedReferenceNames A collection of reference names explicitly requested to be fetched.
+	 * @param referenceFetcher The utility responsible for fetching reference chunks based on the entity and its references.
+	 * @param filteredSortedAndFetchedReferences An array of references that are already filtered, sorted, and fetched.
+	 * @param filteredOutReferences The count of references that were filtered out and should be excluded from processing.
+	 */
+	private void indexFilteredSortedAndFetchedReferences(
+		@Nonnull Entity entity,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<String> requestedReferenceNames,
+		@Nonnull ReferenceFetcher referenceFetcher,
+		@Nonnull ReferenceDecorator[] filteredSortedAndFetchedReferences,
+		int filteredOutReferences
+	) {
 		final Map<String, ReferenceSchemaContract> referencesAccordingToSchema = entitySchema.getReferences();
 		this.filteredReferencesByName = createLinkedHashMap(referencesAccordingToSchema.size());
 
-		final int length = fetchedAndFilteredReferences.length - filteredOutReferences;
+		final int length = filteredSortedAndFetchedReferences.length - filteredOutReferences;
 		final Map<String, List<ReferenceContract>> indexByName = createLinkedHashMap(length);
 		this.filteredReferences = createLinkedHashMap(length);
 		final int averageExpectedCount = referencesAccordingToSchema.isEmpty() ?
@@ -504,7 +609,7 @@ public class EntityDecorator implements SealedEntity {
 		ReferenceSchemaContract lastResolvedSchema = null;
 		String lastResolvedSchemaName = null;
 		for (int i = 0; i < length; i++) {
-			final ReferenceDecorator reference = fetchedAndFilteredReferences[i];
+			final ReferenceDecorator reference = filteredSortedAndFetchedReferences[i];
 			final String referenceName = reference.getReferenceName();
 			indexByName
 				.computeIfAbsent(
@@ -513,7 +618,7 @@ public class EntityDecorator implements SealedEntity {
 				)
 				.add(reference);
 
-			// resolve schema only when reference name changes
+			// resolve schema only when a reference name changes
 			if (lastResolvedSchema == null || !referenceName.equals(lastResolvedSchemaName)) {
 				lastResolvedSchema = schema.getReference(referenceName).orElse(null);
 				lastResolvedSchemaName = referenceName;
@@ -543,26 +648,22 @@ public class EntityDecorator implements SealedEntity {
 				final ReferenceContract previous = this.filteredReferences.putIfAbsent(referenceKey, reference);
 				Assert.isPremiseValid(
 					previous == null,
-					"Unexpected duplicate reference " + referenceKey + " in entity " + entityPrimaryKey + "!"
+					"Unexpected duplicate reference " + referenceKey + " in entity " + getPrimaryKeyOrThrowException() + "!"
 				);
 			}
 		}
-		final Set<String> referenceNames = referencePredicate.getReferenceSet().isEmpty() ?
-			referencesAccordingToSchema.keySet() : referencePredicate.getReferenceSet().keySet();
-		for (String referenceName : referenceNames) {
-			if (referencePredicate.isReferenceRequested(referenceName)) {
-				final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
-					.orElse(Collections.emptyList());
-				final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
-					entity, referenceName, references
-				);
-				removeReferencesNotPresentInChunk(
-					chunk, references,
-					this.filteredReferences,
-					this.filteredDuplicateReferences
-				);
-				this.filteredReferencesByName.put(referenceName, chunk);
-			}
+		for (String referenceName : requestedReferenceNames) {
+			final List<ReferenceContract> references = ofNullable(indexByName.get(referenceName))
+				.orElse(Collections.emptyList());
+			final DataChunk<ReferenceContract> chunk = referenceFetcher.createChunk(
+				entity, referenceName, references
+			);
+			removeReferencesNotPresentInChunk(
+				chunk, references,
+				this.filteredReferences,
+				this.filteredDuplicateReferences
+			);
+			this.filteredReferencesByName.put(referenceName, chunk);
 		}
 	}
 
@@ -857,11 +958,39 @@ public class EntityDecorator implements SealedEntity {
 			.map(it -> avoidDuplicates(referenceKey, it));
 	}
 
+	/**
+	 * Retrieves a collection of ReferenceContract objects without applying any predicate check.
+	 *
+	 * @return a collection of ReferenceContract objects containing all references from the underlying data structure
+	 */
 	@Nonnull
 	public Collection<ReferenceContract> getReferencesWithoutCheckingPredicate() {
 		return getFilteredReferences().values();
 	}
 
+	/**
+	 * Retrieves a DataChunk of ReferenceContract objects associated with the specified reference name
+	 * without evaluating or applying any predicate checks.
+	 *
+	 * @param referenceName the name of the reference for which the DataChunk should be retrieved; must not be null
+	 * @return a DataChunk containing ReferenceContract objects associated with the given reference name, or an empty DataChunk if no references are found
+	 */
+	@Nonnull
+	public DataChunk<ReferenceContract> getReferencesWithoutCheckingPredicate(@Nonnull String referenceName) {
+		final DataChunk<ReferenceContract> chunk = getFilteredReferencesByName().get(referenceName);
+		return chunk == null ?
+			this.delegate.references
+				.getReferenceChunkTransformer()
+				.apply(referenceName)
+				.createChunk(Collections.emptyList()) :
+			chunk;
+	}
+
+	/**
+	 * Retrieves the implicit locale determined by the locale predicate.
+	 *
+	 * @return the implicit {@link Locale}, or {@code null} if no implicit locale is available
+	 */
 	@Nullable
 	public Locale getImplicitLocale() {
 		return this.localePredicate.getImplicitLocale();
@@ -1703,27 +1832,24 @@ public class EntityDecorator implements SealedEntity {
 	 * is a request for fetching their bodies in input request.
 	 */
 	@Nullable
-	private ReferenceDecorator fetchReference(
+	protected static ReferenceDecorator fetchReference(
 		@Nonnull ReferenceContract reference,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable Function<Integer, SealedEntity> referenceEntityFetcher,
-		@Nullable Function<Integer, SealedEntity> referenceGroupEntityFetcher
+		@Nonnull Function<Integer, SealedEntity> referenceEntityFetcher,
+		@Nonnull Function<Integer, SealedEntity> referenceGroupEntityFetcher,
+		@Nonnull ReferenceContractSerializablePredicate referencePredicate
 	) {
-		final SealedEntity referencedEntity;
-		if (referenceSchema.isReferencedEntityTypeManaged() && referenceEntityFetcher != null) {
-			referencedEntity = referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey());
-		} else {
-			referencedEntity = null;
-		}
+		final SealedEntity referencedEntity = referenceSchema.isReferencedEntityTypeManaged() ?
+			referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
 
-		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referenceGroupEntityFetcher != null && referencedEntity != null ?
+		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referencedEntity != null ?
 			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
 			null;
 		return new ReferenceDecorator(
 			reference,
 			referencedEntity,
 			referencedGroupEntity,
-			this.referencePredicate.getAttributePredicate(
+			referencePredicate.getAttributePredicate(
 				referenceSchema.getName()
 			)
 		);

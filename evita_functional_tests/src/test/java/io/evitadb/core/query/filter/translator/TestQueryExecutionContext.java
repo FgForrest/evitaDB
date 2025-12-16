@@ -91,8 +91,7 @@ public class TestQueryExecutionContext extends QueryExecutionContext {
 				new ReferenceContractSerializablePredicate(this.evitaRequest),
 				new PriceContractSerializablePredicate(this.evitaRequest, (Boolean) null),
 				this.evitaRequest.getAlignedNow(),
-				0, 0,
-				null
+				0, 0
 			)
 		).toList();
 	}

@@ -137,7 +137,7 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.19.0</version>
+            <version>1.20.0</version>
 	        <scope>test</scope>
         </dependency>
 		<dependency>
@@ -153,7 +153,7 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-text</artifactId>
-			<version>1.14.0</version>
+			<version>1.15.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -176,12 +176,12 @@
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit</artifactId>
-			<version>4.1.1</version>
+			<version>5.1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit-assertj</artifactId>
-			<version>4.1.1</version>
+			<version>5.1.0</version>
 		</dependency>
 	</dependencies>
 </project>

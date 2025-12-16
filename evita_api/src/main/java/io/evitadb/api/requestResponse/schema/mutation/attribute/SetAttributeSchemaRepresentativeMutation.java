@@ -62,16 +62,16 @@ import java.io.Serial;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaRepresentativeMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -8009199371166088386L;
-	@Getter @Nonnull private final String name;
 	@Getter private final boolean representative;
 
 	public SetAttributeSchemaRepresentativeMutation(@Nonnull String name, boolean representative) {
-		this.name = name;
+		super(name);
 		this.representative = representative;
 	}
 

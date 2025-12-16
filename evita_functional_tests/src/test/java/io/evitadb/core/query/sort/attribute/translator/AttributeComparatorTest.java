@@ -26,6 +26,7 @@ package io.evitadb.core.query.sort.attribute.translator;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.core.query.sort.attribute.comparator.AttributeComparator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

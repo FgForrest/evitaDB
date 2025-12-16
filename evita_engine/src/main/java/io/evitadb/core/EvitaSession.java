@@ -76,7 +76,8 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
+import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest;
 import io.evitadb.api.task.ServerTask;
@@ -97,7 +98,6 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import lombok.EqualsAndHashCode;
@@ -827,8 +827,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 							this.getCatalogName()
 						);
 						updateSchemaInternal(catalog, session.getId(), schemaMutation);
-						return catalog.getEntitySchema(schemaMutation.getEntityType())
-							.orElseThrow(() -> new CollectionNotFoundException(schemaMutation.getEntityType()));
+						return catalog.getEntitySchema(schemaMutation.getName())
+							.orElseThrow(() -> new CollectionNotFoundException(schemaMutation.getName()));
 					}
 				)
 		);
@@ -1352,11 +1352,38 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 	}
 
+	@Interruptible
+	@Traced
+	@RepresentsMutation
+	@Override
+	public void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException {
+		assertActive();
+		executeInTransactionIfPossible(session -> {
+			this.catalog.applyMutation(this, mutation);
+			return null;
+		});
+	}
+
 	@Nonnull
 	@Override
-	public StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
+	public MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException {
 		assertActive();
-		return this.catalog.getCatalogVersionAt(moment);
+		return this.catalog.getFirstCatalogVersionAfter(moment);
+	}
+
+	@Nonnull
+	@Override
+	public MaterializedVersionBlock getLastCatalogVersionBefore(
+		@Nullable OffsetDateTime moment
+	) throws TemporalDataNotAvailableException {
+		assertActive();
+		return this.catalog.getLastCatalogVersionBefore(moment);
+	}
+
+	@Nonnull
+	@Override
+	public List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
+		return this.catalog.getCatalogVersionDescriptors(catalogVersion);
 	}
 
 	@Nonnull
@@ -1388,8 +1415,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.backup(
 			pastMoment, catalogVersion, includingWAL,
-			ccControl::registerConsumerOfCatalogInVersion,
-			ccControl::unregisterConsumerOfCatalogInVersion
+			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
+			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
 		);
 	}
 
@@ -1406,8 +1433,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		final CatalogContract theCatalog = this.catalog;
 		final CatalogConsumerControl ccControl = this.catalogConsumerControl.apply(theCatalog.getName());
 		return theCatalog.fullBackup(
-			ccControl::registerConsumerOfCatalogInVersion,
-			ccControl::unregisterConsumerOfCatalogInVersion
+			version -> ccControl.registerConsumerOfCatalogInVersion(version, this.sessionTraits),
+			version -> ccControl.unregisterConsumerOfCatalogInVersion(version, this.sessionTraits)
 		);
 	}
 
@@ -1617,7 +1644,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nullable Long recordingSizeLimitInBytes,
 		long chunkFileSizeInBytes
 	) throws SingletonTaskAlreadyRunningException {
-		Assert.isTrue(
+		isTrue(
 			!isReadOnly(),
 			ReadOnlyException::sessionReadOnly
 		);
@@ -1643,7 +1670,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public TaskStatus<TrafficRecordingSettings, FileForFetch> stopRecording(@Nonnull UUID taskId) {
-		Assert.isTrue(
+		isTrue(
 			!isReadOnly(),
 			ReadOnlyException::sessionReadOnly
 		);
@@ -1701,6 +1728,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	public <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
 		return this.proxyFactory.createEntityProxy(contract, sealedEntity, getEntitySchemaIndex());
+	}
+
+	/**
+	 * Returns traits the session was created with.
+	 *
+	 * @return session traits
+	 */
+	@Nonnull
+	public SessionTraits getSessionTraits() {
+		return this.sessionTraits;
 	}
 
 	/**
@@ -1839,7 +1876,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		// then apply termination callbacks
 		String finishedWithError = null;
 		try {
-			Assert.isPremiseValid(
+			isPremiseValid(
 				this.beingClosed.compareAndSet(false, true),
 				"Expectation failed!"
 			);
@@ -1855,7 +1892,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			}
 		} finally {
 			theCatalog.getTrafficRecordingEngine().closeSession(this.id, finishedWithError);
-			Assert.isPremiseValid(
+			isPremiseValid(
 				this.beingClosed.compareAndSet(true, false),
 				"Expectation failed!"
 			);

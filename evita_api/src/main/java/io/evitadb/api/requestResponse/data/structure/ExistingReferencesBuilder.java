@@ -852,7 +852,9 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 *                          The mutation includes details such as the reference key and any required
 	 *                          updates or additions to the reference schema.
 	 */
-	public void addMutation(@Nonnull ReferenceMutation<?> referenceMutation) {
+    @Nonnull
+    @Override
+	public ExistingReferencesBuilder mutateReference(@Nonnull ReferenceMutation<?> referenceMutation) {
 		if (referenceMutation instanceof InsertReferenceMutation irs) {
 			// we need to resolve the referenced entity type and cardinality from schema
 			if (irs.getReferencedEntityType() == null || irs.getReferenceCardinality() == null) {
@@ -878,6 +880,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				k -> new ArrayList<>(8)
 			).add(referenceMutation);
 		this.memoizedReferences = null;
+        return this;
 	}
 
 	@Nonnull
@@ -1094,7 +1097,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		if (isThereAnyChangeInMutations()) {
 			return new References(
 				this.entitySchema,
-				getReferences(),
+				getReferences().toArray(ReferenceContract[]::new),
 				getReferenceNames(),
 				this.baseReferences.getReferenceChunkTransformer()
 			);
@@ -1467,43 +1470,27 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final String referenceName = referenceKey.referenceName();
 		final BuilderReferenceBundle referenceBundle = getReferenceBundleForUpdate(referenceName, 8);
 		referenceBundle.initializeBundleIfNecessary(
-			theBundle -> {
-				initReferenceBundle(referenceName, theBundle);
-				if (this.removedReferences != null) {
-					for (FullyComparableReferenceKey removedReference : this.removedReferences) {
-						if (referenceName.equals(removedReference.referenceName())) {
-							this.baseReferences.getReferenceWithoutSchemaCheck(
-								new ReferenceKey(
-									removedReference.referenceName(),
-									removedReference.primaryKey(),
-									removedReference.internalPrimaryKey()
-								)
-							).ifPresentOrElse(
-								theBundle::removeReference,
-								() -> {
-									// this should never happen - the removed reference must be present in base references
-									throw new GenericEvitaInternalError(
-										"Removed reference is missing in base references!"
-									);
-								}
-							);
-						}
-					}
-				}
-			}
+			theBundle -> initReferenceBundle(
+                referenceName,
+                theBundle,
+                this.removedReferences == null ?
+                    ref -> true :
+                    ref -> !this.removedReferences.contains(new FullyComparableReferenceKey(ref.getReferenceKey()))
+            )
 		);
 
 		// register a new reference
 		final Cardinality schemaCardinality = referenceSchema.getCardinality();
-		final int currentReferenceCount = referenceBundle.count() + 1;
-		final boolean lowCardinality = schemaCardinality.getMax() < currentReferenceCount;
+		final boolean bundleContainsReference = referenceBundle.containsReferenceKey(referenceKey);
+		final int newReferenceCount = referenceBundle.count() + (bundleContainsReference ? 0 : 1);
+		final boolean lowCardinality = schemaCardinality.getMax() < newReferenceCount;
 		final boolean hasDuplicates = referenceMutationIndex.size() > 1;
 		final boolean duplicateMismatch = hasDuplicates && !schemaCardinality.allowsDuplicates();
 		if (lowCardinality || duplicateMismatch) {
 			if (!this.entitySchema.getEvolutionMode().contains(EvolutionMode.UPDATING_REFERENCE_CARDINALITY)) {
 				throw new ReferenceCardinalityViolatedException(
 					this.entitySchema.getName(),
-					List.of(new CardinalityViolation(referenceName, schemaCardinality, currentReferenceCount, duplicateMismatch))
+					List.of(new CardinalityViolation(referenceName, schemaCardinality, newReferenceCount, duplicateMismatch))
 				);
 			} else {
 				// we need to promote the cardinality in all insert reference mutations
@@ -1556,8 +1543,15 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	 */
 	private void initReferenceBundle(
 		@Nonnull String referenceName,
-		@Nonnull BuilderReferenceBundle referenceBundle
+		@Nonnull BuilderReferenceBundle referenceBundle,
+		@Nonnull Predicate<ReferenceContract> shouldIncludeReference
 	) {
+		final Predicate<ReferenceContract> combinedPredicate =
+			reference -> this.referencePredicate.test(reference) &&
+				// the reference might have been already added / updated by some previous mutation
+				!referenceBundle.containsReference(reference) &&
+				// the reference might have been already removed locally
+				shouldIncludeReference.test(reference);
 		final Iterator<List<ReferenceContract>> it = this.baseReferences
 			.getDuplicatedReferences(referenceName)
 			.iterator();
@@ -1566,12 +1560,14 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			ReferenceContract firstReference = null;
 			boolean converted = false;
 			for (ReferenceContract reference : references) {
-				if (this.referencePredicate.test(reference)) {
+				if (combinedPredicate.test(reference)) {
 					if (converted) {
 						referenceBundle.upsertDuplicateReference(reference);
 					} else if (firstReference == null) {
 						firstReference = reference;
-						referenceBundle.upsertNonDuplicateReference(reference);
+						referenceBundle.upsertWithDuplicateReferenceConversion(
+							reference, rk -> getReference(rk).orElseThrow()
+						);
 					} else {
 						// we have more than one reference - we need to convert the first one as well
 						referenceBundle.convertToDuplicateReference(reference, firstReference);
@@ -1581,7 +1577,8 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			}
 		}
 		this.baseReferences.getNonDuplicatedReferences(referenceName)
-		                   .forEach(referenceBundle::upsertNonDuplicateReference);
+			.filter(combinedPredicate)
+			.forEach(referenceBundle::upsertNonDuplicateReference);
 	}
 
 	/**

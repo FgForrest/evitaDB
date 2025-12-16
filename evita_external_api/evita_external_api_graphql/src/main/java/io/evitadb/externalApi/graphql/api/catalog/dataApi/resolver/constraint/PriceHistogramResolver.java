@@ -23,17 +23,23 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
+import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.PriceHistogram;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -48,7 +54,19 @@ import static io.evitadb.api.query.QueryConstraints.priceHistogram;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class PriceHistogramResolver {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class PriceHistogramResolver extends AbstractExtraResultConstraintResolver {
+
+	@Nullable
+	private static PriceHistogramResolver INSTANCE;
+
+	@Nonnull
+	public static PriceHistogramResolver getInstance() {
+		if (INSTANCE == null) {
+			INSTANCE = new PriceHistogramResolver();
+		}
+		return INSTANCE;
+	}
 
 	@Nonnull
 	public Optional<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet) {
@@ -58,13 +76,20 @@ public class PriceHistogramResolver {
 		}
 
 		final Set<HistogramRequest> requests = priceHistogramFields.stream()
-			.flatMap(f -> SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), f.getSelectionSet()).stream())
-			.map(f -> {
-				final int requestedBucketCount = (int) f.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
-				final HistogramBehavior behavior = (HistogramBehavior) f.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
-				return new HistogramRequest(requestedBucketCount, behavior);
+			.flatMap(priceHistogramField -> {
+				final Scope scope = resolveScope(priceHistogramField);
+				final DataFetchingFieldSelectionSet nestedFields = priceHistogramField.getSelectionSet();
+
+				return SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), nestedFields)
+					.stream()
+					.map(bucketsField -> {
+						final int requestedBucketCount = (int) bucketsField.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
+						final HistogramBehavior behavior = (HistogramBehavior) bucketsField.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
+						return new HistogramRequest(scope, requestedBucketCount, behavior);
+					});
 			})
 			.collect(Collectors.toSet());
+
 		Assert.isTrue(
 			!requests.isEmpty(),
 			() -> new GraphQLInvalidResponseUsageException(
@@ -74,11 +99,14 @@ public class PriceHistogramResolver {
 		Assert.isTrue(
 			requests.size() == 1,
 			() -> new GraphQLInvalidResponseUsageException(
-				"Price histogram was requested with multiple different parameters. Only a single set of parameters can be requested."
+				"Price histogram was requested with multiple different parameters. Only a single set of parameters can be requested. " +
+				"Even across different scopes."
 			)
 		);
-
 		final HistogramRequest request = requests.iterator().next();
-		return Optional.of(priceHistogram(request.requestedBucketCount(), request.behavior()));
+
+		final Scope scope = request.scope();
+		final PriceHistogram priceHistogram = priceHistogram(request.requestedBucketCount(), request.behavior());
+		return Optional.of(wrapInScopeConstraint(scope, priceHistogram));
 	}
 }

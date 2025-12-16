@@ -23,20 +23,16 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.Objects;
 
 /**
  * Finds single reference in parent entity that conforms to specified name.
@@ -44,19 +40,15 @@ import java.util.Objects;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
+public class ReferenceDataFetcher extends AbstractReferenceDataFetcher<ReferenceContract> {
 
-    /**
-     * Schema of reference to which this fetcher is mapped to.
-     */
-    @Nonnull
-    private final ReferenceSchemaContract referenceSchema;
+	public ReferenceDataFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+		super(referenceSchema);
+	}
 
-    @Nullable
+	@Nullable
     @Override
-    public ReferenceContract get(DataFetchingEnvironment environment) throws Exception {
-        final EntityDecorator entity = Objects.requireNonNull(environment.getSource());
+    protected ReferenceContract doGet(@Nonnull DataFetchingEnvironment environment, @Nonnull DataChunk<ReferenceContract> references) {
         Assert.isPremiseValid(
 	        this.referenceSchema.getCardinality().getMax() == 1,
             () -> new GraphQLQueryResolvingInternalError(
@@ -64,9 +56,8 @@ public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
             )
         );
 
-        final Collection<ReferenceContract> references = entity.getReferences(this.referenceSchema.getName());
         Assert.isPremiseValid(
-            references.size() <= 1,
+            references.getTotalRecordCount() <= 1,
             () -> new GraphQLQueryResolvingInternalError(
                 "Reference `" + this.referenceSchema.getName() + "` is expected to be single reference but multiple found."
             )

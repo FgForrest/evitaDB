@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public class ModifyEntitySchemaMutationSerializer extends Serializer<ModifyEntit
 
 	@Override
 	public void write(Kryo kryo, Output output, ModifyEntitySchemaMutation mutation) {
-		output.writeString(mutation.getEntityType());
+		output.writeString(mutation.getName());
 		final EntitySchemaMutation[] schemaMutations = mutation.getSchemaMutations();
 		output.writeVarInt(schemaMutations.length, true);
 		for (EntitySchemaMutation schemaMutation : schemaMutations) {

@@ -74,6 +74,8 @@ import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.GraphQLExtraResultsDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.InScopeDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -3598,7 +3600,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference page for products")
-	void shouldReturnReferencePageForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferencePageForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() >= 4,
@@ -3613,16 +3615,46 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e("storePage", map()
 					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
 					.e(
-						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						                                       .stream()
-						                                       .skip(2)
-						                                       .limit(2)
-						                                       .map(reference ->
-							map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
-								.build())
-						                                       .toList()))
+						DataChunkDescriptor.DATA.name(),
+						entity.getReferences(Entities.STORE)
+							.stream()
+							.skip(2)
+							.limit(2)
+							.map(reference -> {
+								final SealedEntity referencedEntity = evita.queryCatalog(
+									TEST_CATALOG,
+									session -> {
+										return session.getEntity(
+											Entities.STORE,
+											reference.getReferencedPrimaryKey()
+										).orElseThrow();
+									}
+								);
+
+								return map()
+									.e(
+										ReferenceDescriptor.ATTRIBUTES.name(), map()
+											.e(
+												ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
+											)
+									)
+									.e(
+										ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(
+												EntityDescriptor.PRIMARY_KEY.name(),
+												reference.getReferencedPrimaryKey()
+											)
+											.e(
+												EntityDescriptor.VERSION.name(),
+												referencedEntity.version()
+											)
+									)
+									.build();
+							})
+							.toList()
+					)
+				)
 				.build()
 		);
 
@@ -3644,8 +3676,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            storePage(number: 2, size: 2) {
 		                                totalRecordCount
 		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
 			                                referencedEntity {
 			                                    primaryKey
+			                                    version
 			                                }
 		                                }
 		                            }
@@ -3678,19 +3714,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			entity -> map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-				.e("storeStrip", map()
-					.e(DataChunkDescriptor.TOTAL_RECORD_COUNT.name(), entity.getReferences(Entities.STORE).size())
-					.e(
-						DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
-						                                       .stream()
-						                                       .skip(2)
-						                                       .limit(2)
-						                                       .map(reference ->
-							map()
-							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
-								.build())
-						                                       .toList()))
+				.e(
+					"storeStrip", map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							entity.getReferences(Entities.STORE).size()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(), entity.getReferences(Entities.STORE)
+								.stream()
+								.skip(2)
+								.limit(2)
+								.map(reference ->
+									     map()
+										     .e(
+											     ReferenceDescriptor.ATTRIBUTES.name(), map()
+												     .e(
+													     ATTRIBUTE_STORE_VISIBLE_FOR_B2C,
+													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
+												     )
+										     )
+										     .e(
+											     ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+												     .e(
+													     EntityDescriptor.PRIMARY_KEY.name(),
+													     reference.getReferencedPrimaryKey()
+												     )
+										     )
+										     .build())
+								.toList()
+						)
+				)
 				.build()
 		);
 
@@ -3712,6 +3766,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            storeStrip(offset: 2, limit: 2) {
 		                                totalRecordCount
 		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+	                                        }
 			                                referencedEntity {
 			                                    primaryKey
 			                                }
@@ -3768,6 +3825,302 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                        type
 		                            storePage {
 		                                totalRecordCount
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return named reference configuration with nested data for products")
+	void shouldReturnNamedReferenceConfigurationWithNestedDataForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.STORE);
+				return references.size() >= 4 &&
+					references.stream().anyMatch(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class));
+			},
+			2
+		);
+
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e(
+					"storesWithVisibility",
+					map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							(int) entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.count()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.sorted(Comparator.comparing(ReferenceContract::getReferencedPrimaryKey))
+								.limit(1)
+								.map(ref -> {
+									final SealedEntity referencedEntity = evita.queryCatalog(
+										TEST_CATALOG,
+										session -> {
+											return session.getEntity(
+												Entities.STORE,
+												ref.getReferencedPrimaryKey()
+											).orElseThrow();
+										}
+									);
+									return map()
+										.e(
+											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
+											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
+										.build();
+								})
+								.toList()
+						)
+				)
+				.build()
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            storesWithVisibility: storePage(
+		                                filterBy: { attributeStoreVisibleForB2cEquals: true },
+		                                orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
+		                                size: 1
+	                                ) {
+		                                totalRecordCount
+		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
+			                                referencedEntity {
+			                                    primaryKey
+			                                    version
+			                                }
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				entities.get(0).getAttribute(ATTRIBUTE_CODE),
+				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return different reference configurations for products")
+	void shouldReturnDifferentReferenceConfigurationsForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final var entities = findEntities(
+			originalProductEntities,
+			it -> {
+				final Map<Boolean, Long> storeVisibility = it.getReferences(Entities.STORE)
+					.stream()
+					.collect(
+						Collectors.groupingBy(
+							ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class),
+							Collectors.counting()
+						)
+					);
+
+				return storeVisibility.getOrDefault(true, 0L) > 1 &&
+					storeVisibility.getOrDefault(false, 0L) > 0 &&
+					it.getReferences(Entities.STORE).size() >= 4;
+			},
+			2
+		);
+
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+				.e(
+					"store",
+					entity.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> map()
+							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
+							.build())
+						.toList()
+				)
+				.e(
+					"storeWithAttributes",
+					entity.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> map()
+							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
+							.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+								.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+							.build())
+						.toList()
+				)
+				.e(
+					"storePage",
+					map()
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.map(ref -> map()
+								     .e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
+								     .build())
+								.toList()
+						)
+				)
+				.e(
+					"storesWithVisibility",
+					map()
+						.e(
+							DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+							(int) entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.count()
+						)
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.sorted(Comparator.comparing(ReferenceContract::getReferencedPrimaryKey))
+								.limit(1)
+								.map(ref -> {
+									final SealedEntity referencedEntity = evita.queryCatalog(
+										TEST_CATALOG,
+										session -> {
+											return session.getEntity(
+												Entities.STORE,
+												ref.getReferencedPrimaryKey()
+											).orElseThrow();
+										}
+									);
+									return map()
+										.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+											.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
+											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
+										.build();
+								})
+								.toList()
+						)
+				)
+				.e(
+					"storesWithoutVisibility",
+					map()
+						.e(
+							DataChunkDescriptor.DATA.name(),
+							entity.getReferences(Entities.STORE)
+								.stream()
+								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
+								.map(ref -> map()
+									.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
+										.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+									.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))
+									.build())
+								.toList()
+						)
+				)
+				.build()
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        store {
+			                            referencedPrimaryKey
+			                        }
+			                        storeWithAttributes: store {
+			                            referencedPrimaryKey
+			                            attributes {
+			                                storeVisibleForB2c
+			                            }
+			                        }
+			                        storePage {
+			                            data {
+			                                referencedPrimaryKey
+			                            }
+			                        }
+		                            storesWithVisibility: storePage(
+		                                filterBy: { attributeStoreVisibleForB2cEquals: true },
+		                                orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
+		                                size: 1
+	                                ) {
+		                                totalRecordCount
+		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
+			                                referencedEntity {
+			                                    primaryKey
+			                                    version
+			                                }
+		                                }
+		                            }
+		                            storesWithoutVisibility: storeStrip(
+		                                filterBy: { attributeStoreVisibleForB2cEquals: false }
+		                            ) {
+		                                data {
+		                                    attributes {
+		                                        storeVisibleForB2c
+		                                    }
+			                                referencedEntity {
+			                                    primaryKey
+			                                }
+		                                }
 		                            }
 	                            }
 	                        }
@@ -4149,9 +4502,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(
-							attributeIsNotNull(ATTRIBUTE_ALIAS)
-						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							attributeHistogram(20, ATTRIBUTE_QUANTITY)
@@ -4212,6 +4562,128 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(expectedHistogram)
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return attribute histogram in specific scope")
+	void shouldReturnAttributeHistogramInSpecificScope(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, Integer.MAX_VALUE),
+							inScope(Scope.LIVE, attributeHistogram(20, ATTRIBUTE_QUANTITY))
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
+
+		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        inScope(scope: LIVE) {
+		                            __typename
+		                            attributeHistogram {
+		                                __typename
+		                                quantity {
+		                                    __typename
+		                                    min
+		                                    max
+		                                    overallCount
+		                                    buckets(requestedCount: 20) {
+		                                        __typename
+		                                        threshold
+		                                        occurrences
+		                                        requested
+		                                    }
+		                                }
+		                            }
+	                            }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(baseResultPath, TYPENAME_FIELD),
+				equalTo(InScopeDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(expectedHistogram)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return duplicate attribute histograms across scopes")
+	void shouldNotReturnDuplicateAttributeHistogramsAcrossScopes(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        inScope(scope: LIVE) {
+		                            attributeHistogram {
+		                                quantity {
+		                                    buckets(requestedCount: 20) {
+		                                        threshold
+		                                        occurrences
+		                                        requested
+		                                    }
+		                                }
+		                            }
+	                            }
+	                            attributeHistogram {
+	                                quantity {
+	                                    buckets(requestedCount: 20) {
+	                                        threshold
+	                                        occurrences
+	                                        requested
+	                                    }
+	                                }
+	                            }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
 	@Test
@@ -4775,6 +5247,133 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
 				equalTo(expectedBody)
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price histogram in specific scope")
+	void shouldReturnPriceHistogramInSpecificScope(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							inScope(Scope.LIVE, priceHistogram(20))
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedBody = createPriceHistogramDto(response);
+
+		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        inScope(scope: LIVE) {
+		                            __typename
+		                            priceHistogram {
+		                                __typename
+	                                    min
+	                                    max
+	                                    overallCount
+	                                    buckets(requestedCount: 20) {
+	                                        __typename
+	                                        threshold
+	                                        occurrences
+	                                        requested
+	                                    }
+		                            }
+	                            }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(baseResultPath, TYPENAME_FIELD),
+				equalTo(InScopeDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.PRICE_HISTOGRAM),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return duplicate price histograms across scopes")
+	void shouldNotReturnDuplicatePriceHistogramsAcrossScopes(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        inScope(scope: LIVE) {
+		                            priceHistogram {
+	                                    buckets(requestedCount: 20) {
+	                                        threshold
+	                                        occurrences
+	                                        requested
+	                                    }
+		                            }
+	                            }
+	                            priceHistogram {
+                                    buckets(requestedCount: 20) {
+                                        threshold
+                                        occurrences
+                                        requested
+                                    }
+	                            }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
 	@Test
@@ -6383,6 +6982,147 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy in specific scope")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyInSpecificScope(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							inScope(
+								Scope.LIVE,
+								hierarchyOfReference(
+									Entities.CATEGORY,
+									orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+									fromRoot(
+										"megaMenu",
+										entityFetch(hierarchyContent(), attributeContent()),
+										stopAt(distance(2)),
+										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+									)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							inScope(scope: LIVE) {
+								hierarchy {
+									category(
+										orderBy: {attributeCodeNatural: DESC},
+										emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+									) {
+										megaMenu: fromRoot(
+											stopAt: { distance: 2 }
+											%s
+										) { %s }
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+			          getHierarchyStatisticsBaseArgument(base),
+			          getLevelInfoFragment(statisticsType))
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE, ExtraResultsDescriptor.HIERARCHY, "category", "megaMenu"),
+				equalTo(expectedHierarchy)
+			);
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return duplicate referenced hierarchy across scopes")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldNotReturnReferencedHierarchyAcrossScopes(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		final String hierarchyStatisticsBaseArgument = getHierarchyStatisticsBaseArgument(base);
+		final String levelInfoFragment = getLevelInfoFragment(statisticsType);
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							inScope(scope: LIVE) {
+								hierarchy {
+									category(
+										orderBy: {attributeCodeNatural: DESC},
+										emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+									) {
+										megaMenu: fromRoot(
+											stopAt: { distance: 2 }
+											%s
+										) { %s }
+									}
+								}
+							}
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromRoot(
+										stopAt: { distance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+			          hierarchyStatisticsBaseArgument,
+			          levelInfoFragment,
+			          hierarchyStatisticsBaseArgument,
+			          levelInfoFragment
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with counts for products")
@@ -6450,6 +7190,111 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
 				equalTo(expectedBody)
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary in specific scope for products")
+	void shouldReturnFacetSummaryInSpecificScopeForProducts(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							inScope(Scope.LIVE, facetSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS))
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedFacetSummaryWithCountsDto(response, Entities.BRAND);
+
+		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        inScope(scope: LIVE) {
+		                            __typename
+		                            facetSummary {
+		                                __typename
+		                                brand {
+		                                    __typename
+			                                count
+			                                facetStatistics {
+			                                    __typename
+			                                    facetEntity {
+			                                        __typename
+			                                        primaryKey
+			                                        type
+			                                    }
+			                                    requested
+			                                    count
+			                                }
+		                                }
+		                            }
+	                            }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(baseResultPath, TYPENAME_FIELD),
+				equalTo(InScopeDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.FACET_SUMMARY, TYPENAME_FIELD),
+				equalTo(FacetSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.FACET_SUMMARY, "brand"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return duplicate facet summaries across scopes")
+	void shouldNotReturnDuplicateFacetSummariesAcrossScopes(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        inScope(scope: LIVE) {
+		                            facetSummary {
+		                                brand {
+			                                count
+		                                }
+		                            }
+	                            }
+	                            facetSummary {
+								    brand {
+								        count
+								    }
+								}
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
 	@Test

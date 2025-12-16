@@ -68,12 +68,12 @@ import static java.util.Optional.ofNullable;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifyAttributeSchemaTypeMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -4704241145075202389L;
-	@Nonnull @Getter private final String name;
 	@Nonnull @Getter private final Class<? extends Serializable> type;
 	@Getter private final int indexedDecimalPlaces;
 
@@ -82,10 +82,10 @@ public class ModifyAttributeSchemaTypeMutation
 		@Nonnull Class<? extends Serializable> type,
 		int indexedDecimalPlaces
 	) {
+		super(name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
 		}
-		this.name = name;
 		this.type = type;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 	}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,11 +27,7 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -48,11 +44,13 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-@AllArgsConstructor
-abstract class AbstractModifyAssociatedDataSchemaMutation implements LocalEntitySchemaMutation, AssociatedDataSchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+abstract class AbstractModifyAssociatedDataSchemaMutation extends AbstractAssociatedDataSchemaMutation {
 	@Serial private static final long serialVersionUID = -4384492921045013953L;
-	@Getter @Nonnull protected final String name;
+
+	AbstractModifyAssociatedDataSchemaMutation(@Nonnull String name) {
+		super(name);
+	}
 
 	@Nonnull
 	@Override

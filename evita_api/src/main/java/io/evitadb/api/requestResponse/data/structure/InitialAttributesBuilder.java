@@ -42,13 +42,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -261,8 +256,12 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 		final AttributeKey attributeKey = mutation.getAttributeKey();
 		final Optional<AttributeValue> existingValue = getAttributeValue(attributeKey);
 		final AttributeValue attributeValue = mutation.mutateLocal(this.entitySchema, existingValue.orElse(null));
-		createImplicitSchemaIfMissing(attributeKey.attributeName(), attributeValue.value(), attributeKey.locale());
-		this.attributeValues.put(attributeKey, attributeValue);
+        if (attributeValue.dropped()) {
+            this.attributeValues.remove(attributeKey);
+        } else {
+            createImplicitSchemaIfMissing(attributeKey.attributeName(), attributeValue.value(), attributeKey.locale());
+            this.attributeValues.put(attributeKey, attributeValue);
+        }
 		//noinspection unchecked
 		return (T) this;
 	}

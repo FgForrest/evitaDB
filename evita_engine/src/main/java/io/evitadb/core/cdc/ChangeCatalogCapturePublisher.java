@@ -119,15 +119,7 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 	@Override
 	public void subscribe(Subscriber<? super ChangeCatalogCapture> subscriber) {
 		assertActive();
-		ChangeCatalogCaptureSharedPublisher theSharedPublisher = this.sharedPublisher.get();
-		if (theSharedPublisher == null || theSharedPublisher.isClosed()) {
-			// the shared publisher has been closed in the meantime - we need to renew it
-			final ChangeCatalogCaptureCriteria[] requestedCriteria = this.request.criteria();
-			final ChangeCatalogCriteriaBundle criteriaBundle = requestedCriteria == null ?
-				ChangeCatalogCriteriaBundle.CATCH_ALL : new ChangeCatalogCriteriaBundle(requestedCriteria);
-			theSharedPublisher = this.sharedPublisherFactory.apply(criteriaBundle);
-			this.sharedPublisher = new WeakReference<>(theSharedPublisher);
-		}
+		final ChangeCatalogCaptureSharedPublisher theSharedPublisher = getSharedPublisher();
 		final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription = theSharedPublisher.subscribe(
 			subscriber,
 			new WalPointerWithContent(
@@ -137,6 +129,27 @@ public class ChangeCatalogCapturePublisher implements ChangeCapturePublisher<Cha
 			)
 		);
 		this.subscribers.add(subscription.getSubscriptionId());
+	}
+
+	/**
+	 * Retrieves or creates a shared instance of {@link ChangeCatalogCaptureSharedPublisher}.
+	 * If the current shared publisher is null or has been closed, it creates a new instance using
+	 * the specified criteria from the associated request.
+	 *
+	 * @return the active instance of {@link ChangeCatalogCaptureSharedPublisher}
+	 */
+	@Nonnull
+	public ChangeCatalogCaptureSharedPublisher getSharedPublisher() {
+		ChangeCatalogCaptureSharedPublisher theSharedPublisher = this.sharedPublisher.get();
+		if (theSharedPublisher == null || theSharedPublisher.isClosed()) {
+			// the shared publisher has been closed in the meantime - we need to renew it
+			final ChangeCatalogCaptureCriteria[] requestedCriteria = this.request.criteria();
+			final ChangeCatalogCriteriaBundle criteriaBundle = requestedCriteria == null ?
+				ChangeCatalogCriteriaBundle.CATCH_ALL : new ChangeCatalogCriteriaBundle(requestedCriteria);
+			theSharedPublisher = this.sharedPublisherFactory.apply(criteriaBundle);
+			this.sharedPublisher = new WeakReference<>(theSharedPublisher);
+		}
+		return theSharedPublisher;
 	}
 
 	@Override

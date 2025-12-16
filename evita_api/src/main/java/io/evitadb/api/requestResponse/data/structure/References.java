@@ -55,16 +55,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
@@ -100,6 +92,10 @@ public class References implements ReferencesContract {
 	public static final ChunkTransformerAccessor DEFAULT_CHUNK_TRANSFORMER =
 		referenceName -> NoTransformer.INSTANCE;
 	/**
+	 * Empty references array to avoid unnecessary allocations.
+	 */
+	public static final Reference[] EMPTY_REFERENCES = new Reference[0];
+	/**
 	 * Internal reference constant used for recognition of duplicate references.
 	 */
 	static final ReferenceContract DUPLICATE_REFERENCE = createThrowingStub();
@@ -107,6 +103,11 @@ public class References implements ReferencesContract {
 	 * Definition of the entity schema.
 	 */
 	final EntitySchemaContract entitySchema;
+	/**
+	 * Contains initial array of references as they were fetched from the storage (only for internal purposes to avoid
+	 * unnecessary copying).
+	 */
+	private final ReferenceContract[] initialReferences;
 	/**
 	 * Contains all references of the entity.
 	 */
@@ -188,6 +189,7 @@ public class References implements ReferencesContract {
 	public References(@Nonnull EntitySchemaContract schema) {
 		this.entitySchema = schema;
 		this.references = Map.of();
+		this.initialReferences = EMPTY_REFERENCES;
 		this.referenceCollection = List.of();
 		this.duplicateReferences = Map.of();
 		this.referencesDefined = Collections.emptySet();
@@ -196,15 +198,17 @@ public class References implements ReferencesContract {
 
 	public References(
 		@Nonnull EntitySchemaContract schema,
-		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull ReferenceContract[] references,
 		@Nonnull Set<String> referencesDefined,
 		@Nonnull ChunkTransformerAccessor referenceChunkTransformer
 	) {
 		this.entitySchema = schema;
-		this.referenceCollection = Collections.unmodifiableCollection(references);
+		this.initialReferences = references;
+		// this doesn't make copy of the original array, but is made unmodifiable to avoid external changes
+		this.referenceCollection = Collections.unmodifiableCollection(Arrays.asList(references));
 		// this quite ugly part is necessary so that we can propely handle references that allow duplicates
 		// i.e. references with same ReferenceKey, that are distinguished only by their set of attributes
-		Map<ReferenceKey, ReferenceContract> indexedReferences = references.isEmpty() ? null : CollectionUtils.createHashMap(references.size());
+		Map<ReferenceKey, ReferenceContract> indexedReferences = references.length == 0 ? null : CollectionUtils.createHashMap(references.length);
 		Map<ReferenceKey, List<ReferenceContract>> duplicatedIndexedReferences = null;
 
 		// cache last resolved schema to avoid Optional/map overhead on each iteration
@@ -228,7 +232,7 @@ public class References implements ReferencesContract {
 				}
 				if (duplicatesAllowed) {
 					if (duplicatedIndexedReferences == null) {
-						duplicatedIndexedReferences = CollectionUtils.createHashMap(references.size());
+						duplicatedIndexedReferences = CollectionUtils.createHashMap(references.length);
 					}
 					final ReferenceKey genericKey = new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
 					final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
@@ -267,6 +271,20 @@ public class References implements ReferencesContract {
 
 		this.referencesDefined = referencesDefined;
 		this.referenceChunkTransformer = referenceChunkTransformer;
+	}
+
+	/**
+	 * This method returns original array of references without any safety checks or wrapping. It is meant to be used
+	 * only internally to avoid unnecessary array copying.
+	 *
+	 * !!BEWARE!! - modifying the returned array will have impact on this instance! Caller is responsible for
+	 * not breaking the immutability
+	 *
+	 * @return original references array
+	 */
+	@Nonnull
+	public ReferenceContract[] getUnsafeReferencesArray() {
+		return this.initialReferences;
 	}
 
 	@Override

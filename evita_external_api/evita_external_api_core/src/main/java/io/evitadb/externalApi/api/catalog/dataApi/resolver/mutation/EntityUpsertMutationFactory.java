@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExisten
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.model.mutation.MutationConverterContext;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -57,7 +57,7 @@ public abstract class EntityUpsertMutationFactory<A> {
 	private final MutationResolvingExceptionFactory exceptionFactory;
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private LocalMutationAggregateConverter localMutationAggregateConverter;
+	private LocalMutationInputAggregateConverter localMutationAggregateConverter;
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
 	private DelegatingLocalMutationConverter delegatingLocalMutationConverter;
@@ -70,7 +70,7 @@ public abstract class EntityUpsertMutationFactory<A> {
 	) {
 		this.entitySchema = entitySchema;
 		this.exceptionFactory = exceptionFactory;
-		this.localMutationAggregateConverter = new LocalMutationAggregateConverter(objectMapper, mutationObjectMapper, exceptionFactory);
+		this.localMutationAggregateConverter = new LocalMutationInputAggregateConverter(objectMapper, mutationObjectMapper, exceptionFactory);
 		this.delegatingLocalMutationConverter = new DelegatingLocalMutationConverter(objectMapper, mutationObjectMapper, exceptionFactory);
 	}
 

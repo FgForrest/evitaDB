@@ -34,8 +34,9 @@ import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
- * TODO lho docs
+ * Executor processes incoming WebSocket messages based on the payload and returns a publisher.
  *
+ * @see RestWebSocketHandler
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)

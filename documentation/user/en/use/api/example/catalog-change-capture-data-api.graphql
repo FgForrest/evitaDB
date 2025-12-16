@@ -1,0 +1,8 @@
+subscription {
+  onDataChangeUntyped {
+    version
+    index
+    operation
+    body
+  }
+}

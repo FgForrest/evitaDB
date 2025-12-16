@@ -83,6 +83,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.Functions;
 import io.evitadb.store.spi.EnginePersistenceService;
 import io.evitadb.store.spi.EnginePersistenceServiceFactory;
 import io.evitadb.store.spi.model.EngineState;
@@ -115,6 +116,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -222,12 +224,20 @@ public final class Evita implements EvitaContract {
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
-	@Getter private boolean active;
+	@Getter private final AtomicBoolean active = new AtomicBoolean(false);
 	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
 	@Getter private boolean readOnly;
+	/**
+	 * Callback that will be called when a new session is created.
+	 */
+	private final Consumer<EvitaSessionContract> onSessionCreationCallback;
+	/**
+	 * Callback that will be called when an old session is closed.
+	 */
+	private final Consumer<EvitaSessionContract> onSessionTerminationCallback;
 
 	/**
 	 * Shuts down passed executor service in a safe manner.
@@ -247,15 +257,50 @@ public final class Evita implements EvitaContract {
 		} catch (InterruptedException ex) {
 			log.warn("EvitaDB executor `" + name + "` did not terminate in time (interrupted), forcing shutdown.");
 			executorService.shutdownNow();
+			Thread.currentThread().interrupt();
 		}
 	}
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
-		this(configuration, true);
+		this(configuration, true, null, null);
 	}
 
-	public Evita(@Nonnull EvitaConfiguration configuration, boolean scheduleCatalogLoading) {
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
+		this(
+			configuration,
+			true,
+			onSessionCreationCallback,
+			onSessionTerminationCallback
+		);
+	}
+
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		boolean scheduleCatalogLoading
+	) {
+		this(
+			configuration,
+			scheduleCatalogLoading,
+			null,
+			null
+		);
+	}
+
+	public Evita(
+		@Nonnull EvitaConfiguration configuration,
+		boolean scheduleCatalogLoading,
+		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
+		@Nullable Consumer<EvitaSessionContract> onSessionTerminationCallback
+	) {
 		this.configuration = configuration;
+		this.onSessionCreationCallback = onSessionCreationCallback == null ?
+			Functions.noOpConsumer() : onSessionCreationCallback;
+		this.onSessionTerminationCallback = onSessionTerminationCallback == null ?
+			Functions.noOpConsumer() : onSessionTerminationCallback;
 
 		this.serviceExecutor = configuration.server().directExecutor() ?
 			// in test environment we use immediate (synchronous) executor to avoid race conditions
@@ -374,7 +419,7 @@ public final class Evita implements EvitaContract {
 			}
 		);
 
-		this.active = true;
+		this.active.set(true);
 		this.readOnly = this.configuration.server().readOnly();
 
 		// register the system observer that will capture changes in the system and emit observability events
@@ -390,6 +435,11 @@ public final class Evita implements EvitaContract {
 		if (scheduleCatalogLoading) {
 			scheduleInitialCatalogLoading();
 		}
+	}
+
+	@Override
+	public boolean isActive() {
+		return this.active.get();
 	}
 
 	/**
@@ -871,8 +921,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Override
 	public void close() {
-		if (this.active) {
-			this.active = false;
+		if (this.active.compareAndSet(true, false)) {
 			closeInternal();
 		}
 	}
@@ -954,21 +1003,6 @@ public final class Evita implements EvitaContract {
 	@Nonnull
 	public Optional<Progress<?>> getEngineMutationProgress(@Nonnull String catalogName) {
 		return this.engineTransactionManager.getEngineMutationProgress(catalogName);
-	}
-
-	/**
-	 * Closes all active sessions associated with the specified catalog and suspends further operations.
-	 *
-	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
-	 * @param suspendOperation the operation to be executed during the suspension of the catalog
-	 */
-	@Nonnull
-	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
-		@Nonnull String catalogName,
-		@Nonnull SuspendOperation suspendOperation
-	) {
-		return ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
 	}
 
 	/**
@@ -1076,18 +1110,18 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Closes all active sessions associated with the specified catalog name
-	 * and suspends them using the provided suspend operation.
+	 * Closes all active sessions associated with the specified catalog and suspends further operations.
 	 *
-	 * @param catalogName the name of the catalog whose active sessions are to be closed and suspended
-	 * @param suspendOperation the operation to be performed to suspend the sessions
+	 * @param catalogName      the name of the catalog whose sessions are to be closed and suspended
+	 * @param suspendOperation the operation to be executed during the suspension of the catalog
 	 */
-	public void closeAllActiveSessionsAndSuspend(
+	@Nonnull
+	public Optional<SuspensionInformation> closeAllSessionsAndSuspend(
 		@Nonnull String catalogName,
 		@Nonnull SuspendOperation suspendOperation
 	) {
-		ofNullable(this.catalogSessionRegistries.get(catalogName))
-			.ifPresent(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
+		return ofNullable(this.catalogSessionRegistries.get(catalogName))
+			.flatMap(it -> it.closeAllActiveSessionsAndSuspend(suspendOperation));
 	}
 
 	/**
@@ -1103,7 +1137,7 @@ public final class Evita implements EvitaContract {
 		this.catalogSessionRegistries.compute(
 			catalogName,
 			(__, existingRegistry) -> {
-				if (existingRegistry != null) {
+				if (existingRegistry != null && existingRegistry != sessionRegistry) {
 					throw new GenericEvitaInternalError(
 						"Catalog session registry for catalog `" + catalogName + "` already exists! " +
 							"Cannot overwrite it with another one!"
@@ -1142,7 +1176,7 @@ public final class Evita implements EvitaContract {
 	 * Verifies this instance is still active.
 	 */
 	void assertActive() {
-		if (!this.active) {
+		if (!this.active.get()) {
 			throw new InstanceTerminatedException("instance");
 		}
 	}
@@ -1218,9 +1252,12 @@ public final class Evita implements EvitaContract {
 				}
 
 				final EvitaSessionTerminationCallback terminationCallback =
-					session -> sessionRegistry.removeSession((EvitaSession) session);
+					session -> {
+						sessionRegistry.removeSession((EvitaSession) session);
+						this.onSessionTerminationCallback.accept(session);
+					};
 
-				return sessionRegistry.addSession(
+				final EvitaInternalSessionContract internalSession = sessionRegistry.addSession(
 					catalog.supportsTransaction(),
 					() -> new EvitaSession(
 						this, catalog, this.reflectionLookup,
@@ -1230,6 +1267,10 @@ public final class Evita implements EvitaContract {
 						sessionRegistry::createCatalogConsumerControl
 					)
 				);
+
+				this.onSessionCreationCallback.accept(internalSession);
+
+				return internalSession;
 			}
 		);
 
@@ -1271,11 +1312,17 @@ public final class Evita implements EvitaContract {
 	 * Emits the event about evita engine statistics in metrics.
 	 */
 	private void emitEvitaStatistics() {
-		// emit the event
-		new EvitaStatisticsEvent(
-			this.configuration,
-			this.management().getSystemStatus()
-		).commit();
+		if (this.engineState.get() != null) {
+			try {
+				// emit the event
+				new EvitaStatisticsEvent(
+					this.configuration,
+					this.management().getSystemStatus()
+				).commit();
+			} catch (Throwable t) {
+				log.error("Emitting observability events failed!", t);
+			}
+		}
 	}
 
 	/**
@@ -1290,21 +1337,33 @@ public final class Evita implements EvitaContract {
 			new Runnable() {
 				@Override
 				public void run() {
-					Evita.this.getEngineState()
-					          .getCatalog(catalogName)
-					          .ifPresentOrElse(
-						          catalogContract -> {
-							          if (catalogContract instanceof Catalog monitoredCatalog) {
-								          monitoredCatalog.emitObservabilityEvents();
-							          } else {
-								          FlightRecorder.removePeriodicEvent(this);
-							          }
-						          },
-						          () -> {
-									  log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
-							          FlightRecorder.removePeriodicEvent(this);
-						          }
-					          );
+					try {
+						if (Evita.this.isActive()) {
+							final ExpandedEngineState theEngineState = Evita.this.getEngineState();
+							// in very rare race conditions the engine state may be null here
+							// (if evita is closed already)
+							// noinspection ConstantValue
+							if (theEngineState != null) {
+								theEngineState
+									.getCatalog(catalogName)
+									.ifPresentOrElse(
+										catalogContract -> {
+											if (catalogContract instanceof Catalog monitoredCatalog) {
+												monitoredCatalog.emitObservabilityEvents();
+											} else {
+												FlightRecorder.removePeriodicEvent(this);
+											}
+										},
+										() -> {
+											log.warn("Catalog {} does not exist, cannot emit statistics!", catalogName);
+											FlightRecorder.removePeriodicEvent(this);
+										}
+									);
+							}
+						}
+					} catch (Throwable t) {
+						log.error("Emitting observability events failed!", t);
+					}
 				}
 			}
 		);

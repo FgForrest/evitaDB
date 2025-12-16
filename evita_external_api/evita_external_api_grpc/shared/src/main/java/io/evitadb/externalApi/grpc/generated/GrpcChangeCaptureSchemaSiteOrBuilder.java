@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -155,4 +155,45 @@ public interface GrpcChangeCaptureSchemaSiteOrBuilder extends
    * @return The enum numeric value on the wire of containerType at the given index.
    */
   int getContainerTypeValue(int index);
+
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @return A list containing the containerName.
+   */
+  java.util.List<java.lang.String>
+      getContainerNameList();
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @return The count of containerName.
+   */
+  int getContainerNameCount();
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @param index The index of the element to return.
+   * @return The containerName at the given index.
+   */
+  java.lang.String getContainerName(int index);
+  /**
+   * <pre>
+   * the name of the container (e.g. attribute name, associated data name, reference name)
+   * </pre>
+   *
+   * <code>repeated string containerName = 4;</code>
+   * @param index The index of the value to return.
+   * @return The bytes of the containerName at the given index.
+   */
+  com.google.protobuf.ByteString
+      getContainerNameBytes(int index);
 }

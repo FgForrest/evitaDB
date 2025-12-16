@@ -29,8 +29,8 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -62,7 +62,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
             """)
 		// type is expected to be a list of non-hierarchical version of this entity
 		.build();
-	PropertyDescriptor PRICE_FOR_SALE = PropertyDescriptor.extend(EntityDescriptor.PRICE_FOR_SALE)
+	PropertyDescriptor PRICE_FOR_SALE = PropertyDescriptor.from(EntityDescriptor.PRICE_FOR_SALE)
 		.type(nullableRef(PriceForSaleDescriptor.THIS))
 		.build();
 	PropertyDescriptor ALL_PRICES_FOR_SALE = PropertyDescriptor.builder()
@@ -90,7 +90,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 		.type(nullableRef(PriceDescriptor.THIS))
 		.build();
 
-	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_CLASSIFIER)
+	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.implementing(THIS_CLASSIFIER)
 		.name("NonHierarchical*")
 		.build();
 }

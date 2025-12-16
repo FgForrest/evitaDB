@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,12 @@
 package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
@@ -61,6 +66,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
+    @Nonnull
 	W setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -87,6 +93,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
+    @Nonnull
 	W setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -114,6 +121,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
+    @Nonnull
 	W setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -142,6 +150,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
+    @Nonnull
 	W setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -163,6 +172,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @return builder instance to allow command chaining
 	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
 	 */
+    @Nonnull
 	default W setPrice(
 		@Nonnull PriceContract price
 	) throws AmbiguousPriceException {
@@ -180,6 +190,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param currency  - identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217)
 	 * @return builder instance to allow command chaining
 	 */
+    @Nonnull
 	W removePrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -192,6 +203,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * @param priceKey - key properties of the price
 	 * @return builder instance to allow command chaining
 	 */
+    @Nonnull
 	default W removePrice(
 		@Nonnull PriceKey priceKey
 	) {
@@ -205,23 +217,20 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 *
 	 * @return builder instance to allow command chaining
 	 */
-	default W removeAllPrices() {
-		for (PriceContract price : getPrices()) {
-			removePrice(price.priceId(), price.priceList(), price.currency());
-		}
-		//noinspection unchecked
-		return (W) this;
-	}
+    @Nonnull
+	W removeAllPrices();
 
 	/**
 	 * Sets behaviour for prices that has {@link Price#innerRecordId()} set in terms of computing the "selling" price.
 	 */
+    @Nonnull
 	W setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling);
 
 	/**
 	 * Removes previously set behaviour for prices with {@link Price#innerRecordId()}. You should ensure that
 	 * the entity has no prices with non-null {@link Price#innerRecordId()}.
 	 */
+    @Nonnull
 	W removePriceInnerRecordHandling();
 
 	/**
@@ -245,9 +254,38 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	 * "touched". This mechanism is here because we want to avoid price removal and re-insert due to optimistic locking
 	 * which is supported on by-price level.
 	 */
+    @Nonnull
 	W removeAllNonTouchedPrices();
 
-	/**
+    /**
+     * Adds a {@link SetPriceInnerRecordHandlingMutation} and keeps it only when it changes
+     * the resulting {@link PriceInnerRecordHandling}.
+     *
+     * - Validates that prices are allowed by the schema
+     * - Computes the prospective value and stores the mutation only when it differs
+     *
+     * @param mutation mutation to set price inner record handling
+     */
+    @Nonnull
+    W mutateInnerPriceHandling(@Nonnull SetPriceInnerRecordHandlingMutation mutation);
+
+    /**
+     * Adds a price mutation to the builder.
+     *
+     * Supported mutation types:
+     * - {@link UpsertPriceMutation}: validates schema and ambiguity, stores only effective changes
+     * - {@link RemovePriceMutation}: validates existence, stores only effective removal
+     *
+     * Also marks the price as touched to cooperate with {@link #removeAllNonTouchedPrices()}.
+     *
+     * @param priceMutation mutation to apply (upsert/remove)
+     * @throws AmbiguousPriceException  when the resulting combination would be ambiguous
+     * @throws InvalidMutationException when removing a non-existing price
+     */
+    @Nonnull
+    W mutatePrice(@Nonnull PriceMutation priceMutation);
+
+    /**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
 	interface PricesBuilder extends PricesEditor<PricesEditor.PricesBuilder>, BuilderContract<Prices> {

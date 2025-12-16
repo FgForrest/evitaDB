@@ -170,6 +170,7 @@ public class JfrRecorderTask extends ClientInfiniteCallableTask<RecordingSetting
 				}
 			} catch (InterruptedException e) {
 				this.recording.stop();
+				Thread.currentThread().interrupt();
 				throw new GenericEvitaInternalError("JFR recording task finished abnormally (interrupt).", e);
 			}
 

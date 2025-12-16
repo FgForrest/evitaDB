@@ -28,9 +28,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTy
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 
 /**
  * Descriptor representing {@link SetReferenceSchemaIndexedMutation}.
@@ -61,15 +59,23 @@ public interface SetReferenceSchemaIndexedMutationDescriptor extends ReferenceSc
 			
 			Returns array of scopes and their corresponding reference index types in which this reference is indexed.
 			""")
+		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetReferenceSchemaIndexedMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetReferenceSchemaIndexedMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
 			Mutation can be used for altering also the existing `ReferenceSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, INDEXED_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(INDEXED_IN_SCOPES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetReferenceSchemaIndexedMutationInput")
+		.staticProperty(INDEXED_IN_SCOPES_INPUT)
 		.build();
 }

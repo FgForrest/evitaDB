@@ -103,6 +103,19 @@ public record ChangeCatalogCaptureCriteria(
 		}
 
 		/**
+		 * Configures the infrastructure area for the capture request.
+		 * The capture will consume all infrastructure changes in the catalog.
+		 *
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public ChangeCatalogCaptureCriteria.Builder infrastructureArea() {
+			this.area = CaptureArea.INFRASTRUCTURE;
+			this.site = null;
+			return this;
+		}
+
+		/**
 		 * Configures the data area for the capture request by accepting a modifier for the {@link DataSite.Builder}.
 		 * The capture will consume all data changes in the catalog.
 		 *

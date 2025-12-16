@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -676,7 +676,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value from = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getFromFieldBuilder() {
       if (fromBuilder_ == null) {
         fromBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -833,7 +833,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int64Value to = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder>
+        com.google.protobuf.Int64Value, com.google.protobuf.Int64Value.Builder, com.google.protobuf.Int64ValueOrBuilder> 
         getToFieldBuilder() {
       if (toBuilder_ == null) {
         toBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

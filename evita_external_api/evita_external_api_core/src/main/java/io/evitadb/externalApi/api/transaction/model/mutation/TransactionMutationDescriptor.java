@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.api.transaction.model.mutation;
 
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -68,20 +68,16 @@ public interface TransactionMutationDescriptor extends MutationDescriptor {
 		.type(nonNull(OffsetDateTime.class))
 		.build();
 
-	// todo lho register
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("TransactionMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(TransactionMutation.class)
 		.description("""
 	         This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
 	         the scope of the transaction and verify its integrity.
 	         """)
-		.staticFields(List.of(
-			MUTATION_TYPE,
-			TRANSACTION_ID,
-			VERSION,
-			MUTATION_COUNT,
-			WAL_SIZE_IN_BYTES,
-			COMMIT_TIMESTAMP
-		))
+		.staticProperty(TRANSACTION_ID)
+		.staticProperty(VERSION)
+		.staticProperty(MUTATION_COUNT)
+		.staticProperty(WAL_SIZE_IN_BYTES)
+		.staticProperty(COMMIT_TIMESTAMP)
 		.build();
 }

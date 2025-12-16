@@ -33,7 +33,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
-import io.evitadb.core.metric.event.cdc.ChangeSystemCaptureStatisticsEvent;
 import io.evitadb.utils.IOUtils;
 import jdk.jfr.FlightRecorder;
 import lombok.extern.slf4j.Slf4j;
@@ -159,7 +158,7 @@ public class SystemChangeObserver
 
 	@Override
 	public void close() {
-		if (this.active.compareAndSet(false, true)) {
+		if (this.active.compareAndSet(true, false)) {
 			IOUtils.closeQuietly(
 				this.sharedPublisher::close,
 				this.cleaner::close
@@ -190,26 +189,13 @@ public class SystemChangeObserver
 
 	/**
 	 * Collects and emits statistics related to change data capture (CDC) operations.
-	 * This method creates a new instance of {@link ChangeCatalogCaptureStatisticsEvent} and populates
-	 * it with the current catalog name, the count of unique publishers, the total number
-	 * of subscribers, the count of lagging subscribers, and the total number of events published.
-	 * After initializing the event with these metrics, it commits the event for further processing or logging.
-	 *
-	 * The statistical data are derived as follows:
-	 * - The catalog name is retrieved from the current catalog instance.
-	 * - The total number of unique publishers is calculated by determining the size of the unique publishers map.
-	 * - The total subscriber count is computed by aggregating the subscriber counts of all shared publishers.
-	 * - The total lagging subscriber count is computed by aggregating the lagging subscriber counts of all shared publishers.
-	 * - The total number of events published is computed by summing the event counts from all shared publishers.
 	 */
 	void emitChangeCaptureStatistics() {
-		final int subscriberCount = this.sharedPublisher.getSubscribersCount();
-		final int laggingSubscriberCount = this.sharedPublisher.getLaggingSubscribersCount();
-		new ChangeSystemCaptureStatisticsEvent(
-			subscriberCount,
-			laggingSubscriberCount,
-			this.sentEvents.get()
-		).commit();
+		try {
+			this.sharedPublisher.emitChangeCaptureStatistics(this.sentEvents.get());
+		} catch (Throwable t) {
+			log.error("Emitting observability events failed!", t);
+		}
 	}
 
 	/**

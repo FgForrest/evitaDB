@@ -28,12 +28,16 @@ import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.*;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
@@ -50,9 +54,10 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
-import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -222,8 +227,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				categoryDecorator.getAssociatedDataPredicate(),
 				categoryDecorator.getReferencePredicate(),
 				categoryDecorator.getPricePredicate(),
-				categoryDecorator.getAlignedNow(),
-				ReferenceFetcher.NO_IMPLEMENTATION
+				categoryDecorator.getAlignedNow()
 			);
 		}
 
@@ -1919,6 +1923,144 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						assertEquals(1, categoryRef.getAttributeValues().size());
 						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
 					}
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, multiple reference sets with different filtering settings could be fetched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchMultipleNamedReferenceSets(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> {
+				final Map<Boolean, Long> shadow = it.getReferences(Entities.CATEGORY)
+					.stream()
+					.collect(
+						Collectors.groupingBy(
+							ref -> ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class),
+							Collectors.counting()
+						)
+					);
+				return shadow.getOrDefault(true, 0L) > 0 && shadow.getOrDefault(false, 0L) > 0;
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"shadowfull",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.CATEGORY },
+									new RequireConstraint[]{ attributeContentAll(), entityFetchAll() },
+									new Constraint[]{
+										filterBy(attributeEquals(ATTRIBUTE_CATEGORY_SHADOW, true))
+									}
+								),
+								new ReferenceContent(
+									"shadowless",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.CATEGORY },
+									new RequireConstraint[]{ attributeContentAll(), entityFetchAll() },
+									new Constraint[]{
+										filterBy(attributeEquals(ATTRIBUTE_CATEGORY_SHADOW, false))
+									}
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> shadowfull = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey(
+							"shadowfull",
+							Entities.CATEGORY
+						)
+					).orElseThrow();
+					shadowfull.forEach(ref -> assertTrue(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
+					final DataChunk<ReferenceContract> shadowless = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey(
+							"shadowless",
+							Entities.CATEGORY
+						)
+					).orElseThrow();
+					shadowless.forEach(ref -> assertFalse(ref.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)));
+					final Collection<ReferenceContract> allCategories = product.getReferences(Entities.CATEGORY);
+					assertFalse(allCategories.isEmpty());
+					assertEquals(allCategories.size(), shadowfull.getTotalRecordCount() + shadowless.getTotalRecordCount());
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("In internal API, named reference set with different pagination settings could be fetched")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFetchMultipleNamedPaginatedReferenceSets(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences(Entities.PRICE_LIST).size() > 2
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								new ReferenceContent(
+									"myPriceLists",
+									ManagedReferencesBehaviour.ANY,
+									new String[] { Entities.PRICE_LIST },
+									new RequireConstraint[]{
+										attributeContentAll(),
+										entityFetchAll(),
+										strip(0, 2)
+									},
+									new Constraint[0]
+								)
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertInstanceOf(ServerEntityDecorator.class, product);
+					final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
+					final DataChunk<ReferenceContract> myPriceLists = serverEntity.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey("myPriceLists", Entities.PRICE_LIST)
+					)
+						.orElseThrow();
+					assertEquals(2, myPriceLists.getData().size());
+					assertTrue(myPriceLists.getTotalRecordCount() > 2);
 				}
 				return null;
 			}
@@ -5948,6 +6090,360 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				StripList<ReferenceContract> secondFetchChunk = new StripList<>(2, 4, (int) originalParameters.stream().count(), new ArrayList<>(foundParametersOnSecondFetch));
 				assertEquals(secondFetchChunk, secondFetch.getReferenceChunk(Entities.PARAMETER));
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be ordered by entity primary key natural descending")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPrimaryKeyNaturalDesc(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithManyStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 5)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithManyStores.getPrimaryKey())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									orderBy(
+										entityProperty(
+											entityPrimaryKeyNatural(OrderDirection.DESC)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				final SealedEntity product = result.getRecordData().get(0);
+				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
+
+				final int[] receivedPrimaryKeys = references.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final int[] expectedPrimaryKeys = Arrays.stream(receivedPrimaryKeys)
+					.boxed()
+					.sorted(Comparator.reverseOrder())
+					.mapToInt(Integer::intValue)
+					.toArray();
+
+				assertArrayEquals(expectedPrimaryKeys, receivedPrimaryKeys);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be ordered by entity primary key natural descending (directly)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPrimaryKeyNaturalDescDirectly(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithManyStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 5)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithManyStores.getPrimaryKey())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									orderBy(
+										entityPrimaryKeyNatural(OrderDirection.DESC)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				final SealedEntity product = result.getRecordData().get(0);
+				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
+
+				final int[] receivedPrimaryKeys = references.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+
+				final int[] expectedPrimaryKeys = Arrays.stream(receivedPrimaryKeys)
+					.boxed()
+					.sorted(Comparator.reverseOrder())
+					.mapToInt(Integer::intValue)
+					.toArray();
+
+				assertArrayEquals(expectedPrimaryKeys, receivedPrimaryKeys);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be ordered by entity primary key exact order")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPrimaryKeyExact(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithManyStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 5)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// obtain original store primary keys and shuffle them with a fixed seed to keep the test deterministic
+				final List<Integer> shuffledStorePks = productWithManyStores.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toCollection(ArrayList::new));
+				Collections.shuffle(shuffledStorePks, new Random(42L));
+				final Integer[] exactOrder = shuffledStorePks.toArray(new Integer[0]);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithManyStores.getPrimaryKey())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									orderBy(
+										entityProperty(
+											entityPrimaryKeyExact(exactOrder)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				final SealedEntity product = result.getRecordData().get(0);
+				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
+
+				final Integer[] receivedPrimaryKeys = references.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.toArray(Integer[]::new);
+
+				assertArrayEquals(exactOrder, receivedPrimaryKeys);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be ordered by entity primary key exact order (directly)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPrimaryKeyExactDirectly(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithManyStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 5)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// obtain original store primary keys and shuffle them with a fixed seed to keep the test deterministic
+				final List<Integer> shuffledStorePks = productWithManyStores.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toCollection(ArrayList::new));
+				Collections.shuffle(shuffledStorePks, new Random(84L));
+				final Integer[] exactOrder = shuffledStorePks.toArray(new Integer[0]);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithManyStores.getPrimaryKey())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									orderBy(
+										entityPrimaryKeyExact(exactOrder)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				final SealedEntity product = result.getRecordData().get(0);
+				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
+
+				final Integer[] receivedPrimaryKeys = references.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.toArray(Integer[]::new);
+
+				assertArrayEquals(exactOrder, receivedPrimaryKeys);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be ordered by exact order for first three and then by PK natural descending")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPrimaryKeyExactThenNaturalDesc(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithManyStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 5)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// prepare exact order for first three stores using deterministic shuffle
+				final List<Integer> storePks = productWithManyStores.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toCollection(ArrayList::new));
+				Collections.shuffle(storePks, new Random(42L));
+				final Integer[] exactFirstThree = storePks.stream().limit(3).toArray(Integer[]::new);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithManyStores.getPrimaryKey())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									orderBy(
+										entityProperty(
+											entityPrimaryKeyExact(exactFirstThree),
+											entityPrimaryKeyNatural(OrderDirection.DESC)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				final SealedEntity product = result.getRecordData().get(0);
+				final List<Integer> receivedPrimaryKeys = product.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.toList();
+
+				// compute expected order: first exact three in given order, then the rest by descending PK
+				final Set<Integer> exactSet = new HashSet<>(Arrays.asList(exactFirstThree));
+				final List<Integer> remaining = product.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.filter(pk -> !exactSet.contains(pk))
+					.sorted(Comparator.reverseOrder())
+					.toList();
+				final List<Integer> expected = new ArrayList<>(Arrays.asList(exactFirstThree));
+				expected.addAll(remaining);
+
+				assertArrayEquals(expected.toArray(new Integer[0]), receivedPrimaryKeys.toArray(new Integer[0]));
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References should be ordered by exact order for first three and then by PK natural descending (directly)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPrimaryKeyExactThenNaturalDescDirectly(Evita evita, List<SealedEntity> originalProducts) {
+		final SealedEntity productWithManyStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 5)
+			.findFirst()
+			.orElseThrow();
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// prepare exact order for first three stores using deterministic shuffle
+				final List<Integer> storePks = productWithManyStores.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.collect(Collectors.toCollection(ArrayList::new));
+				Collections.shuffle(storePks, new Random(84L));
+				final Integer[] exactFirstThree = storePks.stream().limit(3).toArray(Integer[]::new);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productWithManyStores.getPrimaryKey())
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									orderBy(
+										entityPrimaryKeyExact(exactFirstThree),
+										entityPrimaryKeyNatural(OrderDirection.DESC)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				final SealedEntity product = result.getRecordData().get(0);
+				final List<Integer> receivedPrimaryKeys = product.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.toList();
+
+				// compute expected order: first exact three in given order, then the rest by descending PK
+				final Set<Integer> exactSet = new HashSet<>(Arrays.asList(exactFirstThree));
+				final List<Integer> remaining = product.getReferences(Entities.STORE)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.filter(pk -> !exactSet.contains(pk))
+					.sorted(Comparator.reverseOrder())
+					.toList();
+				final List<Integer> expected = new ArrayList<>(Arrays.asList(exactFirstThree));
+				expected.addAll(remaining);
+
+				assertArrayEquals(expected.toArray(new Integer[0]), receivedPrimaryKeys.toArray(new Integer[0]));
 
 				return null;
 			}

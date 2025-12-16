@@ -123,7 +123,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 			return new ProgressingFuture<>(
 				0,
 				progressingFuture -> {
-					evita.closeAllActiveSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
+					evita.closeAllSessionsAndSuspend(catalogName, SuspendOperation.REJECT);
 
 					completionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {

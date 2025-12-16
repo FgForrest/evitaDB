@@ -108,7 +108,7 @@ class EntityTest extends AbstractBuilderTest {
 			ReferencesBuilder.createImplicitSchema(schema, BRAND, BRAND, Cardinality.ZERO_OR_ONE, null),
 			new ReferenceKey(BRAND, 5), null
 		);
-		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
+		final References references = new References(schema, new ReferenceContract[]{ref}, Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
 
 		final Entity e = Entity._internalBuild(
@@ -152,7 +152,7 @@ class EntityTest extends AbstractBuilderTest {
 		final EntityAttributes attributes = new EntityAttributes(schema);
 		final AssociatedData associatedData = new AssociatedData(schema);
 		final Prices prices = new Prices(schema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false);
-		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
+		final References references = new References(schema, new ReferenceContract[]{ref}, Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
 
 		final Entity e = Entity._internalBuild(
@@ -195,7 +195,7 @@ class EntityTest extends AbstractBuilderTest {
 		final EntityAttributes attributes = new EntityAttributes(schema);
 		final AssociatedData associatedData = new AssociatedData(schema);
 		final Prices prices = new Prices(schema, 1, Collections.emptyList(), PriceInnerRecordHandling.NONE, false);
-		final References references = new References(schema, List.of(ref), Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
+		final References references = new References(schema, new ReferenceContract[]{ref}, Set.of(BRAND), DEFAULT_CHUNK_TRANSFORMER);
 		final Set<Locale> locales = Set.of(Locale.ENGLISH);
 
 		final Entity e = Entity._internalBuild(

@@ -119,5 +119,5 @@ segment(
     </dd>
 </dl>
 
-The `setment` requirement specifies a single rule for segmentation of the query result. Detailed usage is documented in
+The `segment` requirement specifies a single rule for segmentation of the query result. Detailed usage is documented in
 the [segments constraint](#segments) chapter.

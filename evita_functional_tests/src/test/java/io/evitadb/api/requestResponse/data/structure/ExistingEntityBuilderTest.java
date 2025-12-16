@@ -23,39 +23,29 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.exception.AttributeNotFoundException;
-import io.evitadb.api.exception.EntityIsNotHierarchicalException;
-import io.evitadb.api.exception.InvalidDataTypeMutationException;
-import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.exception.ReferenceAllowsDuplicatesException;
-import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.*;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.Droppable;
+import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.PricesContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.*;
+import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -69,21 +59,11 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.Currency;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilderTest.assertCardinality;
-import static io.evitadb.test.Entities.BRAND;
-import static io.evitadb.test.Entities.CATEGORY;
-import static io.evitadb.test.Entities.PARAMETER;
-import static io.evitadb.test.Entities.STORE;
+import static io.evitadb.test.Entities.*;
 import static java.util.OptionalInt.of;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -293,6 +273,29 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.toInstance();
 
 		assertEquals("someValue", updatedInstance.getAttribute("newAttribute"));
+	}
+
+	@Test
+	void shouldAddNewAttributesViaMutationsInConstructor() {
+		final SealedEntity brand = new ExistingEntityBuilder(
+			this.initialEntity,
+			Arrays.asList(
+				new UpsertAttributeMutation("code", "siemens"),
+				new UpsertAttributeMutation("name", Locale.ENGLISH, "Siemens"),
+				new UpsertAttributeMutation("logo", "https://www.siemens.com/logo.png"),
+				new UpsertAttributeMutation("productCount", 1),
+				new UpsertPriceMutation(
+					new PriceKey(1, "basic", Currency.getInstance("CZK")),
+					BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true
+				)
+			)
+		)
+		.toInstance();
+		assertEquals("siemens", brand.getAttribute("code"));
+		assertEquals("Siemens", brand.getAttribute("name", Locale.ENGLISH));
+		assertEquals("https://www.siemens.com/logo.png", brand.getAttribute("logo"));
+		assertEquals(Integer.valueOf(1), brand.getAttribute("productCount"));
+		assertPrice(brand, 1, "basic", Currency.getInstance("CZK"), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true);
 	}
 
 	@Test
@@ -931,39 +934,44 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		final InitialEntityBuilder initialEntityBuilder = new InitialEntityBuilder("product", 100);
 		final ExistingEntityBuilder builder = new ExistingEntityBuilder(initialEntityBuilder.toInstance());
 
-		builder.addMutation(new SetParentMutation(10));
-		builder.addMutation(new SetParentMutation(20));
-		builder.addMutation(new UpsertAttributeMutation("name", "Product Name"));
-		builder.addMutation(new UpsertAttributeMutation("name", "Different product Name"));
-		builder.addMutation(new UpsertAttributeMutation("description", Locale.ENGLISH, "Product Description"));
-		builder.addMutation(new UpsertAttributeMutation("description", Locale.GERMAN, "Produkt Beschreibung"));
-		builder.addMutation(new UpsertAssociatedDataMutation("data", "Data"));
-		builder.addMutation(new UpsertAssociatedDataMutation("data", "Updated data"));
-		builder.addMutation(new UpsertAssociatedDataMutation("url", Locale.ENGLISH, "http://example.com/en"));
-		builder.addMutation(new UpsertAssociatedDataMutation("url", Locale.GERMAN, "http://example.com/de"));
-		builder.addMutation(new UpsertPriceMutation(
-			new PriceKey(1, "basic", CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true));
-		builder.addMutation(new UpsertPriceMutation(
-			new PriceKey(1, "basic", CZK), null, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.valueOf(20), null, false));
-		builder.addMutation(new UpsertPriceMutation(
-			new PriceKey(2, "basic", EUR), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true));
-		builder.addMutation(
-			new InsertReferenceMutation(new ReferenceKey(BRAND_TYPE, 1), Cardinality.ZERO_OR_ONE, BRAND_TYPE));
-		builder.addMutation(new InsertReferenceMutation(new ReferenceKey(BRAND_TYPE, 2)));
-		builder.addMutation(new ReferenceAttributeMutation(
-			new ReferenceKey(BRAND_TYPE, 1), new UpsertAttributeMutation("brandName", Locale.ENGLISH, "Brand Name")));
-		builder.addMutation(new ReferenceAttributeMutation(
-			new ReferenceKey(BRAND_TYPE, 1), new UpsertAttributeMutation(
-			"brandName", Locale.ENGLISH,
-			"Brand Name updated"
-		)
-		));
-		builder.addMutation(new ReferenceAttributeMutation(
-			new ReferenceKey(BRAND_TYPE, 1), new UpsertAttributeMutation(
-			"brandName", Locale.GERMAN,
-			"Brand Bezeichnung"
-		)
-		));
+		builder.mutate(
+			new SetParentMutation(10),
+			new SetParentMutation(20),
+			new UpsertAttributeMutation("name", "Product Name"),
+			new UpsertAttributeMutation("name", "Different product Name"),
+			new UpsertAttributeMutation("description", Locale.ENGLISH, "Product Description"),
+			new UpsertAttributeMutation("description", Locale.GERMAN, "Produkt Beschreibung"),
+			new UpsertAssociatedDataMutation("data", "Data"),
+			new UpsertAssociatedDataMutation("data", "Updated data"),
+			new UpsertAssociatedDataMutation("url", Locale.ENGLISH, "http://example.com/en"),
+			new UpsertAssociatedDataMutation("url", Locale.GERMAN, "http://example.com/de"),
+			new UpsertPriceMutation(
+				new PriceKey(1, "basic", CZK), null,
+                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true
+            ),
+			new UpsertPriceMutation(
+				new PriceKey(1, "basic", CZK), null,
+                BigDecimal.TEN, BigDecimal.TEN, BigDecimal.valueOf(20), null, false
+            ),
+			new UpsertPriceMutation(
+				new PriceKey(2, "basic", EUR), null,
+                BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true
+            ),
+			new InsertReferenceMutation(new ReferenceKey(BRAND_TYPE, 1), Cardinality.ZERO_OR_ONE, BRAND_TYPE),
+			new InsertReferenceMutation(new ReferenceKey(BRAND_TYPE, 2)),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(BRAND_TYPE, 1),
+                new UpsertAttributeMutation("brandName", Locale.ENGLISH, "Brand Name")
+            ),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(BRAND_TYPE, 1),
+                new UpsertAttributeMutation("brandName", Locale.ENGLISH, "Brand Name updated")
+			),
+			new ReferenceAttributeMutation(
+				new ReferenceKey(BRAND_TYPE, 1),
+                new UpsertAttributeMutation("brandName", Locale.GERMAN, "Brand Bezeichnung")
+			)
+		);
 
 		// assert all data is present
 		final Entity entity = builder.toInstance();
@@ -1227,7 +1235,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				null,
 				new References(
 					schema,
-					List.of(
+					new ReferenceContract[]{
 						new Reference(
 							referenceSchema,
 							new ReferenceKey(BRAND, 1, 1),
@@ -1242,7 +1250,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 								Map.of()
 							)
 						)
-					),
+					},
 					Set.of(BRAND),
 					References.DEFAULT_CHUNK_TRANSFORMER
 				),
@@ -1906,6 +1914,418 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			ReferenceAllowsDuplicatesException.class,
 			() -> builder.updateReference(BRAND, 1, rb -> rb.setAttribute(BRAND_PRIORITY, 11L))
 		);
+	}
+
+	@Test
+	@DisplayName("mutate with RemoveAssociatedDataMutation removes associated data")
+	void shouldMutateWithRemoveAssociatedDataMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withAssociatedData("manual", String.class)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setAssociatedData("manual", "User Manual")
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertEquals("User Manual", builder.getAssociatedData("manual"));
+
+        builder.mutate(
+            new RemoveAssociatedDataMutation(
+                new AssociatedDataKey("manual")
+            )
+        );
+
+		assertNull(builder.getAssociatedData("manual"));
+	}
+
+	@Test
+	@DisplayName("mutate with UpsertAssociatedDataMutation upserts associated data")
+	void shouldMutateWithUpsertAssociatedDataMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withAssociatedData("manual", String.class, io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor::localized)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setAssociatedData("manual", Locale.ENGLISH, "Old Manual")
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+        builder.mutate(
+            new UpsertAssociatedDataMutation(
+                new AssociatedDataKey("manual", Locale.ENGLISH),
+                "Updated Manual"
+            )
+        );
+
+		assertEquals("Updated Manual", builder.getAssociatedData("manual", Locale.ENGLISH));
+	}
+
+	@Test
+	@DisplayName("mutate with ApplyDeltaAttributeMutation applies delta to numeric attribute")
+	void shouldMutateWithApplyDeltaAttributeMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withAttribute("quantity", Integer.class)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setAttribute("quantity", 100)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+        builder.mutate(
+            new ApplyDeltaAttributeMutation<>(
+                new AttributeKey("quantity"),
+                10
+            )
+        );
+
+		assertEquals(110, builder.getAttribute("quantity", Integer.class));
+	}
+
+	@Test
+	@DisplayName("mutate with RemoveAttributeMutation removes attribute")
+	void shouldMutateWithRemoveAttributeMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withAttribute("name", String.class, AttributeSchemaEditor::localized)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setAttribute("name", Locale.ENGLISH, "Product Name")
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertEquals("Product Name", builder.getAttribute("name", Locale.ENGLISH));
+
+		builder.mutate(
+            new RemoveAttributeMutation(
+			    new AttributeKey("name", Locale.ENGLISH)
+		    )
+        );
+
+		assertNull(builder.getAttribute("name", Locale.ENGLISH));
+	}
+
+	@Test
+	@DisplayName("mutate with UpsertAttributeMutation upserts attribute")
+	void shouldMutateWithUpsertAttributeMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withAttribute("code", String.class)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setAttribute("code", "OLD-CODE")
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		builder.mutate(
+            new UpsertAttributeMutation(
+			    new AttributeKey("code"),
+    			"NEW-CODE"
+	    	)
+        );
+
+		assertEquals("NEW-CODE", builder.getAttribute("code"));
+	}
+
+	@Test
+	@DisplayName("mutate with RemoveParentMutation removes parent")
+	void shouldMutateWithRemoveParentMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withHierarchy()
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setParent(42)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertTrue(builder.getParentEntity().isPresent());
+
+		builder.mutate(new RemoveParentMutation());
+
+		assertTrue(builder.getParentEntity().isEmpty());
+	}
+
+	@Test
+	@DisplayName("mutate with SetParentMutation sets parent")
+	void shouldMutateWithSetParentMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withHierarchy()
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setParent(42)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertEquals(42, builder.getParentEntity().orElseThrow().getPrimaryKey());
+
+		builder.mutate(new SetParentMutation(99));
+
+		assertEquals(99, builder.getParentEntity().orElseThrow().getPrimaryKey());
+	}
+
+	@Test
+	@DisplayName("mutate with RemovePriceMutation removes price")
+	void shouldMutateWithRemovePriceMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withPrice()
+			.toInstance();
+
+		final Currency usd = Currency.getInstance("USD");
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setPrice(1, "basic", usd, new BigDecimal("10.00"), new BigDecimal("20.00"), new BigDecimal("30.00"), true)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertTrue(builder.getPrice(1, "basic", usd).isPresent());
+
+		builder.mutate(
+            new RemovePriceMutation(
+		    	new PriceKey(1, "basic", usd)
+		    )
+        );
+
+		assertTrue(builder.getPrice(1, "basic", usd).isEmpty());
+	}
+
+	@Test
+	@DisplayName("mutate with SetPriceInnerRecordHandlingMutation sets price inner record handling")
+	void shouldMutateWithSetPriceInnerRecordHandlingMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withPrice()
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertEquals(PriceInnerRecordHandling.NONE, builder.getPriceInnerRecordHandling());
+
+		builder.mutate(new SetPriceInnerRecordHandlingMutation(PriceInnerRecordHandling.SUM));
+
+		assertEquals(PriceInnerRecordHandling.SUM, builder.getPriceInnerRecordHandling());
+	}
+
+	@Test
+	@DisplayName("mutate with UpsertPriceMutation upserts price")
+	void shouldMutateWithUpsertPriceMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withPrice()
+			.toInstance();
+
+		final Currency eur = Currency.getInstance("EUR");
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setPrice(2, "wholesale", eur, new BigDecimal("50.00"), new BigDecimal("10.00"), new BigDecimal("55.00"), true)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+        builder.mutate(
+            new UpsertPriceMutation(
+                new PriceKey(2, "wholesale", eur),
+                null,
+                new BigDecimal("60.00"),
+                new BigDecimal("10.00"),
+                new BigDecimal("66.00"),
+                null,
+                true
+            )
+        );
+
+		assertTrue(builder.getPrice(2, "wholesale", eur).isPresent());
+		assertEquals(new BigDecimal("60.00"), builder.getPrice(2, "wholesale", eur).orElseThrow().priceWithoutTax());
+		assertEquals(new BigDecimal("66.00"), builder.getPrice(2, "wholesale", eur).orElseThrow().priceWithTax());
+	}
+
+	@Test
+	@DisplayName("mutate with InsertReferenceMutation inserts reference")
+	void shouldMutateWithInsertReferenceMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE, r -> {})
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1).toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+        builder.mutate(
+            new InsertReferenceMutation(
+                new ReferenceKey(BRAND, 5),
+                Cardinality.ZERO_OR_MORE,
+                BRAND
+            )
+        );
+
+		assertTrue(builder.getReference(BRAND, 5).isPresent());
+	}
+
+	@Test
+	@DisplayName("mutate with ReferenceAttributeMutation modifies reference attribute")
+	void shouldMutateWithReferenceAttributeMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+				r -> r.withAttribute(BRAND_PRIORITY, Long.class, AttributeSchemaEditor::nullable)
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(BRAND, 10, rb -> rb.setAttribute(BRAND_PRIORITY, 50L))
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+        builder.mutate(
+            new ReferenceAttributeMutation(
+                new ReferenceKey(BRAND, 10),
+                new UpsertAttributeMutation(new AttributeKey(BRAND_PRIORITY), 100L)
+            )
+        );
+
+		final ReferenceContract ref = builder.getReference(BRAND, 10).orElseThrow();
+		assertEquals(100L, ref.getAttribute(BRAND_PRIORITY, Long.class));
+	}
+
+	@Test
+	@DisplayName("mutate with RemoveReferenceGroupMutation removes reference group")
+	void shouldMutateWithRemoveReferenceGroupMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+				r -> r.withGroupType("group")
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(BRAND, 15, rb -> rb.setGroup("group", 20))
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertTrue(builder.getReference(BRAND, 15).orElseThrow().getGroup().isPresent());
+
+		builder.mutate(
+            new RemoveReferenceGroupMutation(
+			    new ReferenceKey(BRAND, 15)
+		    )
+        );
+
+		assertTrue(builder.getReference(BRAND, 15).orElseThrow().getGroup().isEmpty());
+	}
+
+	@Test
+	@DisplayName("mutate with RemoveReferenceMutation removes reference")
+	void shouldMutateWithRemoveReferenceMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(BRAND, BRAND, Cardinality.ZERO_OR_MORE, r -> {})
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(BRAND, 25)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertTrue(builder.getReference(BRAND, 25).isPresent());
+
+		builder.mutate(
+            new RemoveReferenceMutation(
+			    new ReferenceKey(BRAND, 25)
+		    )
+        );
+
+		assertTrue(builder.getReference(BRAND, 25).isEmpty());
+	}
+
+	@Test
+	@DisplayName("mutate with SetReferenceGroupMutation sets reference group")
+	void shouldMutateWithSetReferenceGroupMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		)
+			.withReferenceToEntity(
+				BRAND, BRAND, Cardinality.ZERO_OR_MORE,
+				r -> r.withGroupType("group")
+			)
+			.toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
+			.setReference(BRAND, 30)
+			.toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertTrue(builder.getReference(BRAND, 30).orElseThrow().getGroup().isEmpty());
+
+        builder.mutate(
+            new SetReferenceGroupMutation(
+                new ReferenceKey(BRAND, 30),
+                "group",
+                50
+            )
+        );
+
+		final ReferenceContract ref = builder.getReference(BRAND, 30).orElseThrow();
+		assertTrue(ref.getGroup().isPresent());
+		assertEquals(50, ref.getGroup().orElseThrow().getPrimaryKey());
+	}
+
+	@Test
+	@DisplayName("mutate with SetEntityScopeMutation sets entity scope")
+	void shouldMutateWithSetEntityScopeMutation() {
+		final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA,
+			PRODUCT_SCHEMA
+		).toInstance();
+
+		final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1).toInstance();
+
+		final EntityBuilder builder = initialEntity.openForWrite();
+		assertEquals(Scope.LIVE, builder.getScope());
+
+		builder.mutate(new SetEntityScopeMutation(Scope.ARCHIVED));
+
+		assertEquals(Scope.ARCHIVED, builder.getScope());
 	}
 
 }

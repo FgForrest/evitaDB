@@ -27,6 +27,10 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.HierarchyConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -39,6 +43,8 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.OptionalInt;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Base mutation class for mutations that work with parent (hierarchical placement) of the {@link Entity}.
@@ -68,6 +74,22 @@ public abstract class ParentMutation implements SchemaEvolvingLocalMutation<Opti
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 		return EntityContract.class;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.HIERARCHY) && context.getEntityPrimaryKey() != null ?
+			Stream.of(
+				new HierarchyConflictKey(
+					context.getEntityType(),
+					context.getEntityPrimaryKey()
+				)
+			) :
+			Stream.empty();
 	}
 
 	@Override

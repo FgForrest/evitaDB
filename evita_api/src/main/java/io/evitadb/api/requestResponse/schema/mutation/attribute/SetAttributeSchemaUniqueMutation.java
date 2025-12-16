@@ -70,13 +70,12 @@ import java.util.stream.Collectors;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaUniqueMutation
+	extends AbstractAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, EntityAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -6712334156291456184L;
-
-	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
 
 	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nonnull AttributeUniquenessType unique) {
@@ -88,7 +87,7 @@ public class SetAttributeSchemaUniqueMutation
 
 	@SerializableCreator
 	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nullable ScopedAttributeUniquenessType[] uniqueInScopes) {
-		this.name = name;
+		super(name);
 		this.uniqueInScopes = uniqueInScopes == null ?
 			new ScopedAttributeUniquenessType[]{
 				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, AttributeUniquenessType.NOT_UNIQUE)

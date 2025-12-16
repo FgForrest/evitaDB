@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.index.dataAccess;
 
 
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 
 import javax.annotation.Nonnull;
@@ -51,6 +52,17 @@ public sealed interface ExistingDataSupplierFactory
 	 */
 	@Nonnull
 	ReferenceSupplier getReferenceSupplier();
+
+	/**
+	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on
+	 * a particular reference.
+	 *
+	 * @param referenceKey the unique identifier of the reference from which attribute values are to be retrieved.
+	 * @return an instance of {@link ExistingAttributeValueSupplier} which can be used to retrieve
+	 *         attribute values of the reference.
+	 */
+	@Nonnull
+	ExistingAttributeValueSupplier getReferenceAttributeValueSupplier(@Nonnull ReferenceKey referenceKey);
 
 	/**
 	 * Provides an {@link ExistingAttributeValueSupplier} instance for retrieving attribute values defined on

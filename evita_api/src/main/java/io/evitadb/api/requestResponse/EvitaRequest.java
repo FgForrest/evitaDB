@@ -81,8 +81,8 @@ public class EvitaRequest {
 
 	@Getter private final Query query;
 	@Getter private final OffsetDateTime alignedNow;
-	private final String entityType;
-	private final Locale implicitLocale;
+	@Nullable private final String entityType;
+	@Nullable private final Locale implicitLocale;
 	@Getter private final Class<?> expectedType;
 	@Nullable private Label[] labels;
 	@Nullable private int[] primaryKeys;
@@ -90,10 +90,10 @@ public class EvitaRequest {
 	@Nullable private Locale locale;
 	@Nullable private Boolean requiredLocales;
 	@Nullable private Set<Locale> requiredLocaleSet;
-	private QueryPriceMode queryPriceMode;
-	private Boolean priceValidInTimeSet;
+	@Nullable private QueryPriceMode queryPriceMode;
+	@Nullable private Boolean priceValidInTimeSet;
 	@Nullable private OffsetDateTime priceValidInTime;
-	private Boolean requiresEntity;
+	@Nullable private Boolean requiresEntity;
 	@Nullable private Boolean requiresParent;
 	@Nullable private HierarchyContent parentContent;
 	@Nullable private EntityFetch entityRequirement;
@@ -103,12 +103,12 @@ public class EvitaRequest {
 	@Nullable private Set<String> entityAssociatedDataSet;
 	@Nullable private Boolean entityReference;
 	@Nullable private PriceContentMode entityPrices;
-	private Boolean currencySet;
+	@Nullable private Boolean currencySet;
 	@Nullable private Currency currency;
-	private Boolean requiresPriceLists;
-	private String[] priceLists;
-	private String[] additionalPriceLists;
-	private String[] defaultAccompanyingPricePriceLists;
+	@Nullable private Boolean requiresPriceLists;
+	@Nullable private String[] priceLists;
+	@Nullable private String[] additionalPriceLists;
+	@Nullable private String[] defaultAccompanyingPricePriceLists;
 	@Nullable private AccompanyingPrice[] accompanyingPrices;
 	@Nullable private Integer start;
 	@Nullable private ConditionalGap[] conditionalGaps;
@@ -124,11 +124,12 @@ public class EvitaRequest {
 	@Nullable private Map<String, FacetFilterBy> facetGroupDisjunction;
 	@Nullable private Map<String, FacetFilterBy> facetGroupNegation;
 	@Nullable private Map<String, FacetFilterBy> facetGroupExclusivity;
-	private Boolean queryTelemetryRequested;
+	@Nullable private Boolean queryTelemetryRequested;
 	@Nullable private EnumSet<DebugMode> debugModes;
 	@Nullable private Scope[] scopesAsArray;
 	@Nullable private Set<Scope> scopes;
 	@Nullable private Map<String, RequirementContext> entityFetchRequirements;
+	@Nullable private Map<ReferenceContentKey, RequirementContext> namedEntityFetchRequirements;
 	@Nullable private RequirementContext defaultReferenceRequirement;
 	@Nullable private Function<String, ChunkTransformer> referenceChunkTransformer;
 
@@ -202,6 +203,7 @@ public class EvitaRequest {
 		this.entityAssociatedDataSet = evitaRequest.entityAssociatedDataSet;
 		this.entityReference = evitaRequest.entityReference;
 		this.entityFetchRequirements = evitaRequest.entityFetchRequirements;
+		this.namedEntityFetchRequirements = evitaRequest.namedEntityFetchRequirements;
 		this.defaultReferenceRequirement = evitaRequest.defaultReferenceRequirement;
 		this.entityPrices = evitaRequest.entityPrices;
 		this.currencySet = evitaRequest.currencySet;
@@ -358,6 +360,7 @@ public class EvitaRequest {
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
 		this.entityFetchRequirements = null;
+		this.namedEntityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
 		this.entityPrices = null;
 		this.accompanyingPrices = null;
@@ -438,6 +441,7 @@ public class EvitaRequest {
 		this.entityAssociatedDataSet = null;
 		this.entityReference = null;
 		this.entityFetchRequirements = null;
+		this.namedEntityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
 		this.entityPrices = null;
 		this.start = null;
@@ -1098,6 +1102,7 @@ public class EvitaRequest {
 						this.entityReference = !referenceContent.isEmpty();
 						this.defaultReferenceRequirement = referenceContent
 							.stream()
+							.filter(it -> it.getInstanceName() == null)
 							.filter(it -> ArrayUtils.isEmpty(it.getReferenceNames()))
 							.map(it -> getRequirementContext(it, it.getAttributeContent().orElse(null)))
 							.findFirst()
@@ -1105,6 +1110,23 @@ public class EvitaRequest {
 
 						return referenceContent
 							.stream()
+							.filter(
+								it -> {
+									final String instanceName = it.getInstanceName();
+									if (instanceName == null) {
+										return true;
+									} else {
+										if (this.namedEntityFetchRequirements == null) {
+											this.namedEntityFetchRequirements = new TreeMap<>();
+										}
+										this.namedEntityFetchRequirements.put(
+											new ReferenceContentKey(instanceName, it.getReferenceName()),
+											getRequirementContext(it, it.getAttributeContent().orElse(null))
+										);
+										return false;
+									}
+								}
+							)
 							.flatMap(it ->
 								Arrays
 									.stream(it.getReferenceNames())
@@ -1128,6 +1150,19 @@ public class EvitaRequest {
 				});
 		}
 		return this.entityFetchRequirements;
+	}
+
+	/**
+	 * Returns requested referenced entity requirements with instance name from the input query.
+	 * Allows traversing through the object relational graph in unlimited depth.
+	 */
+	@Nonnull
+	public Map<ReferenceContentKey, RequirementContext> getNamedReferenceEntityFetch() {
+		if (this.entityFetchRequirements == null) {
+			// initialize both maps
+			getReferenceEntityFetch();
+		}
+		return Objects.requireNonNullElse(this.namedEntityFetchRequirements, Collections.emptyMap());
 	}
 
 	/**
@@ -1344,9 +1379,34 @@ public class EvitaRequest {
 		 */
 		public boolean requiresInit() {
 			return this.managedReferencesBehaviour != ManagedReferencesBehaviour.ANY ||
-				this.entityFetch != null || this.entityGroupFetch != null || this.filterBy != null || this.orderBy != null;
+				this.entityFetch != null ||
+				this.entityGroupFetch != null ||
+				this.filterBy != null ||
+				this.orderBy != null ||
+				!(this.referenceChunkTransformer instanceof NoTransformer);
 		}
 
+		/**
+		 * Extends the current attribute content requirement of the `RequirementContext` by combining it with
+		 * the provided attribute content. If the current attribute content is null, the provided attribute content
+		 * will be used as-is. Otherwise, it merges the existing attribute content with the new one.
+		 *
+		 * @param attributeContent the new {@link AttributeContent} to extend the current attribute content requirement
+		 * @return a new {@link RequirementContext} instance with the updated attribute content requirement
+		 * @throws NullPointerException if the provided attribute content is null
+		 */
+		@Nonnull
+		public RequirementContext withExtendedAttributeContentRequirement(@Nonnull AttributeContent attributeContent) {
+			return new RequirementContext(
+				this.managedReferencesBehaviour,
+				this.attributeContent == null ? attributeContent : this.attributeContent.combineWith(attributeContent),
+				this.entityFetch,
+				this.entityGroupFetch,
+				this.filterBy,
+				this.orderBy,
+				this.referenceChunkTransformer
+			);
+		}
 	}
 
 	/**
@@ -1426,4 +1486,26 @@ public class EvitaRequest {
 			}
 		}
 	}
+
+	/**
+	 * Key allowing to distinguish different reference content requirements.
+	 * @param instanceName optional name of the reference content instance
+	 * @param referenceName name of the reference
+	 */
+	public record ReferenceContentKey(
+		@Nullable String instanceName,
+		@Nonnull String referenceName
+	) implements Serializable, Comparable<ReferenceContentKey> {
+
+		private static final Comparator<ReferenceContentKey> REFERENCE_CONTENT_KEY_COMPARATOR = Comparator
+			.comparing(ReferenceContentKey::referenceName)
+			.thenComparing(ReferenceContentKey::instanceName, Comparator.nullsFirst(Comparator.naturalOrder()));
+
+		@Override
+		public int compareTo(@Nonnull ReferenceContentKey other) {
+			return REFERENCE_CONTENT_KEY_COMPARATOR.compare(this, other);
+		}
+
+	}
+
 }

@@ -64,11 +64,11 @@ import static io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema.to
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaGloballyUniqueMutation
+	extends AbstractAttributeSchemaMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 6770930613525155912L;
-	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes;
 
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType unique) {
@@ -80,7 +80,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 
 	@SerializableCreator
 	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes) {
-		this.name = name;
+		super(name);
 		this.uniqueGloballyInScopes = uniqueGloballyInScopes == null ?
 			new ScopedGlobalAttributeUniquenessType[]{
 				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, GlobalAttributeUniquenessType.NOT_UNIQUE)

@@ -2121,7 +2121,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	                        type
                             store {
                                 attributes {
-                                    storeVisibleForB2C
+                                    storeVisibleForB2c
                                 }
                             }
 	                    }

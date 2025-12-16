@@ -62,16 +62,16 @@ import java.io.Serial;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaNullableMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 8611279368144340378L;
-	@Getter @Nonnull private final String name;
 	@Getter private final boolean nullable;
 
 	public SetAttributeSchemaNullableMutation(@Nonnull String name, boolean nullable) {
-		this.name = name;
+		super(name);
 		this.nullable = nullable;
 	}
 

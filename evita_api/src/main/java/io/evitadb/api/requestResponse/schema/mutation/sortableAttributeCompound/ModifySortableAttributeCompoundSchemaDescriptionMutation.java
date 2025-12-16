@@ -57,16 +57,16 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifySortableAttributeCompoundSchemaDescriptionMutation
+	extends AbstractSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final String description;
 
 	public ModifySortableAttributeCompoundSchemaDescriptionMutation(@Nonnull String name, @Nullable String description) {
-		this.name = name;
+		super(name);
 		this.description = description;
 	}
 

@@ -67,16 +67,16 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifyAttributeSchemaDefaultValueMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -7126530716174758452L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final Serializable defaultValue;
 
 	public ModifyAttributeSchemaDefaultValueMutation(@Nonnull String name, @Nullable Serializable defaultValue) {
-		this.name = name;
+		super(name);
 		this.defaultValue = defaultValue;
 	}
 

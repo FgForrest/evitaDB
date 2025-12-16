@@ -35,6 +35,7 @@ module evita.engine {
 	exports io.evitadb.core.file;
 	exports io.evitadb.core.metric.event;
 	exports io.evitadb.core.metric.event.cache;
+	exports io.evitadb.core.metric.event.cdc;
 	exports io.evitadb.core.metric.event.query;
 	exports io.evitadb.core.metric.event.session;
 	exports io.evitadb.core.metric.event.storage;
@@ -48,9 +49,12 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra.price.termination;
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
+	exports io.evitadb.core.query.fetch;
 	exports io.evitadb.core.sequence;
+	exports io.evitadb.core.task;
 	exports io.evitadb.core.traffic;
 	exports io.evitadb.core.transaction;
+	exports io.evitadb.core.transaction.conflict;
 	exports io.evitadb.core.transaction.memory;
 	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
@@ -78,6 +82,7 @@ module evita.engine {
 	exports io.evitadb.store.spi.model.reference;
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
+	exports io.evitadb.store.spi.model.wal;
 
 	uses io.evitadb.store.spi.EnginePersistenceServiceFactory;
 	uses io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -94,7 +99,7 @@ module evita.engine {
 	requires evita.store.entity;
 
 	requires zero.allocation.hashing;
-    requires com.carrotsearch.hppc;
+	requires com.carrotsearch.hppc;
 	requires roaringbitmap;
 	requires com.esotericsoftware.kryo;
 
@@ -102,10 +107,8 @@ module evita.engine {
 	requires net.bytebuddy;
 	requires proxycian.bytebuddy;
 
-	opens io.evitadb.core.metric.event to evita.common;
+    opens io.evitadb.core.metric.event to evita.common;
 	opens io.evitadb.core.metric.event.transaction to jdk.jfr;
 	opens io.evitadb.core.metric.event.storage to jdk.jfr;
-	exports io.evitadb.core.metric.event.cdc;
-	exports io.evitadb.core.task;
 
 }

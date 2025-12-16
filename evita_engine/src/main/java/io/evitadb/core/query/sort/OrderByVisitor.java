@@ -45,7 +45,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter.MergeMode;
+import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
@@ -56,7 +56,7 @@ import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilter
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator;
-import io.evitadb.core.query.sort.segment.SegmentsTranslator;
+import io.evitadb.core.query.sort.segment.translator.SegmentsTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;

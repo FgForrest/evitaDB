@@ -134,7 +134,7 @@ public class ArtificialPageReadState extends AbstractArtificialState {
 			page(benchmarkState.getRandom().nextInt(5) + 1, 20)
 		);
 		requirements.add(
-			entityFetch(contentRequirements.toArray(new EntityContentRequire[0]))
+			entityFetch(contentRequirements.toArray(EntityContentRequire.EMPTY_ARRAY))
 		);
 
 		this.query = Query.query(

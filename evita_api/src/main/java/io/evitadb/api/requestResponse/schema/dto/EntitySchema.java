@@ -210,7 +210,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	 * Memoized value that reflects whether entity has at least one localized attribute or associated data. Since
 	 * the calculation is expensive, it is memoized.
 	 */
-	private Boolean memoizedLocalized;
+	private volatile Boolean memoizedLocalized;
 
 	/**
 	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.

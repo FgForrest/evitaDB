@@ -81,9 +81,7 @@ enum DefaultGraphQLErrorHandler implements GraphQLErrorHandler {
             message = cause.toString();
         }
 
-        // todo lho
-//        return DefaultGraphqlService.toSpecification(message);
-        final Map<String, Object> error = Map.of("message", message);
-        return Map.of("errors", List.of(error));
+	    final Map<String, Object> error = Map.of("message", message);
+	    return Map.of("errors", List.of(error));
     }
 }

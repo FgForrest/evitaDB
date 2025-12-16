@@ -26,15 +26,15 @@ package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute.ReferenceAttributeSchemaMutationInputAggregateConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.DelegatingAttributeSchemaMutationConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.AttributeSchemaMutationAggregateConverter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -51,7 +51,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 	extends ReferenceSchemaMutationConverter<ModifyReferenceAttributeSchemaMutation> {
 
 	@Nonnull
-	private final AttributeSchemaMutationAggregateConverter attributeSchemaMutationAggregateResolver;
+	private final ReferenceAttributeSchemaMutationInputAggregateConverter attributeSchemaMutationAggregateResolver;
 	@Nonnull
 	private final DelegatingAttributeSchemaMutationConverter delegatingAttributeSchemaMutationConverter;
 
@@ -60,7 +60,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter
 		@Nonnull MutationResolvingExceptionFactory exceptionFactory
 	) {
 		super(objectMapper, exceptionFactory);
-		this.attributeSchemaMutationAggregateResolver = new AttributeSchemaMutationAggregateConverter(
+		this.attributeSchemaMutationAggregateResolver = new ReferenceAttributeSchemaMutationInputAggregateConverter(
 			objectMapper, exceptionFactory);
 		this.delegatingAttributeSchemaMutationConverter = new DelegatingAttributeSchemaMutationConverter(
 			objectMapper, exceptionFactory

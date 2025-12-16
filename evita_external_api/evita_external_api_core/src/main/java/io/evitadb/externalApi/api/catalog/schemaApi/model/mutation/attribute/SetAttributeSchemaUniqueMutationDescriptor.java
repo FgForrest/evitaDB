@@ -23,13 +23,12 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor representing {@link io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation}.
@@ -53,17 +52,25 @@ public interface SetAttributeSchemaUniqueMutationDescriptor extends AttributeSch
 			The combination of these parameters allows for scoped uniqueness checks within attribute schemas,
 			providing fine-grained control over attribute constraints based on the entity's scope.
 			""")
+		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS))
+		.build();
+	PropertyDescriptor UNIQUE_IN_SCOPES_INPUT = PropertyDescriptor.from(UNIQUE_IN_SCOPES)
 		.type(nullableListRef(ScopedAttributeUniquenessTypeDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetAttributeSchemaUniqueMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetAttributeSchemaUniqueMutation.class)
 		.description("""
 			Mutation is responsible for setting value to a `AttributeSchema.unique`
 			in `EntitySchema`.
 			Mutation can be used for altering also the existing `AttributeSchema` or
 			`GlobalAttributeSchema` alone.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, UNIQUE_IN_SCOPES))
+		.staticProperty(NAME)
+		.staticProperty(UNIQUE_IN_SCOPES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetAttributeSchemaUniqueMutationInput")
+		.staticProperty(UNIQUE_IN_SCOPES_INPUT)
 		.build();
 }

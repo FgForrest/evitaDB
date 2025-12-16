@@ -64,7 +64,9 @@ transaction:                                      # [see Transaction configurati
   transactionMemoryRegionCount: 256
   walFileSizeBytes: 16MB
   walFileCountKept: 8
+  waitForTransactionAcceptanceInMillis: 20s
   flushFrequencyInMillis: 1s
+  conflictPolicy: [ENTITY]
 
 cache:                                            # [see Cache configuration](#cache-configuration)
   enabled: false
@@ -660,15 +662,154 @@ This section contains configuration options for the storage layer of the databas
         <p>Number of WAL files to keep. Increase this number in combination with `walFileSizeBytes` if you want to
             keep longer history of changes.</p>
     </dd>
+    <dt>waitForTransactionAcceptanceInMillis</dt>
+    <dd>
+        <p>**Default:** `20s`</p>
+        <p>The maximum time in milliseconds the system will wait for a writing transaction to be accepted,
+            i.e., written to the shared transaction WAL. This time span covers both the conflict resolution phase
+            and appending to the shared WAL file. When the operation times out, the entire transaction will be
+            rolled back.</p>
+    </dd>
     <dt>flushFrequencyInMillis</dt>
     <dd>
         <p>**Default:** `1s`</p>
         <p>The frequency of flushing the transactional data to the disk when they are sequentially processed.
-            If database process the (small) transaction very quickly, it may decide to process next transaction before 
-            flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire 
+            If database process the (small) transaction very quickly, it may decide to process next transaction before
+            flushing changes to the disk. If the client waits for `WAIT_FOR_CHANGES_VISIBLE` he may wait entire
             `flushFrequencyInMillis` milliseconds before he gets the response.</p>
     </dd>
+    <dt>conflictPolicy</dt>
+    <dd>
+        <p>**Default:** `[ENTITY]`</p>
+        <p>Set of conflict policies that will be used to resolve conflicts with other parallel sessions during
+            the transaction commit. The conflict policy controls the granularity at which write conflicts are detected
+            and serialized. The finer the scope, the more mutations can be processed concurrently without blocking;
+            the coarser the scope, the fewer conflicts are possible, but at the cost of lower concurrency.
+            See [Conflict Policies](#conflict-policies) section for detailed description of available policies.</p>
+        <p>You can specify multiple policies as an array. An empty array means "last writer wins" - no conflict
+            detection is performed. Examples:</p>
+        <ul>
+            <li>`[ENTITY]` - default, conflicts detected at entity level</li>
+            <li>`[ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` - fine-grained conflicts for attributes only, mutations of 
+                 other data generate no conflicts (last writer wins)</li>
+            <li>`[ENTITY, ENTITY_ATTRIBUTE, REFERENCE_ATTRIBUTE]` - fine-grained conflicts for attributes only, 
+                 mutations of other data generate conflicts on entire entity level</li>
+            <li>`[]` - no conflict detection (last writer wins)</li>
+        </ul>
+    </dd>
 </dl>
+
+## Conflict Policies
+
+Conflict policies control the granularity at which write conflicts are detected and serialized in evitaDB. When multiple
+transactions attempt to modify the same data concurrently, the conflict policy determines whether these operations
+conflict with each other or can proceed independently.
+
+EvitaDB derives a conflict key for every incoming write mutation. The scope of that key is controlled by the conflict
+policy: the finer the scope, the more mutations can be processed concurrently without blocking; the coarser the scope,
+the fewer conflicts are possible, but at the cost of lower concurrency.
+
+### Available Conflict Policies
+
+<dl>
+    <dt>CATALOG</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to the entire catalog. Each write to the catalog will
+            be treated as potentially conflicting with any other write to the same catalog, which effectively means
+            that there will be no concurrent writes to the same catalog allowed.</p>
+        <p>**Use case:** Maximum safety when you need to ensure strict ordering of all catalog modifications,
+            at the cost of lowest concurrency.</p>
+    </dd>
+    <dt>COLLECTION</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to collections within the catalog. Mutations targeting
+            different collections can be processed concurrently, while concurrent mutations targeting the same collection
+            will generate conflicts.</p>
+        <p>**Use case:** When you need to ensure consistency within each collection independently, while allowing
+            concurrent modifications to different collections.</p>
+    </dd>
+    <dt>ENTITY</dt>
+    <dd>
+        <p>**Default policy.** This policy generates conflict keys that are scoped to individual entities within
+            a collection. Mutations targeting different entities can be processed concurrently, while concurrent
+            mutations targeting the same entity will generate conflicts.</p>
+        <p>**Use case:** Recommended for most applications. Provides good balance between concurrency and safety,
+            ensuring that modifications to the same entity are properly serialized.</p>
+    </dd>
+    <dt>ENTITY_ATTRIBUTE</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to specific attributes of entities. Concurrent mutations
+            targeting the same attribute of the same entity will generate conflicts, while mutations targeting different
+            attributes, parts of the same entity or different entities can be processed concurrently.</p>
+        <p>**Note:** This policy doesn't cover attributes of references, see <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/conflict/ConflictPolicy.java</SourceClass> for that.</p>
+        <p>**Use case:** Maximum concurrency when different parts of the same entity can be safely modified
+            independently (e.g., updating description and stock quantity of a product simultaneously).</p>
+    </dd>
+    <dt>REFERENCE</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to specific references of entities. Concurrent mutations
+            targeting the same reference of the same entity will generate conflicts, while mutations targeting different
+            references, parts of the same entity or different entities can be processed concurrently.</p>
+        <p>**Use case:** When you need fine-grained control over entity relationships and want to allow concurrent
+            modifications to different references of the same entity.</p>
+    </dd>
+    <dt>REFERENCE_ATTRIBUTE</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to specific attributes of references within entities.
+            Concurrent mutations targeting the same attribute of the same reference of the same entity will generate
+            conflicts, while mutations targeting different attributes, references, parts of the same entity or different
+            entities can be processed concurrently.</p>
+        <p>**Use case:** Finest granularity for reference attributes, allowing maximum concurrency when modifying
+            different attributes of entity references.</p>
+    </dd>
+    <dt>ASSOCIATED_DATA</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to associated data of entities. Concurrent mutations
+            targeting the same associated data of the same entity will generate conflicts, while mutations targeting
+            different associated data, parts of the same entity or different entities can be processed concurrently.</p>
+        <p>**Use case:** When you need to allow concurrent modifications to different associated data items of
+            the same entity.</p>
+    </dd>
+    <dt>PRICE</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to prices of entities. Concurrent mutations
+            targeting the same price of the same entity will generate conflicts, while mutations targeting different
+            prices, parts of the same entity or different entities can be processed concurrently.</p>
+        <p>**Use case:** When you need to allow concurrent modifications to different prices of the same entity
+            (e.g., updating different price lists independently).</p>
+    </dd>
+    <dt>HIERARCHY</dt>
+    <dd>
+        <p>This policy generates conflict keys that are scoped to the hierarchy of entities. Concurrent mutations
+            targeting the same position in the hierarchy of the same entity will generate conflicts, while mutations
+            targeting different positions, parts of the same entity or different entities can be processed concurrently.</p>
+        <p>**Use case:** When you need to ensure consistency of hierarchical relationships while allowing
+            concurrent modifications to different parts of the hierarchy.</p>
+    </dd>
+</dl>
+
+### Choosing the Right Conflict Policy
+
+When selecting conflict policies for your application, consider:
+
+1. **Concurrency requirements**: Finer-grained policies (like `ENTITY_ATTRIBUTE`, `REFERENCE_ATTRIBUTE`) allow more
+   concurrent operations but require careful consideration of data dependencies.
+
+2. **Data consistency requirements**: Coarser-grained policies (like `ENTITY`, `COLLECTION`) provide stronger
+   consistency guarantees but may limit concurrency.
+
+3. **Application patterns**: If your application frequently modifies different parts of the same entity simultaneously,
+   consider using multiple fine-grained policies together.
+
+4. **Performance vs. safety trade-off**: Start with the default `ENTITY` policy and only move to finer granularity
+   if you identify specific concurrency bottlenecks.
+
+### Last Writer Wins Mode
+
+If you specify an empty array `[]` for the `conflictPolicy` configuration, no conflict detection is performed. This
+means that the last transaction to commit will overwrite any previous changes without any conflict checking. This mode
+provides maximum concurrency but should only be used when you're certain that concurrent conflicting writes cannot
+occur in your application.
 
 ## Cache configuration
 

@@ -25,15 +25,7 @@ package io.evitadb.api;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.TransactionContract.CommitBehavior;
-import io.evitadb.api.exception.CollectionNotFoundException;
-import io.evitadb.api.exception.EntityAlreadyRemovedException;
-import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
-import io.evitadb.api.exception.InstanceTerminatedException;
-import io.evitadb.api.exception.SchemaAlteringException;
-import io.evitadb.api.exception.TemporalDataNotAvailableException;
-import io.evitadb.api.exception.UnexpectedResultCountException;
-import io.evitadb.api.exception.UnexpectedResultException;
+import io.evitadb.api.exception.*;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.query.HeadConstraint;
@@ -73,7 +65,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.task.Task;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -1261,16 +1253,37 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		throws EntityClassInvalidException;
 
 	/**
+	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
+	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 *
+	 * @param mutation mutation to be applied
+	 * @throws InvalidMutationException when mutation is not applicable to the catalog
+	 */
+	void applyMutation(@Nonnull EntityMutation mutation) throws InvalidMutationException;
+
+	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
-	 * specified method returns first version known to the catalog mutation history.
+	 * specified method returns the first version known to the catalog mutation history.
 	 *
 	 * @param moment the moment in time for which the catalog version should be returned
-	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * @return the catalog version that was valid at the specified moment, or the first version known to the catalog
 	 * mutation history if no moment was specified
-	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Returns information about the last version that was valid before the specified moment in time. If the moment is
+	 * not specified method returns the first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the last catalog version should be returned
+	 * @return the catalog version that was valid at the specified moment, or the first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
+	 */
+	@Nonnull
+	MaterializedVersionBlock getLastCatalogVersionBefore(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns stream of change data captures (mutations) that occurred in the catalog that match the specified criteria

@@ -64,8 +64,6 @@ import static java.util.Collections.emptyList;
  */
 @Slf4j
 class GraphQLWSSubProtocol {
-    // todo lho where to get it
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     private final HashMap<String, ExecutionResultSubscriber> graphqlSubscriptions = new HashMap<>();
 
@@ -73,17 +71,23 @@ class GraphQLWSSubProtocol {
 
     private boolean connectionInitiated;
 
-    private final ServiceRequestContext ctx;
-    private final AtomicReference<GraphQL> graphQL;
-    private final Map<String, Object> upgradeCtx;
-    private Map<String, Object> connectionCtx = Map.of();
+    @Nonnull private final ServiceRequestContext ctx;
+    @Nonnull private final AtomicReference<GraphQL> graphQL;
+	@Nonnull private final GraphQLInstanceType instanceType;
+    @Nonnull private final ObjectMapper objectMapper;
+    @Nonnull private final Map<String, Object> upgradeCtx;
+    @Nonnull private Map<String, Object> connectionCtx = Map.of();
 
     public GraphQLWSSubProtocol(
         @Nonnull ServiceRequestContext ctx,
-        @Nonnull AtomicReference<GraphQL> graphQL
+        @Nonnull AtomicReference<GraphQL> graphQL,
+		@Nonnull GraphQLInstanceType instanceType,
+	    @Nonnull ObjectMapper objectMapper
     ) {
         this.ctx = ctx;
         this.graphQL = graphQL;
+		this.instanceType = instanceType;
+		this.objectMapper = objectMapper;
         this.upgradeCtx = Map.of("com.linecorp.armeria.graphql.context.key", ctx);
     }
 
@@ -140,8 +144,8 @@ class GraphQLWSSubProtocol {
                             // Subscription already exists
                             throw new GraphqlWebSocketCloseException(4409, "Already subscribed");
                         }
-                        // todo lho
-                        final ExecutedEvent executedEvent = new ExecutedEvent(GraphQLInstanceType.DATA);
+
+                        final ExecutedEvent executedEvent = new ExecutedEvent(this.instanceType);
                         final String operationName = toStringFromJson(payload.get("operationName"));
                         final String query = toStringFromJson(payload.get("query"));
                         final Map<String, Object> variables = toMapFromJson(payload.get("variables"));
@@ -166,7 +170,7 @@ class GraphQLWSSubProtocol {
 
                         future.handleAsync((executionResult, throwable) -> {
                             handleExecutionResult(out, id, executionResult, throwable);
-                            executedEvent.finishResultSerialization(); // todo lho
+                            executedEvent.finishResultSerialization();
                             return null;
                         }, this.ctx.eventLoop());
                     } catch (GraphqlWebSocketCloseException e) {
@@ -296,8 +300,8 @@ class GraphQLWSSubProtocol {
         }
     }
 
-    private static String serializeToJson(Object object) throws JsonProcessingException {
-        return mapper.writer().writeValueAsString(object);
+    private String serializeToJson(Object object) throws JsonProcessingException {
+        return this.objectMapper.writer().writeValueAsString(object);
     }
 
     @Nullable
@@ -334,10 +338,10 @@ class GraphQLWSSubProtocol {
         }
     }
 
-    private static <T> T parseJsonString(String content, TypeReference<T> typeReference)
+    private <T> T parseJsonString(String content, TypeReference<T> typeReference)
             throws GraphqlWebSocketCloseException {
         try {
-            return mapper.readValue(content, typeReference);
+            return this.objectMapper.readValue(content, typeReference);
         } catch (JsonProcessingException e) {
             throw new GraphqlWebSocketCloseException(4400, "Invalid JSON");
         }
@@ -351,7 +355,7 @@ class GraphQLWSSubProtocol {
         out.tryWrite("{\"type\":\"connection_ack\"}");
     }
 
-    private static void writeNext(WebSocketWriter out, String operationId, ExecutionResult executionResult)
+    private void writeNext(WebSocketWriter out, String operationId, ExecutionResult executionResult)
             throws JsonProcessingException {
         final Map<String, Object> response = Map.of(
                 "id", operationId,
@@ -362,7 +366,7 @@ class GraphQLWSSubProtocol {
         out.tryWrite(event);
     }
 
-    private static void writeError(WebSocketWriter out, String operationId, List<GraphQLError> errors)
+    private void writeError(WebSocketWriter out, String operationId, List<GraphQLError> errors)
             throws JsonProcessingException {
         final List<Map<String, Object>> errorSpecifications =
                 errors.stream().map(GraphQLError::toSpecification).collect(Collectors.toList());
@@ -375,7 +379,7 @@ class GraphQLWSSubProtocol {
         out.tryWrite(event);
     }
 
-    private static void writeError(WebSocketWriter out, String operationId, Throwable t) {
+    private void writeError(WebSocketWriter out, String operationId, Throwable t) {
         final Map<String, Object> errorResponse = Map.of(
                 "type", "error",
                 "id", operationId,
@@ -408,7 +412,7 @@ class GraphQLWSSubProtocol {
         }
     }
 
-    private static void writeComplete(WebSocketWriter out, String operationId) {
+    private void writeComplete(WebSocketWriter out, String operationId) {
         try {
             final String json = serializeToJson(Map.of("type", "complete", "id", operationId));
             out.tryWrite(json);

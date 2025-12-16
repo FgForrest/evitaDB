@@ -23,19 +23,22 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -46,12 +49,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for removing an existing {@link EntitySchemaContract} - or more precisely the entity
- * collection instance itself. The mutation is used by {@link CatalogContract#deleteCollectionOfEntity(EvitaSessionContract, String)}
- * method internally.
+ * collection instance itself.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -59,7 +62,8 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation {
+public class RemoveEntitySchemaMutation
+	implements LocalCatalogSchemaMutation, CatalogSchemaMutation, EntitySchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -1294172811385202717L;
 	@Getter @Nonnull private final String name;
 
@@ -104,6 +108,21 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 		final MutationPredicateContext context = predicate.getContext();
 		context.setEntityType(this.name);
 		return LocalCatalogSchemaMutation.super.toChangeCatalogCapture(predicate, content);
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(this.name));
 	}
 
 	@Override

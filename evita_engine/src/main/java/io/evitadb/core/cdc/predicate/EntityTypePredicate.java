@@ -51,8 +51,10 @@ public class EntityTypePredicate extends MutationPredicate {
 	public boolean test(Mutation mutation) {
 		if (mutation instanceof EntityUpsertMutation dataMutation) {
 			this.context.setEntityType(dataMutation.getEntityType());
+			this.context.setEntityPrimaryKey(dataMutation.getEntityPrimaryKey());
 		} else if (mutation instanceof EntityRemoveMutation dataMutation) {
 			this.context.setEntityType(dataMutation.getEntityType());
+			this.context.setEntityPrimaryKey(dataMutation.getEntityPrimaryKey());
 		} else if (!(mutation instanceof LocalMutation<?, ?>)) {
 			this.context.resetEntityType();
 		}

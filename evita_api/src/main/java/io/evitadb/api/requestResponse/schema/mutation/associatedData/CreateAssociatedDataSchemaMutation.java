@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -70,11 +69,11 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class CreateAssociatedDataSchemaMutation
-	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
+	extends AbstractAssociatedDataSchemaMutation
+	implements CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -7368528015832499968L;
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
@@ -89,13 +88,13 @@ public class CreateAssociatedDataSchemaMutation
 		boolean localized,
 		boolean nullable
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, name);
 		final Class<?> plainType = type.isArray() ? type.getComponentType() : type;
 		if (!(EvitaDataTypes.isSupportedTypeOrItsArray(type) || ComplexDataObject.class.equals(plainType))
 			|| Predecessor.class.equals(plainType) || ReferencedEntityPredecessor.class.equals(plainType)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in associated data!");
 		}
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.type = type;

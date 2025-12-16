@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntitySerializationContext;
@@ -34,7 +36,9 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.util.Currency;
 import java.util.LinkedHashSet;
+import java.util.Optional;
 
 /**
  * Ancestor for endpoints handling single entities.

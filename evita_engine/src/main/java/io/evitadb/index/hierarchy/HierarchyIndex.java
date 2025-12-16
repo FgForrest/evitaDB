@@ -131,7 +131,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	/**
 	 * Contains cached result of {@link #getAllHierarchyNodesFormula()} call.
 	 */
-	@Nullable private Formula memoizedAllNodeFormula;
+	@Nullable private volatile Formula memoizedAllNodeFormula;
 
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();

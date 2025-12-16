@@ -206,6 +206,12 @@ class EvitaServiceFunctionalTest {
 									.build()
 							);
 						makeSessionCall(response.getSessionId(), clientBuilder);
+						evitaBlockingStub.terminateSession(
+							GrpcEvitaSessionTerminationRequest
+								.newBuilder()
+								.setSessionId(response.getSessionId())
+								.build()
+						);
 					}
 					latch.countDown();
 				} catch (Exception ex) {

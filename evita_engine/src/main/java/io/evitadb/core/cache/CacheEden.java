@@ -434,29 +434,33 @@ public class CacheEden {
 	 * Method is called in regular intervals to report cache statistics to the observability subsystem.
 	 */
 	private void reportStatistics() {
-		final long hitsObserved = this.hits.get();
-		final long previouslyReportedHits = this.hitsReported.get();
-		final long hitsToReport = hitsObserved - previouslyReportedHits;
-		this.hitsReported.set(hitsObserved);
+		try {
+			final long hitsObserved = this.hits.get();
+			final long previouslyReportedHits = this.hitsReported.get();
+			final long hitsToReport = hitsObserved - previouslyReportedHits;
+			this.hitsReported.set(hitsObserved);
 
-		final long missesObserved = this.misses.get();
-		final long previouslyReportedMisses = this.missesReported.get();
-		final long missesToReport = missesObserved - previouslyReportedMisses;
-		this.missesReported.set(missesObserved);
+			final long missesObserved = this.misses.get();
+			final long previouslyReportedMisses = this.missesReported.get();
+			final long missesToReport = missesObserved - previouslyReportedMisses;
+			this.missesReported.set(missesObserved);
 
-		final long enrichmentsObserved = this.enrichments.get();
-		final long previouslyReportedEnrichments = this.enrichmentsReported.get();
-		final long enrichmentsToReport = enrichmentsObserved - previouslyReportedEnrichments;
-		this.enrichmentsReported.set(enrichmentsObserved);
+			final long enrichmentsObserved = this.enrichments.get();
+			final long previouslyReportedEnrichments = this.enrichmentsReported.get();
+			final long enrichmentsToReport = enrichmentsObserved - previouslyReportedEnrichments;
+			this.enrichmentsReported.set(enrichmentsObserved);
 
-		final long initializedObserved = this.initialized.get();
-		final long previouslyReportedInitialized = this.initializedRecordsReported.get();
-		final long initializedToReport = initializedObserved - previouslyReportedInitialized;
-		this.initializedRecordsReported.set(initializedObserved);
+			final long initializedObserved = this.initialized.get();
+			final long previouslyReportedInitialized = this.initializedRecordsReported.get();
+			final long initializedToReport = initializedObserved - previouslyReportedInitialized;
+			this.initializedRecordsReported.set(initializedObserved);
 
-		new CacheStatisticsUpdatedEvent(
-			hitsToReport, missesToReport, enrichmentsToReport, initializedToReport
-		).commit();
+			new CacheStatisticsUpdatedEvent(
+				hitsToReport, missesToReport, enrichmentsToReport, initializedToReport
+			).commit();
+		} catch (Throwable t) {
+			log.error("Emitting observability events failed!", t);
+		}
 	}
 
 	/**

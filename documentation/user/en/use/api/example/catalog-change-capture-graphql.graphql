@@ -1,0 +1,20 @@
+subscription {
+  onCatalogChangeUntyped(
+    catalogName: "evita",
+    criteria: [
+      {
+        area: DATA,
+        dataSite: {}
+      },
+      {
+        area: SCHEMA,
+        schemaSite: {}
+      }
+    ]
+  ) {
+    version
+    index
+    operation
+    body
+  }
+}

@@ -34,6 +34,8 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
+import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
@@ -43,14 +45,20 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -59,6 +67,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
@@ -73,9 +82,9 @@ import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.store.spi.PersistenceService;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
-import io.evitadb.store.wal.requestResponse.CatalogTransactionChangesContainer.CatalogTransactionChanges;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -121,6 +130,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -133,7 +143,17 @@ import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test aims to test transactional behavior of evitaDB.
+ * This comprehensive test class validates the transactional behavior of evitaDB, including:
+ * <ul>
+ *     <li>ACID properties of transactions (Atomicity, Consistency, Isolation, Durability)</li>
+ *     <li>Write-Ahead Log (WAL) processing and recovery</li>
+ *     <li>Conflict detection and resolution with various conflict policies</li>
+ *     <li>Concurrent transaction execution and isolation levels</li>
+ *     <li>Delta mutations and commutative operations</li>
+ *     <li>Catalog versioning and time travel functionality</li>
+ *     <li>Backup and restore operations</li>
+ *     <li>Data file rotation and compaction</li>
+ * </ul>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -143,6 +163,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	public static final String REPLACED_OFFSET_DATE_TIME = "REPLACED_OFFSET_DATE_TIME";
+	public static final String REPLACED_UUID = "REPLACED_UUID";
 	private static final String TRANSACTIONAL_DATA_SET = "transactionalDataSet";
 	private static final int SEED = 42;
 	private static final TriFunction<String, EvitaSessionContract, Faker, Integer> RANDOM_ENTITY_PICKER = (entityType, session, faker) -> {
@@ -156,12 +177,14 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	};
 	private static final Pattern DATE_TIME_PATTERN_1 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?\\+\\d{2}:\\d{2}");
 	private static final Pattern DATE_TIME_PATTERN_2 = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z");
-	private static final Pattern LAG_PATTERN = Pattern.compile("lag -?\\d*m?s");
+	private static final Pattern UUID_PATTERN = Pattern.compile("\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b");
 	private static final Supplier<DataGenerator> GENERATOR_FACTORY = () -> new DataGenerator.Builder()
 		.withCurrencies(CURRENCY_CZK)
 		.withPriceLists(PRICE_LIST_BASIC)
 		.build();
-	private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
+    private static final String BRAND_PRIORITY = "brandPriority";
+    private static final String STORE_PRIORITY = "storePriority";
+    private final DataGenerator dataGenerator = GENERATOR_FACTORY.get();
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
 		@Override
 		protected Kryo create() {
@@ -174,6 +197,150 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		Mockito.mock(Scheduler.class)
 	);
 	private final CatalogOffHeapMemoryManager offHeapMemoryManager = new CatalogOffHeapMemoryManager(TEST_CATALOG, 10_000_000, 128);
+
+	/* ======================================================================================== */
+	/* HELPER METHODS */
+	/* ======================================================================================== */
+
+	/**
+	 * Creates a random entity picker function that can be used with the data generator.
+	 * The picker randomly selects an existing entity primary key from the given entity type,
+	 * or returns null if no entities exist.
+	 *
+	 * @param session the evita session to query for entities
+	 * @return a function that picks random entity primary keys
+	 */
+	@Nonnull
+	private static BiFunction<String, Faker, Integer> createRandomEntityPicker(@Nonnull EvitaSessionContract session) {
+		return (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+	}
+
+	/**
+	 * Generates and upserts a single entity using the data generator with the given schema.
+	 *
+	 * @param session       the evita session to use for upserting
+	 * @param entitySchema  the schema of the entity to generate
+	 * @param seed          the random seed for reproducible generation
+	 * @return the upserted sealed entity
+	 */
+	@Nonnull
+	private SealedEntity createSingleEntity(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull SealedEntitySchema entitySchema,
+		int seed
+	) {
+		final BiFunction<String, Faker, Integer> randomEntityPicker = createRandomEntityPicker(session);
+		return this.dataGenerator.generateEntities(entitySchema, randomEntityPicker, seed)
+			.limit(1)
+			.map(session::upsertAndFetchEntity)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("Failed to generate entity"));
+	}
+
+	/**
+	 * Asserts that an entity with the given type and primary key exists in the session.
+	 *
+	 * @param session    the evita session to query
+	 * @param entityType the entity type
+	 * @param primaryKey the primary key
+	 * @return the found entity
+	 */
+	@Nonnull
+	private static SealedEntity assertEntityPresent(
+        @Nonnull EvitaSessionContract session,
+        @Nonnull String entityType,
+        int primaryKey
+    ) {
+		final Optional<SealedEntity> entity = session.getEntity(entityType, primaryKey, entityFetchAllContent());
+		assertTrue(entity.isPresent(), "Entity " + entityType + ":" + primaryKey + " should be present");
+		return entity.get();
+	}
+
+	/**
+	 * Asserts that an entity with the given type and primary key does not exist in the session.
+	 *
+	 * @param session    the evita session to query
+	 * @param entityType the entity type
+	 * @param primaryKey the primary key
+	 */
+	private static void assertEntityAbsent(
+        @Nonnull EvitaSessionContract session,
+        @Nonnull String entityType,
+        int primaryKey
+    ) {
+		final Optional<SealedEntity> entity = session.getEntity(entityType, primaryKey, entityFetchAllContent());
+		assertFalse(entity.isPresent(), "Entity " + entityType + ":" + primaryKey + " should not be present");
+	}
+
+	/**
+	 * Asserts that two entities are equal.
+	 *
+	 * @param expected the expected entity
+	 * @param actual   the actual entity
+	 */
+	private static void assertEntityEquals(@Nonnull SealedEntity expected, @Nonnull SealedEntity actual) {
+		assertEquals(expected, actual, "Entities should be equal");
+	}
+
+	/**
+	 * Executes a concurrent update in a separate thread and waits for it to complete.
+	 * This is a common pattern in conflict testing where one thread updates while another
+	 * thread waits and then attempts a conflicting operation.
+	 *
+	 * @param evita         the evita instance to use
+	 * @param catalogName   the catalog name
+	 * @param updateLogic   the update logic to execute in the concurrent thread
+	 * @throws InterruptedException if the waiting thread is interrupted
+	 */
+	private static void executeConcurrentUpdate(
+        @Nonnull EvitaContract evita,
+        @Nonnull String catalogName,
+        @Nonnull Consumer<EvitaSessionContract> updateLogic
+    ) throws InterruptedException {
+		final CountDownLatch latch = new CountDownLatch(1);
+		new Thread(() -> {
+			try {
+				evita.updateCatalog(catalogName, updateLogic);
+			} finally {
+				latch.countDown();
+			}
+		}).start();
+
+		if (!latch.await(10, TimeUnit.SECONDS)) {
+			fail("Concurrent update timed out!");
+		}
+	}
+
+	/**
+	 * Reinitializes Evita with a custom configuration. Closes the original instance first.
+	 *
+	 * @param originalEvita      the original evita instance to close
+	 * @param configurationBuilder a function that modifies the configuration builder
+	 * @return the new evita instance with the custom configuration
+	 */
+	@Nonnull
+	private static Evita reinitializeEvitaWithConfig(
+        @Nonnull EvitaContract originalEvita,
+        @Nonnull UnaryOperator<EvitaConfiguration.Builder> configurationBuilder
+    ) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		final EvitaConfiguration.Builder builder = EvitaConfiguration.builder()
+			.name(originalConfiguration.name())
+			.storage(originalConfiguration.storage())
+			.server(originalConfiguration.server())
+			.cache(originalConfiguration.cache())
+			.transaction(originalConfiguration.transaction());
+
+		final Evita evita = new Evita(configurationBuilder.apply(builder).build());
+		evita.waitUntilFullyInitialized();
+		return evita;
+	}
+
+	/* ======================================================================================== */
+	/* STATIC HELPER METHODS */
+	/* ======================================================================================== */
 
 	/**
 	 * Verifies the contents of the catalog in the given Evita instance.
@@ -218,42 +385,41 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Replaces timestamps in ISO OFFSET DATE TIME format (2024-02-26T14:48:54.984) to a placeholder.
-	 * We need to do this in order to get the repeatable test results.
+	 * Replaces timestamps in ISO OFFSET DATE TIME format (2024-02-26T14:48:54.984+01:00 or 2024-02-26T14:48:54.984Z)
+	 * and UUIDs with placeholders to ensure repeatable test results.
+	 * This is necessary because timestamps and UUIDs are generated dynamically and would cause
+	 * test assertions to fail on each run.
 	 *
-	 * @param textWithTimestamps The text with timestamps to replace.
-	 * @return the text with timestamps replaced.
+	 * @param textWithTimestamps the text containing timestamps and UUIDs to replace
+	 * @return the text with timestamps replaced by "REPLACED_OFFSET_DATE_TIME" and UUIDs replaced by "REPLACED_UUID"
 	 */
 	@Nonnull
-	private static String replaceTimeStamps(@Nonnull String textWithTimestamps) {
+	private static String replaceTimeStampsAndUuids(@Nonnull String textWithTimestamps) {
 		// the pattern is in the form of 2024-02-26T14:48:54.984+01:00
-		return DATE_TIME_PATTERN_2.matcher(
-			DATE_TIME_PATTERN_1.matcher(textWithTimestamps).replaceAll(REPLACED_OFFSET_DATE_TIME)
-		).replaceAll(REPLACED_OFFSET_DATE_TIME);
+		return UUID_PATTERN.matcher(
+			DATE_TIME_PATTERN_2.matcher(
+				DATE_TIME_PATTERN_1.matcher(textWithTimestamps).replaceAll(REPLACED_OFFSET_DATE_TIME)
+			).replaceAll(REPLACED_OFFSET_DATE_TIME)
+		).replaceAll(REPLACED_UUID);
 	}
 
 	/**
-	 * Replaces occurrences of "lag 123ms" pattern in the given text with the string "REPLACED_LAG".
-	 * We need to do this in order to get the repeatable test results.
+	 * Creates new products in massive parallelism (30 threads, 100 iterations each) and verifies that
+	 * the entities are visible in the catalog according to SNAPSHOT isolation level.
+	 * <p>
+	 * This method tests:
+	 * <ul>
+	 *     <li>Concurrent entity creation with auto-generated primary keys</li>
+	 *     <li>SNAPSHOT isolation - entities are only visible after their transaction commits</li>
+	 *     <li>WAL append completion tracking</li>
+	 *     <li>Proper transaction ordering and catalog version progression</li>
+	 * </ul>
 	 *
-	 * @param textWithLag the input text that may contain occurrences of "lag 123ms" pattern
-	 * @return the updated text with occurrences of "lag 123ms" pattern replaced by "REPLACED_LAG"
-	 */
-	@Nonnull
-	private static String replaceLag(@Nonnull String textWithLag) {
-		// the pattern is in the form of lag 123ms
-		return LAG_PATTERN.matcher(textWithLag).replaceAll("REPLACED_LAG");
-	}
-
-	/**
-	 * Creates new products in massive parallelism and verifies that the entities are visible in the catalog according
-	 * to SNAPSHOT isolation level.
-	 *
-	 * @param evita                 The Evita instance to use.
-	 * @param productSchema         The product schema to use.
-	 * @param applyOnceWhileWaiting The lambda to apply once while waiting for the entities to be inserted.
-	 * @return The set of primary keys with catalog versions.
-	 * @throws Exception If something goes wrong.
+	 * @param evita                 the Evita instance to use for concurrent operations
+	 * @param productSchema         the product schema to use for entity generation
+	 * @param applyOnceWhileWaiting optional lambda to apply once when approximately half of entities have been inserted
+	 * @return the set of primary keys with their associated catalog versions
+	 * @throws Exception if any thread fails during execution
 	 */
 	@Nonnull
 	private static Set<PkWithCatalogVersion> automaticallyGenerateEntitiesInParallel(
@@ -387,7 +553,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			}
 		}
 
-		assertEquals(primaryKeysWithTxIds.size(), numberOfThreads * iterations);
+		assertEquals(numberOfThreads * iterations, primaryKeysWithTxIds.size());
 		final Set<Integer> primaryKeys = primaryKeysWithTxIds.stream()
 			.map(PkWithCatalogVersion::getPrimaryKey)
 			.collect(Collectors.toSet());
@@ -404,26 +570,29 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Method returns number of WAL files in the catalog directory.
+	 * Returns the number of Write-Ahead Log (WAL) files in the catalog directory.
+	 * WAL files have the suffix defined by {@link CatalogPersistenceService#WAL_FILE_SUFFIX}.
 	 *
-	 * @param catalogPath path to the catalog directory
-	 * @return number of WAL files
+	 * @param catalogPath the path to the catalog directory to scan
+	 * @return the number of WAL files found
 	 * @throws IOException when the directory cannot be read
 	 */
 	private static int numberOfWalFiles(@Nonnull Path catalogPath) throws IOException {
 		try (final Stream<Path> list = Files.list(catalogPath)) {
 			return list
-				.filter(it -> it.getFileName().toString().endsWith(CatalogPersistenceService.WAL_FILE_SUFFIX))
+				.filter(it -> it.getFileName().toString().endsWith(PersistenceService.WAL_FILE_SUFFIX))
 				.mapToInt(it -> 1)
 				.sum();
 		}
 	}
 
 	/**
-	 * Method returns first index of the catalog data file in the catalog directory.
+	 * Returns the lowest index of catalog data files in the catalog directory.
+	 * This is used to verify that old catalog files have been removed during compaction.
+	 * Catalog data files have the suffix defined by {@link CatalogPersistenceService#CATALOG_FILE_SUFFIX}.
 	 *
-	 * @param catalogPath path to the catalog directory
-	 * @return first index found
+	 * @param catalogPath the path to the catalog directory to scan
+	 * @return the minimum index found, or 0 if no files exist
 	 * @throws IOException when the directory cannot be read
 	 */
 	private static int firstIndexOfCatalogDataFile(@Nonnull Path catalogPath) throws IOException {
@@ -437,12 +606,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Method returns first index of the entity data file in the catalog directory.
+	 * Returns the lowest index of entity collection data files for the specified entity type in the catalog directory.
+	 * This is used to verify that old entity collection files have been removed during compaction.
+	 * Entity collection files have the suffix defined by {@link CatalogPersistenceService#ENTITY_COLLECTION_FILE_SUFFIX}.
 	 *
-	 * @param catalogPath path to the catalog directory
-	 * @param entityType  entity type
-	 * @return first index found
+	 * @param catalogPath the path to the catalog directory to scan
+	 * @param entityType  the entity type to search for (e.g., "Product")
+	 * @return the minimum index found
 	 * @throws IOException when the directory cannot be read
+	 * @throws java.util.NoSuchElementException if no files are found for the given entity type
 	 */
 	private static int firstIndexOfCollectionDataFile(@Nonnull Path catalogPath, @Nonnull String entityType) throws IOException {
 		try (final Stream<Path> list = Files.list(catalogPath)) {
@@ -453,6 +625,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.orElseThrow();
 		}
 	}
+
+	/* ======================================================================================== */
+	/* TEST SETUP */
+	/* ======================================================================================== */
 
 	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false)
 	SealedEntitySchema setUp(Evita evita) {
@@ -502,6 +678,20 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				session, schemaBuilder -> {
 					return schemaBuilder
 						.withoutGeneratedPrimaryKey()
+                        .withReferenceToEntity(
+                            Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+                            whichIs -> whichIs
+                                .indexedForFilteringAndPartitioning()
+                                .faceted()
+                                .withAttribute(BRAND_PRIORITY, Long.class)
+                        )
+                        .withReferenceToEntity(
+                            Entities.STORE, Entities.STORE, Cardinality.ZERO_OR_MORE,
+                            whichIs -> whichIs
+                                .indexedForFilteringAndPartitioning()
+                                .faceted()
+                                .withAttribute(STORE_PRIORITY, Long.class)
+                        )
 						.updateAndFetchVia(session);
 				}
 			);
@@ -512,6 +702,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	void tearDown() {
 		this.observableOutputKeeper.close();
 	}
+
+	/* ======================================================================================== */
+	/* WAL PROCESSING AND RECOVERY TESTS */
+	/* ======================================================================================== */
 
 	@DisplayName("Catalog should be automatically updated after a load with existing WAL contents.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
@@ -583,7 +777,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		// locate engine WAL file in engine storage root directory
 		final Path storageDir = cfg.storage().storageDirectory();
 		final Optional<Path> walFileOpt;
-		try (final Stream<Path> fileListing = Files.list(storageDir);) {
+		try (final Stream<Path> fileListing = Files.list(storageDir)) {
 			walFileOpt = fileListing
 				.filter(p -> p.getFileName().toString().endsWith(".wal"))
 				.findFirst();
@@ -689,6 +883,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 				// start evita again and wait for the WAL to be processed
 				final Evita secondInstance = new Evita(cfg);
+				secondInstance.waitUntilFullyInitialized();
 
 				// now shut down evitaDB again
 				secondInstance.close();
@@ -696,124 +891,87 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 
 			// now we can browse the history
 			try (Evita thirdInstance = new Evita(cfg)) {
+				thirdInstance.waitUntilFullyInitialized();
+
 				final CatalogContract catalog = thirdInstance.getCatalogInstance(TEST_CATALOG).orElseThrow();
 
 				final long[] versions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 1, 5)
 					.getData()
 					.stream()
-					.mapToLong(StoredVersion::version)
+					.mapToLong(MaterializedVersionBlock::endVersion)
 					.toArray();
 				assertArrayEquals(new long[]{59, 54, 50, 45, 41}, versions);
 
 				assertEquals(
-					replaceTimeStamps(
+					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
-								 - changes in `PRODUCT`: 15 upserted entities
-							Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 7 KB):
-								 - changes in `PRODUCT`: 14 upserted entities
-							Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
-								 - changes in `PRODUCT`: 15 upserted entities
-							Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 7 KB):
-								 - changes in `PRODUCT`: 13 upserted entities
-							Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 8 KB):
-								 - changes in `PRODUCT`: 15 upserted entities"""
+							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(3 mutations, 1 KB):
+								 - changes in `PRODUCT`: 3 upserted entities
+							Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 1 KB):
+								 - changes in `PRODUCT`: 4 upserted entities
+							Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME(3 mutations, 1 KB):
+								 - changes in `PRODUCT`: 3 upserted entities
+							Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities
+							Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities"""
 					),
-					replaceTimeStamps(
+					replaceTimeStampsAndUuids(
 						catalog.getCatalogVersionDescriptors(versions)
+							.stream()
 							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
 
 				assertEquals(
-					replaceTimeStamps(
-						replaceLag(
-							"""
-								Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
-									 - changes in `PRODUCT`: 3 upserted entities
-								Transaction to version: 58, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
-									 - changes in `PRODUCT`: 5 upserted entities
-								Transaction to version: 57, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
-									 - changes in `PRODUCT`: 2 upserted entities
-								Transaction to version: 56, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 1 KB):
-									 - changes in `PRODUCT`: 4 upserted entities
-								Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 590 B):
-									 - changes in `PRODUCT`: 1 upserted entities
-								Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 1 KB):
-									 - changes in `PRODUCT`: 4 upserted entities
-								Transaction to version: 53, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
-									 - changes in `PRODUCT`: 5 upserted entities
-								Transaction to version: 52, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
-									 - changes in `PRODUCT`: 3 upserted entities
-								Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
-									 - changes in `PRODUCT`: 2 upserted entities
-								Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
-									 - changes in `PRODUCT`: 3 upserted entities
-								Transaction to version: 49, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
-									 - changes in `PRODUCT`: 2 upserted entities
-								Transaction to version: 48, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
-									 - changes in `PRODUCT`: 5 upserted entities
-								Transaction to version: 47, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 533 B):
-									 - changes in `PRODUCT`: 1 upserted entities
-								Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 2 KB):
-									 - changes in `PRODUCT`: 4 upserted entities
-								Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 2 KB):
-									 - changes in `PRODUCT`: 4 upserted entities
-								Transaction to version: 44, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
-									 - changes in `PRODUCT`: 3 upserted entities
-								Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 566 B):
-									 - changes in `PRODUCT`: 1 upserted entities
-								Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
-									 - changes in `PRODUCT`: 5 upserted entities
-								Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(4 mutations, 2 KB):
-									 - changes in `PRODUCT`: 4 upserted entities
-								Transaction to version: 40, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(5 mutations, 2 KB):
-									 - changes in `PRODUCT`: 5 upserted entities
-								Transaction to version: 39, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(3 mutations, 1 KB):
-									 - changes in `PRODUCT`: 3 upserted entities
-								Transaction to version: 38, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(2 mutations, 1 KB):
-									 - changes in `PRODUCT`: 2 upserted entities
-								Transaction to version: 37, committed at REPLACED_OFFSET_DATE_TIME(processing REPLACED_LAG)(1 mutations, 606 B):
-									 - changes in `PRODUCT`: 1 upserted entities"""
-						)
+					replaceTimeStampsAndUuids(
+						"""
+							Catalog version: 42, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME(5 mutations, 2 KB):
+								 - changes in `PRODUCT`: 5 upserted entities
+							Catalog version: 43, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME(1 mutations, 566 B):
+								 - changes in `PRODUCT`: 1 upserted entities
+							Catalog version: 51, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME(2 mutations, 1 KB):
+								 - changes in `PRODUCT`: 2 upserted entities
+							Catalog version: 55, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME(1 mutations, 590 B):
+								 - changes in `PRODUCT`: 1 upserted entities
+							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(3 mutations, 1 KB):
+								 - changes in `PRODUCT`: 3 upserted entities
+							Catalog version: 46, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities"""
 					),
-					replaceTimeStamps(
-						replaceLag(
-							catalog.getCatalogVersionDescriptors(versions)
-								.flatMap(
-									it -> Arrays.stream((CatalogTransactionChanges[])it.transactionChanges().getTransactionChanges())
-										.sorted(Comparator.comparingLong(CatalogTransactionChanges::catalogVersion).reversed())
-										.map(x -> x.toString(it.processedTimestamp()))
-								)
-								.collect(Collectors.joining("\n"))
-						)
+					replaceTimeStampsAndUuids(
+						catalog.getCatalogVersionDescriptors(42, 43, 51, 55, 59, 46)
+							.stream()
+							.map(WriteAheadLogVersionDescriptor::toString)
+							.collect(Collectors.joining("\n"))
 					)
 				);
 
 				final long[] prevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 2, 5)
 					.getData()
 					.stream()
-					.mapToLong(StoredVersion::version)
+					.mapToLong(MaterializedVersionBlock::endVersion)
 					.toArray();
 				assertArrayEquals(new long[]{36, 32, 27, 23, 18}, prevVersions);
 
 				assertEquals(
-					replaceTimeStamps(
+					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (14 mutations, 7 KB):
-								 - changes in `PRODUCT`: 14 upserted entities
-							Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
-								 - changes in `PRODUCT`: 15 upserted entities
-							Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (13 mutations, 7 KB):
-								 - changes in `PRODUCT`: 13 upserted entities
-							Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
-								 - changes in `PRODUCT`: 15 upserted entities
-							Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME with 4 transactions (10 mutations, 5 KB):
-								 - changes in `PRODUCT`: 10 upserted entities"""
+							Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 36, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities
+							Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 32, committed at REPLACED_OFFSET_DATE_TIME(5 mutations, 2 KB):
+								 - changes in `PRODUCT`: 5 upserted entities
+							Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 27, committed at REPLACED_OFFSET_DATE_TIME(1 mutations, 606 B):
+								 - changes in `PRODUCT`: 1 upserted entities
+							Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 23, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities
+							Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 18, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities"""
 					),
-					replaceTimeStamps(
+					replaceTimeStampsAndUuids(
 						catalog.getCatalogVersionDescriptors(prevVersions)
+							.stream()
 							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
@@ -822,31 +980,51 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				final long[] prevPrevVersions = catalog.getCatalogVersions(TimeFlow.FROM_NEWEST_TO_OLDEST, 3, 5)
 					.getData()
 					.stream()
-					.mapToLong(StoredVersion::version)
+					.mapToLong(MaterializedVersionBlock::endVersion)
 					.toArray();
 				assertArrayEquals(new long[]{14, 9, 4, 1, 0}, prevPrevVersions);
 
+				// there is no information in WAL for version 1 and 0 as they are in WARM-UP state
 				assertEquals(
-					replaceTimeStamps(
+					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (15 mutations, 7 KB):
-								 - changes in `PRODUCT`: 15 upserted entities
-							Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME with 5 transactions (13 mutations, 6 KB):
-								 - changes in `PRODUCT`: 13 upserted entities
-							Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME with 3 transactions (9 mutations, 4 KB):
-								 - changes in `PRODUCT`: 9 upserted entities
-							Catalog version: 1, processed at REPLACED_OFFSET_DATE_TIME with 1 transactions (3 mutations, 1 KB):
-								 - changes in `PRODUCT`: 3 upserted entities"""
+							Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 14, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+								 - changes in `PRODUCT`: 4 upserted entities
+							Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 9, committed at REPLACED_OFFSET_DATE_TIME(2 mutations, 1019 B):
+								 - changes in `PRODUCT`: 2 upserted entities
+							Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 4, committed at REPLACED_OFFSET_DATE_TIME(2 mutations, 1 KB):
+								 - changes in `PRODUCT`: 2 upserted entities"""
 					),
-					replaceTimeStamps(
+					replaceTimeStampsAndUuids(
 						catalog.getCatalogVersionDescriptors(prevPrevVersions)
+							.stream()
+							.filter(Objects::nonNull)
 							.map(WriteAheadLogVersionDescriptor::toString)
 							.collect(Collectors.joining("\n"))
 					)
 				);
+
+				final MaterializedVersionBlock firstCatalogVersionBlock = catalog.getFirstCatalogVersionAfter(null);
+				assertEquals(0, firstCatalogVersionBlock.startVersion());
+				assertEquals(0, firstCatalogVersionBlock.endVersion());
+				assertNotNull(firstCatalogVersionBlock.introducedAt());
+
+				final MaterializedVersionBlock lastCatalogVersionBlock = catalog.getFirstCatalogVersionAfter(OffsetDateTime.now());
+				assertEquals(59, lastCatalogVersionBlock.startVersion());
+				assertEquals(59, lastCatalogVersionBlock.endVersion());
+				assertNotNull(lastCatalogVersionBlock.introducedAt());
+
+				final MaterializedVersionBlock nextToLastCatalogVersionBlock = catalog.getLastCatalogVersionBefore(OffsetDateTime.now());
+				assertEquals(55, nextToLastCatalogVersionBlock.startVersion());
+				assertEquals(59, nextToLastCatalogVersionBlock.endVersion());
+				assertNotNull(nextToLastCatalogVersionBlock.introducedAt());
 			}
 		}
 	}
+
+	/* ======================================================================================== */
+	/* BASIC TRANSACTION TESTS */
+	/* ======================================================================================== */
 
 	@DisplayName("Update catalog with another product - synchronously.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
@@ -855,22 +1033,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final SealedEntity addedEntity = evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
-					.limit(1)
-					.map(session::upsertAndFetchEntity)
-					.findFirst();
-				assertTrue(upsertedEntity.isPresent());
-				return upsertedEntity.get();
-			}
+                return createSingleEntity(session, productSchema, SEED);
+            }
 		);
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey());
-				assertTrue(fetchedEntity.isPresent());
-				assertEquals(addedEntity, fetchedEntity.get());
+				final SealedEntity fetchedEntity = assertEntityPresent(session, productSchema.getName(), addedEntity.getPrimaryKey());
+				assertEntityEquals(addedEntity, fetchedEntity);
 			}
 		);
 	}
@@ -882,14 +1053,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final CompletableFuture<SealedEntity> addedEntity = evita.updateCatalogAsync(
 			TEST_CATALOG,
 			session -> {
-				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
-					.limit(1)
-					.map(session::upsertAndFetchEntity)
-					.findFirst();
-				assertTrue(upsertedEntity.isPresent());
-				return upsertedEntity.get();
-			},
+                return createSingleEntity(session, productSchema, SEED);
+            },
 			CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION
 		).toCompletableFuture();
 
@@ -913,13 +1078,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertTrue(expectedResult, "Entity not found in catalog!");
 	}
 
-	@DisplayName("Update rollback transaction in manually opened session when exception is thrown.")
+	@DisplayName("Automatically rollback transaction in manually opened session when exception is thrown.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldAutomaticallyRollbackTheTransactionWhenExceptionIsThrownInManuallyOpenedSession(EvitaContract evita, SealedEntitySchema productSchema) {
 		final EvitaSessionContract session = evita.createSession(new SessionTraits(TEST_CATALOG, CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, SessionFlags.READ_WRITE));
 
-		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+		final BiFunction<String, Faker, Integer> randomEntityPicker = createRandomEntityPicker(session);
 		final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 			.findFirst()
 			.flatMap(InstanceEditor::toMutation);
@@ -944,13 +1109,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			theNewSession -> {
-				final Optional<SealedEntity> fetchedEntity = theNewSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey());
-				assertFalse(fetchedEntity.isPresent());
-			}
+                assertEntityAbsent(theNewSession, productSchema.getName(), addedEntity.getPrimaryKey());
+            }
 		);
 	}
 
-	@DisplayName("Update rollback transaction in manually opened session when exception is thrown.")
+	@DisplayName("Automatically rollback transaction in lambda when uncaught exception is thrown.")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
 	void shouldAutomaticallyRollbackTheTransactionWhenExceptionIsThrownInLambda(EvitaContract evita, SealedEntitySchema productSchema) {
@@ -959,7 +1123,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+					final BiFunction<String, Faker, Integer> randomEntityPicker = createRandomEntityPicker(session);
 					final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 						.findFirst()
 						.flatMap(InstanceEditor::toMutation);
@@ -978,9 +1142,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			theNewSession -> {
-				final Optional<SealedEntity> fetchedEntity = theNewSession.getEntity(productSchema.getName(), addedEntity.get().getPrimaryKey());
-				assertFalse(fetchedEntity.isPresent());
-			}
+                assertEntityAbsent(theNewSession, productSchema.getName(), addedEntity.get().getPrimaryKey());
+            }
 		);
 	}
 
@@ -991,7 +1154,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		final SealedEntity addedEntity = evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final BiFunction<String, Faker, Integer> randomEntityPicker = createRandomEntityPicker(session);
 				final Optional<EntityMutation> entityMutation = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
 					.findFirst()
 					.flatMap(InstanceEditor::toMutation);
@@ -1013,10 +1176,1060 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Optional<SealedEntity> fetchedEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKeyOrThrowException());
-				assertTrue(fetchedEntity.isPresent());
-				assertEquals(addedEntity, fetchedEntity.get());
+				final SealedEntity fetchedEntity = assertEntityPresent(session, productSchema.getName(), addedEntity.getPrimaryKeyOrThrowException());
+				assertEntityEquals(addedEntity, fetchedEntity);
 			}
+		);
+	}
+
+	/* ======================================================================================== */
+	/* CONFLICT DETECTION TESTS */
+	/* ======================================================================================== */
+
+	@DisplayName("When two parallel transactions update same product, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoProductsAreUpdatedConcurrently(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Random rnd = new Random();
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final BiFunction<String, Faker, Integer> rep1 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+						entityType, session, faker);
+					final ModificationFunction mf1 = this.dataGenerator.createModificationFunction(rep1, rnd);
+
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					mf1.apply(
+						session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+							.orElseThrow()
+					).upsertVia(session);
+
+					try {
+						// this concurrent session will try to do the same, and commits first
+						executeConcurrentUpdate(evita, TEST_CATALOG, concurrentSession -> {
+							final BiFunction<String, Faker, Integer> rep2 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+								entityType, concurrentSession, faker);
+							final ModificationFunction mf2 = this.dataGenerator.createModificationFunction(
+								rep2, rnd);
+
+							// this mutation will generate a conflict, but only at the time of the commit, not now
+							mf2.apply(
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(),
+										entityFetchAllContent()
+									)
+									.orElseThrow()
+							).upsertVia(concurrentSession);
+						});
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+
+		// but no conflict should be raised when there is another update after everything settled
+		evita.updateCatalog(
+			TEST_CATALOG,
+			followUpSession -> {
+				final BiFunction<String, Faker, Integer> rep3 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, followUpSession, faker);
+				final ModificationFunction mf3 = this.dataGenerator.createModificationFunction(
+					rep3, rnd);
+
+				// this mutation will generate a conflict, but only at the time of the commit, not now
+				mf3.apply(
+					followUpSession.getEntity(
+							productSchema.getName(), addedEntity.getPrimaryKey(),
+							entityFetchAllContent()
+						)
+						.orElseThrow()
+				).upsertVia(followUpSession);
+			}
+		);
+	}
+
+	@DisplayName("When parallel transactions remove and update same product, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenProductIsRemovedAndUpdatedConcurrently(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Random rnd = new Random();
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					session.deleteEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+
+					try {
+						// this concurrent session will try to do the same, and commits first
+						executeConcurrentUpdate(evita, TEST_CATALOG, concurrentSession -> {
+							final BiFunction<String, Faker, Integer> rep2 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+								entityType, concurrentSession, faker);
+							final ModificationFunction mf2 = this.dataGenerator.createModificationFunction(
+								rep2, rnd);
+
+							// this mutation will generate a conflict, but only at the time of the commit, not now
+							mf2.apply(
+								concurrentSession.getEntity(
+										productSchema.getName(), addedEntity.getPrimaryKey(),
+										entityFetchAllContent()
+									)
+									.orElseThrow()
+							).upsertVia(concurrentSession);
+						});
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When parallel transactions update and remove same product, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenProductIsUpdatedAndRemovedConcurrently(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		final Random rnd = new Random();
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					final BiFunction<String, Faker, Integer> rep1 = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+						entityType, session, faker);
+					final ModificationFunction mf1 = this.dataGenerator.createModificationFunction(
+						rep1, rnd);
+
+					// this mutation will generate a conflict, but only at the time of the commit, not now
+					mf1.apply(
+						session.getEntity(
+								productSchema.getName(), addedEntity.getPrimaryKey(),
+								entityFetchAllContent()
+							)
+							.orElseThrow()
+					).upsertVia(session);
+
+					try {
+						// this concurrent session will try to do the same, and commits first
+						executeConcurrentUpdate(evita, TEST_CATALOG, concurrentSession -> {
+							concurrentSession.deleteEntity(productSchema.getName(), addedEntity.getPrimaryKey());
+						});
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+	}
+
+	@DisplayName("When two parallel transactions update same product on non-conflicting granular level (different attributes), no conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldNotRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnNonConflictingGranularLevel(
+		EvitaContract originalEvita,
+		SealedEntitySchema productSchema
+	) throws Exception {
+		// reinitialize evita with a specific narrowed conflict policy
+		final Evita evita = reinitializeEvitaWithConfig(
+			originalEvita,
+			builder -> builder.transaction(
+				TransactionOptions.builder(builder.build().transaction())
+					.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+					.build()
+			)
+		);
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+					.upsertVia(session);
+
+				try {
+					// this concurrent session will try to do the same, and commits first
+					executeConcurrentUpdate(evita, TEST_CATALOG, concurrentSession -> {
+						// this mutation will generate a conflict, but only at the time of the commit, not now
+						concurrentSession.getEntity(
+								productSchema.getName(), addedEntity.getPrimaryKey(),
+								entityFetchAllContent()
+							)
+							.orElseThrow()
+							.openForWrite()
+							.setAttribute(ATTRIBUTE_CODE, "some-changed-code")
+							.upsertVia(concurrentSession);
+					});
+				} catch (InterruptedException e) {
+					fail("Test thread was interrupted!", e);
+				}
+
+				log.info("Attempting to commit non-conflicting transaction...");
+			}
+		);
+	}
+
+	@DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes), conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnConflictingGranularLevel(EvitaContract evita, SealedEntitySchema productSchema) {
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+						.upsertVia(session);
+
+					try {
+						// this concurrent session will try to do the same, and commits first
+						executeConcurrentUpdate(evita, TEST_CATALOG, concurrentSession -> {
+							// this mutation will generate a conflict, but only at the time of the commit, not now
+							concurrentSession.getEntity(
+									productSchema.getName(), addedEntity.getPrimaryKey(),
+									entityFetchAllContent()
+								)
+								.orElseThrow()
+								.openForWrite()
+								.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+								.upsertVia(concurrentSession);
+						});
+					} catch (InterruptedException e) {
+						fail("Test thread was interrupted!", e);
+					}
+
+					log.info("Attempting to commit conflicting transaction...");
+				}
+			)
+		);
+
+		// but no conflict should be raised when there is another update after everything settled
+		evita.updateCatalog(
+			TEST_CATALOG,
+			followUpSession -> {
+				followUpSession.getEntity(
+						productSchema.getName(), addedEntity.getPrimaryKey(),
+						entityFetchAllContent()
+					)
+					.orElseThrow()
+					.openForWrite()
+					.setAttribute(ATTRIBUTE_PRIORITY, 27954L)
+					.upsertVia(followUpSession);
+			}
+		);
+	}
+
+    @DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via delta mutation, no conflict is raised.")
+    @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+    @Test
+    void shouldNotRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnConflictingGranularLevelViaDeltaChange(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+        final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+        originalEvita.close();
+
+        // reinitialize evita with a specific narrowed WAL limitations
+        final Evita evita = new Evita(
+            EvitaConfiguration.builder()
+                .name(originalConfiguration.name())
+                .transaction(
+                    TransactionOptions.builder(originalConfiguration.transaction())
+                        .conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+                        .build()
+                )
+                .storage(originalConfiguration.storage())
+                .server(originalConfiguration.server())
+                .cache(originalConfiguration.cache())
+                .build()
+        );
+        evita.waitUntilFullyInitialized();
+
+        final SealedEntity addedEntity = evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+                final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+                    .limit(1)
+                    .map(session::upsertAndFetchEntity)
+                    .findFirst();
+                assertTrue(upsertedEntity.isPresent());
+                return upsertedEntity.get();
+            }
+        );
+
+        evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+                    .orElseThrow()
+                    .openForWrite()
+                    .mutate(new ApplyDeltaAttributeMutation<>(ATTRIBUTE_PRIORITY, 1L))
+                    .upsertVia(session);
+
+                try {
+                    // this concurrent session will try to do the same, and commits first
+                    executeConcurrentUpdate(evita, TEST_CATALOG, concurrentSession -> {
+                        // this mutation will generate a conflict, but only at the time of the commit, not now
+                        concurrentSession.getEntity(
+                                productSchema.getName(), addedEntity.getPrimaryKey(),
+                                entityFetchAllContent()
+                            )
+                            .orElseThrow()
+                            .openForWrite()
+                            .mutate(new ApplyDeltaAttributeMutation<>(ATTRIBUTE_PRIORITY, 1L))
+                            .upsertVia(concurrentSession);
+                    });
+                } catch (InterruptedException e) {
+                    fail("Test thread was interrupted!", e);
+                }
+
+                log.info("Attempting to commit conflicting transaction...");
+            }
+        );
+    }
+
+    @DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via delta mutation, conflict is raised when range is not satisfied.")
+    @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+    @Test
+    void shouldRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnConflictingGranularLevelViaDeltaChangeOutsideRange(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+        final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+        originalEvita.close();
+
+        // reinitialize evita with a specific narrowed WAL limitations
+        final Evita evita = new Evita(
+            EvitaConfiguration.builder()
+                .name(originalConfiguration.name())
+                .transaction(
+                    TransactionOptions.builder(originalConfiguration.transaction())
+                        .conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+                        .build()
+                )
+                .storage(originalConfiguration.storage())
+                .server(originalConfiguration.server())
+                .cache(originalConfiguration.cache())
+                .build()
+        );
+        evita.waitUntilFullyInitialized();
+
+        final SealedEntity addedEntity = evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+                final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+                    .limit(1)
+                    .map(session::upsertAndFetchEntity)
+                    .findFirst();
+                assertTrue(upsertedEntity.isPresent());
+                return upsertedEntity.get();
+            }
+        );
+
+        assertThrows(
+            ConflictingCatalogMutationException.class,
+            () -> evita.updateCatalog(
+                TEST_CATALOG,
+                session -> {
+                    final SealedEntity theEntity = session.getEntity(
+                            productSchema.getName(),
+                            addedEntity.getPrimaryKey(),
+                            entityFetchAllContent()
+                        )
+                        .orElseThrow();
+
+                    final Long basePriority = theEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class);
+                    theEntity
+                        .openForWrite()
+                        .mutate(
+                            new ApplyDeltaAttributeMutation<>(
+                                ATTRIBUTE_PRIORITY, 1L,
+                                // this won't allow any other increment updates concurrently
+                                LongNumberRange.to(basePriority + 1L)
+                            )
+                        )
+                        .upsertVia(session);
+
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            // this concurrent session will try to do the same, and commits first
+                            evita.updateCatalog(
+                                TEST_CATALOG,
+                                concurrentSession -> {
+                                    // this mutation will generate a conflict, but only at the time of the commit, not now
+                                    concurrentSession.getEntity(
+                                            productSchema.getName(), addedEntity.getPrimaryKey(),
+                                            entityFetchAllContent()
+                                        )
+                                        .orElseThrow()
+                                        .openForWrite()
+                                        .mutate(new ApplyDeltaAttributeMutation<>(ATTRIBUTE_PRIORITY, 1L))
+                                        .upsertVia(concurrentSession);
+                                }
+                            );
+                        } finally {
+                            latch.countDown();
+                        }
+                    }).start();
+
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        fail("Test thread was interrupted!", e);
+                    }
+
+                    log.info("Attempting to commit conflicting transaction...");
+                }
+            )
+        );
+    }
+
+    @DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via reference attribute delta mutation, no conflict is raised.")
+    @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+    @Test
+    void shouldNotRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnConflictingGranularLevelViaReferenceAttributeDeltaChange(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+        final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+        originalEvita.close();
+
+        // reinitialize evita with a specific narrowed WAL limitations
+        final Evita evita = new Evita(
+            EvitaConfiguration.builder()
+                .name(originalConfiguration.name())
+                .transaction(
+                    TransactionOptions.builder(originalConfiguration.transaction())
+                        .conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+                        .build()
+                )
+                .storage(originalConfiguration.storage())
+                .server(originalConfiguration.server())
+                .cache(originalConfiguration.cache())
+                .build()
+        );
+        evita.waitUntilFullyInitialized();
+
+        final SealedEntity addedEntity = evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+                final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+                    .limit(1)
+                    .map(session::upsertAndFetchEntity)
+                    .findFirst();
+                assertTrue(upsertedEntity.isPresent());
+                return upsertedEntity.get();
+            }
+        );
+
+        evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final SealedEntity theEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+                    .orElseThrow();
+                final ReferenceKey referenceKey = theEntity
+                    .getReferences(Entities.STORE)
+                    .stream()
+                    .filter(it -> it.getAttribute(STORE_PRIORITY) != null)
+                    .map(ReferenceContract::getReferenceKey)
+                    .findFirst()
+                    .orElseThrow();
+
+                theEntity
+                    .openForWrite()
+                    .mutate(
+                        new ReferenceAttributeMutation(
+                            referenceKey,
+                            new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L)
+                        )
+                    )
+                    .upsertVia(session);
+
+                final CountDownLatch latch = new CountDownLatch(1);
+                new Thread(() -> {
+                    try {
+                        // this concurrent session will try to do the same, and commits first
+                        evita.updateCatalog(
+                            TEST_CATALOG,
+                            concurrentSession -> {
+                                // this mutation will generate a conflict, but only at the time of the commit, not now
+                                concurrentSession.getEntity(
+                                        productSchema.getName(), addedEntity.getPrimaryKey(),
+                                        entityFetchAllContent()
+                                    )
+                                    .orElseThrow()
+                                    .openForWrite()
+                                    .mutate(
+                                        new ReferenceAttributeMutation(
+                                            referenceKey,
+                                            new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L)
+                                        )
+                                    )
+                                    .upsertVia(concurrentSession);
+                            }
+                        );
+                    } finally {
+                        latch.countDown();
+                    }
+                }).start();
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    fail("Test thread was interrupted!", e);
+                }
+
+                log.info("Attempting to commit conflicting transaction...");
+            }
+        );
+    }
+
+    @DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via reference attribute delta mutation, no conflict is raised when change in range.")
+    @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+    @Test
+    void shouldNotRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnConflictingGranularLevelViaReferenceAttributeDeltaChangeInRange(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+        final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+        originalEvita.close();
+
+        // reinitialize evita with a specific narrowed WAL limitations
+        final Evita evita = new Evita(
+            EvitaConfiguration.builder()
+                .name(originalConfiguration.name())
+                .transaction(
+                    TransactionOptions.builder(originalConfiguration.transaction())
+                        .conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+                        .build()
+                )
+                .storage(originalConfiguration.storage())
+                .server(originalConfiguration.server())
+                .cache(originalConfiguration.cache())
+                .build()
+        );
+        evita.waitUntilFullyInitialized();
+
+        final SealedEntity addedEntity = evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+                final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+                    .limit(1)
+                    .map(session::upsertAndFetchEntity)
+                    .findFirst();
+                assertTrue(upsertedEntity.isPresent());
+                return upsertedEntity.get();
+            }
+        );
+
+        evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final SealedEntity theEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+                    .orElseThrow();
+                final ReferenceKey referenceKey = theEntity
+                    .getReferences(Entities.STORE)
+                    .stream()
+                    .filter(it -> it.getAttribute(STORE_PRIORITY) != null)
+                    .map(ReferenceContract::getReferenceKey)
+                    .findFirst()
+                    .orElseThrow();
+                final Long currentPriority = theEntity
+                    .getReference(referenceKey)
+                    .orElseThrow()
+                    .getAttribute(STORE_PRIORITY, Long.class);
+
+                theEntity
+                    .openForWrite()
+                    .mutate(
+                        new ReferenceAttributeMutation(
+                            referenceKey,
+                            new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L, LongNumberRange.to(currentPriority + 10L))
+                        )
+                    )
+                    .upsertVia(session);
+
+                final CountDownLatch latch = new CountDownLatch(1);
+                new Thread(() -> {
+                    try {
+                        // this concurrent session will try to do the same, and commits first
+                        evita.updateCatalog(
+                            TEST_CATALOG,
+                            concurrentSession -> {
+                                // this mutation will generate a conflict, but only at the time of the commit, not now
+                                concurrentSession.getEntity(
+                                        productSchema.getName(), addedEntity.getPrimaryKey(),
+                                        entityFetchAllContent()
+                                    )
+                                    .orElseThrow()
+                                    .openForWrite()
+                                    .mutate(
+                                        new ReferenceAttributeMutation(
+                                            referenceKey,
+                                            new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L)
+                                        )
+                                    )
+                                    .upsertVia(concurrentSession);
+                            }
+                        );
+                    } finally {
+                        latch.countDown();
+                    }
+                }).start();
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    fail("Test thread was interrupted!", e);
+                }
+
+                log.info("Attempting to commit conflicting transaction...");
+            }
+        );
+    }
+
+    @DisplayName("When two parallel transactions update same product on conflicting granular level (same attributes) via reference attribute delta mutation, conflict is raised when not in range.")
+    @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+    @Test
+    void shouldRaiseConflictWhenTwoProductsAreUpdatedConcurrentlyOnConflictingGranularLevelViaReferenceAttributeDeltaChange(EvitaContract originalEvita, SealedEntitySchema productSchema) throws Exception {
+        final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+        originalEvita.close();
+
+        // reinitialize evita with a specific narrowed WAL limitations
+        final Evita evita = new Evita(
+            EvitaConfiguration.builder()
+                .name(originalConfiguration.name())
+                .transaction(
+                    TransactionOptions.builder(originalConfiguration.transaction())
+                        .conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.REFERENCE_ATTRIBUTE)
+                        .build()
+                )
+                .storage(originalConfiguration.storage())
+                .server(originalConfiguration.server())
+                .cache(originalConfiguration.cache())
+                .build()
+        );
+        evita.waitUntilFullyInitialized();
+
+        final SealedEntity addedEntity = evita.updateCatalog(
+            TEST_CATALOG,
+            session -> {
+                final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
+                final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(productSchema, randomEntityPicker, SEED)
+                    .limit(1)
+                    .map(session::upsertAndFetchEntity)
+                    .findFirst();
+                assertTrue(upsertedEntity.isPresent());
+                return upsertedEntity.get();
+            }
+        );
+
+        assertThrows(
+            ConflictingCatalogCommutativeMutationException.class,
+            () -> evita.updateCatalog(
+                TEST_CATALOG,
+                session -> {
+                    final SealedEntity theEntity = session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+                        .orElseThrow();
+                    final ReferenceKey referenceKey = theEntity
+                        .getReferences(Entities.STORE)
+                        .stream()
+                        .filter(it -> it.getAttribute(STORE_PRIORITY) != null)
+                        .map(ReferenceContract::getReferenceKey)
+                        .findFirst()
+                        .orElseThrow();
+                    final Long currentPriority = theEntity
+                        .getReference(referenceKey)
+                        .orElseThrow()
+                        .getAttribute(STORE_PRIORITY, Long.class);
+
+                    theEntity
+                        .openForWrite()
+                        .mutate(
+                            new ReferenceAttributeMutation(
+                                referenceKey,
+                                new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L, LongNumberRange.to(currentPriority + 1L))
+                            )
+                        )
+                        .upsertVia(session);
+
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            // this concurrent session will try to do the same, and commits first
+                            evita.updateCatalog(
+                                TEST_CATALOG,
+                                concurrentSession -> {
+                                    // this mutation will generate a conflict, but only at the time of the commit, not now
+                                    concurrentSession.getEntity(
+                                            productSchema.getName(), addedEntity.getPrimaryKey(),
+                                            entityFetchAllContent()
+                                        )
+                                        .orElseThrow()
+                                        .openForWrite()
+                                        .mutate(
+                                            new ReferenceAttributeMutation(
+                                                referenceKey,
+                                                new ApplyDeltaAttributeMutation<>(STORE_PRIORITY, 1L, LongNumberRange.to(currentPriority + 1L))
+                                            )
+                                        )
+                                        .upsertVia(concurrentSession);
+                                }
+                            );
+                        } finally {
+                            latch.countDown();
+                        }
+                    }).start();
+
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        fail("Test thread was interrupted!", e);
+                    }
+
+                    log.info("Attempting to commit conflicting transaction...");
+                }
+            )
+        );
+    }
+
+	@DisplayName("When parallel transactions update product on granular level (different attributes), and remove it completely, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoProductsAreUpdatedAndRemovedConcurrentlyOnGranularLevel(
+		EvitaContract originalEvita,
+		SealedEntitySchema productSchema
+	) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		// reinitialize evita with a specific narrowed WAL limitations
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.name(originalConfiguration.name())
+				.transaction(
+					TransactionOptions.builder(originalConfiguration.transaction())
+						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.build()
+				)
+				.storage(originalConfiguration.storage())
+				.server(originalConfiguration.server())
+				.cache(originalConfiguration.cache())
+				.build()
+		);
+		evita.waitUntilFullyInitialized();
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+                TEST_CATALOG,
+                session -> {
+                    session.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+                        .orElseThrow()
+                        .openForWrite()
+                        .setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+                        .upsertVia(session);
+
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            // this concurrent session will try to do the same, and commits first
+                            evita.updateCatalog(
+                                TEST_CATALOG,
+                                concurrentSession -> {
+                                    // this mutation will generate a conflict, but only at the time of the commit, not now
+                                    assertTrue(
+                                        concurrentSession.deleteEntity(
+                                            productSchema.getName(), addedEntity.getPrimaryKey()
+                                        )
+                                    );
+                                }
+                            );
+                        } finally {
+                            latch.countDown();
+                        }
+                    }).start();
+
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        fail("Test thread was interrupted!", e);
+                    }
+
+                    log.info("Attempting to commit non-conflicting transaction...");
+                }
+            )
+		);
+	}
+
+	@DisplayName("When parallel transactions remove product and update product on granular level (different attributes), conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoProductsAreRemovedAndUpdatedConcurrentlyOnGranularLevel(
+		EvitaContract originalEvita,
+		SealedEntitySchema productSchema
+	) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		// reinitialize evita with a specific narrowed WAL limitations
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.name(originalConfiguration.name())
+				.transaction(
+					TransactionOptions.builder(originalConfiguration.transaction())
+						.conflictPolicy(ConflictPolicy.ENTITY, ConflictPolicy.ENTITY_ATTRIBUTE)
+						.build()
+				)
+				.storage(originalConfiguration.storage())
+				.server(originalConfiguration.server())
+				.cache(originalConfiguration.cache())
+				.build()
+		);
+		evita.waitUntilFullyInitialized();
+
+		final SealedEntity addedEntity = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+					entityType, session, faker);
+				final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+						productSchema, randomEntityPicker, SEED)
+					.limit(1)
+					.map(session::upsertAndFetchEntity)
+					.findFirst();
+				assertTrue(upsertedEntity.isPresent());
+				return upsertedEntity.get();
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+                TEST_CATALOG,
+                session -> {
+                    assertTrue(
+                        session.deleteEntity(
+                            productSchema.getName(), addedEntity.getPrimaryKey()
+                        )
+                    );
+
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            // this concurrent session will try to do the same, and commits first
+                            evita.updateCatalog(
+                                TEST_CATALOG,
+                                concurrentSession -> {
+                                    // this mutation will generate a conflict, but only at the time of the commit, not now
+                                    concurrentSession.getEntity(productSchema.getName(), addedEntity.getPrimaryKey(), entityFetchAllContent())
+                                        .orElseThrow()
+                                        .openForWrite()
+                                        .setAttribute(ATTRIBUTE_PRIORITY, 19846L)
+                                        .upsertVia(concurrentSession);
+                                }
+                            );
+                        } finally {
+                            latch.countDown();
+                        }
+                    }).start();
+
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        fail("Test thread was interrupted!", e);
+                    }
+
+                    log.info("Attempting to commit non-conflicting transaction...");
+                }
+            )
+		);
+	}
+
+	@DisplayName("When parallel transactions update product on granular level (different attributes), and remove it completely, conflict is raised.")
+	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
+	@Test
+	void shouldRaiseConflictWhenTwoProductsAreUpdatedAndRemovedConcurrentlyEvenIfRingBufferRotated(
+		EvitaContract originalEvita,
+		SealedEntitySchema productSchema
+	) throws Exception {
+		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
+		originalEvita.close();
+
+		// reinitialize evita with a specific narrowed WAL limitations
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.name(originalConfiguration.name())
+				.transaction(
+					TransactionOptions.builder(originalConfiguration.transaction())
+						.conflictRingBufferSize(5)
+						.build()
+				)
+				.storage(originalConfiguration.storage())
+				.server(originalConfiguration.server())
+				.cache(originalConfiguration.cache())
+				.build()
+		);
+		evita.waitUntilFullyInitialized();
+
+		final List<SealedEntity> createdEntities = evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> result = new ArrayList<>(10);
+				for (int i = 0; i < 10; i++) {
+					final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+						entityType, session, faker);
+					final Optional<SealedEntity> upsertedEntity = this.dataGenerator.generateEntities(
+							productSchema, randomEntityPicker, SEED + i)
+						.limit(1)
+						.map(session::upsertAndFetchEntity)
+						.findFirst();
+					assertTrue(upsertedEntity.isPresent());
+					result.add(upsertedEntity.get());
+				}
+				return result;
+			}
+		);
+
+		assertThrows(
+			ConflictingCatalogMutationException.class,
+			() -> evita.updateCatalog(
+                TEST_CATALOG,
+                session -> {
+                    // this mutation will generate a conflict, but only at the time of the commit, not now
+                    assertTrue(
+                        session.deleteEntity(
+                            productSchema.getName(), createdEntities.get(0).getPrimaryKey()
+                        )
+                    );
+
+                    final CountDownLatch latch = new CountDownLatch(1);
+                    new Thread(() -> {
+                        try {
+                            // this concurrent session will try to do the same, and commits first
+                            evita.updateCatalog(
+                                TEST_CATALOG,
+                                concurrentSession -> {
+                                    final Random rnd = new Random();
+
+                                    for (SealedEntity createdEntity : createdEntities) {
+                                        final BiFunction<String, Faker, Integer> rep = (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(
+                                            entityType, concurrentSession, faker);
+
+                                        final ModificationFunction mf1 = this.dataGenerator.createModificationFunction(rep, rnd);
+
+                                        // this mutation will generate a conflict, but only at the time of the commit, not now
+                                        mf1.apply(
+                                            concurrentSession.getEntity(productSchema.getName(), createdEntity.getPrimaryKey(), entityFetchAllContent())
+                                                .orElseThrow()
+                                        ).upsertVia(concurrentSession);
+                                    }
+                                }
+                            );
+                        } finally {
+                            latch.countDown();
+                        }
+                    }).start();
+
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        fail("Test thread was interrupted!", e);
+                    }
+
+                    log.info("Attempting to commit non-conflicting transaction...");
+                }
+            )
 		);
 	}
 
@@ -1116,6 +2329,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		assertTrue(expectedResult, "Entity not found in catalog!");
 	}
 
+	/* ======================================================================================== */
+	/* DATA FILE ROTATION AND COMPACTION TESTS */
+	/* ======================================================================================== */
+
 	@DisplayName("When enough data is written, old data should be removed but time travel is still possible")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Test
@@ -1176,11 +2393,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						((itCnt - 1) * bulkSize) + 2,
 						entityFetchAllContent()
 					).ifPresent(
-						entity -> {
-							entity.openForWrite()
-								.setAttribute(ATTRIBUTE_CODE, "Iteration #" + itCnt + " modification")
-								.upsertVia(session);
-						}
+						entity -> entity.openForWrite()
+                            .setAttribute(ATTRIBUTE_CODE, "Iteration #" + itCnt + " modification")
+                            .upsertVia(session)
 					);
 					// by this we will be able to verify that the time travel worked as expected
 				}
@@ -1261,6 +2476,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.transaction(
 					TransactionOptions.builder()
 						.flushFrequencyInMillis(60_000)
+						.conflictPolicyLastWriterWins()
 						.build()
 				)
 				.server(
@@ -1277,6 +2493,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.build()
 		)
 		) {
+			evita.waitUntilFullyInitialized();
+
 			final AtomicReference<SealedEntity> theEntityRef = new AtomicReference<>();
 			CommitProgress commitProgress = null;
 			AtomicReference<Consumer<CommitProgress>> commitProgressConsumer = new AtomicReference<>(null);
@@ -1360,6 +2578,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		}
 	}
 
+	/* ======================================================================================== */
+	/* CONCURRENT OPERATIONS TESTS */
+	/* ======================================================================================== */
+
 	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
 	@UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
 	@Tag(LONG_RUNNING_TEST)
@@ -1390,6 +2612,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				.cache(originalConfiguration.cache())
 				.build()
 		)) {
+			evita.waitUntilFullyInitialized();
 			automaticallyGenerateEntitiesInParallel(evita, productSchema, null);
 		}
 	}
@@ -1428,9 +2651,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		try {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
-				evita, productSchema, theEvita -> {
-					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false));
-				}
+				evita, productSchema, theEvita ->
+                    lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
 			);
 
 			final Path backupFilePath = lastBackupProcess.get().get().path(evita.getConfiguration().storage().exportDirectory());
@@ -1439,6 +2661,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
 			evita.management().restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
 				.getFutureResult().get(5, TimeUnit.MINUTES);
+			evita.activateCatalog(restoredCatalogName);
 
 			final long originalCatalogVersion = evita.queryCatalog(
 				TEST_CATALOG,
@@ -1524,17 +2747,18 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		try {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
-				evita, productSchema, theEvita -> {
-					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, true));
-				}
+				evita, productSchema, theEvita -> lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
 			);
 
 			final Path backupFilePath = lastBackupProcess.get().get().path(evita.getConfiguration().storage().exportDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
-			evita.management().restoreCatalog(restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
-				.getFutureResult().get(5, TimeUnit.MINUTES);
+			final CompletableFuture<Void> restoreFuture = evita.management().restoreCatalog(
+					restoredCatalogName, Files.size(backupFilePath), Files.newInputStream(backupFilePath))
+				.getFutureResult();
+			restoreFuture.get(5, TimeUnit.MINUTES);
+			evita.activateCatalog(restoredCatalogName);
 
 			final long originalCatalogVersion = evita.queryCatalog(
 				TEST_CATALOG,
@@ -1603,6 +2827,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 						TransactionOptions.builder()
 							.walFileSizeBytes(4_096)
 							.walFileCountKept(2)
+							.conflictPolicyLastWriterWins()
 							.build()
 					)
 					.server(
@@ -1772,11 +2997,17 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				// close the evita
 				evita.close();
 
+				log.info("Re-initializing evita to verify persistence of data.");
+
 				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+					restartedEvita.waitUntilFullyInitialized();
+
 					assertInstanceOf(
 						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
 						"Catalog should be loaded from the disk!"
 					);
+
+					log.info("evitaDB restarted and fully initialized");
 
 					catalogChecker.accept(restartedEvita, expectedLastVersion, TEST_CATALOG);
 
@@ -1802,10 +3033,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 									try (final InputStream inputStream = Files.newInputStream(backupPath)) {
 										restartedEvita.management().restoreCatalog(restoredCatalogName, Files.size(backupPath), inputStream)
 											.getFutureResult().get(2, TimeUnit.MINUTES);
+										restartedEvita.activateCatalog(restoredCatalogName);
 									}
 									// connect to it and check existence of the first record
 									catalogChecker.accept(restartedEvita, record.catalogVersion(), restoredCatalogName);
+
+									// drop the restored catalog
+									restartedEvita.deleteCatalogIfExists(restoredCatalogName);
 								} catch (Exception e) {
+									log.error("Exception thrown during backup & restore test!", e);
 									throw new RuntimeException(e);
 								}
 							}
@@ -1816,11 +3052,13 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				log.error("Exception thrown within test!", ex);
 				fail(ex);
 			} finally {
+				log.info("Closing evita instance (state is {}).", evita.isActive() ? "active" : "closed");
 				if (evita.isActive()) {
 					evita.close();
 				}
 			}
 		} finally {
+			log.info("Cleaning test directories.");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles");
 			cleanTestSubDirectory("shouldCorrectlyRotateAllFiles_export");
 		}
@@ -1993,6 +3231,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				evita.close();
 
 				try (final Evita restartedEvita = new Evita(evita.getConfiguration())) {
+					restartedEvita.waitUntilFullyInitialized();
+
 					assertInstanceOf(
 						Catalog.class, restartedEvita.getCatalogInstance(TEST_CATALOG).orElseThrow(),
 						"Catalog should be loaded from the disk!"
@@ -2017,11 +3257,24 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Writes the Write-Ahead Log (WAL) using the provided off-heap memory manager.
+	 * Appends synthetic transactions to the Write-Ahead Log (WAL) for testing purposes.
+	 * Creates multiple transactions with the specified number of entity mutations per transaction.
+	 * <p>
+	 * This method:
+	 * <ul>
+	 *     <li>Generates entities using the data generator</li>
+	 *     <li>Writes them to an isolated WAL file</li>
+	 *     <li>Appends the isolated WAL to the main catalog WAL</li>
+	 *     <li>Returns the generated entities mapped by catalog version</li>
+	 * </ul>
 	 *
-	 * @param offHeapMemoryManager the off-heap memory manager to use
-	 * @param transactionSizes     an array of transaction sizes
-	 * @return a map of catalog versions to corresponding mutations
+	 * @param baseCatalogVersion   the starting catalog version (transactions will be numbered from this + 1)
+	 * @param offHeapMemoryManager the off-heap memory manager to use for WAL operations
+	 * @param wal                  the catalog WAL to append to
+	 * @param transactionSizes     an array where each element represents the number of mutations in one transaction
+	 * @param catalogSchema        the catalog schema to use
+	 * @param productSchema        the product schema to use for entity generation
+	 * @return a map of catalog versions to their corresponding generated entities
 	 */
 	@Nonnull
 	private Map<Long, List<EntityContract>> appendWal(
@@ -2043,7 +3296,9 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 		isolatedWalFilePath.toFile().delete();
 
 		final IsolatedWalPersistenceService walPersistenceService = new DefaultIsolatedWalService(
+			TEST_CATALOG,
 			UUID.randomUUID(),
+			EnumSet.noneOf(ConflictPolicy.class),
 			KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
 			new WriteOnlyOffHeapWithFileBackupHandle(
 				isolatedWalFilePath,
@@ -2093,6 +3348,10 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
  	return entitiesInMutations;
  }
 
+	/* ======================================================================================== */
+	/* MUTATION STREAM TESTS */
+	/* ======================================================================================== */
+
  @DisplayName("Should retrieve committed mutation stream in chronological order.")
  @UseDataSet(value = TRANSACTIONAL_DATA_SET, destroyAfterTest = true)
  @Test
@@ -2116,6 +3375,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
  						.map(session::upsertAndFetchEntity)
  						.findFirst()
  						.orElseThrow();
+                     assertNotNull(entity, "Entity should have been created");
  				}
 
  				return session.getCatalogVersion();
@@ -2202,6 +3462,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
  						.map(session::upsertAndFetchEntity)
  						.findFirst()
  						.orElseThrow();
+                        assertNotNull(entity, "Entity should have been created");
  				}
 
  				return session.getCatalogVersion();
@@ -2267,7 +3528,12 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
  	}
  }
 
- private record PkWithCatalogVersion(
+	/**
+	 * A record that pairs an entity reference with the catalog version in which it was created or modified.
+	 * Used for tracking when entities become visible in the catalog during concurrent operations.
+	 * Implements Comparable to allow sorting by entity reference first, then by catalog version.
+	 */
+	private record PkWithCatalogVersion(
 		@Nonnull EntityReferenceContract entityReference,
 		long catalogVersion
 	) implements Comparable<PkWithCatalogVersion> {
@@ -2278,17 +3544,29 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			return first == 0 ? Long.compare(this.catalogVersion, o.catalogVersion) : first;
 		}
 
+		/**
+		 * Returns the entity type of the referenced entity.
+		 *
+		 * @return the entity type
+		 */
 		public String getType() {
 			return this.entityReference.getType();
 		}
 
+		/**
+		 * Returns the primary key of the referenced entity.
+		 *
+		 * @return the primary key
+		 */
 		public int getPrimaryKey() {
 			return this.entityReference.getPrimaryKey();
 		}
 	}
 
 	/**
-	 * An immutable class that represents an instance with its associated mutation.
+	 * An immutable record that represents an entity instance paired with its associated mutation.
+	 * Used when generating and writing entities to the WAL, where we need both the final entity state
+	 * and the mutation that created it.
 	 */
 	private record InstanceWithMutation(
 		@Nonnull EntityContract instance,

@@ -72,13 +72,12 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaSortableMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -427671510596792137L;
-
-	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Scope[] sortableInScopes;
 
 	public SetAttributeSchemaSortableMutation(@Nonnull String name, boolean sortable) {
@@ -93,7 +92,7 @@ public class SetAttributeSchemaSortableMutation
 		@Nonnull String name,
 		@Nullable Scope[] sortableInScopes
 	) {
-		this.name = name;
+		super(name);
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 	}
 

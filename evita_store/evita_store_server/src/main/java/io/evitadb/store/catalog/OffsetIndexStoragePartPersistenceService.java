@@ -206,7 +206,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public <T extends StoragePart> int countStorageParts(long catalogVersion) {
+	public int countStorageParts(long catalogVersion) {
 		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.count(catalogVersion);
 		} else {

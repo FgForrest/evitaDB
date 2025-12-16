@@ -367,13 +367,17 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithHa
 	 * Emits statistics of the ForkJoinPool associated with the request executor.
 	 */
 	public void emitPoolStatistics(@Nonnull BiFunction<ForkJoinPool, Long, Event> eventFactory) {
-		if (this.executorService instanceof ForkJoinPool fjp) {
-			// emit statistics of the pool
-			final long currentStealCount = fjp.getStealCount();
-			eventFactory.apply(fjp, currentStealCount - this.executorSteals).commit();
-			this.executorSteals = currentStealCount;
-		} else {
-			// emit no statistics if the pool is not a ForkJoinPool
+		try {
+			if (this.executorService instanceof ForkJoinPool fjp) {
+				// emit statistics of the pool
+				final long currentStealCount = fjp.getStealCount();
+				eventFactory.apply(fjp, currentStealCount - this.executorSteals).commit();
+				this.executorSteals = currentStealCount;
+			} else {
+				// emit no statistics if the pool is not a ForkJoinPool
+			}
+		} catch (Throwable t) {
+			log.error("Emitting observability events failed!", t);
 		}
 	}
 

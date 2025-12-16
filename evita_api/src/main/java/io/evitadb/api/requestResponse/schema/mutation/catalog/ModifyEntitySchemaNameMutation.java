@@ -26,6 +26,10 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -34,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -46,6 +51,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for renaming an existing {@link EntitySchemaContract}. The mutation is used internally
@@ -59,7 +66,8 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutation, LocalEntitySchemaMutation, CatalogSchemaMutation {
+public class ModifyEntitySchemaNameMutation
+	implements LocalCatalogSchemaMutation, LocalEntitySchemaMutation, CatalogSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = -5176104766478870248L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final String newName;
@@ -120,6 +128,21 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(this.name), new CollectionConflictKey(this.newName));
 	}
 
 	@Override

@@ -82,6 +82,7 @@ import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgum
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLInputFieldTransformer;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -94,6 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
+import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
@@ -278,11 +280,11 @@ public class FullResponseObjectBuilder {
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
 		buildHierarchyField(entitySchema).ifPresent(extraResultFields::add);
-		extraResultFields.add(buildQueryTelemetryField());
-
-		if (extraResultFields.isEmpty()) {
-			return Optional.empty();
+		if (!extraResultFields.isEmpty()) {
+			// add inScope only for fields that operate on user data
+			extraResultFields.add(buildExtraResultsInScopeField(entitySchema, extraResultFields));
 		}
+		extraResultFields.add(buildQueryTelemetryField());
 
 		extraResultFields.forEach(extraResultField ->
 			this.buildingContext.registerFieldToObject(
@@ -292,6 +294,46 @@ public class FullResponseObjectBuilder {
 			)
 		);
 		return Optional.of(extraResultsObjectBuilder.build());
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildExtraResultsInScopeField(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull List<BuiltFieldDescriptor> extraResultFields
+	) {
+		final GraphQLObjectType inScopeObject = buildExtraResultsInScopeObject(entitySchema, extraResultFields);
+
+		final GraphQLFieldDefinition inScopeField = GraphQLExtraResultsDescriptor.IN_SCOPE.to(this.fieldBuilderTransformer)
+			.type(nonNull(inScopeObject))
+			.argument(InScopeHeaderDescriptor.SCOPE.to(this.argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			inScopeField,
+			InScopeDataFetcher.getInstance()
+		);
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildExtraResultsInScopeObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull List<BuiltFieldDescriptor> extraResultFields
+	) {
+		final String objectName = InScopeDescriptor.THIS.name(entitySchema);
+
+		final GraphQLObjectType.Builder inScopeObjectBuilder = InScopeDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(objectName);
+
+		extraResultFields.forEach(extraResultField ->
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				inScopeObjectBuilder,
+				extraResultField
+			)
+		);
+
+		return inScopeObjectBuilder.build();
 	}
 
 	@Nonnull

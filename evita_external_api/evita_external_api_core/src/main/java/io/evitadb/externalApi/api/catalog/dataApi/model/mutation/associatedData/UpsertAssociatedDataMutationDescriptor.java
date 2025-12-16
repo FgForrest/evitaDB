@@ -31,7 +31,7 @@ import io.evitadb.externalApi.dataType.Any;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -60,11 +60,17 @@ public interface UpsertAssociatedDataMutationDescriptor extends AssociatedDataMu
 		.type(nullableRef(ASSOCIATED_DATA_SCALAR_ENUM))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("UpsertAssociatedDataMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(UpsertAssociatedDataMutation.class)
 		.description("""
 			Upsert associatedData mutation will either update existing associatedData or create new one.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, NAME, LOCALE, VALUE, VALUE_TYPE))
+		.staticProperty(NAME)
+		.staticProperty(LOCALE)
+		.staticProperty(VALUE)
+		.staticProperty(VALUE_TYPE)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("UpsertAssociatedDataMutationInput")
 		.build();
 }

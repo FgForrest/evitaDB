@@ -43,12 +43,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate.ExistsPredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.*;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -185,7 +180,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.pricePredicate = PriceContractSerializablePredicate.DEFAULT_INSTANCE;
 		this.referencePredicate = ReferenceContractSerializablePredicate.DEFAULT_INSTANCE;
 		for (LocalMutation<?, ?> localMutation : localMutations) {
-			addMutation(localMutation);
+			mutate(localMutation);
 		}
 	}
 
@@ -195,7 +190,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 *
 	 * - Copies predicates from the provided decorator so that access rules match the fetched content.
 	 * - Initializes internal builders for attributes, associated data and prices.
-	 * - Queues provided local mutations via {@link #addMutation(LocalMutation)} in the given order.
+	 * - Queues provided local mutations via {@link #mutate(LocalMutation[])} in the given order.
 	 *
 	 * @param baseEntity     non-null decorator containing the base entity and fetch predicates
 	 * @param localMutations non-null collection of local mutations to enqueue (may be empty)
@@ -228,7 +223,7 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		this.pricePredicate = baseEntity.getPricePredicate();
 		this.referencePredicate = baseEntity.getReferencePredicate();
 		for (LocalMutation<?, ?> localMutation : localMutations) {
-			addMutation(localMutation);
+			mutate(localMutation);
 		}
 	}
 
@@ -260,29 +255,34 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 	 * - Reference mutations (stored and coalesced per reference key and internal ID)
 	 * - Price mutations and inner record handling (delegated to price builder)
 	 *
-	 * @param localMutation non-null local mutation to apply
+	 * @param localMutation non-null local mutation(s) to apply
 	 * @throws GenericEvitaInternalError when an unknown mutation type is encountered
 	 */
-	public void addMutation(@Nonnull LocalMutation<?, ?> localMutation) {
-		localMutation = localMutation.withDecisiveTimestamp(System.nanoTime());
-		if (localMutation instanceof SetEntityScopeMutation setScopeMutation) {
-			this.scopeMutation = setScopeMutation;
-		} else if (localMutation instanceof ParentMutation hierarchicalPlacementMutation) {
-			this.hierarchyMutation = hierarchicalPlacementMutation;
-		} else if (localMutation instanceof AttributeMutation attributeMutation) {
-			this.attributesBuilder.addMutation(attributeMutation);
-		} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
-			this.associatedDataBuilder.addMutation(associatedDataMutation);
-		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
-			this.referencesBuilder.addMutation(referenceMutation);
-		} else if (localMutation instanceof PriceMutation priceMutation) {
-			this.pricesBuilder.addMutation(priceMutation);
-		} else if (localMutation instanceof SetPriceInnerRecordHandlingMutation innerRecordHandlingMutation) {
-			this.pricesBuilder.addMutation(innerRecordHandlingMutation);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
-		}
+    @Override
+    @Nonnull
+	public ExistingEntityBuilder mutate(@Nonnull LocalMutation<?, ?>... localMutation) {
+        for (LocalMutation<?, ?> lm : localMutation) {
+            lm = lm.withDecisiveTimestamp(System.nanoTime());
+            if (lm instanceof SetEntityScopeMutation setScopeMutation) {
+                this.scopeMutation = setScopeMutation;
+            } else if (lm instanceof ParentMutation hierarchicalPlacementMutation) {
+                this.hierarchyMutation = hierarchicalPlacementMutation;
+            } else if (lm instanceof AttributeMutation attributeMutation) {
+                this.attributesBuilder.addMutation(attributeMutation);
+            } else if (lm instanceof AssociatedDataMutation associatedDataMutation) {
+                this.associatedDataBuilder.addMutation(associatedDataMutation);
+            } else if (lm instanceof ReferenceMutation<?> referenceMutation) {
+                this.referencesBuilder.mutateReference(referenceMutation);
+            } else if (lm instanceof PriceMutation priceMutation) {
+                this.pricesBuilder.mutatePrice(priceMutation);
+            } else if (lm instanceof SetPriceInnerRecordHandlingMutation innerRecordHandlingMutation) {
+                this.pricesBuilder.mutateInnerPriceHandling(innerRecordHandlingMutation);
+            } else {
+                // SHOULD NOT EVER HAPPEN
+                throw new GenericEvitaInternalError("Unknown mutation: " + lm.getClass());
+            }
+        }
+        return this;
 	}
 
 	@Override
@@ -593,7 +593,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -607,7 +608,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -624,7 +626,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -641,7 +644,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -659,7 +663,8 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder removePrice(
 		int priceId,
 		@Nonnull String priceList,
@@ -669,19 +674,43 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
+	public EntityBuilder removeAllPrices() {
+		this.pricesBuilder.removeAllPrices();
+		return this;
+	}
+
+    @Nonnull
+    @Override
+    public EntityBuilder mutatePrice(@Nonnull PriceMutation priceMutation) {
+        this.pricesBuilder.mutatePrice(priceMutation);
+        return this;
+    }
+
+    @Nonnull
+    @Override
 	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		this.pricesBuilder.setPriceInnerRecordHandling(priceInnerRecordHandling);
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder removePriceInnerRecordHandling() {
 		this.pricesBuilder.removePriceInnerRecordHandling();
 		return this;
 	}
 
-	@Override
+    @Nonnull
+    @Override
+    public EntityBuilder mutateInnerPriceHandling(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
+        this.pricesBuilder.mutateInnerPriceHandling(mutation);
+        return this;
+    }
+
+    @Nonnull
+    @Override
 	public EntityBuilder removeAllNonTouchedPrices() {
 		this.pricesBuilder.removeAllNonTouchedPrices();
 		return this;
@@ -855,7 +884,14 @@ public class ExistingEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+    @Nonnull
+    @Override
+    public EntityBuilder mutateReference(@Nonnull ReferenceMutation<?> referenceMutation) {
+        this.referencesBuilder.mutateReference(referenceMutation);
+        return this;
+    }
+
+    @Override
 	public int getNextReferenceInternalId() {
 		return this.referencesBuilder.getNextReferenceInternalId();
 	}

@@ -29,7 +29,8 @@ import com.linecorp.armeria.common.HttpResponseBuilder;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.websocket.WebSocket;
-import com.linecorp.armeria.server.DecoratingHttpServiceFunction;
+import com.linecorp.armeria.common.websocket.WebSocketCloseStatus;
+import com.linecorp.armeria.common.websocket.WebSocketWriter;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.SimpleDecoratingHttpService;
@@ -58,6 +59,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * This HTTP service verifies input scheme against allowed {@link TlsMode} in configuration and returns appropriate
@@ -70,7 +72,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService implements WebSocketHandler {
+public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService implements WebSocketDecoratingHandler {
 	public static final String SCHEME_HTTPS = "https";
 	public static final String SCHEME_HTTP = "http";
 	/**
@@ -87,20 +89,29 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 	private final String[] schemes;
 	private final int[] ports;
 	private final int peak;
-	private final Function<ServiceRequestContext, HttpResponse> mtlsChecker;
+	private final Function<ServiceRequestContext, HttpResponse> mtlsHttpChecker;
+	private final Function<ServiceRequestContext, WebSocket> mtlsWebSocketChecker;
 
-	private static final HttpResponseBuilder CERTIFICATE_NOT_PROVIDED_RESPONSE = HttpResponse.builder()
-		.status(HttpStatus.UNAUTHORIZED)
-		.content(MediaType.PLAIN_TEXT, "Client certificate not provided.");
-	private static final HttpResponseBuilder CERTIFICATE_NOT_ALLOWED_RESPONSE = HttpResponse.builder()
-		.status(HttpStatus.FORBIDDEN)
-		.content(MediaType.PLAIN_TEXT, "Client certificate not allowed.");
+	private static final HttpResponseBuilder CERTIFICATE_NOT_PROVIDED_HTTP_RESPONSE = HttpResponse.builder().status(
+		HttpStatus.UNAUTHORIZED).content(MediaType.PLAIN_TEXT, "Client certificate not provided.");
+	private static final HttpResponseBuilder CERTIFICATE_NOT_ALLOWED_HTTP_RESPONSE = HttpResponse.builder().status(
+		HttpStatus.FORBIDDEN).content(MediaType.PLAIN_TEXT, "Client certificate not allowed.");
 
-	public HttpServiceSecurityDecorator(@Nonnull HttpService delegate, @Nonnull ApiOptions apiOptions, @Nonnull AbstractApiOptions... configurations) {
+	private static final Supplier<WebSocket> CERTIFICATE_NOT_PROVIDED_WEB_SOCKET = () -> {
+		final WebSocketWriter out = WebSocket.streaming();
+		out.close(WebSocketCloseStatus.POLICY_VIOLATION, "Client certificate not provided.");
+		return out;
+	};
+	private static final Supplier<WebSocket> CERTIFICATE_NOT_ALLOWED_WEB_SOCKET = () -> {
+		final WebSocketWriter out = WebSocket.streaming();
+		out.close(WebSocketCloseStatus.POLICY_VIOLATION, "Client certificate not allowed.");
+		return out;
+	};
+
+	public HttpServiceSecurityDecorator(
+		@Nonnull HttpService delegate, @Nonnull ApiOptions apiOptions, @Nonnull AbstractApiOptions... configurations) {
 		super(delegate);
-		final int hostsConfigs = Arrays.stream(configurations)
-			.mapToInt(config -> config.getHost().length)
-			.sum();
+		final int hostsConfigs = Arrays.stream(configurations).mapToInt(config -> config.getHost().length).sum();
 		this.hosts = new String[hostsConfigs];
 		this.schemes = new String[hostsConfigs];
 		this.ports = new int[hostsConfigs];
@@ -109,28 +120,73 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 		final MtlsConfiguration mtlsConfiguration = configurations[0].getMtlsConfiguration();
 		if (Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
 			final CertificateOptions certificate = apiOptions.certificate();
-			final Set<Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(mtlsConfiguration, certificate);
-			this.mtlsChecker = ctx -> {
+			final Set<Certificate> allowedCertificates = getAllowedClientCertificatesFromPaths(
+				mtlsConfiguration, certificate);
+			this.mtlsHttpChecker = ctx -> {
 				try {
 					final SSLSession sslSession = ctx.sslSession();
 					if (sslSession == null) {
-						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+						return createAuthenticationErrorResponseAndCloseChannel(
+							ctx,
+							CERTIFICATE_NOT_PROVIDED_HTTP_RESPONSE
+						);
 					}
 					final Certificate[] clientCerts = sslSession.getPeerCertificates();
 					if (clientCerts.length == 0) {
-						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+						return createAuthenticationErrorResponseAndCloseChannel(
+							ctx,
+							CERTIFICATE_NOT_PROVIDED_HTTP_RESPONSE
+						);
 					}
 					final Certificate clientCert = clientCerts[0];
 					if (!allowedCertificates.contains(clientCert)) {
-						return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_ALLOWED_RESPONSE);
+						return createAuthenticationErrorResponseAndCloseChannel(
+							ctx,
+							CERTIFICATE_NOT_ALLOWED_HTTP_RESPONSE
+						);
 					}
 				} catch (SSLPeerUnverifiedException e) {
-					return createAuthenticationErrorResponseAndCloseChannel(ctx, CERTIFICATE_NOT_PROVIDED_RESPONSE);
+					return createAuthenticationErrorResponseAndCloseChannel(
+						ctx,
+						CERTIFICATE_NOT_PROVIDED_HTTP_RESPONSE
+					);
+				}
+				return null;
+			};
+			this.mtlsWebSocketChecker = ctx -> {
+				try {
+					final SSLSession sslSession = ctx.sslSession();
+					if (sslSession == null) {
+						return createAuthenticationErrorResponseAndCloseChannel(
+							ctx,
+							CERTIFICATE_NOT_PROVIDED_WEB_SOCKET
+						);
+					}
+					final Certificate[] clientCerts = sslSession.getPeerCertificates();
+					if (clientCerts.length == 0) {
+						return createAuthenticationErrorResponseAndCloseChannel(
+							ctx,
+							CERTIFICATE_NOT_PROVIDED_WEB_SOCKET
+						);
+					}
+					final Certificate clientCert = clientCerts[0];
+					if (!allowedCertificates.contains(clientCert)) {
+						return createAuthenticationErrorResponseAndCloseChannel(
+							ctx,
+							CERTIFICATE_NOT_ALLOWED_WEB_SOCKET
+						);
+					}
+				} catch (SSLPeerUnverifiedException e) {
+					return createAuthenticationErrorResponseAndCloseChannel(
+						ctx,
+						CERTIFICATE_NOT_PROVIDED_WEB_SOCKET
+					);
 				}
 				return null;
 			};
 		} else {
-			this.mtlsChecker = ctx -> null;
+			this.mtlsHttpChecker = ctx -> null;
+			this.mtlsWebSocketChecker = ctx -> null;
 		}
 	}
 
@@ -143,10 +199,11 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 		final int port = address.getPort();
 		boolean hostAndPortMatching = false;
 		for (int i = 0; i < this.peak; i++) {
-			if (port == this.ports[i] && (this.hosts[i] == null || address.getAddress().getHostAddress().equals(this.hosts[i]))) {
+			if (port == this.ports[i] && (this.hosts[i] == null || address.getAddress().getHostAddress().equals(
+				this.hosts[i]))) {
 				if (this.schemes[i] == null || scheme.equals(this.schemes[i])) {
 					if (SCHEME_HTTPS.equals(scheme)) {
-						final HttpResponse response = this.mtlsChecker.apply(ctx);
+						final HttpResponse response = this.mtlsHttpChecker.apply(ctx);
 						if (response != null) {
 							return response;
 						}
@@ -167,8 +224,32 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 	@Nonnull
 	@Override
 	public WebSocket handle(@Nonnull ServiceRequestContext ctx, @Nonnull RoutableWebSocket in) {
-		// todo lho impl
-		return Objects.requireNonNull(this.unwrap().as(WebSocketHandler.class)).handle(ctx, in);
+		final URI uri = ctx.uri();
+		final String scheme = uri.getScheme();
+		final InetSocketAddress address = ctx.localAddress();
+		final int port = address.getPort();
+		boolean hostAndPortMatching = false;
+		for (int i = 0; i < this.peak; i++) {
+			if (port == this.ports[i] && (this.hosts[i] == null || address.getAddress().getHostAddress().equals(
+				this.hosts[i]))) {
+				if (this.schemes[i] == null || scheme.equals(this.schemes[i])) {
+					if (SCHEME_HTTPS.equals(scheme)) {
+						final WebSocket response = this.mtlsWebSocketChecker.apply(ctx);
+						if (response != null) {
+							return response;
+						}
+					}
+					return this.unwrapWebSocketHandler().handle(ctx, in);
+				} else {
+					hostAndPortMatching = true;
+				}
+			}
+		}
+		if (hostAndPortMatching) {
+			return closeWithError(WebSocketCloseStatus.POLICY_VIOLATION, getSchemeErrorMessage(scheme));
+		} else {
+			return closeWithError(WebSocketCloseStatus.POLICY_VIOLATION, "Service not available.");
+		}
 	}
 
 	/**
@@ -176,12 +257,12 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 	 * This method sets the "Connection" header to "close" and triggers the shutdown process
 	 * in the provided service request context.
 	 *
-	 * @param ctx the {@link ServiceRequestContext} used to manage the service request,
-	 *            including initiating the connection shutdown.
+	 * @param ctx             the {@link ServiceRequestContext} used to manage the service request,
+	 *                        including initiating the connection shutdown.
 	 * @param responseBuilder the {@link HttpResponseBuilder} used to construct the HTTP response,
 	 *                        which will include a header to close the connection.
 	 * @return an {@link HttpResponse} representing the authentication error response
-	 *         with the connection set to close.
+	 * with the connection set to close.
 	 */
 	@Nonnull
 	private static HttpResponse createAuthenticationErrorResponseAndCloseChannel(
@@ -192,14 +273,23 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 		return responseBuilder.header("Connection", "close").build();
 	}
 
+	@Nonnull
+	private static WebSocket createAuthenticationErrorResponseAndCloseChannel(
+		@Nonnull ServiceRequestContext ctx,
+		@Nonnull Supplier<WebSocket> webSocketBuilder
+	) {
+		ctx.initiateConnectionShutdown();
+		return webSocketBuilder.get();
+	}
+
 	/**
 	 * Retrieves a set of allowed client X509 certificates from the specified paths defined in the mTLS configuration.
 	 * This method processes each path, verifies its validity, and loads the certificate if it is in the correct format.
 	 *
-	 * @param mtlsConfig The mTLS configuration containing the list of paths to client certificates that should be allowed.
+	 * @param mtlsConfig          The mTLS configuration containing the list of paths to client certificates that should be allowed.
 	 * @param certificateSettings The certificate settings that provide the folder path where the certificates are stored.
 	 * @return A set of X509 certificates corresponding to the valid paths specified in the mTLS configuration.
-	 *         These certificates represent the clients that are allowed to connect to the server.
+	 * These certificates represent the clients that are allowed to connect to the server.
 	 * @throws GenericEvitaInternalError if there is an error loading any of the certificates from the specified paths.
 	 */
 	@Nonnull
@@ -207,26 +297,24 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 		@Nonnull MtlsConfiguration mtlsConfig,
 		@Nonnull CertificateOptions certificateSettings
 	) {
-		final Set<Certificate> certificates = CollectionUtils.createHashSet(mtlsConfig.allowedClientCertificatePaths().size());
+		final Set<Certificate> certificates = CollectionUtils.createHashSet(
+			mtlsConfig.allowedClientCertificatePaths().size());
 
 		try {
-			mtlsConfig.allowedClientCertificatePaths().stream()
-				.filter(Objects::nonNull)
-				.filter(path -> path.endsWith(CertificateUtils.CERTIFICATE_EXTENSION))
-				.forEach(certPath -> {
-					final String certificatePath = certificateSettings.folderPath() + certPath;
-					try (FileInputStream fis = new FileInputStream(certificatePath)) {
-						final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-						final X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
-						certificates.add(cert);
-					} catch (Exception e) {
-						throw new GenericEvitaInternalError(
-							"Failed to load certificate.",
-							"Failed to load certificate from " + certificatePath + ": " + e.getMessage(),
-							e
-						);
-					}
-				});
+			mtlsConfig.allowedClientCertificatePaths().stream().filter(Objects::nonNull).filter(
+				path -> path.endsWith(CertificateUtils.CERTIFICATE_EXTENSION)).forEach(certPath -> {
+				final String certificatePath = certificateSettings.folderPath() + certPath;
+				try (FileInputStream fis = new FileInputStream(certificatePath)) {
+					final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+					final X509Certificate cert = (X509Certificate) certFactory.generateCertificate(fis);
+					certificates.add(cert);
+				} catch (Exception e) {
+					throw new GenericEvitaInternalError(
+						"Failed to load certificate.",
+						"Failed to load certificate from " + certificatePath + ": " + e.getMessage(), e
+					);
+				}
+			});
 		} catch (Exception e) {
 			throw new GenericEvitaInternalError("Error loading certificates: " + e.getMessage(), e);
 		}
@@ -294,7 +382,7 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 	 */
 	@Nonnull
 	private static String getSchemeErrorMessage(@Nullable String scheme) {
-        if (!SCHEME_HTTPS.equals(scheme)) {
+		if (!SCHEME_HTTPS.equals(scheme)) {
 			return "This endpoint requires TLS.";
 		}
 		return "This endpoint does not support TLS.";
@@ -303,14 +391,12 @@ public class HttpServiceSecurityDecorator extends SimpleDecoratingHttpService im
 	/**
 	 * Represents a host, port, and scheme combination.
 	 *
-	 * @param host the hostname
-	 * @param port the port number
+	 * @param host   the hostname
+	 * @param port   the port number
 	 * @param scheme the URI scheme (e.g., "http", "https")
 	 */
 	public record HostTriple(
-		@Nullable String host,
-		int port,
-		@Nullable String scheme
+		@Nullable String host, int port, @Nullable String scheme
 	) {
 
 		/**

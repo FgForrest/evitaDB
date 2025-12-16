@@ -24,15 +24,15 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation;
 
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.resolver.mutation.Input;
+import io.evitadb.externalApi.api.resolver.mutation.MutationConverter;
+import io.evitadb.externalApi.api.resolver.mutation.MutationObjectMapper;
+import io.evitadb.externalApi.api.resolver.mutation.MutationResolvingExceptionFactory;
 
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Converter for {@link EntityRemoveMutation}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

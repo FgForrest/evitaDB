@@ -32,13 +32,16 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.time.OffsetDateTime;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -98,15 +101,9 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 		return Void.class;
 	}
 
-	@Nonnull
-	@Override
-	public Stream<ConflictKey> getConflictKeys() {
-		return Stream.empty();
-	}
-
 	@Override
 	public void prepareContext(@Nonnull MutationPredicateContext context) {
-		context.setVersion(this.version, this.mutationCount);
+		context.setVersion(this.version, this.mutationCount, this.commitTimestamp);
 	}
 
 	@Nonnull
@@ -116,7 +113,7 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 		@Nonnull ChangeCaptureContent content
 	) {
 		final MutationPredicateContext context = predicate.getContext();
-		context.setVersion(this.version, this.mutationCount);
+		context.setVersion(this.version, this.mutationCount, this.commitTimestamp);
 		if (predicate.test(this)) {
 			return Stream.of(
 				ChangeCatalogCapture.infrastructureCapture(context, operation(), content == ChangeCaptureContent.BODY ? this : null)
@@ -124,6 +121,15 @@ public non-sealed class TransactionMutation implements EngineMutation<Void>, Cat
 		} else {
 			return Stream.empty();
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.empty();
 	}
 
 	@Override

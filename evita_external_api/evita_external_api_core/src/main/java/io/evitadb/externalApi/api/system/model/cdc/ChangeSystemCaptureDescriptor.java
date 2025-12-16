@@ -26,8 +26,6 @@ package io.evitadb.externalApi.api.system.model.cdc;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.cdc.ChangeCaptureDescriptor;
 
-import java.util.List;
-
 /**
  * Descriptor interface for system-wide Change Data Capture (CDC) events. Extends the base
  * {@link ChangeCaptureDescriptor} to define the structure of CDC events that occur at the
@@ -43,6 +41,12 @@ public interface ChangeSystemCaptureDescriptor extends ChangeCaptureDescriptor {
 		.description("""
             Record represents a system-wide CDC event that is sent to the subscriber if it matches to the request he made.
 			""")
-		.staticFields(List.of(VERSION, INDEX, OPERATION))
+		.staticProperty(VERSION)
+		.staticProperty(INDEX)
+		.staticProperty(OPERATION)
+		.build();
+	ObjectDescriptor THIS_GENERIC = ObjectDescriptor.from(THIS)
+		.name("GenericChangeSystemCapture")
+		.staticProperty(BODY_UNTYPED)
 		.build();
 }

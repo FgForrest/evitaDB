@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,16 +69,16 @@ import java.util.stream.Collectors;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-public class RemoveAttributeSchemaMutation implements
-	GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
+@EqualsAndHashCode(callSuper = true)
+public class RemoveAttributeSchemaMutation
+	extends AbstractAttributeSchemaMutation
+	implements GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 
 	@Serial private static final long serialVersionUID = 6927903538683404070L;
-	@Getter @Nonnull private final String name;
 
 	public RemoveAttributeSchemaMutation(@Nonnull String name) {
-		this.name = name;
+		super(name);
 	}
 
 	@Nullable

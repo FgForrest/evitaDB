@@ -23,14 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationInputAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalEntitySchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -42,28 +42,39 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface ModifyEntitySchemaMutationDescriptor extends MutationDescriptor {
 
-	PropertyDescriptor ENTITY_TYPE = PropertyDescriptor.builder()
-		.name("entityType")
+	PropertyDescriptor NAME = PropertyDescriptor.builder()
+		.name("name")
 		.description("""
-            Entity type of entity schema that will be affected by passed mutations.
+			Entity type of entity schema that will be affected by passed mutations.
 			""")
 		.type(nonNull(String.class))
 		.build();
-	// todo lho input version
 	PropertyDescriptor SCHEMA_MUTATIONS = PropertyDescriptor.builder()
 		.name("schemaMutations")
 		.description("""
             Collection of mutations that should be applied on current version of the schema.
 			""")
-		.type(nonNullListRef(EntitySchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullListRef(LocalEntitySchemaMutationUnionDescriptor.THIS))
+		.build();
+	PropertyDescriptor SCHEMA_MUTATIONS_INPUT = PropertyDescriptor.builder()
+		.name("schemaMutations")
+		.description("""
+            Collection of mutations that should be applied on current version of the schema.
+			""")
+		.type(nonNullListRef(LocalEntitySchemaMutationInputAggregateDescriptor.THIS_INPUT))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ModifyEntitySchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(ModifyEntitySchemaMutation.class)
 		.description("""
 			Mutation is a holder for a set of `EntitySchemaMutation` that affect a single entity schema within
 			the `CatalogSchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, ENTITY_TYPE, SCHEMA_MUTATIONS))
+		.staticProperty(NAME)
+		.staticProperty(SCHEMA_MUTATIONS)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("ModifyEntitySchemaMutationInput")
+		.staticProperty(SCHEMA_MUTATIONS_INPUT) // overrides inherited SCHEMA_MUTATIONS
 		.build();
 }

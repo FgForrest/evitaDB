@@ -37,11 +37,9 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
-import java.util.Set;
 
 /**
  * This mock object is used in tests to provide container object without necessity to load them from persistent data
@@ -57,8 +55,9 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	private ReferencesStoragePart referencesStorageContainer;
 	private PricesStoragePart pricesStorageContainer;
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
-	@Getter private final Set<Locale> addedLocales = new HashSet<>();
-	@Getter private final Set<Locale> removedLocales = new HashSet<>();
+	@Getter private final LocaleWithScope[] addedLocales = new LocaleWithScope[0];
+	@Getter private final LocaleWithScope[] removedLocales = new LocaleWithScope[0];
+	@Getter private int localesIdentityHash;
 
 	@Override
 	public boolean isEntityRemovedEntirely() {

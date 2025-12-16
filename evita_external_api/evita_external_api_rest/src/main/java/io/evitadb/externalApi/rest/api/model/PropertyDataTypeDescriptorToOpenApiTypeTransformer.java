@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.model;
 
-import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
+import io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
@@ -69,8 +69,8 @@ public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements Prope
 					primitiveType.nonNull()
 				);
 			}
-		} else if (typeDescriptor instanceof ObjectPropertyDataTypeDescriptor objectType) {
-			OpenApiSimpleType openApiType = typeRefTo(objectType.objectReference().name());
+		} else if (typeDescriptor instanceof TypePropertyDataTypeDescriptor objectType) {
+			OpenApiSimpleType openApiType = typeRefTo(objectType.typeReference().name());
 			if (objectType.list()) {
 				openApiType = arrayOf(openApiType);
 			}

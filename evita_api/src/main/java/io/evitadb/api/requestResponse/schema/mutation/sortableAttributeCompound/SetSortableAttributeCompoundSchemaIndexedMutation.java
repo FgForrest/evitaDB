@@ -60,19 +60,18 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetSortableAttributeCompoundSchemaIndexedMutation
+	extends AbstractSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = 3555872852091050565L;
-
-	@Nonnull @Getter private final String name;
 	@Nonnull @Getter private final Scope[] indexedInScopes;
 
 	public SetSortableAttributeCompoundSchemaIndexedMutation(
 		@Nonnull String name,
 		@Nullable Scope[] indexedInScopes
 	) {
-		this.name = name;
+		super(name);
 		this.indexedInScopes = indexedInScopes == null ? Scope.NO_SCOPE : indexedInScopes;
 	}
 

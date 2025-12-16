@@ -40,7 +40,6 @@ import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundS
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -63,15 +62,14 @@ import java.util.stream.Collectors;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class RemoveSortableAttributeCompoundSchemaMutation
+	extends AbstractSortableAttributeCompoundSchemaMutation
 	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = 7583003492609737038L;
 
-	@Getter @Nonnull private final String name;
-
 	public RemoveSortableAttributeCompoundSchemaMutation(@Nonnull String name) {
-		this.name = name;
+		super(name);
 	}
 
 	@Nullable

@@ -78,12 +78,11 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-public class CreateAttributeSchemaMutation
+@EqualsAndHashCode(callSuper = true)
+public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutation
 	implements ReferenceAttributeSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
 	@Serial private static final long serialVersionUID = -469815390440407270L;
 
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final ScopedAttributeUniquenessType[] uniqueInScopes;
@@ -139,11 +138,11 @@ public class CreateAttributeSchemaMutation
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
 		}
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.uniqueInScopes = uniqueInScopes == null ?

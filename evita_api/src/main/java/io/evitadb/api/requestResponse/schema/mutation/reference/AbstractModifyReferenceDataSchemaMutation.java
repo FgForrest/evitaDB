@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -47,11 +45,14 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-@AllArgsConstructor
-abstract class AbstractModifyReferenceDataSchemaMutation implements ReferenceSchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+abstract class AbstractModifyReferenceDataSchemaMutation extends AbstractReferenceDataSchemaMutation
+	implements ReferenceSchemaMutation {
 	@Serial private static final long serialVersionUID = 3160594356938000407L;
-	@Getter @Nonnull protected final String name;
+
+	AbstractModifyReferenceDataSchemaMutation(@Nonnull String name) {
+		super(name);
+	}
 
 	@Nonnull
 	@Override

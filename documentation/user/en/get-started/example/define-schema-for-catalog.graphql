@@ -3,12 +3,12 @@ mutation {
     mutations: [
       {
         createEntitySchemaMutation: {
-          entityType: "Brand"
+          name: "Brand"
         }
       },
       {
         modifyEntitySchemaMutation: {
-          entityType: "Brand"
+          name: "Brand"
           schemaMutations: [
             {
               modifyEntitySchemaDescriptionMutation: {
@@ -39,12 +39,12 @@ mutation {
       },
       {
         createEntitySchemaMutation: {
-          entityType: "Category"
+          name: "Category"
         }
       },
       {
         modifyEntitySchemaMutation: {
-          entityType: "Category"
+          name: "Category"
           schemaMutations: [
             {
               modifyEntitySchemaDescriptionMutation: {
@@ -74,10 +74,12 @@ mutation {
       }
       {
         createEntitySchemaMutation: {
-          entityType: "Product"
+          name: "Product"
         }
+      },
+      {
         modifyEntitySchemaMutation: {
-          entityType: "Product"
+          name: "Product"
           schemaMutations: [
             {
               modifyEntitySchemaDescriptionMutation: {

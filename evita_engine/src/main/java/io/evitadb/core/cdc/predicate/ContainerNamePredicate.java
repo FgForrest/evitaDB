@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,14 +23,18 @@
 
 package io.evitadb.core.cdc.predicate;
 
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.NamedLocalMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -49,7 +53,19 @@ public class ContainerNamePredicate extends MutationPredicate {
 
 	@Override
 	public boolean test(Mutation mutation) {
-		return !(mutation instanceof NamedLocalMutation<?, ?> localMutation) ||
-			this.classifierName.contains(localMutation.containerName());
+		if (mutation instanceof NamedLocalMutation<?, ?> namedMutation) {
+			return this.classifierName.contains(namedMutation.containerName());
+		} else if (mutation instanceof NamedSchemaMutation namedMutation) {
+			return this.classifierName.contains(namedMutation.containerName());
+		} else if (mutation instanceof EntityMutation em) {
+			final List<? extends LocalMutation<?, ?>> localMutations = em.getLocalMutations();
+			for (LocalMutation<?, ?> localMutation : localMutations) {
+				if (localMutation instanceof NamedLocalMutation<?, ?> namedMutation &&
+					this.classifierName.contains(namedMutation.containerName())) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 }

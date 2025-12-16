@@ -24,10 +24,9 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.mutation.entity.AllowEvolutionModeInEntitySchemaMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
@@ -50,12 +49,15 @@ public interface AllowEvolutionModeInEntitySchemaMutationDescriptor extends Enti
 		.type(nonNull(EvolutionMode[].class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("AllowEvolutionModeInEntitySchemaMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(AllowEvolutionModeInEntitySchemaMutation.class)
 		.description("""
 			Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode`
 			in `EntitySchema`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, EVOLUTION_MODES))
+		.staticProperty(EVOLUTION_MODES)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("AllowEvolutionModeInEntitySchemaMutationInput")
 		.build();
 }

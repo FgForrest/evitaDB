@@ -101,13 +101,6 @@ public class DataApiNamesConstructor {
 	}
 
 	@Nonnull
-	public static String constructReferenceAttributesObjectName(@Nonnull EntitySchemaContract entitySchema,
-	                                                            @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                            boolean localized) {
-		return AttributesDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
-	}
-
-	@Nonnull
 	public static String constructEntityFullResponseObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return ResponseDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}

@@ -24,10 +24,14 @@
 package io.evitadb.core.query.sort.primaryKey.translator;
 
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
+import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.primaryKey.ExactSorter;
+import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyExactComparator;
+import io.evitadb.core.query.sort.primaryKey.sorter.ExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;
 import java.util.stream.Stream;
@@ -37,12 +41,25 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class EntityPrimaryKeyExactTranslator implements OrderingConstraintTranslator<EntityPrimaryKeyExact> {
+public class EntityPrimaryKeyExactTranslator
+	implements OrderingConstraintTranslator<EntityPrimaryKeyExact>,
+	ReferenceOrderingConstraintTranslator<EntityPrimaryKeyExact> {
 
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyExact entityPrimaryKeyExact, @Nonnull OrderByVisitor orderByVisitor) {
 		return Stream.of(new ExactSorter(entityPrimaryKeyExact.getPrimaryKeys()));
+	}
+
+	@Override
+	public void createComparator(
+		@Nonnull EntityPrimaryKeyExact entityPrimaryKeyExact,
+		@Nonnull ReferenceOrderByVisitor orderByVisitor
+	) {
+		ReferenceComparator comparator = new ReferencePrimaryKeyExactComparator(entityPrimaryKeyExact.getPrimaryKeys());
+
+		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
+		orderByVisitor.addComparator(comparator);
 	}
 
 }

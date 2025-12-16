@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.resolver;
 
 import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -70,6 +71,16 @@ public class SelectionSetAggregator {
 	}
 
 	/**
+	 * Creates wrapper without filtering of fields. Functions same as original {@link DataFetchingFieldSelectionSet}.
+	 */
+	public static SelectionSetAggregator fromFields(@Nonnull List<SelectedField> originalSelectedFields) {
+		final List<DataFetchingFieldSelectionSet> originalSelectionSets = originalSelectedFields.stream()
+			.map(SelectedField::getSelectionSet)
+			.toList();
+		return new SelectionSetAggregator(null, originalSelectionSets, null);
+	}
+
+	/**
 	 * Creates wrapper with filtering of fields of original {@link DataFetchingFieldSelectionSet} to fields for
 	 * {@code entityDtoObjectTypeName}.
 	 */
@@ -100,8 +111,10 @@ public class SelectionSetAggregator {
 	public boolean containsImmediate(@Nonnull String fieldNamePattern) {
 		if (this.originalSelectionSet != null) {
 			return containsImmediate(fieldNamePattern, this.originalSelectionSet, this.entityDtoObjectTypeName);
-		} else {
+		} else if (this.originalSelectionSets != null) {
 			return containsImmediate(fieldNamePattern, this.originalSelectionSets, this.entityDtoObjectTypeName);
+		} else {
+			throw new GraphQLQueryResolvingInternalError("Both originalSelectionSet and originalSelectionSets are null!");
 		}
 	}
 
@@ -112,8 +125,10 @@ public class SelectionSetAggregator {
 	public List<SelectedField> getImmediateFields() {
 		if (this.originalSelectionSet != null) {
 			return getImmediateFields(this.originalSelectionSet, this.entityDtoObjectTypeName);
-		} else {
+		} else if (this.originalSelectionSets != null) {
 			return getImmediateFields(this.originalSelectionSets, this.entityDtoObjectTypeName);
+		} else {
+			throw new GraphQLQueryResolvingInternalError("Both originalSelectionSet and originalSelectionSets are null!");
 		}
 	}
 
@@ -124,8 +139,10 @@ public class SelectionSetAggregator {
 	public List<SelectedField> getImmediateFields(@Nonnull String fieldName) {
 		if (this.originalSelectionSet != null) {
 			return getImmediateFields(fieldName, this.originalSelectionSet, this.entityDtoObjectTypeName);
-		} else {
+		} else if (this.originalSelectionSets != null) {
 			return getImmediateFields(fieldName, this.originalSelectionSets, this.entityDtoObjectTypeName);
+		} else {
+			throw new GraphQLQueryResolvingInternalError("Both originalSelectionSet and originalSelectionSets are null!");
 		}
 	}
 
@@ -136,8 +153,10 @@ public class SelectionSetAggregator {
 	public List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames) {
 		if (this.originalSelectionSet != null) {
 			return getImmediateFields(fieldNames, this.originalSelectionSet, this.entityDtoObjectTypeName);
-		} else {
+		} else if (this.originalSelectionSets != null) {
 			return getImmediateFields(fieldNames, this.originalSelectionSets, this.entityDtoObjectTypeName);
+		} else {
+			throw new GraphQLQueryResolvingInternalError("Both originalSelectionSet and originalSelectionSets are null!");
 		}
 	}
 
@@ -147,8 +166,10 @@ public class SelectionSetAggregator {
 	public boolean isEmpty() {
 		if (this.originalSelectionSet != null) {
 			return isEmpty(this.originalSelectionSet, this.entityDtoObjectTypeName);
-		} else {
+		} else if (this.originalSelectionSets != null) {
 			return isEmpty(this.originalSelectionSets, this.entityDtoObjectTypeName);
+		} else {
+			throw new GraphQLQueryResolvingInternalError("Both originalSelectionSet and originalSelectionSets are null!");
 		}
 	}
 

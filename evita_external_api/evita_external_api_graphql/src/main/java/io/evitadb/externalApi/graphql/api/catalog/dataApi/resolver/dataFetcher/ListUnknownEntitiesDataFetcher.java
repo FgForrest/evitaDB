@@ -73,15 +73,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -128,8 +120,9 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         this.allPossibleLocales = allPossibleLocales;
 
         this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
-        this.entityDtoObjectTypeNameByEntityType = createHashMap(catalogSchema.getEntitySchemas().size());
-        catalogSchema.getEntitySchemas().forEach(entitySchema -> this.entityDtoObjectTypeNameByEntityType.put(
+	    final Collection<EntitySchemaContract> entitySchemas = catalogSchema.getEntitySchemas();
+	    this.entityDtoObjectTypeNameByEntityType = createHashMap(entitySchemas.size());
+        entitySchemas.forEach(entitySchema -> this.entityDtoObjectTypeNameByEntityType.put(
             entitySchema.getName(),
             entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION)
         ));
@@ -306,7 +299,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         return Optional.of(
             entityFetch
                 .map(EntityFetch::getRequirements)
-                .orElse(new EntityContentRequire[0])
+                .orElse(EntityContentRequire.EMPTY_ARRAY)
         );
     }
 

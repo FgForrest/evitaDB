@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -31,6 +32,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PlainChunk;
+import io.evitadb.function.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,7 +46,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface ReferenceFetcher {
+public interface ReferenceFetcher extends ReferenceSetFetcher {
 	ReferenceFetcher NO_IMPLEMENTATION = new ReferenceFetcher() {
 
 		@Nonnull
@@ -71,16 +73,16 @@ public interface ReferenceFetcher {
 			return null;
 		}
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return null;
+			return Functions.noOpFunction();
 		}
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-			return null;
+			return Functions.noOpFunction();
 		}
 
 		@Nonnull
@@ -99,6 +101,12 @@ public interface ReferenceFetcher {
 		@Override
 		public DataChunk<ReferenceContract> createChunk(@Nonnull Entity entity, @Nonnull String referenceName, @Nonnull List<ReferenceContract> references) {
 			return new PlainChunk<>(references);
+		}
+
+		@Nullable
+		@Override
+		public AttributeContent getAttributeContentToPrefetch(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return null;
 		}
 	};
 
@@ -155,38 +163,6 @@ public interface ReferenceFetcher {
 	Function<Integer, EntityClassifierWithParent> getParentEntityFetcher();
 
 	/**
-	 * Creates a fetcher lambda that for passed referenced entity primary key fetches the rich form of the entity.
-	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
-	 * If none the init methods is not called, the exception is thrown.
-	 */
-	@Nullable
-	Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema);
-
-	/**
-	 * Creates a fetcher lambda that for passed referenced entity group primary key fetches the rich form of the entity.
-	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
-	 * If none the init methods is not called, the exception is thrown.
-	 */
-	@Nullable
-	Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema);
-
-	/**
-	 * Creates a comparator that orders the references according to requirements.
-	 * The comparator is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
-	 *
-	 * @return null if the references should remain in the order they were fetched
-	 */
-	@Nullable
-	ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema);
-
-	/**
-	 * Returns FALSE if the entity should contain references with empty {@link ReferenceDecorator#getReferencedEntity()}.
-	 * The predicate is created during `initReferenceIndex` methods invocation, and takes advantage of the indexes.
-	 */
-	@Nullable
-	BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema);
-
-	/**
 	 * Returns evita request that should be used to fetch top-level (enveloping) entity. The request may contain
 	 * extended requirements so that the comparators have all the necessary data.
 	 *
@@ -194,21 +170,5 @@ public interface ReferenceFetcher {
 	 */
 	@Nonnull
 	EvitaRequest getEnvelopingEntityRequest();
-
-	/**
-	 * Creates a chunk of data containing reference contracts. This method processes the provided entity,
-	 * the name of the reference, and a list of reference contracts to produce a structured data chunk.
-	 *
-	 * @param entity the entity containing reference information
-	 * @param referenceName the name of the reference being processed
-	 * @param references the list of references to be included in the data chunk
-	 * @return a data chunk containing the specified reference contracts
-	 */
-	@Nonnull
-	DataChunk<ReferenceContract> createChunk(
-		@Nonnull Entity entity,
-		@Nonnull String referenceName,
-		@Nonnull List<ReferenceContract> references
-	);
 
 }

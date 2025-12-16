@@ -32,7 +32,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.UnusableCatalog;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.HeaderOptions;
-import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.SystemRestRefreshingObserver;
@@ -140,18 +139,9 @@ public class RestManager {
 		);
 	}
 
-	/**
-	 * Determines whether the current {@code io.evitadb.externalApi.rest.RestManager} instance has been fully initialized.
-	 *
-	 * @return {@code true} if the initialization process is complete, otherwise {@code false}.
-	 */
-	public boolean isFullyInitialized() {
-		return this.fullyInitialized.isDone();
-	}
-
 	@Nonnull
 	public HttpService getRestRouter() {
-		return this.restRouter.decorate(PathNormalizingHandler::new);
+		return this.restRouter;
 	}
 
 	/**

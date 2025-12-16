@@ -51,7 +51,7 @@ import io.evitadb.core.query.policy.PrefetchFavouringNoCachePolicy;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.primaryKey.TranslatedPrimaryKeySorter;
+import io.evitadb.core.query.sort.primaryKey.sorter.TranslatedPrimaryKeySorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.Index;

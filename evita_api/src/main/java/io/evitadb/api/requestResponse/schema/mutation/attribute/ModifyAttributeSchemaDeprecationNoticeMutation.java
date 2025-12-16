@@ -64,16 +64,16 @@ import java.util.Objects;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class ModifyAttributeSchemaDeprecationNoticeMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final String deprecationNotice;
 
 	public ModifyAttributeSchemaDeprecationNoticeMutation(@Nonnull String name, @Nullable String deprecationNotice) {
-		this.name = name;
+		super(name);
 		this.deprecationNotice = deprecationNotice;
 	}
 

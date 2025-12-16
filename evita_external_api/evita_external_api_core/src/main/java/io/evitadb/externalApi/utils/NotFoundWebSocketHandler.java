@@ -33,7 +33,10 @@ import io.evitadb.externalApi.http.WebSocketHandler;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Ready to use WebSocket handler for not found requests.
+ * Because the {@link io.evitadb.externalApi.http.WebSocketEnablingService} sits at root and doesn't know if the WebSocket
+ * handler at a specified path exists, this handler is used to close the connection with a somewhat proper error code when
+ * the information is known.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

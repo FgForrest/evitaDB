@@ -58,7 +58,8 @@ import java.util.Optional;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode(callSuper = true)
-public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyReferenceDataSchemaMutation
+public class ModifyReferenceAttributeSchemaMutation
+	extends AbstractModifyReferenceDataSchemaMutation
 	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -5779012919587623154L;
 	@Nonnull @Getter private final ReferenceAttributeSchemaMutation attributeSchemaMutation;
@@ -99,7 +100,7 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 					} else {
 						current = Arrays.stream(result.current())
 							.map(it -> {
-								if (it == ((ModifyReferenceAttributeSchemaMutation) existingMutation).getAttributeSchemaMutation()) {
+								if (it == theExistingMutation.getAttributeSchemaMutation()) {
 									return existingMutation;
 								} else {
 									return new ModifyReferenceAttributeSchemaMutation(this.name, (ReferenceAttributeSchemaMutation) it);
@@ -143,6 +144,12 @@ public class ModifyReferenceAttributeSchemaMutation extends AbstractModifyRefere
 			Assert.isPremiseValid(updatedSchema != null, "Updated reference schema is not expected to be null!");
 			return replaceReferenceSchema(entitySchema, theSchema, updatedSchema);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return super.containerName() + "." + this.attributeSchemaMutation.containerName();
 	}
 
 	@Override

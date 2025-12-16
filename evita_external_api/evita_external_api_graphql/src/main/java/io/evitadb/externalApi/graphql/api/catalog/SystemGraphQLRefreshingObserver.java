@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog;
 
+import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
@@ -102,6 +103,9 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 				// if the catalog schema is removed, we need to unregister it
 				this.graphQLManager.unregisterCatalog(remove.getCatalogName());
 			}
+		} catch (CatalogGoingLiveException ignored) {
+			// catalog is going live, we cannot update its GraphQL schema now
+			// but we will get another notification after the catalog is live
 		} catch (Throwable throwable) {
 			log.error("Failed to update GraphQL schema in reaction to schema capture: {}", item, throwable);
 		} finally {

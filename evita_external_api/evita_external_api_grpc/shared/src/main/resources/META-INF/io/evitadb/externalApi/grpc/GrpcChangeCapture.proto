@@ -10,6 +10,7 @@ import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
 import "GrpcInfrastrutureMutation.proto";
+import "GrpcEvitaDataTypes.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
@@ -33,6 +34,8 @@ message GrpcChangeCaptureSchemaSite {
   repeated GrpcChangeCaptureOperation operation = 2;
   // the name of the intercepted container type
   repeated GrpcChangeCaptureContainerType containerType = 3;
+  // the name of the container (e.g. attribute name, associated data name, reference name)
+  repeated string containerName = 4;
 }
 
 // Record describing the location and form of the CDC data event in the evitaDB that should be captured.
@@ -72,6 +75,8 @@ message GrpcChangeCatalogCapture {
     GrpcLocalMutation localMutation = 9;
     GrpcInfrastructureMutation infrastructureMutation = 10;
   }
+  // Represents the timestamp of the commit.
+  GrpcOffsetDateTime timestamp = 99;
 }
 
 // Record represents a system CDC event that is sent to the subscriber if it matches to the request he made.
@@ -84,6 +89,8 @@ message GrpcChangeSystemCapture {
   GrpcChangeCaptureOperation operation = 3;
   // optional body of the operation when it is requested by the GrpcContent
   GrpcEngineMutation systemMutation = 4;
+  // Represents the timestamp of the commit.
+  GrpcOffsetDateTime timestamp = 5;
 }
 
 // The enum defines what catalog area is covered by the capture.

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,6 +66,6 @@ public interface EntityUpsertRequestDescriptor {
 		.description("""
 			Inserts/updates single entity with passed mutations and returns the entities.
 			""")
-		.staticFields(List.of(ENTITY_EXISTENCE))
+		.staticProperties(List.of(ENTITY_EXISTENCE))
 		.build();
 }

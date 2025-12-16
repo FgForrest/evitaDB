@@ -47,8 +47,8 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator;
-import io.evitadb.core.query.sort.entity.EntityNestedQueryComparator.EntityPropertyWithScopes;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -224,7 +224,8 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 										     filterByVisitor::getGlobalEntityIndexIfExists,
 										     it,
 										     nestedResult.filter(),
-										     processingScope.getScopes()
+										     processingScope.getScopes(),
+										     processingScope.getReferencedEntityExpansionFunction()
 									     )
 									)
 									.toArray(Formula[]::new)

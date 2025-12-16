@@ -31,10 +31,8 @@ import javax.annotation.Nullable;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for WriteAheadLogVersionDescriptor and its nested interfaces.
@@ -47,7 +45,7 @@ class WriteAheadLogVersionDescriptorTest {
 	private record TxChange(
 		OffsetDateTime commitTimestamp,
 		int mutationCount,
-		long mutationSizeInBytes
+		long walSizeInBytes
 	) implements WriteAheadLogVersionDescriptor.TransactionChanges {
 		@Override
 		@Nonnull
@@ -55,37 +53,13 @@ class WriteAheadLogVersionDescriptorTest {
 			final Duration lag = processedTimestamp == null ? Duration.ZERO :
 				processingLag(processedTimestamp);
 			return "TxChange(commit=" + this.commitTimestamp + ", cnt=" + this.mutationCount +
-				", size=" + this.mutationSizeInBytes + ", lag=" + lag.toMillis() + ")";
+				", size=" + this.walSizeInBytes + ", lag=" + lag.toMillis() + ")";
 		}
 
 		@Override
 		@Nonnull
 		public OffsetDateTime commitTimestamp() {
 			return this.commitTimestamp;
-		}
-	}
-
-	/**
-	 * Simple container for testing aggregation and string formatting.
-	 */
-	private static final class TxContainer
-		implements WriteAheadLogVersionDescriptor.TransactionChangesContainer<TxChange> {
-		private final TxChange[] changes;
-
-		private TxContainer(final TxChange... changes) {
-			this.changes = changes;
-		}
-
-		@Override
-		@Nonnull
-		public TxChange[] getTransactionChanges() {
-			return this.changes;
-		}
-
-		@Override
-		public String toString() {
-			return "Container(totalBytes=" + mutationSizeInBytes() +
-				", totalMutations=" + mutationCount() + ")";
 		}
 	}
 
@@ -100,52 +74,6 @@ class WriteAheadLogVersionDescriptorTest {
 
 		assertEquals(Duration.ofMinutes(5).plusSeconds(30), lag,
 			"Processing lag must be the difference between processed and commit timestamps");
-	}
-
-	@Test
-	@DisplayName("shouldSumMutationCountAndSizeInContainer")
-	void shouldSumMutationCountAndSizeInContainer() {
-		final TxChange tx1 = new TxChange(nowFixed().minusMinutes(1), 3, 100);
-		final TxChange tx2 = new TxChange(nowFixed(), 2, 250);
-		final TxContainer container = new TxContainer(tx1, tx2);
-
-		assertEquals(5, container.mutationCount(), "Mutation count should be summed over all txs");
-		assertEquals(350L, container.mutationSizeInBytes(),
-			"Mutation size should be summed over all txs");
-	}
-
-	@Test
-	@DisplayName("shouldReturnZeroCountsWhenNoTransactionsInContainer")
-	void shouldReturnZeroCountsWhenNoTransactionsInContainer() {
-		final TxContainer container = new TxContainer();
-		assertEquals(0, container.mutationCount(), "Empty container should have zero mutations");
-		assertEquals(0L, container.mutationSizeInBytes(),
-			"Empty container should have zero mutation size");
-	}
-
-	@Test
-	@DisplayName("shouldFormatToStringWithVersionTimestampAndTransactionCount")
-	void shouldFormatToStringWithVersionTimestampAndTransactionCount() {
-		final OffsetDateTime processed = OffsetDateTime.of(2025, 8, 20, 12, 34, 56, 0,
-			ZoneOffset.ofHours(2));
-		final TxContainer container = new TxContainer(
-			new TxChange(processed.minusSeconds(10), 1, 10),
-			new TxChange(processed.minusSeconds(20), 2, 20)
-		);
-		final WriteAheadLogVersionDescriptor descriptor = new WriteAheadLogVersionDescriptor(
-			42L, processed, container
-		);
-
-		final String s = descriptor.toString();
-		final String formattedTs = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(processed);
-
-		assertTrue(s.contains("Catalog version: 42"), "Version should be present in toString");
-		assertTrue(s.contains("processed at " + formattedTs),
-			"Processed timestamp should be formatted in ISO_OFFSET_DATE_TIME");
-		assertTrue(s.contains(" with 2 transactions "),
-			"Transaction count should match the number of provided transactions");
-		assertTrue(s.endsWith(container.toString()),
-			"toString should append container's toString output");
 	}
 
 	private static OffsetDateTime nowFixed() {

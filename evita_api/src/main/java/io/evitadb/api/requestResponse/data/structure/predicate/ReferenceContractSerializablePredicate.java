@@ -90,6 +90,67 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 */
 	@Nullable @Getter private final ReferenceContractSerializablePredicate underlyingPredicate;
 
+	/**
+	 * Creates a map of reference names to their associated attribute requests based on the entity fetch
+	 * requirements specified in the provided {@code EvitaRequest}.
+	 * Only unnamed references are processed; named references are ignored.
+	 *
+	 * @param evitaRequest the {@code EvitaRequest} containing details about the reference entity fetch requirements.
+	 * @return a map where the keys are reference names and the values are the associated {@code AttributeRequest} objects.
+	 */
+	@Nonnull
+	private static Map<String, AttributeRequest> getReferenceSet(@Nonnull EvitaRequest evitaRequest) {
+		return evitaRequest.getReferenceEntityFetch()
+			.entrySet()
+			.stream()
+			.collect(
+				Collectors.toMap(
+					Entry::getKey,
+					entry -> entry.getValue().attributeRequest()
+				)
+			);
+	}
+
+	/**
+	 * Merges two AttributeRequest objects. If either of the input requests is null,
+	 * the method returns the non-null request. If both requests are non-null, the method
+	 * combines their attribute sets and consolidates the entity attribute requirements.
+	 *
+	 * @param existingAttributeRequest the existing AttributeRequest to be merged.
+	 * @param newAttributeRequest      the new AttributeRequest to be merged.
+	 * @return a merged AttributeRequest that combines the attribute sets and entity attribute requirements
+	 * from the provided requests, or null if both inputs are null.
+	 */
+	@Nullable
+	private static AttributeRequest mergeAttributeRequests(
+		@Nullable AttributeRequest existingAttributeRequest,
+		@Nullable AttributeRequest newAttributeRequest
+	) {
+		final AttributeRequest mergedAttributeRequest;
+		if (existingAttributeRequest == null) {
+			mergedAttributeRequest = newAttributeRequest;
+		} else if (newAttributeRequest == null) {
+			mergedAttributeRequest = existingAttributeRequest;
+		} else {
+			final AttributeRequest attributeRequest;
+			if (existingAttributeRequest.isRequiresEntityAttributes() && existingAttributeRequest.attributeSet()
+				.isEmpty()) {
+				attributeRequest = existingAttributeRequest;
+			} else if (newAttributeRequest.isRequiresEntityAttributes() && newAttributeRequest.attributeSet()
+				.isEmpty()) {
+				attributeRequest = newAttributeRequest;
+			} else {
+				attributeRequest = new AttributeRequest(
+					CollectionUtils.combine(
+						existingAttributeRequest.attributeSet(), newAttributeRequest.attributeSet()),
+					existingAttributeRequest.isRequiresEntityAttributes() ||
+						newAttributeRequest.isRequiresEntityAttributes()
+				);
+			}
+			mergedAttributeRequest = attributeRequest;
+		}
+		return mergedAttributeRequest;
+	}
 
 	public ReferenceContractSerializablePredicate() {
 		this.requiresEntityReferences = true;
@@ -102,15 +163,25 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 
 	public ReferenceContractSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
-		this.referenceSet = evitaRequest.getReferenceEntityFetch()
-			.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Map.Entry::getKey,
-					entry -> entry.getValue().attributeRequest()
-				)
-			);
+		this.referenceSet = getReferenceSet(evitaRequest);
+		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
+			.map(RequirementContext::attributeRequest)
+			.orElse(null);
+		this.implicitLocale = evitaRequest.getImplicitLocale();
+		this.locales = evitaRequest.getRequiredLocales();
+		this.underlyingPredicate = null;
+	}
+
+	public ReferenceContractSerializablePredicate(
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull String referenceName,
+		@Nonnull RequirementContext requirementContext
+	) {
+		this.requiresEntityReferences = true;
+		this.referenceSet = Map.of(
+			referenceName,
+			requirementContext.attributeRequest()
+		);
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
@@ -139,15 +210,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 				"limited view -> complete view and never limited view -> limited view -> complete view."
 		);
 		this.requiresEntityReferences = evitaRequest.isRequiresEntityReferences();
-		this.referenceSet = evitaRequest.getReferenceEntityFetch()
-			.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Map.Entry::getKey,
-					entry -> entry.getValue().attributeRequest()
-				)
-			);
+		this.referenceSet = getReferenceSet(evitaRequest);
 		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
 			.map(RequirementContext::attributeRequest)
 			.orElse(null);
@@ -182,7 +245,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Returns true if the references of particular name were fetched along with the entity.
 	 */
 	public boolean wasFetched(@Nonnull String referenceName) {
-		return this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
+		return this.requiresEntityReferences &&
+			(this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName));
 	}
 
 	/**
@@ -198,7 +262,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Method verifies that the requested attribute was fetched with the entity.
 	 */
 	public void checkFetched(@Nonnull String referenceName) throws ContextMissingException {
-		if (!(this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(referenceName)))) {
+		if (!(this.requiresEntityReferences && (this.referenceSet.isEmpty() || this.referenceSet.containsKey(
+			referenceName)))) {
 			throw ContextMissingException.referenceContextMissing(referenceName);
 		}
 	}
@@ -220,7 +285,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 *
 	 * @param referenceName the name of the reference to check.
 	 * @return {@code true} if references are required and the reference name is either part of the set
-	 *         or the set is empty; {@code false} otherwise.
+	 * or the set is empty; {@code false} otherwise.
 	 */
 	public boolean isReferenceRequested(@Nonnull String referenceName) {
 		if (this.requiresEntityReferences) {
@@ -236,7 +301,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 *
 	 * @param evitaRequest the {@code EvitaRequest} containing additional requirements and state to merge into the new instance.
 	 * @return a new {@code ReferenceContractSerializablePredicate} instance that combines the state from the current instance
-	 *         with the requirements from the provided {@code EvitaRequest}.
+	 * with the requirements from the provided {@code EvitaRequest}.
 	 */
 	@Nonnull
 	public ReferenceContractSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
@@ -291,6 +356,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 
 	/**
 	 * Retrieves a predicate that includes all attributes for the reference.
+	 *
 	 * @return a {@code ReferenceAttributeValueSerializablePredicate} configured to include all attributes.
 	 */
 	@Nonnull
@@ -335,66 +401,23 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		final Map<String, AttributeRequest> requiredReferences;
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		if (!this.requiresEntityReferences) {
-			requiredReferences = referenceEntityFetch
-				.entrySet()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Map.Entry::getKey,
-						entry -> entry.getValue().attributeRequest()
-					)
-				);
+			requiredReferences = getReferenceSet(evitaRequest);
 		} else if (evitaRequest.isRequiresEntityReferences()) {
 			requiredReferences = new HashMap<>(this.referenceSet.size() + referenceEntityFetch.size());
 			requiredReferences.putAll(this.referenceSet);
 			for (Entry<String, RequirementContext> newEntry : referenceEntityFetch.entrySet()) {
-				final AttributeRequest existingAttributeRequest = requiredReferences.get(newEntry.getKey());
+				final String referenceName = newEntry.getKey();
+				final AttributeRequest existingAttributeRequest = requiredReferences.get(referenceName);
 				final AttributeRequest newAttributeRequest = newEntry.getValue().attributeRequest();
-				final AttributeRequest mergedAttributeRequest = mergeAttributeRequests(existingAttributeRequest, newAttributeRequest);
-				requiredReferences.put(newEntry.getKey(), mergedAttributeRequest);
+				final AttributeRequest mergedAttributeRequest = mergeAttributeRequests(
+					existingAttributeRequest, newAttributeRequest
+				);
+				requiredReferences.put(referenceName, mergedAttributeRequest);
 			}
 		} else {
 			requiredReferences = this.referenceSet;
 		}
 		return requiredReferences;
-	}
-
-	/**
-	 * Merges two AttributeRequest objects. If either of the input requests is null,
-	 * the method returns the non-null request. If both requests are non-null, the method
-	 * combines their attribute sets and consolidates the entity attribute requirements.
-	 *
-	 * @param existingAttributeRequest the existing AttributeRequest to be merged.
-	 * @param newAttributeRequest the new AttributeRequest to be merged.
-	 * @return a merged AttributeRequest that combines the attribute sets and entity attribute requirements
-	 *         from the provided requests, or null if both inputs are null.
-	 */
-	@Nullable
-	private static AttributeRequest mergeAttributeRequests(
-		@Nullable AttributeRequest existingAttributeRequest,
-		@Nullable AttributeRequest newAttributeRequest
-	) {
-		final AttributeRequest mergedAttributeRequest;
-		if (existingAttributeRequest == null) {
-			mergedAttributeRequest = newAttributeRequest;
-		} else if (newAttributeRequest == null) {
-			mergedAttributeRequest = existingAttributeRequest;
-		} else {
-			final AttributeRequest attributeRequest;
-			if (existingAttributeRequest.isRequiresEntityAttributes() && existingAttributeRequest.attributeSet().isEmpty()) {
-				attributeRequest = existingAttributeRequest;
-			} else if (newAttributeRequest.isRequiresEntityAttributes() && newAttributeRequest.attributeSet().isEmpty()) {
-				attributeRequest = newAttributeRequest;
-			} else {
-				attributeRequest = new AttributeRequest(
-					CollectionUtils.combine(existingAttributeRequest.attributeSet(), newAttributeRequest.attributeSet()),
-					existingAttributeRequest.isRequiresEntityAttributes() ||
-						newAttributeRequest.isRequiresEntityAttributes()
-				);
-			}
-			mergedAttributeRequest = attributeRequest;
-		}
-		return mergedAttributeRequest;
 	}
 
 	/**

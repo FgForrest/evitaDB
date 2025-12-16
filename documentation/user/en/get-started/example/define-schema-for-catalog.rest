@@ -4,12 +4,12 @@ PUT /rest/evita/schema
   "mutations": [
     {
       "createEntitySchemaMutation": {
-        "entityType": "Brand"
+        "name": "Brand"
       }
     },
     {
       "modifyEntitySchemaMutation": {
-        "entityType": "Brand",
+        "name": "Brand",
         "schemaMutations": [
           {
             "modifyEntitySchemaDescriptionMutation": {
@@ -40,12 +40,12 @@ PUT /rest/evita/schema
     },
     {
       "createEntitySchemaMutation": {
-        "entityType": "Category"
+        "name": "Category"
       }
     },
     {
       "modifyEntitySchemaMutation": {
-        "entityType": "Category",
+        "name": "Category",
         "schemaMutations": [
           {
             "modifyEntitySchemaDescriptionMutation": {
@@ -75,10 +75,10 @@ PUT /rest/evita/schema
     },
     {
       "createEntitySchemaMutation": {
-        "entityType": "Product"
+        "name": "Product"
       },
       "modifyEntitySchemaMutation": {
-        "entityType": "Product",
+        "name": "Product",
         "schemaMutations": [
           {
             "modifyEntitySchemaDescriptionMutation": {

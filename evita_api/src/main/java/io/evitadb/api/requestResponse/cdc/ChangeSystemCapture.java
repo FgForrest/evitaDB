@@ -31,12 +31,14 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 
 /**
  * Record represents a CDC event that is sent to the subscriber if it matches to the request he made.
  *
  * @param version   the version of the evitaDB where the operation was performed
  * @param index     the index of the event within the enclosed block of operation, index 0 is the lead event of the process
+ * @param timestamp the timestamp when the operation was performed
  * @param operation the operation that was performed
  * @param body      optional body of the operation when it is requested by the {@link ChangeSystemCaptureRequest#content()}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
@@ -44,6 +46,7 @@ import javax.annotation.Nullable;
 public record ChangeSystemCapture(
 	long version,
 	int index,
+	@Nonnull OffsetDateTime timestamp,
 	@Nonnull Operation operation,
 	@Nullable EngineMutation<?> body
 ) implements ChangeCapture {
@@ -65,6 +68,7 @@ public record ChangeSystemCapture(
 		return new ChangeSystemCapture(
 			context.getVersion(),
 			context.getIndex(),
+			context.getTimestamp(),
 			operation,
 			mutation
 		);
@@ -86,6 +90,7 @@ public record ChangeSystemCapture(
 					new ChangeSystemCapture(
 						this.version,
 						this.index,
+						this.timestamp,
 						this.operation,
 						null
 					);

@@ -32,10 +32,9 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.utils.Assert;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,11 +52,15 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-@AllArgsConstructor
-public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+public class UseGlobalAttributeSchemaMutation
+	extends AbstractAttributeSchemaMutation
+	implements EntityAttributeSchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 1555098941604228716L;
-	@Nonnull @Getter private final String name;
+
+	public UseGlobalAttributeSchemaMutation(@Nonnull String name) {
+		super(name);
+	}
 
 	@Nullable
 	@Override

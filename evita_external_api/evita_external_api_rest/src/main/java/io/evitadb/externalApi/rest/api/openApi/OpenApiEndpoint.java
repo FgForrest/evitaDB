@@ -143,20 +143,20 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 		}
 
 		final ApiResponses responses = new ApiResponses();
-		if (this.successResponse != null) {
-			responses.addApiResponse(
-				STATUS_CODE_OK,
-				createResponse(
-					"Request was successful.",
-					this.successResponse
-				)
-			);
-		} else {
+		if (this.successResponse == null || this.successResponse instanceof OpenApiVoid) {
 			responses.addApiResponse(
 				STATUS_CODE_NO_CONTENT,
 				createResponse(
 					"Request was successful.",
 					null
+				)
+			);
+		} else {
+			responses.addApiResponse(
+				STATUS_CODE_OK,
+				createResponse(
+					"Request was successful.",
+					this.successResponse
 				)
 			);
 		}

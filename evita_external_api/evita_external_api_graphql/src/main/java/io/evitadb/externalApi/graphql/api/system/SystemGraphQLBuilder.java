@@ -45,8 +45,6 @@ import javax.annotation.Nonnull;
 public class SystemGraphQLBuilder implements GraphQLBuilder {
 
     @Nonnull
-    private final Evita evita;
-    @Nonnull
     private final GraphQLSchema graphQLSchema;
 
     @Override

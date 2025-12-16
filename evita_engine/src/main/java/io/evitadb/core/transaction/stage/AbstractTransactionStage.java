@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
+import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.utils.Assert;
@@ -49,7 +50,7 @@ import java.util.function.BiPredicate;
 @Slf4j
 public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	implements Flow.Subscriber<T>
-	permits ConflictResolutionTransactionStage, WalAppendingTransactionStage, TrunkIncorporationTransactionStage {
+	permits ConflictResolutionAndWalAppendingTransactionStage, TrunkIncorporationTransactionStage {
 
 	/**
 	 * Reference to transactional manager which is a singleton per catalog, and maintains
@@ -118,7 +119,10 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 	 * @param ex The exception that was thrown.
 	 */
 	protected void handleException(@Nonnull T task, @Nonnull Throwable ex) {
-		log.error("Error while processing {} task for catalog `{}`!", getName(), task.catalogName(), ex);
+		if (!(ex instanceof ConflictingCatalogMutationException)) {
+			// conflicting mutation exceptions are expected in some stages, and we should not log them as errors
+			log.error("Error while processing {} task for catalog `{}`!", getName(), task.catalogName(), ex);
+		}
 		task.commitProgress().completeExceptionally(ex);
 		this.onException.accept(task, ex);
 	}

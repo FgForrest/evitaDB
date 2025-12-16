@@ -34,7 +34,12 @@ public interface CatalogConsumersListener {
 	/**
 	 * Notifies listener that any active session no longer uses the catalog version.
 	 *
-	 * @param lastKnownMinimalActiveVersion minimal catalog version that is still being used
+	 * @param lastKnownMinimalActiveVersionRead minimal catalog version that is still being read from
+	 * @param lastKnownMinimalActiveVersionWritten minimal catalog version that is still being written on top of
 	 */
-	void consumersLeft(long lastKnownMinimalActiveVersion);
+	void catalogConsumersLeft(
+		long lastKnownMinimalActiveVersionRead,
+		long lastKnownMinimalActiveVersionWritten
+	);
+
 }

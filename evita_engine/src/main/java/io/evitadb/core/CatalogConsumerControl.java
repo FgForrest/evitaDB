@@ -24,6 +24,10 @@
 package io.evitadb.core;
 
 
+import io.evitadb.api.SessionTraits;
+
+import javax.annotation.Nonnull;
+
 /**
  * Interface allowing to exchange information that particular catalog version is being consumed by someone and signall
  * that is no longer necessary.
@@ -36,14 +40,16 @@ public interface CatalogConsumerControl {
 	 * Registers a session consuming catalog in the specified version.
 	 *
 	 * @param version the version of the catalog
+	 * @param traits the traits of the session consuming the catalog
 	 */
-	void registerConsumerOfCatalogInVersion(long version);
+	void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits);
 
 	/**
 	 * Unregisters a session that is consuming a catalog in the specified version.
 	 *
 	 * @param version the version of the catalog
+	 * @param traits the traits of the session that was consuming the catalog
 	 */
-	void unregisterConsumerOfCatalogInVersion(long version);
+	void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits);
 
 }

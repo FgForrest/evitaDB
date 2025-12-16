@@ -66,14 +66,14 @@ import java.util.Objects;
 @Immutable
 @EqualsAndHashCode
 public class ModifyAttributeSchemaDescriptionMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
-	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final String description;
 
 	public ModifyAttributeSchemaDescriptionMutation(@Nonnull String name, @Nullable String description) {
-		this.name = name;
+		super(name);
 		this.description = description;
 	}
 

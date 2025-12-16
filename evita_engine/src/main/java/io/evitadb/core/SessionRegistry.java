@@ -25,6 +25,7 @@ package io.evitadb.core;
 
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.api.exception.InstanceTerminatedException;
@@ -195,7 +196,9 @@ public final class SessionRegistry {
 			do {
 				final List<CompletableFuture<CommitVersions>> futures = new ArrayList<>(this.activeSessions.size());
 				for (EvitaSessionTuple sessionTuple : this.activeSessions.values()) {
+					//noinspection resource
 					final EvitaSession plainSession = sessionTuple.plainSession();
+					//noinspection resource
 					final EvitaInternalSessionContract proxySession = sessionTuple.proxySession();
 					if (proxySession.isActive()) {
 						proxySession
@@ -207,7 +210,7 @@ public final class SessionRegistry {
 											plainSession.setRollbackOnly();
 										}
 										final UUID sessionId = plainSession.getId();
-										log.info("There is still active session {} - terminating.", sessionId);
+										log.info("There is still an active session {} - terminating.", sessionId);
 										suspensionInformation.addForcefullyClosedSession(sessionId);
 										futures.add(
 											plainSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE)
@@ -295,7 +298,7 @@ public final class SessionRegistry {
 					this.activeSessions.put(newSession.getId(), sessionTuple);
 					this.sessionsFifoQueue.add(sessionTuple);
 					this.catalogConsumedVersions.computeIfAbsent(catalogName, k -> new VersionConsumingSessions())
-						.registerSessionConsumingCatalogInVersion(catalogVersion);
+						.registerSessionConsumingCatalogInVersion(catalogVersion, newSession.getSessionTraits());
 					this.sharedDataStore.addSession(sessionTuple);
 				}
 			);
@@ -334,7 +337,11 @@ public final class SessionRegistry {
 					});
 
 					this.catalogConsumedVersions.get(session.getCatalogName())
-						.unregisterSessionConsumingCatalogInVersion(session.getCatalogVersion(), this.catalog);
+						.unregisterSessionConsumingCatalogInVersion(
+							session.getCatalogVersion(),
+							session.getSessionTraits(),
+							this.catalog
+						);
 
 					// emit event
 					//noinspection CastToIncompatibleInterface,resource
@@ -487,7 +494,325 @@ public final class SessionRegistry {
 		private final AtomicReference<ClosingSequence> closeLambda = new AtomicReference<>(null);
 
 		/**
-		 * Handles arguments printing.
+		 * Unwraps an exception from an {@link InvocationTargetException} to retrieve the root cause.
+		 * If the target exception is a {@link CompletionException}, its cause is returned. Otherwise, the target
+		 * exception itself is returned.
+		 *
+		 * @param ex the {@link InvocationTargetException} containing the wrapped exception, must not be null
+		 * @return the unwrapped {@link Throwable}, which is the root cause of the provided exception
+		 */
+		@Nonnull
+		private static Throwable unwrapException(@Nonnull InvocationTargetException ex) {
+			final Throwable target = ex.getTargetException();
+			return (target instanceof CompletionException ce) ? ce.getCause() : target;
+		}
+
+		/**
+		 * Handles a {@link RollbackException} that may occur during a transaction rollback.
+		 * If the session is in dry-run mode, this method logs the rollback event and suppresses the exception.
+		 * Otherwise, the exception is returned to be propagated.
+		 *
+		 * @param re     the {@link RollbackException} to handle, must not be null
+		 * @param method the method where the exception occurred, must not be null
+		 * @return the {@link RuntimeException} to propagate, or null if the exception is suppressed in dry-run mode
+		 */
+		@Nullable
+		private RuntimeException handleRollbackException(@Nonnull RollbackException re, @Nonnull Method method) {
+			if (this.evitaSession.isDryRun()) {
+				log.debug("Session was initiated in dry run mode, so transaction was rolled back.");
+				Assert.isPremiseValid(
+					void.class.equals(method.getReturnType()),
+					"RollbackException is expected only for close method that returns void!"
+				);
+				return null; // swallow exception in dry-run mode
+			}
+			return re;
+		}
+
+		/**
+		 * Handles an internal error specific to Evita by logging the error details if error logging is enabled.
+		 *
+		 * @param eie   the EvitaInternalError instance containing details about the error, must not be null
+		 * @param method the method where the error occurred, must not be null
+		 * @param args   the arguments passed to the method, may be null
+		 * @return the same EvitaInternalError instance passed as a parameter
+		 */
+		@Nonnull
+		private static EvitaInternalError handleEvitaInternalError(
+			@Nonnull EvitaInternalError eie,
+			@Nonnull Method method,
+			@Nullable Object[] args
+		) {
+			if (log.isErrorEnabled()) {
+				log.error(
+					"Internal Evita error occurred in " + eie.getErrorCode() +
+						": " + eie.getPrivateMessage() + "," +
+						" arguments: " + printArguments(method, args),
+					eie
+				);
+			}
+			return eie;
+		}
+
+		/**
+		 * Handles unexpected internal errors by logging the error details, including any associated cause and method arguments.
+		 * Wraps the error in a {@link GenericEvitaInternalError} and returns it for further handling.
+		 *
+		 * @param cause the original cause of the error, may be null
+		 * @param ex the {@link InvocationTargetException} that contains the actual exception, must not be null
+		 * @param method the method where the error occurred, must not be null
+		 * @param args the arguments passed to the method, may be null
+		 * @return a {@link GenericEvitaInternalError} instance encapsulating the error details
+		 */
+		@Nonnull
+		private static GenericEvitaInternalError handleUnexpectedInternalError(
+			@Nullable Throwable cause,
+			@Nonnull InvocationTargetException ex,
+			@Nonnull Method method,
+			@Nullable Object[] args
+		) {
+			final Throwable loggedException = cause != null ? cause : ex;
+			if (log.isErrorEnabled()) {
+				log.error(
+					"Unexpected internal Evita error occurred: " + ex.getCause().getMessage() + ", " +
+						" arguments: " + printArguments(method, args),
+					loggedException
+				);
+			}
+			return new GenericEvitaInternalError(
+				"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
+				"Unexpected internal Evita error occurred.",
+				loggedException
+			);
+		}
+
+		/**
+		 * Handles unexpected exceptions that occur during method execution by logging the error details
+		 * and encapsulating the exception in a {@link GenericEvitaInternalError}.
+		 *
+		 * @param ex the {@link Throwable} representing the unexpected exception, must not be null
+		 * @param method the {@link Method} where the exception occurred, must not be null
+		 * @param args the arguments passed to the method, may be null
+		 * @return a {@link GenericEvitaInternalError} instance encapsulating the error details
+		 */
+		@Nonnull
+		private static GenericEvitaInternalError handleUnexpectedException(
+			@Nonnull Throwable ex,
+			@Nonnull Method method,
+			@Nullable Object[] args
+		) {
+			if (log.isErrorEnabled()) {
+				log.error(
+					"Unexpected system error occurred: " + ex.getMessage() + "," +
+						" arguments: " + printArguments(method, args),
+					ex
+				);
+			}
+			return new GenericEvitaInternalError(
+				"Unexpected system error occurred: " + ex.getMessage(),
+				"Unexpected system error occurred.",
+				ex
+			);
+		}
+
+		/**
+		 * Handles an {@link InvocationTargetException} by analyzing the root cause and dispatching it
+		 * to appropriate exception handling methods based on its type. If the root cause does not match
+		 * any known exception type, it is wrapped in a more generic internal error handler for logging and propagation.
+		 *
+		 * @param ex the {@link InvocationTargetException} encountered during method invocation, must not be null
+		 * @param method the {@link Method} where the exception occurred, must not be null
+		 * @param args the arguments passed to the method during invocation, may be null
+		 * @return the {@link RuntimeException} instance to be propagated, or null if the exception was handled and suppressed
+		 */
+		@Nullable
+		private RuntimeException handleInvocationException(
+			@Nonnull InvocationTargetException ex,
+			@Nonnull Method method,
+			@Nullable Object[] args
+		) {
+			final Throwable cause = unwrapException(ex);
+
+			// Dispatch based on exception type
+			if (cause instanceof TransactionException te) {
+				return te;
+			}
+			if (cause instanceof RollbackException re) {
+				return handleRollbackException(re, method);
+			}
+			if (cause instanceof EvitaInvalidUsageException eiu) {
+				return eiu;
+			}
+			if (cause instanceof EvitaInternalError eie) {
+				return handleEvitaInternalError(eie, method, args);
+			}
+
+			return handleUnexpectedInternalError(cause, ex, method, args);
+		}
+
+		/**
+		 * Records method execution metrics for the provided method. Specifically, it tracks whether the method
+		 * represents a query or a mutation based on its annotations and updates the session's metrics accordingly.
+		 *
+		 * @param method the {@link Method} whose execution metrics need to be recorded, must not be null
+		 */
+		private void recordMethodMetrics(@Nonnull Method method) {
+			if (method.isAnnotationPresent(RepresentsQuery.class)) {
+				this.sessionClosedEvent.recordQuery();
+			}
+			if (method.isAnnotationPresent(RepresentsMutation.class)) {
+				this.sessionClosedEvent.recordMutation();
+			}
+		}
+
+		/**
+		 * Builds an array of SpanAttribute based on the given method parameters,
+		 * arguments, and session. Each parameter and its corresponding argument
+		 * contribute to the SpanAttribute array if they meet the specified conditions.
+		 *
+		 * @param method the method whose parameters are used to build SpanAttributes
+		 * @param args the arguments provided for the method call, corresponding to the parameters
+		 * @param session the EvitaSession used to retrieve session information
+		 * @return an array of SpanAttribute containing attributes for each valid parameter,
+		 *         and the session ID as the first element
+		 */
+		@Nonnull
+		private static SpanAttribute[] buildSpanAttributes(
+			@Nonnull Method method,
+			@Nullable Object[] args,
+			@Nonnull EvitaSession session
+		) {
+			final Parameter[] parameters = method.getParameters();
+			final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
+			spanAttributes[0] = new SpanAttribute("session.id", session.getId().toString());
+
+			if (args == null || args.length == 0) {
+				return spanAttributes;
+			}
+
+			int index = 1;
+			for (int i = 0; i < args.length; i++) {
+				final Object arg = args[i];
+				if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
+					spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
+				}
+			}
+
+			return index < spanAttributes.length ?
+				Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
+		}
+
+		/**
+		 * Executes a given method invocation with tracing capabilities if a parent tracing context is available.
+		 * This method builds span attributes to include additional metadata for tracing and wraps the invocation
+		 * within a predefined tracing block.
+		 *
+		 * @param method the method being invoked, must not be null
+		 * @param args the arguments of the method call, can be null if the method has no parameters
+		 * @param session the active session in which the method is being executed, must not be null
+		 * @param invocation a supplier representing the method invocation to be executed, must not be null
+		 * @return the result of the executed method invocation, or null if the invocation returns null
+		 */
+		@Nullable
+		private Object executeWithTracing(
+			@Nonnull Method method,
+			@Nullable Object[] args,
+			@Nonnull EvitaSession session,
+			@Nonnull Supplier<Object> invocation
+		) {
+			return this.tracingContext.executeWithinBlockIfParentContextAvailable(
+				"session call - " + method.getName(),
+				invocation,
+				() -> buildSpanAttributes(method, args, session)
+			);
+		}
+
+		/**
+		 * Safely invokes a specified method on the target object with the provided arguments.
+		 * This method increments and decrements the invocation counter and updates the last call time.
+		 * It handles exceptions arising during the method invocation by delegating to specific handlers.
+		 *
+		 * @param method the method to be invoked; must not be null
+		 * @param args the arguments to pass to the method; can be null if the method does not require arguments
+		 * @return the result of the invoked method, or null if the method has a void return type or an exception is caught
+		 * @throws RuntimeException if an invocation or unexpected exception occurs during method invocation
+		 */
+		@Nullable
+		private Object invokeMethodSafely(@Nonnull Method method, @Nullable Object[] args) {
+			this.insideInvocation.incrementAndGet();
+			this.lastCall.set(System.currentTimeMillis());
+
+			try {
+				return method.invoke(this.evitaSession, args);
+			} catch (InvocationTargetException ex) {
+				final RuntimeException handled = handleInvocationException(ex, method, args);
+				if (handled != null) {
+					throw handled;
+				}
+				return null;
+			} catch (Throwable ex) {
+				throw handleUnexpectedException(ex, method, args);
+			} finally {
+				this.insideInvocation.decrementAndGet();
+				this.lastCall.set(System.currentTimeMillis());
+			}
+		}
+
+		/**
+		 * Executes a method with optional tracing and metric recording, based on annotations present on the method.
+		 *
+		 * @param method the method to be executed, must not be null
+		 * @param args the arguments to be passed to the method, can be null
+		 * @param session the Evita session to be used during execution, must not be null
+		 * @return the result of the method execution, can be null
+		 */
+		@Nullable
+		private Object executeMethodWithTracingAndMetrics(
+			@Nonnull Method method,
+			@Nullable Object[] args,
+			@Nonnull EvitaSession session
+		) {
+			recordMethodMetrics(method);
+
+			final Supplier<Object> invocation = () -> invokeMethodSafely(method, args);
+
+			if (method.isAnnotationPresent(Traced.class)) {
+				return executeWithTracing(method, args, session, invocation);
+			} else {
+				return invocation.get();
+			}
+		}
+
+		/**
+		 * Executes the provided method within the context of an existing or newly created transaction,
+		 * ensuring transactional consistency for the operation. If a transaction is provided, the method
+		 * executes within that transaction; otherwise, it handles execution as a root-level operation.
+		 *
+		 * @param method the method to be executed within the transaction context, must not be null
+		 * @param args the arguments to pass to the method execution, can be null if the method has no parameters
+		 * @param session the current session associated with the execution, must not be null
+		 * @return the result of the method execution, or null if the return value is absent
+		 */
+		@Nullable
+		private Object executeWithinTransactionContext(
+			@Nonnull Method method,
+			@Nullable Object[] args,
+			@Nonnull EvitaSession session
+		) {
+			return Transaction.executeInTransactionIfProvided(
+				session.getOpenedTransaction().orElse(null),
+				() -> executeMethodWithTracingAndMetrics(method, args, session),
+				session.isRootLevelExecution()
+			);
+		}
+
+		/**
+		 * Constructs a string representation of method arguments with their parameter names.
+		 * If the argument is an array, it converts the array contents into a string format.
+		 *
+		 * @param method The method whose parameter names need to be included in the output string. Must not be null.
+		 * @param args   The array of arguments passed to the method. Can be null. If not null, handles null values and arrays within the arguments.
+		 * @return A string representation of the method arguments in the format "paramName1=value1|paramName2=value2...".
 		 */
 		@Nonnull
 		private static String printArguments(@Nonnull Method method, @Nullable Object[] args) {
@@ -632,118 +957,9 @@ public final class SessionRegistry {
 		@Nullable
 		private Object executeDelegateMethod(@Nonnull Method method, @Nullable Object[] args) {
 			final EvitaSession theSession = this.evitaSession;
+			theSession.increaseNestLevel();
 			try {
-				theSession.increaseNestLevel();
-				// invoke original method on delegate
-				return Transaction.executeInTransactionIfProvided(
-					theSession.getOpenedTransaction().orElse(null),
-					() -> {
-						final Supplier<Object> invocation = () -> {
-							try {
-								this.insideInvocation.incrementAndGet();
-								this.lastCall.set(System.currentTimeMillis());
-								return method.invoke(theSession, args);
-							} catch (InvocationTargetException ex) {
-								// handle the error
-								final Throwable targetException = ex.getTargetException() instanceof CompletionException completionException ?
-									completionException.getCause() : ex.getTargetException();
-								if (targetException instanceof TransactionException transactionException) {
-									// just unwrap and rethrow
-									throw transactionException;
-								} else if (targetException instanceof RollbackException rollbackException) {
-									if (theSession.isDryRun()) {
-										// client expects rollback exception in dry run mode, so we just log it
-										log.debug("Session was initiated in dry run mode, so transaction was rolled back.");
-										Assert.isPremiseValid(
-											void.class.equals(method.getReturnType()),
-											"RollbackException is expected only for close method that returns void!"
-										);
-										return null;
-									} else {
-										// rethrow the rollback exception to notify client that transaction was rolled back
-										throw rollbackException;
-									}
-								} else if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
-									// just unwrap and rethrow
-									throw evitaInvalidUsageException;
-								} else if (targetException instanceof EvitaInternalError evitaInternalError) {
-									if (log.isErrorEnabled()) {
-										log.error(
-											"Internal Evita error occurred in " + evitaInternalError.getErrorCode() +
-												": " + evitaInternalError.getPrivateMessage() + "," +
-												" arguments: " + printArguments(method, args),
-											targetException
-										);
-									}
-									// unwrap and rethrow
-									throw evitaInternalError;
-								} else {
-									if (log.isErrorEnabled()) {
-										log.error(
-											"Unexpected internal Evita error occurred: " + ex.getCause().getMessage() + ", " +
-												" arguments: " + printArguments(method, args),
-											targetException == null ? ex : targetException
-										);
-									}
-									throw new GenericEvitaInternalError(
-										"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
-										"Unexpected internal Evita error occurred.",
-										targetException == null ? ex : targetException
-									);
-								}
-							} catch (Throwable ex) {
-								if (log.isErrorEnabled()) {
-									log.error(
-										"Unexpected system error occurred: " + ex.getMessage() + "," +
-											" arguments: " + printArguments(method, args),
-										ex
-									);
-								}
-								throw new GenericEvitaInternalError(
-									"Unexpected system error occurred: " + ex.getMessage(),
-									"Unexpected system error occurred.",
-									ex
-								);
-							} finally {
-								this.insideInvocation.decrementAndGet();
-								this.lastCall.set(System.currentTimeMillis());
-							}
-						};
-						if (method.isAnnotationPresent(RepresentsQuery.class)) {
-							this.sessionClosedEvent.recordQuery();
-						}
-						if (method.isAnnotationPresent(RepresentsMutation.class)) {
-							this.sessionClosedEvent.recordMutation();
-						}
-						if (method.isAnnotationPresent(Traced.class)) {
-							return this.tracingContext.executeWithinBlockIfParentContextAvailable(
-								"session call - " + method.getName(),
-								invocation,
-								() -> {
-									final Parameter[] parameters = method.getParameters();
-									final SpanAttribute[] spanAttributes = new SpanAttribute[1 + parameters.length];
-									spanAttributes[0] = new SpanAttribute("session.id", theSession.getId().toString());
-									if (args == null || args.length == 0) {
-										return spanAttributes;
-									} else {
-										int index = 1;
-										for (int i = 0; i < args.length; i++) {
-											final Object arg = args[i];
-											if (EvitaDataTypes.isSupportedType(parameters[i].getType()) && arg != null) {
-												spanAttributes[index++] = new SpanAttribute(parameters[i].getName(), arg);
-											}
-										}
-										return index < spanAttributes.length ?
-											Arrays.copyOfRange(spanAttributes, 0, index) : spanAttributes;
-									}
-								}
-							);
-						} else {
-							return invocation.get();
-						}
-					},
-					theSession.isRootLevelExecution()
-				);
+				return executeWithinTransactionContext(method, args, theSession);
 			} finally {
 				theSession.decreaseNestLevel();
 			}
@@ -779,7 +995,10 @@ public final class SessionRegistry {
 				return true;
 			} catch (TimeoutException e) {
 				return false;
-			} catch (InterruptedException | ExecutionException e) {
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw SessionBusyException.INSTANCE;
+			} catch (ExecutionException e) {
 				throw SessionBusyException.INSTANCE;
 			}
 		}
@@ -829,18 +1048,28 @@ public final class SessionRegistry {
 	private static class VersionConsumingSessions {
 		/**
 		 * ConcurrentHashMap representing a collection of sessions that are consuming catalogs in different versions.
-		 * The keys of the map are the versions of the catalogs, and the values are the number of sessions consuming
-		 * catalogs in that version.
+		 * The keys of the map are the versions of the catalogs, and the values are the number of the read-only sessions
+		 * consuming catalogs in that version.
 		 */
-		private final ConcurrentHashMap<Long, Integer> versionConsumingSessions = CollectionUtils.createConcurrentHashMap(32);
+		private final ConcurrentHashMap<Long, Integer> versionConsumingReadOnlySessions = CollectionUtils.createConcurrentHashMap(32);
+		/**
+		 * ConcurrentHashMap representing a collection of sessions that are consuming catalogs in different versions.
+		 * The keys of the map are the versions of the catalogs, and the values are the number of the read-write
+		 * sessions consuming catalogs in that version.
+		 */
+		private final ConcurrentHashMap<Long, Integer> versionConsumingReadWriteSessions = CollectionUtils.createConcurrentHashMap(32);
 
 		/**
 		 * Registers a session consuming catalog in the specified version.
 		 *
 		 * @param version the version of the catalog
 		 */
-		void registerSessionConsumingCatalogInVersion(long version) {
-			this.versionConsumingSessions.compute(
+		void registerSessionConsumingCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
+				this.versionConsumingReadWriteSessions :
+				this.versionConsumingReadOnlySessions;
+
+			targetIndex.compute(
 				version,
 				(k, v) -> v == null ? 1 : v + 1
 			);
@@ -852,8 +1081,12 @@ public final class SessionRegistry {
 		 * @param version the version of the catalog
 		 * @param catalog the supplier of currently active catalog instance
 		 */
-		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull Supplier<Catalog> catalog) {
-			final Integer readerCount = this.versionConsumingSessions.compute(
+		void unregisterSessionConsumingCatalogInVersion(long version, @Nonnull SessionTraits traits, @Nonnull Supplier<Catalog> catalog) {
+			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
+				this.versionConsumingReadWriteSessions :
+				this.versionConsumingReadOnlySessions;
+
+			final Integer readerCount = targetIndex.compute(
 				version,
 				(k, v) -> v == null || v == 1 ? null : v - 1
 			);
@@ -863,7 +1096,7 @@ public final class SessionRegistry {
 			// TRUE when the session was the last reader
 			final boolean lastReader;
 			if (readerCount == null) {
-				minimalActiveCatalogVersion = this.versionConsumingSessions.keySet().stream().mapToLong(Long::longValue).min();
+				minimalActiveCatalogVersion = getMinimalVersionFrom(targetIndex);
 				lastReader = true;
 			} else {
 				minimalActiveCatalogVersion = OptionalLong.of(version);
@@ -876,9 +1109,29 @@ public final class SessionRegistry {
 				// in rare cases (catalog replacement) the catalog might not have been available already
 				if (theCatalog != null) {
 					final long minimalActiveVersion = minimalActiveCatalogVersion.orElse(theCatalog.getVersion());
-					theCatalog.consumersLeft(minimalActiveVersion);
+					theCatalog.catalogConsumersLeft(
+						traits.isReadWrite() ?
+							getMinimalVersionFrom(this.versionConsumingReadOnlySessions).orElse(minimalActiveVersion) :
+							minimalActiveVersion,
+						traits.isReadWrite() ?
+							minimalActiveVersion :
+							getMinimalVersionFrom(this.versionConsumingReadWriteSessions).orElse(minimalActiveVersion)
+					);
 				}
 			}
+		}
+
+		/**
+		 * Retrieves the minimal version from the provided ConcurrentHashMap of versions.
+		 *
+		 * @param targetIndex a ConcurrentHashMap where the keys represent version numbers
+		 *                    and the values are associated integer data.
+		 * @return an {@link OptionalLong} containing the minimum version number
+		 *         if the ConcurrentHashMap is not empty, otherwise an empty {@link OptionalLong}.
+		 */
+		@Nonnull
+		private static OptionalLong getMinimalVersionFrom(@Nonnull ConcurrentHashMap<Long, Integer> targetIndex) {
+			return targetIndex.keySet().stream().mapToLong(Long::longValue).min();
 		}
 
 	}
@@ -943,13 +1196,13 @@ public final class SessionRegistry {
 		private final Supplier<Catalog> catalog;
 
 		@Override
-		public void registerConsumerOfCatalogInVersion(long version) {
-			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version);
+		public void registerConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+			this.versionConsumingSessions.registerSessionConsumingCatalogInVersion(version, traits);
 		}
 
 		@Override
-		public void unregisterConsumerOfCatalogInVersion(long version) {
-			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, this.catalog);
+		public void unregisterConsumerOfCatalogInVersion(long version, @Nonnull SessionTraits traits) {
+			this.versionConsumingSessions.unregisterSessionConsumingCatalogInVersion(version, traits, this.catalog);
 		}
 
 	}
@@ -983,7 +1236,10 @@ public final class SessionRegistry {
 				return true;
 			} catch (TimeoutException e) {
 				return false;
-			} catch (InterruptedException | ExecutionException e) {
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw SessionBusyException.INSTANCE;
+			} catch (ExecutionException e) {
 				throw SessionBusyException.INSTANCE;
 			}
 		}

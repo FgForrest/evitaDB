@@ -25,7 +25,7 @@ package io.evitadb.store.catalog.model;
 
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.PersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 
 import javax.annotation.Nonnull;
@@ -102,7 +102,7 @@ public record CatalogBootstrap(
 		@Nullable FileLocation fileLocation
 	) {
 		this(
-			CatalogPersistenceService.STORAGE_PROTOCOL_VERSION,
+			PersistenceService.STORAGE_PROTOCOL_VERSION,
 			catalogVersion,
 			catalogFileIndex,
 			timestamp,

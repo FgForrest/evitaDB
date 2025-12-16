@@ -39,6 +39,7 @@ import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityT
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -74,6 +75,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @see ChangeCatalogCapturePublisher
  * @see ChangeCatalogCaptureSharedPublisher
  */
+@Slf4j
 public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	/**
 	 * Options for change data capture.
@@ -170,21 +172,45 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// Provide isolated publisher wrapping the shared one to the outside world.
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
-		return new ChangeCatalogCapturePublisher(
+		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
 			// create or reuse the shared publisher
 			criteriaBundle -> this.uniquePublishers.computeIfAbsent(
 				criteriaBundle,
-				cb -> new ChangeCatalogCaptureSharedPublisher(
-					theCatalog, this.cdcExecutor,
-					this.cdcOptions.recentEventsCacheLimit(),
-					this.cdcOptions.subscriberBufferSize(),
-					cb,
-					this::updateStatistics,
-					this.uniquePublishers::remove
-				)
+				cb -> {
+					log.info(
+						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
+						theCatalog.getName(), cb
+					);
+					return new ChangeCatalogCaptureSharedPublisher(
+						this.currentCatalog.get(),
+						this.cdcExecutor,
+						this.cdcOptions.recentEventsCacheLimit(),
+						this.cdcOptions.subscriberBufferSize(),
+						cb,
+						this::updateStatistics,
+						publisher -> {
+							log.info(
+								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
+								theCatalog.getName(), cb
+							);
+							this.uniquePublishers.remove(publisher);
+						}
+					);
+				}
 			),
 			request
 		);
+
+		// when the shared publisher internal catalog version differs from the current one,
+		// this may happen due to a race condition between this method and set current catalog call
+		if (this.currentCatalog.get().getVersion() != theCatalog.getVersion()) {
+			// notify the shared publisher about the current catalog state
+			changeCatalogCapturePublisher
+				.getSharedPublisher()
+				.notifyCatalogPresentInLiveView(this.currentCatalog.get());
+		}
+
+		return changeCatalogCapturePublisher;
 	}
 
 	/**
@@ -209,7 +235,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 
 	@Override
 	public void close() {
-		if (this.active.compareAndSet(false, true)) {
+		if (this.active.compareAndSet(true, false)) {
 			this.uniquePublishers
 				.values()
 				.forEach(it -> IOUtils.closeQuietly(it::close));
@@ -247,48 +273,43 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 
 	/**
 	 * Collects and emits statistics related to change data capture (CDC) operations.
-	 * This method creates a new instance of {@link ChangeCatalogCaptureStatisticsEvent} and populates
-	 * it with the current catalog name, the count of unique publishers, the total number
-	 * of subscribers, the count of lagging subscribers, and the total number of events published.
-	 * After initializing the event with these metrics, it commits the event for further processing or logging.
-	 *
-	 * The statistical data are derived as follows:
-	 * - The catalog name is retrieved from the current catalog instance.
-	 * - The total number of unique publishers is calculated by determining the size of the unique publishers map.
-	 * - The total subscriber count is computed by aggregating the subscriber counts of all shared publishers.
-	 * - The total lagging subscriber count is computed by aggregating the lagging subscriber counts of all shared publishers.
-	 * - The total number of events published is computed by summing the event counts from all shared publishers.
 	 */
 	@Override
 	public void emitObservabilityEvents() {
-		int subscriberCount = 0;
-		int laggingSubscriberCount = 0;
-		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
-			subscriberCount += sharedPublisher.getSubscribersCount();
-			laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
+		final Catalog catalog = this.currentCatalog.get();
+		if (catalog != null) {
+			final String catalogName = catalog.getName();
+
+			int subscriberCount = 0;
+			int laggingSubscriberCount = 0;
+			for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
+				subscriberCount += sharedPublisher.getSubscribersCount();
+				laggingSubscriberCount += sharedPublisher.getLaggingSubscribersCount();
+				sharedPublisher.emitObservabilityEvents();
+			}
+
+			new ChangeCatalogCaptureStatisticsEvent(
+				catalogName,
+				this.uniquePublishers.size(),
+				subscriberCount,
+				laggingSubscriberCount,
+				this.sentEvents.get()
+			).commit();
+
+			this.sentEventsByArea
+				.forEach(
+					(key, value) -> new ChangeCatalogCaptureStatisticsPerAreaEvent(
+						catalogName, key, value.get()
+					).commit()
+				);
+
+			this.sentEventsByEntityType
+				.forEach(
+					(key, value) -> new ChangeCatalogCaptureStatisticsPerEntityTypeEvent(
+						catalogName, key, value.get()
+					).commit()
+				);
 		}
-		final String catalogName = this.currentCatalog.get().getName();
-		new ChangeCatalogCaptureStatisticsEvent(
-			catalogName,
-			this.uniquePublishers.size(),
-			subscriberCount,
-			laggingSubscriberCount,
-			this.sentEvents.get()
-		).commit();
-
-		this.sentEventsByArea
-			.forEach(
-				(key, value) -> new ChangeCatalogCaptureStatisticsPerAreaEvent(
-					catalogName, key, value.get()
-				).commit()
-			);
-
-		this.sentEventsByEntityType
-			.forEach(
-				(key, value) -> new ChangeCatalogCaptureStatisticsPerEntityTypeEvent(
-					catalogName, key, value.get()
-				).commit()
-			);
 	}
 
 	/**

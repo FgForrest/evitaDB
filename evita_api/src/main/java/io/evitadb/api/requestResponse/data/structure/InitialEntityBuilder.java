@@ -25,31 +25,29 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
-import io.evitadb.api.requestResponse.data.AssociatedDataContract;
-import io.evitadb.api.requestResponse.data.AttributesContract;
-import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
-import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.PricesContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
-import io.evitadb.api.requestResponse.data.ReferencesContract;
-import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.parent.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.parent.SetParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.scope.SetEntityScopeMutation;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
 
@@ -58,13 +56,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Currency;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -609,6 +601,13 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
+    @Nonnull
+    @Override
+    public EntityBuilder mutateReference(@Nonnull ReferenceMutation<?> referenceMutation) {
+        getReferencesBuilder().mutateReference(referenceMutation);
+        return this;
+    }
+
 	@Override
 	public int getNextReferenceInternalId() {
 		return getReferencesBuilder().getNextReferenceInternalId();
@@ -625,7 +624,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return getReferencesBuilder().createReference(referenceName, referencedEntityPrimaryKey);
 	}
 
-	@Override
+    @Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean indexed
@@ -634,7 +634,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
@@ -645,7 +646,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax,
 		@Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, DateTimeRange validity, boolean indexed
@@ -655,7 +657,8 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder setPrice(
 		int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId,
 		@Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax,
@@ -666,31 +669,90 @@ public class InitialEntityBuilder implements InternalEntityBuilder {
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
 		getPricesBuilder().removePrice(priceId, priceList, currency);
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
+	public EntityBuilder removePrice(@Nonnull PriceKey priceKey) {
+		return InternalEntityBuilder.super.removePrice(priceKey);
+	}
+
+	@Nonnull
+    @Override
+	public EntityBuilder removeAllPrices() {
+		getPricesBuilder().removeAllPrices();
+		return this;
+	}
+
+	@Nonnull
+    @Override
 	public EntityBuilder setPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		getPricesBuilder().setPriceInnerRecordHandling(priceInnerRecordHandling);
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder removePriceInnerRecordHandling() {
 		getPricesBuilder().removePriceInnerRecordHandling();
 		return this;
 	}
 
-	@Override
+	@Nonnull
+    @Override
 	public EntityBuilder removeAllNonTouchedPrices() {
 		getPricesBuilder().removeAllNonTouchedPrices();
 		return this;
 	}
 
-	/**
+    @Nonnull
+    @Override
+    public EntityBuilder mutateInnerPriceHandling(@Nonnull SetPriceInnerRecordHandlingMutation mutation) {
+        getPricesBuilder().mutateInnerPriceHandling(mutation);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public EntityBuilder mutatePrice(@Nonnull PriceMutation priceMutation) {
+        getPricesBuilder().mutatePrice(priceMutation);
+        return this;
+    }
+
+    @Nonnull
+    @Override
+    public EntityBuilder mutate(@Nonnull LocalMutation<?, ?>... mutation) {
+        for (LocalMutation<?, ?> localMutation : mutation) {
+            if (localMutation instanceof SetPriceInnerRecordHandlingMutation lm) {
+                this.getPricesBuilder().mutateInnerPriceHandling(lm);
+            } else if (localMutation instanceof PriceMutation lm) {
+                this.getPricesBuilder().mutatePrice(lm);
+            } else if (localMutation instanceof SetParentMutation lm) {
+                this.setParent(lm.getParentPrimaryKey());
+            } else if (localMutation instanceof RemoveParentMutation) {
+                this.removeParent();
+            } else if (localMutation instanceof ReferenceMutation<?> lm) {
+                this.getReferencesBuilder().mutateReference(lm);
+            } else if (localMutation instanceof AttributeMutation lm) {
+                this.getAttributesBuilder().mutateAttribute(lm);
+            } else if (localMutation instanceof AssociatedDataMutation lm) {
+                this.getAssociatedDataBuilder().mutateAssociatedData(lm);
+            } else if (localMutation instanceof SetEntityScopeMutation lm) {
+                this.setScope(lm.getScope());
+            } else {
+                // SHOULD NOT EVER HAPPEN
+                throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
+            }
+        }
+        return this;
+    }
+
+    /**
 	 * Builds a single {@link EntityMutation} representing an upsert of a brand new entity.
 	 *
 	 * Behavior specifics:

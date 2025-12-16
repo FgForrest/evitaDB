@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
@@ -51,6 +52,7 @@ import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static io.evitadb.index.mutation.index.ReferenceIndexMutator.attributeUpdate;
@@ -93,17 +95,18 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			Entities.BRAND,
 			Cardinality.ZERO_OR_ONE,
 			thatIs -> {
-				thatIs.withAttribute(ATTRIBUTE_BRAND_CODE, String.class, whichIs -> whichIs.unique());
-				thatIs.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, whichIs -> whichIs.filterable());
+				thatIs.withAttribute(ATTRIBUTE_BRAND_CODE, String.class, AttributeSchemaEditor::unique);
+				thatIs.withAttribute(ATTRIBUTE_BRAND_EAN, String.class, AttributeSchemaEditor::filterable);
 				thatIs.withAttribute(ATTRIBUTE_VARIANT_COUNT, Integer.class, whichIs -> whichIs.sortable().filterable());
-				thatIs.withAttribute(ATTRIBUTE_CHAR_ARRAY, Character[].class, whichIs -> whichIs.filterable());
+				thatIs.withAttribute(ATTRIBUTE_CHAR_ARRAY, Character[].class, AttributeSchemaEditor::filterable);
 			});
 	}
 
 	@Test
 	void shouldInsertNewReference() {
-		final RepresentativeReferenceKey referenceKey = new RepresentativeReferenceKey(new ReferenceKey(Entities.BRAND, 10));
-		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, referenceKey));
+		final ReferenceKey referenceKey = new ReferenceKey(Entities.BRAND, 10);
+		final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(referenceKey);
+		final ReducedEntityIndex referenceIndex = new ReducedEntityIndex(2, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.DEFAULT_SCOPE, rrk));
 		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 		referenceInsert(
 			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null,
@@ -121,22 +124,28 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(Entities.BRAND);
 
 		referenceInsert(
-			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, new RepresentativeReferenceKey(referenceKey), null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
+			1, this.productSchema, referenceSchema, this.executor, this.entityIndex, this.referenceTypesIndex, referenceIndex, referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
-			referenceSchema, new RepresentativeReferenceKey(referenceMutation.getReferenceKey()), referenceMutation.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
+			referenceIndex,
+			referenceIndex,
+			referenceSchema, referenceMutation.getReferenceKey(), referenceMutation.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation a = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_CODE), "A"));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
-			referenceSchema, new RepresentativeReferenceKey(a.getReferenceKey()), a.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
+			referenceIndex,
+			referenceIndex,
+			referenceSchema, a.getReferenceKey(), a.getAttributeMutation()
 		);
 		final ReferenceAttributeMutation referenceMutation1 = new ReferenceAttributeMutation(referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_BRAND_EAN), "EAN-001"));
 		attributeUpdate(
-			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex, referenceIndex,
-			referenceSchema, new RepresentativeReferenceKey(referenceMutation1.getReferenceKey()), referenceMutation1.getAttributeMutation()
+			this.executor, entityAttributeValueSupplierFactory, this.referenceTypesIndex,
+			referenceIndex,
+			referenceIndex,
+			referenceSchema, referenceMutation1.getReferenceKey(), referenceMutation1.getAttributeMutation()
 		);
 
 		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
@@ -160,7 +169,9 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		@Nonnull EntitySchema entitySchema,
 		int entityPrimaryKey
 	) {
-		return new EntityStoragePartExistingDataFactory(this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey);
+		return new EntityStoragePartExistingDataFactory(
+			this.executor.getContainerAccessor(), entitySchema, entityPrimaryKey, Map.of()
+		);
 	}
 
 }

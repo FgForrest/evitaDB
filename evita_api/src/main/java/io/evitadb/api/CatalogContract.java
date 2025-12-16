@@ -42,7 +42,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.system.StoredVersion;
+import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -53,6 +53,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -262,15 +263,27 @@ public interface CatalogContract {
 
 	/**
 	 * Returns information about the version that was valid at the specified moment in time. If the moment is not
-	 * specified method returns first version known to the catalog mutation history.
+	 * specified method returns the first version known to the catalog mutation history.
 	 *
 	 * @param moment the moment in time for which the catalog version should be returned
-	 * @return catalog version that was valid at the specified moment in time, or first version known to the catalog
+	 * @return the catalog version that was valid at the specified moment, or the first version known to the catalog
 	 * mutation history if no moment was specified
-	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
 	 */
 	@Nonnull
-	StoredVersion getCatalogVersionAt(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+	MaterializedVersionBlock getFirstCatalogVersionAfter(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
+
+	/**
+	 * Returns information about the last version that was valid before the specified moment in time. If the moment is
+	 * not specified method returns the first version known to the catalog mutation history.
+	 *
+	 * @param moment the moment in time for which the last catalog version should be returned
+	 * @return the catalog version that was valid at the specified moment, or the first version known to the catalog
+	 * mutation history if no moment was specified
+	 * @throws TemporalDataNotAvailableException when data for the particular moment is not available anymore
+	 */
+	@Nonnull
+	MaterializedVersionBlock getLastCatalogVersionBefore(@Nullable OffsetDateTime moment) throws TemporalDataNotAvailableException;
 
 	/**
 	 * Returns a paginated list of catalog versions based on the provided time flow, page number, and page size.
@@ -280,10 +293,10 @@ public interface CatalogContract {
 	 * @param timeFlow the time flow used to filter the catalog versions
 	 * @param page     the page number of the paginated list
 	 * @param pageSize the number of versions per page
-	 * @return a paginated list of {@link StoredVersion} instances
+	 * @return a paginated list of {@link MaterializedVersionBlock} instances
 	 */
 	@Nonnull
-	PaginatedList<StoredVersion> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
+	PaginatedList<MaterializedVersionBlock> getCatalogVersions(@Nonnull TimeFlow timeFlow, int page, int pageSize);
 
 	/**
 	 * Returns a stream of {@link WriteAheadLogVersionDescriptor} instances for the given catalog versions. Descriptors will
@@ -292,10 +305,10 @@ public interface CatalogContract {
 	 * gradually as the stream provides the data.
 	 *
 	 * @param catalogVersion the catalog versions to get descriptors for
-	 * @return a stream of {@link WriteAheadLogVersionDescriptor} instances
+	 * @return a list of {@link WriteAheadLogVersionDescriptor} instances
 	 */
 	@Nonnull
-	Stream<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+	List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition

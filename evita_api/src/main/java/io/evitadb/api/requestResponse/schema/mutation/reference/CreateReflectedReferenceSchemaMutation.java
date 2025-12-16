@@ -73,10 +73,11 @@ import java.util.stream.Stream;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+public class CreateReflectedReferenceSchemaMutation
+	extends AbstractReferenceDataSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -3833868605223655352L;
-	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nullable private final Cardinality cardinality;
@@ -133,9 +134,9 @@ public class CreateReflectedReferenceSchemaMutation implements ReferenceSchemaMu
 		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
 		@Nullable String[] attributeInheritanceFilter
 	) {
+		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
-		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
 		this.cardinality = cardinality;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2024-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableRef;
 
 /**
  * Extension of {@link PriceDescriptor} specific for "price for sale" prices.
@@ -45,7 +45,7 @@ public interface PriceForSaleDescriptor extends PriceDescriptor {
 		.type(nullableRef(PriceDescriptor.THIS))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.extend(PriceDescriptor.THIS)
+	ObjectDescriptor THIS = ObjectDescriptor.from(PriceDescriptor.THIS)
 		.name("PriceForSale")
 		.build();
 }

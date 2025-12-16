@@ -64,6 +64,11 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	 */
 	@Nonnull private final Catalog catalog;
 	/**
+	 * Contains the catalog version at the start of the transaction. This is used to identify conflicts with other
+	 * transactions running in parallel.
+	 */
+	private final long catalogVersionAtTransactionStart;
+	/**
 	 * Contains the catalog schema version at the start of the transaction. This is used to calculate the difference
 	 * between the version at the start and the end.
 	 */
@@ -101,6 +106,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 		@Nonnull CommitProgressRecord commitProgress
 	) {
 		this.catalog = catalog;
+		this.catalogVersionAtTransactionStart = catalog.getVersion();
 		this.catalogSchemaVersionAtTransactionStart = catalog.getSchema().version();
 		this.transactionId = transactionId;
 		this.walPersistenceServiceFactory = walPersistenceServiceFactory;
@@ -128,6 +134,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			if (this.walPersistenceService != null) {
 				// this invokes the asynchronous action of copying the isolated WAL to the shared one
 				this.catalog.commitWal(
+					this.catalogVersionAtTransactionStart,
 					this.transactionId,
 					this.catalogSchemaVersionAtTransactionStart,
 					this.walPersistenceService,

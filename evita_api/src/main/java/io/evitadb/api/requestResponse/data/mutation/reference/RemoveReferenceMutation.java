@@ -123,15 +123,6 @@ public class RemoveReferenceMutation extends ReferenceMutation<ComparableReferen
 		return new RemoveReferenceMutation(this.referenceKey, newDecisiveTimestamp);
 	}
 
-	@Nonnull
-	@Override
-	public ReferenceMutation<ComparableReferenceKey> withInternalPrimaryKey(int internalPrimaryKey) {
-		return new RemoveReferenceMutation(
-			new ReferenceKey(this.referenceKey.referenceName(), this.referenceKey.primaryKey(), internalPrimaryKey),
-			this.decisiveTimestamp
-		);
-	}
-
 	@Override
 	public String toString() {
 		return "Remove reference `" + this.referenceKey + "`";

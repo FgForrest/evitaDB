@@ -23,8 +23,9 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
-import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
@@ -42,8 +43,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescri
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferencePageDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceStripDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.StripListFieldHeaderDescriptor;
@@ -55,26 +57,27 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferencesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -116,9 +119,11 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetAggregator selectionSetAggregator,
-	                                                @Nullable Locale desiredLocale,
-	                                                @Nullable EntitySchemaContract currentEntitySchema) {
+	public Optional<EntityFetch> resolveEntityFetch(
+		@Nonnull SelectionSetAggregator selectionSetAggregator,
+		@Nullable Locale desiredLocale,
+		@Nullable EntitySchemaContract currentEntitySchema
+	) {
 		return resolveContentRequirements(
 			selectionSetAggregator,
 			desiredLocale,
@@ -140,10 +145,12 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetAggregator selectionSetAggregator,
-	                                                                        @Nullable Locale desiredLocale,
-	                                                                        @Nonnull CatalogSchemaContract catalogSchemaContract,
-	                                                                        @Nonnull Set<Locale> allPossibleLocales) {
+	private static Optional<List<EntityContentRequire>> resolveContentRequirements(
+		@Nonnull SelectionSetAggregator selectionSetAggregator,
+		@Nullable Locale desiredLocale,
+		@Nonnull CatalogSchemaContract catalogSchemaContract,
+		@Nonnull Set<Locale> allPossibleLocales
+	) {
 		if (!needsEntityBody(selectionSetAggregator)) {
 			return Optional.empty();
 		}
@@ -174,7 +181,7 @@ public class EntityFetchRequireResolver {
 		resolveAssociatedDataContent(selectionSetAggregator, currentEntitySchema).ifPresent(entityContentRequires::add);
 		resolvePriceContent(selectionSetAggregator).ifPresent(entityContentRequires::add);
 		entityContentRequires.addAll(resolveAccompanyingPriceContents(selectionSetAggregator));
-		entityContentRequires.addAll(resolveReferenceContent(selectionSetAggregator, desiredLocale, currentEntitySchema));
+		entityContentRequires.addAll(resolveReferenceContents(selectionSetAggregator, desiredLocale, currentEntitySchema));
 		resolveDataInLocales(selectionSetAggregator, desiredLocale, currentEntitySchema.getLocales()).ifPresent(entityContentRequires::add);
 
 		return Optional.of(entityContentRequires);
@@ -352,17 +359,6 @@ public class EntityFetchRequireResolver {
 			.anyMatch(f -> !f.getArguments().isEmpty());
 	}
 
-	@Nonnull
-	private static String[] resolveAccompanyingPriceLists(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		//noinspection unchecked
-		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
-			.stream()
-			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
-				.stream()
-				.flatMap(apf -> ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).stream()))
-			.toArray(String[]::new);
-	}
-
 	/**
 	 * Resolves {@link AccompanyingPriceContent} for default `priceForSale` field (i.e., without parameters). Custom
 	 * `priceForSale` fields are computed during serialization manually.
@@ -388,246 +384,349 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private List<ReferenceContent> resolveReferenceContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
-	                                                       @Nullable Locale desiredLocale,
-	                                                       @Nonnull EntitySchemaContract currentEntitySchema) {
+	private Collection<ReferenceContent> resolveReferenceContents(
+		@Nonnull SelectionSetAggregator selectionSetAggregator,
+		@Nullable Locale desiredLocale,
+		@Nonnull EntitySchemaContract currentEntitySchema
+	) {
 		if (!needsReferences(selectionSetAggregator, currentEntitySchema)) {
 			return List.of();
 		}
 
-		final List<ReferenceContent> referenceContents = new LinkedList<>();
-		for (final ReferenceSchemaContract referenceSchema : currentEntitySchema.getReferences().values()) {
-			final String baseReferenceFieldName = EntityDescriptor.REFERENCE.name(referenceSchema);
-			final String referencePageFieldName = EntityDescriptor.REFERENCE_PAGE.name(referenceSchema);
-			final String referenceStripFieldName = EntityDescriptor.REFERENCE_STRIP.name(referenceSchema);
-			final List<SelectedField> fieldsForReference = selectionSetAggregator.getImmediateFields(Set.of(
-				baseReferenceFieldName,
-				referencePageFieldName,
-				referenceStripFieldName
-			));
-			if (fieldsForReference.isEmpty()) {
-				continue;
-			}
-
-			final FieldsForReferenceHolder fieldsForReferenceHolder = new FieldsForReferenceHolder(
-				referenceSchema,
-				fieldsForReference,
-				baseReferenceFieldName,
-				referencePageFieldName,
-				referenceStripFieldName
-			);
-
-			final RequirementForReferenceHolder requirementForReferenceHolder = new RequirementForReferenceHolder(
-				fieldsForReferenceHolder.referenceSchema(),
-				resolveReferenceContentFilter(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
-				resolveReferenceContentOrder(currentEntitySchema, fieldsForReferenceHolder).orElse(null),
-				resolveReferenceAttributeContent(fieldsForReferenceHolder).orElse(null),
-				resolveReferenceEntityRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
-				resolveReferenceGroupRequirement(desiredLocale, fieldsForReferenceHolder).orElse(null),
-				resolveReferenceChunkingRequirement(fieldsForReferenceHolder).orElse(null)
-			);
-
-			if (requirementForReferenceHolder.attributeContent() != null) {
-				referenceContents.add(referenceContentWithAttributes(
-					requirementForReferenceHolder.referenceSchema().getName(),
-					requirementForReferenceHolder.filterBy(),
-					requirementForReferenceHolder.orderBy(),
-					requirementForReferenceHolder.attributeContent(),
-					requirementForReferenceHolder.entityRequirement(),
-					requirementForReferenceHolder.groupRequirement(),
-					requirementForReferenceHolder.chunk()
-				));
-			} else {
-				referenceContents.add(referenceContent(
-					requirementForReferenceHolder.referenceSchema().getName(),
-					requirementForReferenceHolder.filterBy(),
-					requirementForReferenceHolder.orderBy(),
-					requirementForReferenceHolder.entityRequirement(),
-					requirementForReferenceHolder.groupRequirement(),
-					requirementForReferenceHolder.chunk()
-				));
-			}
-		}
-
-		return referenceContents;
-	}
-
-	@Nonnull
-	private Optional<FilterBy> resolveReferenceContentFilter(@Nonnull EntitySchemaContract currentEntitySchema,
-	                                                         @Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
-		final List<SelectedField> fields = fieldsForReferenceHolder.fields();
-		final boolean someFieldHasFilter = fields.stream()
-			.anyMatch(it -> it.getArguments().containsKey(ReferenceFieldHeaderDescriptor.FILTER_BY.name()));
-		if (!someFieldHasFilter) {
-			return Optional.empty();
-		}
-		Assert.isTrue(
-			fields.size() <= 1,
-			() -> new GraphQLInvalidArgumentException("Reference filtering is currently supported only if there is only one reference of particular name requested.")
-		);
-
-		return Optional.ofNullable(
-			(FilterBy) this.filterConstraintResolver.resolve(
-				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
-				ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
-				fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
-			)
-		);
-	}
-
-	@Nonnull
-	private Optional<OrderBy> resolveReferenceContentOrder(@Nonnull EntitySchemaContract currentEntitySchema,
-	                                                       @Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
-		final List<SelectedField> fields = fieldsForReferenceHolder.fields();
-		final boolean someFieldHasFilter = fields.stream()
-			.anyMatch(it -> it.getArguments().containsKey(ReferenceFieldHeaderDescriptor.ORDER_BY.name()));
-		if (!someFieldHasFilter) {
-			return Optional.empty();
-		}
-		Assert.isTrue(
-			fields.size() <= 1,
-			() -> new GraphQLInvalidArgumentException("Reference ordering is currently supported only if there is only one reference of particular name requested.")
-		);
-
-		return Optional.ofNullable(
-			(OrderBy) this.orderConstraintResolver.resolve(
-				new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), fieldsForReferenceHolder.referenceSchema().getName()),
-				ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
-				fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
-			)
-		);
-	}
-
-	@Nonnull
-	private static Optional<AttributeContent> resolveReferenceAttributeContent(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
-		final List<DataFetchingFieldSelectionSet> attributeFields = fieldsForReferenceHolder.fields()
+		return currentEntitySchema.getReferences()
+			.values()
 			.stream()
-			.flatMap(it -> SelectionSetAggregator.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name(), it.getSelectionSet()).stream())
-			.map(SelectedField::getSelectionSet)
+			.flatMap(referenceSchema -> {
+				final ReferenceContentsBuilder contentsBuilder = new ReferenceContentsBuilder(referenceSchema.getName());
+
+				// basic reference fields
+				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE.name(referenceSchema))
+					.forEach(basicReferenceField -> resolveReferenceContentFromBasicField(
+						contentsBuilder,
+						basicReferenceField,
+						desiredLocale,
+						currentEntitySchema,
+						referenceSchema
+					));
+				// reference page fields
+				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE_PAGE.name(referenceSchema))
+					.forEach(referencePageField -> resolveReferenceContentFromPageField(
+						contentsBuilder,
+						referencePageField,
+						desiredLocale,
+						currentEntitySchema,
+						referenceSchema
+					));
+				// reference strip fields
+				selectionSetAggregator.getImmediateFields(EntityDescriptor.REFERENCE_STRIP.name(referenceSchema))
+					.forEach(referenceStripField -> resolveReferenceContentFromStripField(
+						contentsBuilder,
+						referenceStripField,
+						desiredLocale,
+						currentEntitySchema,
+						referenceSchema
+					));
+
+				return contentsBuilder.build().stream();
+			})
 			.toList();
+	}
 
-		if (attributeFields.isEmpty()) {
-			return Optional.empty();
+	private void resolveReferenceContentFromBasicField(
+		@Nonnull ReferenceContentsBuilder contentsBuilder,
+		@Nonnull SelectedField basicReferenceField,
+		@Nullable Locale desiredLocale,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+
+		final FilterBy filterBy = resolveReferenceContentFilter(basicReferenceField, currentEntitySchema, referenceSchema);
+		final OrderBy orderBy = resolveReferenceContentOrder(basicReferenceField, currentEntitySchema, referenceSchema);
+
+		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(basicReferenceField.getSelectionSet());
+		final Set<String> attributes = resolveReferenceContentAttributes(nestedFields, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(nestedFields, desiredLocale, referenceSchema);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(nestedFields, desiredLocale, referenceSchema);
+		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromBasicField(basicReferenceField);
+
+		resolveReferenceContent(
+			contentsBuilder,
+			basicReferenceField,
+			referenceName,
+			filterBy,
+			orderBy,
+			attributes,
+			entityFetch,
+			entityGroupFetch,
+			chunking
+		);
+	}
+
+	private void resolveReferenceContentFromPageField(
+		@Nonnull ReferenceContentsBuilder contentsBuilder,
+		@Nonnull SelectedField referencePageField,
+		@Nullable Locale desiredLocale,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+
+		final FilterBy filterBy = resolveReferenceContentFilter(referencePageField, currentEntitySchema, referenceSchema);
+		final OrderBy orderBy = resolveReferenceContentOrder(referencePageField, currentEntitySchema, referenceSchema);
+
+		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referencePageField.getSelectionSet());
+		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferencePageDescriptor.DATA.name()));
+		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromPageField(referencePageField, nestedFields);
+
+		resolveReferenceContent(
+			contentsBuilder,
+			referencePageField,
+			referenceName,
+			filterBy,
+			orderBy,
+			attributes,
+			entityFetch,
+			entityGroupFetch,
+			chunking
+		);
+	}
+
+	private void resolveReferenceContentFromStripField(
+		@Nonnull ReferenceContentsBuilder contentsBuilder,
+		@Nonnull SelectedField referenceStripField,
+		@Nullable Locale desiredLocale,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+
+		final FilterBy filterBy = resolveReferenceContentFilter(referenceStripField, currentEntitySchema, referenceSchema);
+		final OrderBy orderBy = resolveReferenceContentOrder(referenceStripField, currentEntitySchema, referenceSchema);
+
+		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(referenceStripField.getSelectionSet());
+		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(ReferenceStripDescriptor.DATA.name()));
+		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromStripField(referenceStripField, nestedFields);
+
+		resolveReferenceContent(
+			contentsBuilder,
+			referenceStripField,
+			referenceName,
+			filterBy,
+			orderBy,
+			attributes,
+			entityFetch,
+			entityGroupFetch,
+			chunking
+		);
+	}
+
+	private static void resolveReferenceContent(
+		@Nonnull ReferenceContentsBuilder contentsBuilder,
+		@Nonnull SelectedField referenceField,
+		@Nonnull String referenceName,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable Set<String> attributes,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ChunkingRequireConstraint chunking
+	) {
+		if (filterBy == null && orderBy == null && entityFetch == null && entityGroupFetch == null && chunking == null) {
+			// performance optimization
+			contentsBuilder.setGlobalContentRequested();
+			if (attributes != null) {
+				contentsBuilder.addGlobalContentAttributes(attributes);
+			}
+		} else {
+			contentsBuilder.addNamedContent(
+				new ReferenceContent(
+					resolveReferenceContentInstanceName(referenceField),
+					ManagedReferencesBehaviour.ANY,
+					new String[] { referenceName },
+					new RequireConstraint[]{
+						attributes != null ? attributeContent(attributes.toArray(String[]::new)) : null,
+						entityFetch,
+						entityGroupFetch,
+						chunking
+					},
+					new Constraint[]{
+						filterBy,
+						orderBy,
+					}
+				)
+			);
+		}
+	}
+
+	@Nonnull
+	private static String resolveReferenceContentInstanceName(@Nonnull SelectedField referenceField) {
+		return referenceField.getAlias() != null
+			? referenceField.getAlias()
+			: referenceField.getName();
+	}
+
+	@Nullable
+	private FilterBy resolveReferenceContentFilter(
+		@Nonnull SelectedField referenceField,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final Object filterBy = referenceField.getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name());
+		if (filterBy == null) {
+			return null;
 		}
 
-		final String[] neededAttributes = SelectionSetAggregator.getImmediateFields(attributeFields)
+		return (FilterBy) this.filterConstraintResolver.resolve(
+			new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), referenceSchema.getName()),
+			ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
+			filterBy
+		);
+	}
+
+	@Nullable
+	private OrderBy resolveReferenceContentOrder(
+		@Nonnull SelectedField referenceField,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final Object orderBy = referenceField.getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name());
+		if (orderBy == null) {
+			return null;
+		}
+
+		return (OrderBy) this.orderConstraintResolver.resolve(
+			new InlineReferenceDataLocator(new ManagedEntityTypePointer(currentEntitySchema.getName()), referenceSchema.getName()),
+			ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
+			orderBy
+		);
+	}
+
+	@Nullable
+	private static Set<String> resolveReferenceContentAttributes(
+		@Nonnull SelectionSetAggregator referenceBodyFields,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final List<SelectedField> attributesFields = referenceBodyFields.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name());
+		if (attributesFields.isEmpty()) {
+			return null;
+		}
+
+		final Set<String> neededAttributes = SelectionSetAggregator.getImmediateFields(
+				attributesFields.stream().map(SelectedField::getSelectionSet).toList()
+			)
 			.stream()
-			.map(f -> fieldsForReferenceHolder.referenceSchema().getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
+			.map(f -> referenceSchema.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
 			.map(AttributeSchemaContract::getName)
-			.collect(Collectors.toUnmodifiableSet())
-			.toArray(String[]::new);
-
-		return Optional.of(attributeContent(neededAttributes));
+			.collect(Collectors.toUnmodifiableSet());
+		if (neededAttributes.isEmpty()) {
+			// performance optimization
+			return null;
+		}
+		return neededAttributes;
 	}
 
-	@Nonnull
-	private Optional<EntityFetch> resolveReferenceEntityRequirement(@Nullable Locale desiredLocale,
-	                                                                @Nonnull FieldsForReferenceHolder fieldsForReference) {
-		final SelectionSetAggregator referencedEntitySelectionSet = resolveReferencedEntitySelectionSet(fieldsForReference, ReferenceDescriptor.REFERENCED_ENTITY);
+	@Nullable
+	private EntityFetch resolveReferenceContentEntityFetch(
+		@Nonnull SelectionSetAggregator referenceBodyFields,
+		@Nullable Locale desiredLocale,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final List<SelectedField> referencedEntityFields = referenceBodyFields.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name());
+		if (referencedEntityFields.isEmpty()) {
+			return null;
+		}
 
-		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged()
-			? this.entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType())
+		final EntitySchemaContract referencedEntitySchema = referenceSchema.isReferencedEntityTypeManaged()
+			? this.entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
 
-		final Optional<EntityFetch> referencedEntityRequirement = resolveEntityFetch(referencedEntitySelectionSet, desiredLocale, referencedEntitySchema);
-
-		if (referencedEntityRequirement.isEmpty() && !referencedEntitySelectionSet.isEmpty()) {
-			return Optional.of(entityFetch()); // if referenced entity was requested we want at least its body everytime
-		}
-		return referencedEntityRequirement;
+		return resolveEntityFetch(
+			SelectionSetAggregator.fromFields(referencedEntityFields),
+			desiredLocale,
+			referencedEntitySchema
+		)
+			.orElse(null);
 	}
 
-	@Nonnull
-	private Optional<EntityGroupFetch> resolveReferenceGroupRequirement(@Nullable Locale desiredLocale,
-	                                                                    @Nonnull FieldsForReferenceHolder fieldsForReference) {
-		final SelectionSetAggregator referencedGroupSelectionSet = resolveReferencedEntitySelectionSet(fieldsForReference, ReferenceDescriptor.GROUP_ENTITY);
+	@Nullable
+	private EntityGroupFetch resolveReferenceContentEntityGroupFetch(
+		@Nonnull SelectionSetAggregator referenceBodyFields,
+		@Nullable Locale desiredLocale,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final List<SelectedField> referencedGroupFields = referenceBodyFields.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name());
+		if (referencedGroupFields.isEmpty()) {
+			return null;
+		}
 
-		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedGroupTypeManaged() ?
-			this.entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedGroupType()) :
+		final EntitySchemaContract referencedEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
+			this.entitySchemaFetcher.apply(referenceSchema.getReferencedGroupType()) :
 			null;
 
-		return resolveGroupFetch(referencedGroupSelectionSet, desiredLocale, referencedEntitySchema);
+		return resolveGroupFetch(
+			SelectionSetAggregator.fromFields(referencedGroupFields),
+			desiredLocale,
+			referencedEntitySchema
+		)
+			.orElse(null);
 	}
 
-	@Nonnull
-	private static SelectionSetAggregator resolveReferencedEntitySelectionSet(@Nonnull FieldsForReferenceHolder fieldsForReference,
-	                                                                          @Nonnull PropertyDescriptor referencedEntityField) {
-		return SelectionSetAggregator.from(
-			Stream.concat(
-					fieldsForReference.fields()
-						.stream()
-						.filter(it -> it.getName().equals(fieldsForReference.baseReferenceFieldName()))
-						.flatMap(it -> SelectionSetAggregator.getImmediateFields(referencedEntityField.name(), it.getSelectionSet()).stream())
-						.map(SelectedField::getSelectionSet),
-					fieldsForReference.fields()
-						.stream()
-						.filter(it -> it.getName().equals(fieldsForReference.referencePageFieldName()) || it.getName().equals(fieldsForReference.referenceStripFieldName()))
-						.flatMap(it -> SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), it.getSelectionSet()).stream())
-						.flatMap(it -> SelectionSetAggregator.getImmediateFields(referencedEntityField.name(), it.getSelectionSet()).stream())
-						.map(SelectedField::getSelectionSet)
-				)
-				.toList()
-		);
-	}
-
-	@Nonnull
-	private Optional<ChunkingRequireConstraint> resolveReferenceChunkingRequirement(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
-		final List<SelectedField> fields = fieldsForReferenceHolder.fields();
-		final boolean hasChunkingArgument = fields.stream().anyMatch(field ->
-				(
-					field.getName().equals(fieldsForReferenceHolder.baseReferenceFieldName()) &&
-					field.getArguments().containsKey(ReferencesFieldHeaderDescriptor.LIMIT.name())
-				) ||
-				field.getName().equals(fieldsForReferenceHolder.referencePageFieldName()) ||
-				field.getName().equals(fieldsForReferenceHolder.referenceStripFieldName())
-		);
-		if (!hasChunkingArgument) {
-			return Optional.empty();
+	@Nullable
+	private static ChunkingRequireConstraint resolveReferenceContentChunkingFromBasicField(
+		@Nonnull SelectedField referenceField
+	) {
+		final Integer limitArgument = (Integer) referenceField.getArguments().get(ReferencesFieldHeaderDescriptor.LIMIT.name());
+		if (limitArgument == null) {
+			return null;
 		}
-
-		Assert.isTrue(
-			fields.size() == 1,
-			() -> new GraphQLInvalidResponseUsageException(
-				"There may be only one reference field in entity if there is reference field with chunking."
-			)
-		);
-
-		final SelectedField dataChunkField = fields.get(0);
-		if (dataChunkField.getName().equals(fieldsForReferenceHolder.baseReferenceFieldName())) {
-			return Optional.of(strip(
-				null,
-				(Integer) dataChunkField.getArguments().get(ReferencesFieldHeaderDescriptor.LIMIT.name())
-			));
-		} else if (dataChunkField.getName().equals(fieldsForReferenceHolder.referencePageFieldName())) {
-			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
-				// performance optimization, we don't need actual references
-				return Optional.of(page(1, 0));
-			}
-			return Optional.of(page(
-				(Integer) dataChunkField.getArguments().get(PaginatedListFieldHeaderDescriptor.NUMBER.name()),
-				(Integer) dataChunkField.getArguments().get(PaginatedListFieldHeaderDescriptor.SIZE.name())
-			));
-		} else if (dataChunkField.getName().equals(fieldsForReferenceHolder.referenceStripFieldName())) {
-			if (isOnlyTotalCountIsDesiredForReferenceDataChunk(dataChunkField)) {
-				// performance optimization, we don't need actual references
-				return Optional.of(strip(0, 0));
-			}
-			return Optional.of(strip(
-				(Integer) dataChunkField.getArguments().get(StripListFieldHeaderDescriptor.OFFSET.name()),
-				(Integer) dataChunkField.getArguments().get(StripListFieldHeaderDescriptor.LIMIT.name())
-			));
-		} else {
-			throw new GraphQLInternalError(
-				"Invalid reference data chunk field.",
-				"There is supposed to be a data chunk field, but has invalid name `" + dataChunkField.getName() + "`."
-			);
-		}
+		return strip(null, limitArgument);
 	}
 
-	private static boolean isOnlyTotalCountIsDesiredForReferenceDataChunk(@Nonnull SelectedField dataChunkField) {
-		final List<SelectedField> dataChuckInnerFields = dataChunkField.getSelectionSet().getImmediateFields();
+	@Nullable
+	private static ChunkingRequireConstraint resolveReferenceContentChunkingFromPageField(
+		@Nonnull SelectedField referenceField,
+		@Nonnull SelectionSetAggregator nestedFields
+	) {
+		if (isOnlyTotalCountIsDesiredForReferenceDataChunk(nestedFields)) {
+			// performance optimization, we don't need actual references
+			return page(1, 0);
+		}
+		final Integer pageNumber = (Integer) referenceField.getArguments().get(PaginatedListFieldHeaderDescriptor.NUMBER.name());
+		final Integer pageSize = (Integer) referenceField.getArguments().get(PaginatedListFieldHeaderDescriptor.SIZE.name());
+		if (pageNumber == null && pageSize == null) {
+			return null;
+		}
+		return page(pageNumber, pageSize);
+	}
+
+	@Nullable
+	private static ChunkingRequireConstraint resolveReferenceContentChunkingFromStripField(
+		@Nonnull SelectedField referenceField,
+		@Nonnull SelectionSetAggregator nestedFields
+	) {
+		if (isOnlyTotalCountIsDesiredForReferenceDataChunk(nestedFields)) {
+			// performance optimization, we don't need actual references
+			return page(1, 0);
+		}
+		final Integer offset = (Integer) referenceField.getArguments().get(StripListFieldHeaderDescriptor.OFFSET.name());
+		final Integer limit = (Integer) referenceField.getArguments().get(StripListFieldHeaderDescriptor.LIMIT.name());
+		if (offset == null && limit == null) {
+			return null;
+		}
+		return strip(offset, limit);
+	}
+
+	private static boolean isOnlyTotalCountIsDesiredForReferenceDataChunk(@Nonnull SelectionSetAggregator referenceNestedFields) {
+		final List<SelectedField> dataChuckInnerFields = referenceNestedFields.getImmediateFields();
 
 		return dataChuckInnerFields.size() == 1 &&
 			dataChuckInnerFields.get(0).getName().equals(DataChunkDescriptor.TOTAL_RECORD_COUNT.name());
@@ -666,19 +765,56 @@ public class EntityFetchRequireResolver {
 		return Optional.of(dataInLocales(neededLocales.toArray(Locale[]::new)));
 	}
 
-	private record FieldsForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                        @Nonnull List<SelectedField> fields,
-	                                        @Nonnull String baseReferenceFieldName,
-	                                        @Nonnull String referencePageFieldName,
-	                                        @Nonnull String referenceStripFieldName) {
-	}
+	@RequiredArgsConstructor
+	private static class ReferenceContentsBuilder {
 
-	private record RequirementForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                             @Nullable FilterBy filterBy,
-	                                             @Nullable OrderBy orderBy,
-												 @Nullable AttributeContent attributeContent,
-	                                             @Nullable EntityFetch entityRequirement,
-	                                             @Nullable EntityGroupFetch groupRequirement,
-	                                             @Nullable ChunkingRequireConstraint chunk) {
+		@Nonnull private final String referenceName;
+
+		private boolean globalContentRequested = false;
+		@Nullable private List<String> globalContentAttributes;
+
+		@Nullable private Map<String, ReferenceContent> namedContents;
+
+		public void setGlobalContentRequested() {
+			this.globalContentRequested = true;
+		}
+
+		public void addGlobalContentAttributes(@Nonnull Set<String> attributeNames) {
+			if (this.globalContentAttributes == null) {
+				this.globalContentAttributes = new LinkedList<>();
+			}
+			this.globalContentAttributes.addAll(attributeNames);
+		}
+
+		public void addNamedContent(@Nonnull ReferenceContent content) {
+			final String instanceName = content.getInstanceName();
+			if (this.namedContents == null) {
+				this.namedContents = createHashMap(5); // initial capacity deduced from real-world queries
+			} else {
+				if (this.namedContents.containsKey(instanceName)) {
+					throw new GraphQLInvalidResponseUsageException(
+						"Duplicate references (" + instanceName + ") requested. " +
+							"Each field representing a particular reference must have unique alias, or there must be only " +
+							"one field for a particular reference."
+					);
+				}
+			}
+			this.namedContents.put(instanceName, content);
+		}
+
+		@Nonnull
+		public Collection<ReferenceContent> build() {
+			final Collection<ReferenceContent> contents = new LinkedList<>();
+			if (this.namedContents != null) {
+				contents.addAll(this.namedContents.values());
+			}
+			if (this.globalContentRequested) {
+				final AttributeContent attributeContent = this.globalContentAttributes != null && !this.globalContentAttributes.isEmpty()
+					? attributeContent(this.globalContentAttributes.toArray(String[]::new))
+					: null;
+				contents.add(new ReferenceContent(this.referenceName, attributeContent));
+			}
+			return Collections.unmodifiableCollection(contents);
+		}
 	}
 }

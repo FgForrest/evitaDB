@@ -28,6 +28,7 @@ import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -53,10 +54,14 @@ public class ObjectDescriptorToOpenApiObjectTransformer implements ObjectDescrip
 		objectBuilder.description(objectDescriptor.description());
 
 		// static properties of object
-		objectDescriptor.staticFields()
+		objectDescriptor.staticProperties()
 			.stream()
 			.map(this.propertyDescriptorTransformer)
 			.forEach(objectBuilder::property);
+
+		if (objectDescriptor.interfaceDescriptor() != null) {
+			objectBuilder.implementedInterface(OpenApiTypeReference.typeRefTo(objectDescriptor.interfaceDescriptor().name()));
+		}
 
 		return objectBuilder;
 	}

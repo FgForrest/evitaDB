@@ -1,0 +1,17 @@
+{
+  "id": "<subscription id>",
+  "type": "subscribe",
+  "payload": {
+	"content": "BODY",
+	"criteria": [
+	  {
+		"area": "SCHEMA",
+		"schemaSite": {}
+	  },
+	  {
+		"area": "DATA",
+		"dataSite": {}
+	  }
+	]
+  }
+}

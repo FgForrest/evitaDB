@@ -36,6 +36,7 @@ import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -55,6 +56,7 @@ import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.function.TriFunction;
@@ -190,16 +192,19 @@ public class QueryExecutionContext implements Closeable {
 		final String entityType = this.queryContext.getEntityType();
 		final EvitaRequest evitaRequest = this.queryContext.getEvitaRequest();
 		final EvitaSessionContract evitaSession = this.queryContext.getEvitaSession();
-		final Map<String, RequirementContext> requirementTuples = evitaRequest.getReferenceEntityFetch();
+		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
+		final Map<ReferenceContentKey, RequirementContext> namedReferenceEntityFetch = evitaRequest.getNamedReferenceEntityFetch();
 
 		// new predicates are richer that previous ones - we need to fetch additional data and create new entity
-		final ReferenceFetcher entityFetcher = requirementTuples.isEmpty() &&
+		final ReferenceFetcher entityFetcher = referenceEntityFetch.isEmpty() &&
+			namedReferenceEntityFetch.isEmpty() &&
 			!evitaRequest.isRequiresEntityReferences() &&
 			!evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
 				evitaRequest.getHierarchyContent(),
-				requirementTuples,
+				referenceEntityFetch,
+				namedReferenceEntityFetch,
 				evitaRequest.getDefaultReferenceRequirement(),
 				this,
 				new ServerChunkTransformerAccessor(evitaRequest)

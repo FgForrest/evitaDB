@@ -359,7 +359,8 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		);
 
 		// The subscription should be completed
-		assertTrue(subscriber.isCompleted(), "The subscription should be completed after unregistering");
+		assertTrue(subscriber.isClosed(), "The subscription should be completed after unregistering");
+		assertFalse(subscriber.isCompleted(), "The subscription should not be completed yet");
 
 		// Try to unregister with a random UUID (should fail since the observer is already unregistered)
 		assertFalse(
@@ -429,9 +430,14 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		publisher1.close();
 		publisher2.close();
 
-		assertTrue(subscriber1.isCompleted(), "Subscriber 1 should be completed after cleaning");
-		assertTrue(subscriber2.isCompleted(), "Subscriber 2 should be completed after cleaning");
-		assertFalse(subscriber3.isCompleted(), "Subscriber 3 should not be completed after cleaning");
+		assertTrue(subscriber1.isClosed(), "Subscriber 1 should be completed after cleaning");
+		assertTrue(subscriber2.isClosed(), "Subscriber 2 should be completed after cleaning");
+		assertFalse(subscriber3.isClosed(), "Subscriber 3 should not be completed after cleaning");
+
+		// none should be completed
+		assertFalse(subscriber1.isCompleted(), "Subscriber 1 should not be completed yet");
+		assertFalse(subscriber2.isCompleted(), "Subscriber 2 should not be completed yet");
+		assertFalse(subscriber3.isCompleted(), "Subscriber 3 should not be completed yet");
 
 		// Call cleanSubscribers
 		systemChangeObserver.cleanSubscribers();
@@ -448,9 +454,14 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 
 		// Verify all publishers are removed (except the system publisher)
 		assertEquals(1, systemChangeObserver.getSubscribersCount(), "All subscribers except system one should be removed after cleaning");
-		assertTrue(subscriber1.isCompleted(), "Subscriber 1 should be completed after cleaning");
-		assertTrue(subscriber2.isCompleted(), "Subscriber 2 should be completed after cleaning");
-		assertTrue(subscriber3.isCompleted(), "Subscriber 3 should be completed after cleaning");
+		assertTrue(subscriber1.isClosed(), "Subscriber 1 should be completed after cleaning");
+		assertTrue(subscriber2.isClosed(), "Subscriber 2 should be completed after cleaning");
+		assertTrue(subscriber3.isClosed(), "Subscriber 3 should be completed after cleaning");
+
+		// none should be completed
+		assertFalse(subscriber1.isCompleted(), "Subscriber 1 should not be completed yet");
+		assertFalse(subscriber2.isCompleted(), "Subscriber 2 should not be completed yet");
+		assertFalse(subscriber3.isCompleted(), "Subscriber 3 should not be completed yet");
 	}
 
 	/**

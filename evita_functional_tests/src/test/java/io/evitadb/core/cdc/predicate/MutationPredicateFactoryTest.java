@@ -32,10 +32,9 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
@@ -93,7 +92,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should accept mutations with version > 100
-	    predicate.getContext().setVersion(mutation.getVersion(), mutation.getMutationCount());
+	    predicate.getContext().setVersion(mutation.getVersion(), mutation.getMutationCount(), mutation.getCommitTimestamp());
         assertTrue(predicate.test(mutation));
 
         // Create a transaction mutation with version 99
@@ -102,7 +101,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should reject mutations with version < 100
-	    predicate.getContext().setVersion(olderMutation.getVersion(), olderMutation.getMutationCount());
+	    predicate.getContext().setVersion(olderMutation.getVersion(), olderMutation.getMutationCount(), mutation.getCommitTimestamp());
         assertFalse(predicate.test(olderMutation));
     }
 
@@ -152,7 +151,7 @@ class MutationPredicateFactoryTest {
         );
 
 	    // The predicate should reject transaction mutation with correct version (bad index)
-	    predicate.getContext().setVersion(correctTransaction.getVersion(), correctTransaction.getMutationCount());
+	    predicate.getContext()  .setVersion(correctTransaction.getVersion(), correctTransaction.getMutationCount(), correctTransaction.getCommitTimestamp());
 	    assertFalse(predicate.test(correctTransaction));
         for (int i = 0; i < 4; i++) {
 	        // The predicate should reject mutations with version = 100 and index < 5
@@ -172,7 +171,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should accept mutations with version > 100 regardless of index
-	    predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount());
+	    predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount(), newerMutation.getCommitTimestamp());
         assertTrue(predicate.test(newerMutation));
     }
 
@@ -207,7 +206,7 @@ class MutationPredicateFactoryTest {
 		);
 
 		// The predicate should reject mutations with version > 100 regardless of index
-		predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount());
+		predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount(), newerMutation.getCommitTimestamp());
 		assertFalse(predicate.test(newerMutation));
 		for (int i = 0; i < 10; i++) {
 			predicate.getContext().advance();
@@ -221,7 +220,7 @@ class MutationPredicateFactoryTest {
 		);
 
 		// The predicate should accept transaction mutation with correct version
-		predicate.getContext().setVersion(correctTransaction.getVersion(), correctTransaction.getMutationCount());
+		predicate.getContext().setVersion(correctTransaction.getVersion(), correctTransaction.getMutationCount(), correctTransaction.getCommitTimestamp());
 		assertTrue(predicate.test(correctTransaction));
 		for (int i = 0; i < 5; i++) {
 			predicate.getContext().advance();
@@ -241,7 +240,7 @@ class MutationPredicateFactoryTest {
 		);
 
 		// The predicate should accept mutations with version < 100 regardless of index
-		predicate.getContext().setVersion(olderMutation.getVersion(), olderMutation.getMutationCount());
+		predicate.getContext().setVersion(olderMutation.getVersion(), olderMutation.getMutationCount(), olderMutation.getCommitTimestamp());
 		assertTrue(predicate.test(olderMutation));
 		for (int i = 0; i < 10; i++) {
 			predicate.getContext().advance();
@@ -285,7 +284,7 @@ class MutationPredicateFactoryTest {
         );
 
         // The predicate should reject mutations with version > 100 in reverse order
-	    predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount());
+	    predicate.getContext().setVersion(newerMutation.getVersion(), newerMutation.getMutationCount(), newerMutation.getCommitTimestamp());
         assertFalse(predicate.test(newerMutation));
     }
 
@@ -299,7 +298,7 @@ class MutationPredicateFactoryTest {
     @DisplayName("create criteria predicate for schema area")
     void shouldCreateCriteriaPredicateForSchemaArea() {
         // Create a context
-        MutationPredicateContext context = new MutationPredicateContext(Mutation.StreamDirection.FORWARD);
+        MutationPredicateContext context = new MutationPredicateContext(StreamDirection.FORWARD);
 
         // Create criteria for schema area
         ChangeCatalogCaptureCriteria criteria = ChangeCatalogCaptureCriteria.builder()
@@ -350,7 +349,7 @@ class MutationPredicateFactoryTest {
     @DisplayName("create criteria predicate for data area")
     void shouldCreateCriteriaPredicateForDataArea() {
         // Create a context
-        MutationPredicateContext context = new MutationPredicateContext(Mutation.StreamDirection.FORWARD);
+        MutationPredicateContext context = new MutationPredicateContext(StreamDirection.FORWARD);
 
         // Create criteria for data area
         ChangeCatalogCaptureCriteria criteria = ChangeCatalogCaptureCriteria.builder()

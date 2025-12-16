@@ -25,6 +25,8 @@ package io.evitadb.api.requestResponse.cdc;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Record describing the capture request for the {@link ChangeCapturePublisher} of {@link ChangeCatalogCapture}s.
@@ -48,6 +50,34 @@ public record ChangeCatalogCaptureRequest(
 	@Nullable ChangeCatalogCaptureCriteria[] criteria,
 	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
+
+	@Override
+	public boolean equals(Object o) {
+		if (!(o instanceof final ChangeCatalogCaptureRequest that)) return false;
+
+		return Objects.equals(this.sinceVersion, that.sinceVersion) && Objects.equals(
+			this.sinceIndex, that.sinceIndex) && this.content == that.content && Arrays.equals(this.criteria, that.criteria);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = Objects.hashCode(this.sinceVersion);
+		result = 31 * result + Objects.hashCode(this.sinceIndex);
+		result = 31 * result + Arrays.hashCode(this.criteria);
+		result = 31 * result + this.content.hashCode();
+		return result;
+	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return "ChangeCatalogCaptureRequest{" +
+			"sinceVersion=" + this.sinceVersion +
+			", sinceIndex=" + this.sinceIndex +
+			", criteria=" + Arrays.toString(this.criteria) +
+			", content=" + this.content +
+			'}';
+	}
 
 	/**
 	 * Creates builder object that helps you create DataSite record using builder pattern.

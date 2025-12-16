@@ -72,13 +72,13 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
+@EqualsAndHashCode(callSuper = true)
 public class SetAttributeSchemaFilterableMutation
+	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
 	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -382658973541254821L;
 
-	@Getter @Nonnull private final String name;
 	@Getter private final Scope[] filterableInScopes;
 
 	public SetAttributeSchemaFilterableMutation(@Nonnull String name, boolean filterable) {
@@ -93,7 +93,7 @@ public class SetAttributeSchemaFilterableMutation
 		@Nonnull String name,
 		@Nullable Scope[] filterableInScopes
 	) {
-		this.name = name;
+		super(name);
 		this.filterableInScopes = filterableInScopes == null ? NO_SCOPE : filterableInScopes;
 	}
 

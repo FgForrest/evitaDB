@@ -166,7 +166,7 @@ public abstract class ClientSingleReadState extends ClientDataFullDatabaseState
 					priceConstraint
 				)
 			),
-			require(entityFetch(requirements.toArray(new EntityContentRequire[0])))
+			require(entityFetch(requirements.toArray(EntityContentRequire.EMPTY_ARRAY)))
 		);
 	}
 

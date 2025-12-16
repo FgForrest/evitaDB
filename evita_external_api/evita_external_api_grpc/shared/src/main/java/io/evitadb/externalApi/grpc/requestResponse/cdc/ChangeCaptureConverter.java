@@ -30,10 +30,11 @@ import io.evitadb.api.requestResponse.cdc.*;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
+import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -209,6 +210,7 @@ public class ChangeCaptureConverter {
 		return new ChangeCatalogCapture(
 			changeCatalogCapture.getVersion().getValue(),
 			changeCatalogCapture.getIndex().getValue(),
+			EvitaDataTypesConverter.toOffsetDateTime(changeCatalogCapture.getTimestamp()),
 			EvitaEnumConverter.toCaptureArea(changeCatalogCapture.getArea()),
 			changeCatalogCapture.hasEntityType() ? changeCatalogCapture.getEntityType().getValue() : null,
 			changeCatalogCapture.hasEntityPrimaryKey() ? changeCatalogCapture.getEntityPrimaryKey().getValue() : null,
@@ -231,6 +233,7 @@ public class ChangeCaptureConverter {
 			.newBuilder()
 			.setVersion(Int64Value.of(changeCatalogCapture.version()))
 			.setIndex(Int32Value.of(changeCatalogCapture.index()))
+			.setTimestamp(EvitaDataTypesConverter.toGrpcOffsetDateTime(changeCatalogCapture.timestamp()))
 			.setArea(EvitaEnumConverter.toGrpcChangeCaptureArea(
 				changeCatalogCapture.area()))
 			.setOperation(EvitaEnumConverter.toGrpcOperation(
@@ -264,6 +267,7 @@ public class ChangeCaptureConverter {
 		return new ChangeSystemCapture(
 			changeSystemCapture.getVersion(),
 			changeSystemCapture.getIndex(),
+			EvitaDataTypesConverter.toOffsetDateTime(changeSystemCapture.getTimestamp()),
 			EvitaEnumConverter.toOperation(changeSystemCapture.getOperation()),
 			DelegatingEngineMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
 		);
@@ -281,6 +285,7 @@ public class ChangeCaptureConverter {
 			.newBuilder()
 			.setVersion(capture.version())
 			.setIndex(capture.index())
+			.setTimestamp(EvitaDataTypesConverter.toGrpcOffsetDateTime(capture.timestamp()))
 			.setOperation(
 				EvitaEnumConverter.toGrpcOperation(
 					capture.operation()));
@@ -435,7 +440,8 @@ public class ChangeCaptureConverter {
 			schemaSite.getContainerTypeList()
 			          .stream()
 			          .map(EvitaEnumConverter::toContainerType)
-			          .toArray(ContainerType[]::new)
+			          .toArray(ContainerType[]::new),
+			schemaSite.getContainerNameList().toArray(new String[0])
 		);
 	}
 
@@ -458,6 +464,9 @@ public class ChangeCaptureConverter {
 		if (schemaSite.containerType() != null) {
 			Arrays.stream(schemaSite.containerType()).map(EvitaEnumConverter::toGrpcChangeCaptureContainerType).forEach(
 				builder::addContainerType);
+		}
+		if (schemaSite.containerName() != null) {
+			builder.addAllContainerName(Arrays.asList(schemaSite.containerName()));
 		}
 		return builder.build();
 	}

@@ -52,7 +52,7 @@ public class BitmapChanges {
 	 * Temporary intermediate result of the last {@link #getMergedBitmap()} operation. Nullified immediately with next
 	 * change.
 	 */
-	@Nullable private RoaringBitmap memoizedMergedBitmap;
+	@Nullable private volatile RoaringBitmap memoizedMergedBitmap;
 
 	BitmapChanges(RoaringBitmap original) {
 		this.originalBitmap = original;

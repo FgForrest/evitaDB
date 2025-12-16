@@ -311,7 +311,7 @@ public class OffsetIndex {
 		this.lastSyncedPosition = writeHandle.getLastWrittenPosition();
 		try {
 			final Optional<CollectingOffsetIndexBuilder> fileOffsetIndexBuilder;
-			if (this.lastSyncedPosition == 0) {
+			if (this.lastSyncedPosition == 0 || fileOffsetDescriptor.fileLocation().equals(FileLocation.EMPTY)) {
 				fileOffsetIndexBuilder = Optional.empty();
 			} else {
 				fileOffsetIndexBuilder = of(

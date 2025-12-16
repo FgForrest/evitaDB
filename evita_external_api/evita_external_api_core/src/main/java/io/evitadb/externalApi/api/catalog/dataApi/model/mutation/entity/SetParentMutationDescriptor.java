@@ -49,11 +49,14 @@ public interface SetParentMutationDescriptor extends MutationDescriptor {
 		.type(nonNull(Integer.class))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetParentMutation")
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.representedClass(SetParentMutation.class)
 		.description("""
 			This mutation allows to set `parent` in the `entity`.
 			""")
-		.staticFields(List.of(MUTATION_TYPE, PARENT_PRIMARY_KEY))
+		.staticProperty(PARENT_PRIMARY_KEY)
+		.build();
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
+		.name("SetParentMutationInput")
 		.build();
 }

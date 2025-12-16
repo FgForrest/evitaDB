@@ -24,13 +24,13 @@
 package io.evitadb.api.requestResponse.mutation;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.OptionalInt;
 
@@ -47,6 +47,7 @@ public class MutationPredicateContext {
 	@Getter private final StreamDirection direction;
 	@Getter private long version = 0L;
 	@Getter private int index = 0;
+	@Getter private OffsetDateTime timestamp;
 	@Nullable @Getter private String entityType;
 	@Nullable private Integer entityPrimaryKey;
 	private int mutationCount = 0;
@@ -116,12 +117,15 @@ public class MutationPredicateContext {
 	 * Sets the version from leading transactional mutation to the context. All mutations in the same atomic context
 	 * (transactional) share the same version.
 	 * @param version the version to be set
+	 * @param mutationCount the total number of mutations in the transaction
+	 * @param timestamp the timestamp when the operation was performed
 	 */
-	public void setVersion(long version, int mutationCount) {
+	public void setVersion(long version, int mutationCount, @Nonnull OffsetDateTime timestamp) {
 		this.version = version;
 		this.entityPrimaryKey = null;
 		this.entityType = null;
 		this.mutationCount = mutationCount;
+		this.timestamp = timestamp;
 		this.index = 0;
 	}
 

@@ -58,7 +58,8 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class ModifyReferenceSchemaCardinalityMutation
-	extends AbstractModifyReferenceDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
+	extends AbstractModifyReferenceDataSchemaMutation
+	implements CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -6542945168078711713L;
 	@Nullable @Getter private final Cardinality cardinality;
 

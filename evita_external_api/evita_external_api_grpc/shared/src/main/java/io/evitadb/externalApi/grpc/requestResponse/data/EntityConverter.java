@@ -28,6 +28,7 @@ import com.google.protobuf.Int32Value;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -163,10 +164,10 @@ public class EntityConverter {
 		if (EntityReference.class.isAssignableFrom(expectedType)) {
 			throw new EvitaInvalidUsageException("EntityReference is not expected in this method!");
 		} else {
-			final List<ReferenceContract> references = grpcEntity.getReferencesList()
+			final ReferenceContract[] references = grpcEntity.getReferencesList()
 				.stream()
 				.map(it -> toReference(entitySchema, it))
-				.collect(Collectors.toList());
+				.toArray(ReferenceContract[]::new);
 
 			final PriceContractSerializablePredicate pricePredicate;
 			if (grpcEntity.hasPriceForSale()) {
@@ -246,7 +247,8 @@ public class EntityConverter {
 					toReferenceOffsetAndLimits(grpcEntity.getReferenceOffsetAndLimitsMap()),
 					entitySchemaFetcher,
 					evitaRequest
-				)
+				),
+				evitaRequest
 			);
 
 			if (expectedType.isInstance(sealedEntity)) {
@@ -934,8 +936,10 @@ public class EntityConverter {
 			this.entityIndex = grpcReference.stream()
 				.filter(GrpcReference::hasReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
-						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final String referenceName = it.getReferenceName();
+					final RequirementContext fetchCtx = ofNullable(
+						evitaRequest.getReferenceEntityFetch().get(referenceName)
+					).orElse(evitaRequest.getDefaultReferenceRequirement());
 					Assert.isPremiseValid(
 						fetchCtx != null && fetchCtx.entityFetch() != null,
 						"Server returned referenced entity, but it's not requested in the request?!"
@@ -953,8 +957,10 @@ public class EntityConverter {
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
 				.map(it -> {
-					final RequirementContext fetchCtx = ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
-						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final String referenceName = it.getReferenceName();
+					final RequirementContext fetchCtx = ofNullable(
+						evitaRequest.getReferenceEntityFetch().get(referenceName)
+					).orElse(evitaRequest.getDefaultReferenceRequirement());
 					Assert.isPremiseValid(
 						fetchCtx != null && fetchCtx.entityGroupFetch() != null,
 						"Server returned referenced entity, but it's not requested in the request?!"
@@ -998,13 +1004,13 @@ public class EntityConverter {
 			return parentId -> this.parentEntity;
 		}
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return primaryKey -> this.entityIndex.get(new EntityReference(referenceSchema.getReferencedEntityType(), primaryKey));
 		}
 
-		@Nullable
+		@Nonnull
 		@Override
 		public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
 			return primaryKey -> this.groupIndex.get(new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), primaryKey));
@@ -1038,6 +1044,12 @@ public class EntityConverter {
 			} else {
 				return chunker.createChunk(references);
 			}
+		}
+
+		@Nullable
+		@Override
+		public AttributeContent getAttributeContentToPrefetch(@Nonnull ReferenceSchemaContract referenceSchema) {
+			return null;
 		}
 
 		/**

@@ -32,6 +32,10 @@ import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.conflict.PriceInnerRecordHandlingStrategyConflictKey;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -44,6 +48,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * This mutation allows to set / remove {@link PriceInnerRecordHandling} behaviour of the {@link Entity}.
@@ -65,7 +71,9 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 	}
 
 	private SetPriceInnerRecordHandlingMutation(
-		long decisiveTimestamp, PriceInnerRecordHandling priceInnerRecordHandling) {
+		long decisiveTimestamp,
+		@Nonnull PriceInnerRecordHandling priceInnerRecordHandling
+	) {
 		this.decisiveTimestamp = decisiveTimestamp;
 		this.priceInnerRecordHandling = priceInnerRecordHandling;
 	}
@@ -129,6 +137,17 @@ public class SetPriceInnerRecordHandlingMutation implements SchemaEvolvingLocalM
 	@Override
 	public Operation operation() {
 		return Operation.UPSERT;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return conflictPolicies.contains(ConflictPolicy.PRICE) && context.getEntityPrimaryKey() != null ?
+			Stream.of(new PriceInnerRecordHandlingStrategyConflictKey(context.getEntityType(), context.getEntityPrimaryKey())) :
+			Stream.empty();
 	}
 
 	@Nonnull

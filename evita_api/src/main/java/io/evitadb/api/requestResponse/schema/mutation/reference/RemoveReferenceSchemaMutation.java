@@ -33,9 +33,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchem
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.utils.Assert;
-import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,11 +56,15 @@ import java.util.stream.Collectors;
  */
 @ThreadSafe
 @Immutable
-@EqualsAndHashCode
-@AllArgsConstructor
-public class RemoveReferenceSchemaMutation implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
+@EqualsAndHashCode(callSuper = true)
+public class RemoveReferenceSchemaMutation
+	extends AbstractReferenceDataSchemaMutation
+	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -7746714314557968775L;
-	@Getter @Nonnull private final String name;
+
+	public RemoveReferenceSchemaMutation(@Nonnull String name) {
+		super(name);
+	}
 
 	@Nullable
 	@Override

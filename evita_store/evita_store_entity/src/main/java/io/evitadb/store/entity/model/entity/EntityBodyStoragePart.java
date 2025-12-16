@@ -224,12 +224,16 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * @param locale to be added
 	 * @return TRUE if the locales of the entity have been changed
 	 */
-	public boolean addAttributeLocale(@Nonnull Locale locale) {
+	@Nonnull
+	public LocaleModificationResult addAttributeLocale(@Nonnull Locale locale) {
 		if (this.attributeLocales.add(locale)) {
 			this.dirty = true;
-			return this.recomputeLocales();
+			return new LocaleModificationResult(
+				true,
+				this.recomputeLocales()
+			);
 		} else {
-			return false;
+			return LocaleModificationResult.NO_CHANGES;
 		}
 	}
 
@@ -239,12 +243,16 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * @param locale to be removed
 	 * @return TRUE if the locales of the entity have been changed
 	 */
-	public boolean removeAttributeLocale(@Nonnull Locale locale) {
+	@Nonnull
+	public LocaleModificationResult removeAttributeLocale(@Nonnull Locale locale) {
 		if (this.attributeLocales.remove(locale)) {
 			this.dirty = true;
-			return this.recomputeLocales();
+			return new LocaleModificationResult(
+				true,
+				this.recomputeLocales()
+			);
 		} else {
-			return false;
+			return LocaleModificationResult.NO_CHANGES;
 		}
 	}
 
@@ -307,6 +315,36 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 			return true;
 		} else {
 			return false;
+		}
+	}
+
+	/**
+	 * Represents the result of a locale modification operation within an entity's storage part.
+	 * This record encapsulates two flags indicating whether specific locale-related changes
+	 * have occurred.
+	 *
+	 * @param attributeLocalesChanged a flag indicating whether the modifications have affected
+	 *                                the locales used in the entity's attributes.
+	 * @param entityLocalesChanged    a flag indicating whether the modifications have affected
+	 *                                the general locales of the entity.
+	 */
+	public record LocaleModificationResult(
+		boolean attributeLocalesChanged,
+		boolean entityLocalesChanged
+	) {
+		public static final LocaleModificationResult NO_CHANGES = new LocaleModificationResult(
+			false, false
+		);
+
+		/**
+		 * Determines if any changes have occurred in either the attribute locales or
+		 * the general locales of the entity.
+		 *
+		 * @return true if changes have occurred in either attribute locales or entity locales;
+		 *         false otherwise.
+		 */
+		public boolean anyChangeOccurred() {
+			return this.attributeLocalesChanged || this.entityLocalesChanged;
 		}
 	}
 

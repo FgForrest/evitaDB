@@ -36,7 +36,7 @@ import java.util.Objects;
  *                     it is assumed to begin at the most recent / greatest available version
  * @param sinceIndex   specifies the initial capture point for the CDC stream, it is optional and can be used
  *                     to specify continuation point within an enclosing block of events
- * @param content the requested content of the capture, by default only the header information is sent
+ * @param content      the requested content of the capture, by default, only the header information is sent
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -45,6 +45,70 @@ public record ChangeSystemCaptureRequest(
 	@Nullable Integer sinceIndex,
 	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
+
+	/**
+	 * Creates builder object that helps you create ChangeSystemCaptureRequest record using builder pattern.
+	 * @return new instance of {@link ChangeSystemCaptureRequest.Builder}
+	 */
+	@Nonnull
+	public static ChangeSystemCaptureRequest.Builder builder() {
+		return new ChangeSystemCaptureRequest.Builder();
+	}
+
+	/**
+	 * Builder class for {@link ChangeSystemCaptureRequest}.
+	 */
+	public static class Builder {
+		private Long sinceVersion;
+		private Integer sinceIndex;
+		private ChangeCaptureContent content = ChangeCaptureContent.HEADER;
+
+		/**
+		 * Sets the content of the capture.
+		 * @param content the content of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder content(@Nonnull ChangeCaptureContent content) {
+			this.content = content;
+			return this;
+		}
+
+		/**
+		 * Sets the sinceVersion of the capture.
+		 * @param sinceVersion the sinceVersion of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder sinceVersion(long sinceVersion) {
+			this.sinceVersion = sinceVersion;
+			return this;
+		}
+
+		/**
+		 * Sets the sinceIndex of the capture.
+		 * @param sinceIndex the sinceIndex of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder sinceIndex(int sinceIndex) {
+			this.sinceIndex = sinceIndex;
+			return this;
+		}
+
+		/**
+		 * Builds the {@link ChangeSystemCaptureRequest} object.
+		 * @return the built object
+		 */
+		@Nonnull
+		public ChangeSystemCaptureRequest build() {
+			return new ChangeSystemCaptureRequest(
+				this.sinceVersion,
+				this.sinceIndex,
+				this.content
+			);
+		}
+	}
 
 	@Override
 	public boolean equals(Object o) {

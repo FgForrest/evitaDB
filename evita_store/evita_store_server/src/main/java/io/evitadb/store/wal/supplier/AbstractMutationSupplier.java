@@ -155,10 +155,10 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 			this.catalogKryoPool = catalogKryoPool;
 			this.kryo = catalogKryoPool.obtain();
 			try {
-				final RandomAccessFile randomWalFile = new RandomAccessFile(this.walFile, "r");
 				this.observableInput = new ObservableInput<>(
 					new RandomAccessFileInputStream(
-						randomWalFile, true
+						new RandomAccessFile(this.walFile, "r"),
+						true
 					)
 				);
 				if (this.storageOptions.computeCRC32C()) {
@@ -171,6 +171,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 				Optional<TransactionMutationWithLocation> initialTransactionMutation;
 				do {
 					this.filePosition = ofNullable(this.transactionLocationsCache.get(this.walFileIndex))
+						.filter(it -> !it.wasCut())
 						.map(it -> it.findNearestLocation(version))
 						.orElse(0L);
 

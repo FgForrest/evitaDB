@@ -60,7 +60,8 @@ public class CollectionGraphQLSchemaBuildingContext {
 	}
 
 	public void registerEntityObject(@Nonnull GraphQLObjectType entityObject) {
-		this.catalogCtx.registerEntityObject(this.schema.getName(), entityObject);
+		this.catalogCtx.registerType(entityObject);
+		this.catalogCtx.getMappingTypeResolver(EntityObjectBuilder.ENTITY_DTO_TYPE_RESOLVER_REGISTRY_KEY).registerTypeMapping(this.schema.getName(), entityObject);
 	}
 
 	/**

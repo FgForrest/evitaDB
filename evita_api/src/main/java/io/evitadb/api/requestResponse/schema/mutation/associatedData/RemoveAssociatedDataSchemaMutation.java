@@ -24,6 +24,10 @@
 package io.evitadb.api.requestResponse.schema.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
+import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -32,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -44,8 +49,10 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Mutation is responsible for removing an existing {@link AssociatedDataSchemaContract} in the
@@ -61,7 +68,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode
 @AllArgsConstructor
 public class RemoveAssociatedDataSchemaMutation
-	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation {
+	implements AssociatedDataSchemaMutation, CombinableLocalEntitySchemaMutation, NamedSchemaMutation {
 	@Serial private static final long serialVersionUID = 5455262123304001612L;
 	@Getter @Nonnull private final String name;
 
@@ -131,6 +138,21 @@ public class RemoveAssociatedDataSchemaMutation
 	@Override
 	public Operation operation() {
 		return Operation.REMOVE;
+	}
+
+	@Nonnull
+	@Override
+	public String containerName() {
+		return this.name;
+	}
+
+	@Nonnull
+	@Override
+	public Stream<ConflictKey> collectConflictKeys(
+		@Nonnull ConflictGenerationContext context,
+		@Nonnull Set<ConflictPolicy> conflictPolicies
+	) {
+		return Stream.of(new CollectionConflictKey(context.getEntityType()));
 	}
 
 	@Override

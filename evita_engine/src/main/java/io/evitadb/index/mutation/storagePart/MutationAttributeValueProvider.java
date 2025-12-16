@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -89,17 +92,21 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 		@Nonnull ReferenceMutation<?> firstMutation,
 		int startIndex,
 		@Nonnull IntSet processedMutations,
-		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations
+		@Nonnull List<? extends LocalMutation<?, ?>> inputMutations,
+		@Nonnull Function<ComparableReferenceKey, ReferenceKey> assignedInternalKeysTranslator
 	) {
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.referenceAttributesIndex = CollectionUtils.createHashMap(inputMutations.size());
+		final Set<ComparableReferenceKey> matchingReferenceKeys = CollectionUtils.createHashSet(inputMutations.size() / 2);
 		// let's collect all primary keys of the insert reference with the same name into a bitmap
 		final String referenceName = firstMutation.getReferenceKey().referenceName();
 		this.matchingMutations = new CompositeObjectArray<>(ReferenceMutation.class);
 		this.matchingMutations.add(firstMutation);
+		matchingReferenceKeys.add(new ComparableReferenceKey(firstMutation.getReferenceKey()));
+
 		// we assume that references are sorted by ReferenceKey,
 		// and that the mutations that relate to the same reference are next to each other
-		for (int j = startIndex + 1; j < inputMutations.size(); j++) {
+		for (int j = startIndex; j < inputMutations.size(); j++) {
 			final LocalMutation<?, ?> nextMutation = inputMutations.get(j);
 			if (nextMutation instanceof ReferenceMutation<?> nextIrm) {
 				if (referenceName.equals(nextIrm.getReferenceKey().referenceName())) {
@@ -107,21 +114,31 @@ class MutationAttributeValueProvider implements ReflectedReferenceAttributeValue
 					// and are of the same type - i.e. either insert or removal
 					if (firstMutation.getClass().equals(nextIrm.getClass())) {
 						this.matchingMutations.add(nextIrm);
+						// this allows enveloping process to quickly skip already processed mutations
+						processedMutations.add(j);
+						matchingReferenceKeys.add(new ComparableReferenceKey(nextIrm.getReferenceKey()));
 					} else if (
 						// and we also build an index of upserted reference attributes for the insert mutations
 						nextIrm instanceof ReferenceAttributeMutation ram &&
-							ram.getAttributeMutation() instanceof UpsertAttributeMutation uam) {
+							ram.getAttributeMutation() instanceof UpsertAttributeMutation uam &&
+							matchingReferenceKeys.contains(new ComparableReferenceKey(ram.getReferenceKey()))
+					) {
+						final ReferenceKey refKey = ram.getReferenceKey();
+						Assert.isPremiseValid(
+							!refKey.isUnknownReference(),
+							() -> "Cannot process reference attribute mutation for unknown reference!"
+						);
 						this.referenceAttributesIndex.computeIfAbsent(
-								ram.getReferenceKey(),
+								assignedInternalKeysTranslator.apply(new ComparableReferenceKey(refKey)),
 								referenceKey -> CollectionUtils.createHashMap(16)
 							)
 							.put(
 								ram.getAttributeKey(),
 								uam.mutateLocal(entitySchema, null)
 							);
+						// this allows enveloping process to quickly skip already processed mutations
+						processedMutations.add(j);
 					}
-					// this allows enveloping process to quickly skip already processed mutations
-					processedMutations.add(j);
 				}
 			}
 		}
