@@ -111,8 +111,7 @@ fi
 # Dependencies upgrades
 # ========================
 # Extract all properties ending with .version from current and previous pom.xml,
-# where previous pom.xml is taken from the latest release branch derived from the
-# latest semantic tag vYYYY.MAJOR.MINOR in the current branch.
+# where previous pom.xml is taken from the release branch derived from the milestone argument.
 
 # Helper: extract k=v lines for *.version from pom content passed on stdin
 _extract_version_props() {
@@ -129,19 +128,8 @@ else
   current_props=""
 fi
 
-# Find latest semantic tag in current branch and map to release branch
-last_tag=""
-release_branch=""
-# fetch tags quietly (ignore errors if any)
-(git fetch --tags -q >/dev/null 2>&1) || true
-# list tags reachable from HEAD and pick the latest matching vYYYY.M.M
-last_tag=$(git tag --merged 2>/dev/null | grep -E '^v[0-9]{4}\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
-
-if [ -n "$last_tag" ]; then
-  major=$(echo "$last_tag" | sed -E 's/^v([0-9]{4})\..*/\1/')
-  minor=$(echo "$last_tag" | sed -E 's/^v[0-9]{4}\.([0-9]+)\..*/\1/')
-  release_branch="release_${major}-${minor}"
-fi
+# Derive release branch name from milestone argument (e.g., "2025.7" -> "release_2025-7")
+release_branch="release_${MILESTONE//./-}"
 
 previous_props=""
 if [ -n "$release_branch" ]; then
