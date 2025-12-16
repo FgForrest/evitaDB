@@ -32,6 +32,7 @@
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
 		<version>2026.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
 	</parent>
 
 	<properties>
