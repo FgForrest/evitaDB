@@ -40,12 +40,15 @@ import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingLocalMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.data.mutation.associatedData.AssociatedDataMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VersionUtils.SemVer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 
 /**
@@ -227,7 +230,8 @@ public class ChangeCaptureConverter {
 	 */
 	@Nonnull
 	public static GrpcChangeCatalogCapture toGrpcChangeCatalogCapture(
-		@Nonnull ChangeCatalogCapture changeCatalogCapture
+		@Nonnull ChangeCatalogCapture changeCatalogCapture,
+		@Nullable SemVer clientVersion
 	) {
 		final Builder builder = GrpcChangeCatalogCapture
 			.newBuilder()
@@ -244,15 +248,21 @@ public class ChangeCaptureConverter {
 		if (changeCatalogCapture.entityPrimaryKey() != null) {
 			builder.setEntityPrimaryKey(Int32Value.of(changeCatalogCapture.entityPrimaryKey()));
 		}
-		if (changeCatalogCapture.body() instanceof EntityMutation entityMutation) {
-			builder.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation));
-		} else if (changeCatalogCapture.body() instanceof LocalMutation<?, ?> localMutation) {
-			builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
-		} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
-			builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
-		} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
-			builder.setInfrastructureMutation(DelegatingInfrastructureMutationConverter.INSTANCE.convert(transactionMutation));
-		}
+
+		AssociatedDataMutationConverter.doWithClientVersion(
+			clientVersion,
+			() -> {
+				if (changeCatalogCapture.body() instanceof EntityMutation entityMutation) {
+					builder.setEntityMutation(DelegatingEntityMutationConverter.INSTANCE.convert(entityMutation));
+				} else if (changeCatalogCapture.body() instanceof LocalMutation<?, ?> localMutation) {
+					builder.setLocalMutation(DelegatingLocalMutationConverter.INSTANCE.convert(localMutation));
+				} else if (changeCatalogCapture.body() instanceof EntitySchemaMutation schemaMutation) {
+					builder.setSchemaMutation(DelegatingEntitySchemaMutationConverter.INSTANCE.convert(schemaMutation));
+				} else if (changeCatalogCapture.body() instanceof TransactionMutation transactionMutation) {
+					builder.setInfrastructureMutation(DelegatingInfrastructureMutationConverter.INSTANCE.convert(transactionMutation));
+				}
+			}
+		);
 		return builder.build();
 	}
 
